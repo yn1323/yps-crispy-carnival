@@ -89,6 +89,17 @@ export const MobileSplitShiftTypePeriod: Story = {
   globals: { viewport: { value: "mobile1", isRotated: false } },
 };
 
+const splitTime = createExportFixture();
+splitTime.assignments.push({ ...splitTime.assignments[0], startTime: "19:00", endTime: "22:00" });
+export const SplitWorkingHours: Story = {
+  args: { schedule: buildExportSchedule(splitTime) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("cell", { name: "09:00 17:00 19:00 22:00" })).toBeVisible();
+    await expect(canvas.queryByText(/下書き|確定済み|通知状況/)).not.toBeInTheDocument();
+  },
+};
+
 const multiplePageTime = createExportFixture({ staffs: dateOnly.staffs.slice(0, 20) });
 export const ToggleSplitPeriod: Story = {
   parameters: { screenshot: { skip: true } },

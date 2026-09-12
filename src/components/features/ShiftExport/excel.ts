@@ -26,7 +26,7 @@ const styleTableCell = (cell: Cell, fontSize: number, isStaffName = false) => {
 const addScheduleRows = (worksheet: Worksheet, schedule: ExportSchedule) => {
   const layout = getExportLayout(schedule);
   let bodyRowHeight = layout.rowHeightPt;
-  const header = worksheet.getRow(3);
+  const header = worksheet.getRow(2);
   header.height = layout.headerHeightPt;
   header.getCell(1).value = "スタッフ";
   styleTableCell(header.getCell(1), layout.fontSizePt, true);
@@ -42,7 +42,7 @@ const addScheduleRows = (worksheet: Worksheet, schedule: ExportSchedule) => {
   });
 
   schedule.rows.forEach((staff, index) => {
-    const row = worksheet.getRow(index + 4);
+    const row = worksheet.getRow(index + 3);
     const staffCell = row.getCell(1);
     staffCell.value = staff.staffName;
     styleTableCell(staffCell, layout.fontSizePt, true);
@@ -86,7 +86,7 @@ const addScheduleRows = (worksheet: Worksheet, schedule: ExportSchedule) => {
     });
   });
   schedule.rows.forEach((_, index) => {
-    worksheet.getRow(index + 4).height = Math.ceil(bodyRowHeight * 2) / 2;
+    worksheet.getRow(index + 3).height = Math.ceil(bodyRowHeight * 2) / 2;
   });
 };
 
@@ -100,7 +100,7 @@ export const createShiftExcel = async (schedule: ExportSchedule): Promise<Blob> 
     const worksheet = workbook.addWorksheet(
       periods.length === 1 ? "シフト表" : periodIndex === 0 ? "シフト表（前半）" : "シフト表（後半）",
       {
-        views: [{ state: "frozen", xSplit: 1, ySplit: 3, topLeftCell: "B4", showGridLines: false }],
+        views: [{ state: "frozen", xSplit: 1, ySplit: 2, topLeftCell: "B3", showGridLines: false }],
         pageSetup: {
           paperSize: 9,
           orientation: "landscape",
@@ -120,18 +120,12 @@ export const createShiftExcel = async (schedule: ExportSchedule): Promise<Blob> 
     });
     const lastColumn = period.dates.length + 1;
     worksheet.mergeCells(1, 1, 1, lastColumn);
-    worksheet.mergeCells(2, 1, 2, lastColumn);
     worksheet.getRow(1).height = 26;
     worksheet.getCell("A1").value = getExportTitle(period);
     worksheet.getCell("A1").font = { name: "Noto Sans JP", size: 16, bold: true, color: { argb: BLACK } };
-    worksheet.getRow(2).height = 22;
-    worksheet.getCell("A2").value =
-      period.statusLabel + (period.notificationLabel ? `\n${period.notificationLabel}` : "");
-    worksheet.getCell("A2").font = { name: "Noto Sans JP", size: 9, color: { argb: BLACK } };
-    worksheet.getCell("A2").alignment = { vertical: "middle", wrapText: true };
     addScheduleRows(worksheet, period);
-    worksheet.pageSetup.printArea = `A1:${worksheet.getColumn(lastColumn).letter}${period.rows.length + 3}`;
-    worksheet.pageSetup.printTitlesRow = "3:3";
+    worksheet.pageSetup.printArea = `A1:${worksheet.getColumn(lastColumn).letter}${period.rows.length + 2}`;
+    worksheet.pageSetup.printTitlesRow = "2:2";
   });
   const bytes = await workbook.xlsx.writeBuffer();
   return new Blob([new Uint8Array(bytes)], {

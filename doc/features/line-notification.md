@@ -33,6 +33,8 @@ LINE APIの429はquota fallbackとは別に再試行し、通常のLINE通知で
 | `/line/callback` | LINE Loginの成功、期限切れ、試行上限、エラーを確認する |
 | LINE公式アカウントのトーク画面 | 受信メッセージに対する定型応答を受け取る |
 
+管理者の「LINEで受け取れません」には、公式アカウントのブロック・友だち未追加の可能性と、本人へ再連携リンクを共有するか再連携用メールを送る手順を表示する。  連携結果画面で友だち状態が無効の場合は、友だち追加・ブロック解除の案内と「公式アカウントを開く」ボタンを表示する。リンク先は環境別の`VITE_LINE_OFFICIAL_ACCOUNT_URL`を使い、Production・Develop・PreviewのGitHub Environment Variablesからビルドへ渡す。公開用ビルドでは未設定や不正なURLを拒否する。
+
 個別再送は、通常の募集作成時またはシフト確定時に通知できなかった場合の補助導線である。
 操作後の画面は「送りました」と案内し、配送済みとは表現しない。
 店舗別設定ではpathの`shopId`とURLで検証済みの`organizationId`を各queryとmutationへ明示して渡し、browser storageの店舗IDを送信対象に使わない。

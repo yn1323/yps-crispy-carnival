@@ -11,4 +11,5 @@ export function ShiftExportPage({ data }: { data: ShiftExportData }) {
   return <ShiftExportView schedule={schedule} download={download} onSplitPeriodChange={setSplitPeriod} />;
 }
 
-export { getExportBlockMessage } from "./script";
+export type { ShiftExportData } from "./types";
+export { useOpenShiftExport, useReceivedShiftExport } from "./useShiftExportTransfer";

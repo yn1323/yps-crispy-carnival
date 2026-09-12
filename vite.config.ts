@@ -5,6 +5,7 @@ import { defineConfig, loadEnv } from "vite";
 import pkg from "./package.json" with { type: "json" };
 import { loadStripePublicPlanPrices } from "./scripts/loadStripePublicPlanPrices";
 import { collectPublicRoutes, STATIC_404_BUILD_PATH } from "./scripts/staticSite";
+import { getLineOfficialAccountUrl } from "./src/configs/lineOfficialAccount";
 import type { PublicPlanPriceCatalog } from "./src/domains/publicPricing";
 import { PUBLIC_PLAN_PRICE_FIXTURE } from "./src/domains/publicPricing/fixture";
 import { mdxPlugin } from "./vite/mdxPlugin";
@@ -19,6 +20,10 @@ const buildDateJst = new Intl.DateTimeFormat("sv-SE", {
 export default defineConfig(async ({ mode }) => {
   const buildEnvironment = loadEnv(mode, process.cwd(), "VITE_");
   const appEnvironment = buildEnvironment.VITE_APP_ENVIRONMENT || "local";
+  const lineOfficialAccountUrl = getLineOfficialAccountUrl(buildEnvironment.VITE_LINE_OFFICIAL_ACCOUNT_URL);
+  if (["production", "develop", "preview"].includes(appEnvironment) && !lineOfficialAccountUrl) {
+    throw new Error("VITE_LINE_OFFICIAL_ACCOUNT_URL is required for published builds");
+  }
   const releaseId = buildEnvironment.VITE_RELEASE_ID || process.env.GITHUB_SHA || "local";
   const publicPlanPrices = await resolvePublicPlanPrices(appEnvironment);
 

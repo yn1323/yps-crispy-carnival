@@ -17,10 +17,10 @@ describe("buildExportSchedule", () => {
       { lines: ["-"] },
     ]);
   });
-  it("分割勤務と24時以降を最初の開始・最後の終了の2行へまとめる", () => {
+  it("分割勤務と24時以降をそれぞれの開始・終了で保持する", () => {
     const data = createExportFixture();
     data.assignments.push({ ...data.assignments[0], startTime: "22:00", endTime: "26:00" });
-    expect(buildExportSchedule(data).rows[0].cells[0].lines).toEqual(["09:00", "26:00"]);
+    expect(buildExportSchedule(data).rows[0].cells[0].lines).toEqual(["09:00", "17:00", "22:00", "26:00"]);
   });
   it("同名の現スタッフと削除済みスタッフを区別し、保存順と割当を保つ", () => {
     const data = createExportFixture({
@@ -63,27 +63,6 @@ describe("buildExportSchedule", () => {
     expect(buildExportSchedule(data).dates).toHaveLength(1);
     data.recruitment.periodEnd = "2026-10-01";
     expect(() => buildExportSchedule(data)).toThrow();
-    expect(() => buildExportSchedule(createExportFixture({ exportBlockReason: "excludedStaffAssignments" }))).toThrow();
-  });
-  it("確定履歴・内容比較・配送状況を別々に表示し、時刻で推測しない", () => {
-    const data = createExportFixture({
-      confirmationState: "confirmed",
-      contentComparison: "same",
-      notificationState: "pending",
-    });
-    data.recruitment.draftSavedAt = 9999;
-    data.recruitment.confirmedAt = 1;
-    expect(buildExportSchedule(data)).toMatchObject({
-      statusLabel: "確定済み",
-      notificationLabel: "前回の通知は処理中",
-    });
-    expect(buildExportSchedule({ ...data, contentComparison: "different", notificationState: "failed" })).toMatchObject(
-      { statusLabel: "確定後に変更あり", notificationLabel: "前回の通知に失敗あり" },
-    );
-    expect(buildExportSchedule({ ...data, contentComparison: "unknown", notificationState: "unknown" })).toMatchObject({
-      statusLabel: "確定済み（変更状況を確認できません）",
-      notificationLabel: "前回の通知状況を確認できません",
-    });
   });
   it("ファイル名から区切り文字・制御文字を除き、セル用の元の名前は残す", () => {
     const schedule = buildExportSchedule(

@@ -37,8 +37,22 @@ export function ShiftExportView({ schedule, download, onSplitPeriodChange }: Pro
               </Checkbox.Root>
             </Box>
           )}
-          <Flex gap={3} marginStart="auto">
+          <Flex gap={3} marginStart="auto" align="center" minW={0}>
+            {download.download && (
+              <Text role="status" fontSize="sm" minW={0}>
+                ダウンロードが始まらない場合、
+                <a
+                  className="shift-export-download-link"
+                  href={download.download.url}
+                  download={download.download.fileName}
+                >
+                  ここ
+                </a>
+                を押して保存してください。
+              </Text>
+            )}
             <Button
+              flexShrink={0}
               colorPalette="teal"
               onClick={() => void download.generate("pdf")}
               disabled={download.isGenerating}
@@ -48,6 +62,7 @@ export function ShiftExportView({ schedule, download, onSplitPeriodChange }: Pro
               PDF
             </Button>
             <Button
+              flexShrink={0}
               variant="outline"
               onClick={() => void download.generate("xlsx")}
               disabled={download.isGenerating}
@@ -63,20 +78,10 @@ export function ShiftExportView({ schedule, download, onSplitPeriodChange }: Pro
             {download.error}
           </Text>
         )}
-        {download.download && (
-          <Text role="status" mt={3} fontSize="sm">
-            ダウンロードが始まらない場合、
-            <a
-              className="shift-export-download-link"
-              href={download.download.url}
-              download={download.download.fileName}
-            >
-              ここ
-            </a>
-            を押して保存してください。
-          </Text>
-        )}
       </Box>
+      <Text px={4} pt={3} fontSize="sm" color="fg.muted">
+        出力画面を開いた時点のシフトを表示しています
+      </Text>
       {/* biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard users need to scroll the fixed-width preview. */}
       <section className="shift-export-preview" aria-label="シフト表プレビュー" tabIndex={0}>
         {pages.map(({ period, layout, rows, isFirstPage }, pageIndex) => (
@@ -94,10 +99,6 @@ export function ShiftExportView({ schedule, download, onSplitPeriodChange }: Pro
             {isFirstPage && (
               <div style={{ height: `${layout.titleHeightPt}pt` }}>
                 <h1 className="shift-export-title">{getExportTitle(period)}</h1>
-                <p>
-                  {schedule.statusLabel}
-                  {schedule.notificationLabel ? ` ／ ${schedule.notificationLabel}` : ""}
-                </p>
               </div>
             )}
             <table className="shift-export-table" aria-label="シフト表">

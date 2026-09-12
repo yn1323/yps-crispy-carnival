@@ -42,7 +42,8 @@ export function getStaffRegistrationTrustedIpHeader(): "cf-connecting-ip" | null
 export type DebugNotificationDeliveryMode = "live" | "dry-run" | "force-failure";
 
 export function isDebugModeEnabled(): boolean {
-  const rawDebugMode = env.DEBUG_MODE?.trim() ?? "";
+  // Node workerではprocess.env自体が差し替わるため、通知のデバッグ設定は保持済みのenvを参照しない。
+  const rawDebugMode = process.env.DEBUG_MODE?.trim() ?? "";
   if (!rawDebugMode || rawDebugMode === "false") return false;
   if (rawDebugMode === "true") return true;
   throw new Error("DEBUG_MODE must be either true or false");
@@ -54,7 +55,7 @@ function normalizeDeploymentUrl(value: string | undefined): string {
 
 export function getDebugNotificationDeliveryMode(): DebugNotificationDeliveryMode {
   const debugModeEnabled = isDebugModeEnabled();
-  const rawDeliveryMode = env.DEBUG_NOTIFICATION_DELIVERY_MODE?.trim() ?? "";
+  const rawDeliveryMode = process.env.DEBUG_NOTIFICATION_DELIVERY_MODE?.trim() ?? "";
   if (!rawDeliveryMode) return "live";
   if (!debugModeEnabled) {
     throw new Error("DEBUG_NOTIFICATION_DELIVERY_MODE requires DEBUG_MODE=true");
