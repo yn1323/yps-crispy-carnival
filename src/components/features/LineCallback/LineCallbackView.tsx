@@ -39,7 +39,8 @@ const COPY: Record<
     icon: LuClock,
     tone: "warning",
     title: "リンクが無効です",
-    description: "シフト作成担当者に新しいLINE連携リンクの発行を依頼してください。",
+    description:
+      "最新のメールに記載のLINE連携リンクのみ有効です。\n最新のリンクでもこのメッセージが出る場合、シフト作成担当者に新しいLINE連携リンクの発行を依頼してください。",
   },
   rate_limited: {
     icon: LuCircleAlert,
