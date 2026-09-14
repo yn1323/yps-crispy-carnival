@@ -23,6 +23,16 @@ developmentとproductionの設定を同じ証跡や変数値として扱わな�
 
 ## 環境変数
 
+### 公開画面の公式アカウントURL
+
+GitHubの`Production`、`Develop`、`Preview`各EnvironmentのVariablesへ、対象環境の友だち追加URLを`VITE_LINE_OFFICIAL_ACCOUNT_URL`として設定する。  build・deploy・release workflowがこの値をフロントエンドのビルドへ渡し、LINE連携結果画面の「公式アカウントを開く」で使用する。
+
+URLはHTTPSの`lin.ee`または`line.me`とし、ルート以外のpathを必要とする。認証情報や独自portを含むURLは拒否する。  `VITE_APP_ENVIRONMENT`が`production`、`develop`、`preview`のビルドでは未設定もエラーになる。他環境のURLへの自動fallbackは行わない。
+
+これはビルド時の公開設定であり、Convexの環境変数同期では設定しない。設定済み・反映済みの判断は、対象環境の証跡を[リリース状態](release-status.md)へ記録して行う。
+
+### ConvexのLINE接続設定
+
 | 変数 | 用途 |
 |---|---|
 | `LINE_LOGIN_CHANNEL_ID` | LINE Loginの認可URLを組み立てる |
