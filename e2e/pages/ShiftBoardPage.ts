@@ -22,4 +22,30 @@ export class ShiftBoardPage {
   async expectConfirmedStatus() {
     await expect(this.page.getByRole("button", { name: /もう一度通知|再送/ })).toBeVisible();
   }
+
+  /** スマートフォンのシフト表は、保存と確定を「保存・確定・出力」メニューへまとめている。 */
+  async confirmFromMobileMenu(staffCount: number) {
+    await this.page.getByRole("button", { name: "保存・確定・出力", exact: true }).click();
+    await this.page.getByRole("menuitem", { name: "シフトを確定", exact: true }).click();
+    const dialog = this.page.getByRole("dialog", { name: "このシフトをスタッフに通知しますか？" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText(`対象：${staffCount}名`)).toBeVisible();
+    await dialog.getByRole("button", { name: "シフトを確定して通知", exact: true }).click();
+    await expect(this.page.getByText("シフトを確定しました")).toBeVisible();
+    await expect(this.page.getByRole("button", { name: "保存・再送・出力", exact: true })).toBeVisible();
+  }
+
+  async saveDraft() {
+    await this.page.getByRole("button", { name: "下書き保存", exact: true }).click();
+    await expect(this.page.getByText("下書きを保存しました", { exact: true })).toBeVisible();
+  }
+
+  async notifyChangedStaff() {
+    await this.page.getByRole("button", { name: "もう一度通知", exact: true }).click();
+    const dialog = this.page.getByRole("dialog", { name: "確定シフトをもう一度通知しますか？" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText("対象：前回通知から変更があるスタッフ", { exact: true })).toBeVisible();
+    await dialog.getByRole("button", { name: "変更があるスタッフに通知", exact: true }).click();
+    await expect(this.page.getByText("変更があるスタッフに通知を送りました", { exact: true })).toBeVisible();
+  }
 }

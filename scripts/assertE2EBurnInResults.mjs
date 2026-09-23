@@ -1,7 +1,14 @@
 import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
-import { collectE2ETests } from "./assertE2ECoreResults.mjs";
+import { collectE2ETests, EXPECTED_CORE_CONTRACTS } from "./assertE2ECoreResults.mjs";
 
+function contractIdsForProject(projectName) {
+  return [...EXPECTED_CORE_CONTRACTS]
+    .filter(([, expectedProject]) => expectedProject === projectName)
+    .map(([contractId]) => contractId);
+}
+
+// 契約一覧はcore result gateを正本とし、burn-inへ複製しない。
 export const E2E_BURN_IN_PHASES = new Map([
   [
     "desktop",
@@ -9,23 +16,7 @@ export const E2E_BURN_IN_PHASES = new Map([
       projectName: "desktop-chromium",
       setupCount: 3,
       repetitions: 10,
-      contractIds: [
-        "E2E-AUTH-01",
-        "E2E-AUTH-02",
-        "E2E-SETUP-01",
-        "E2E-STAFF-01",
-        "E2E-SHIFT-01",
-        "E2E-EXPORT-01",
-        "E2E-EXPORT-02",
-        "E2E-TENANT-01",
-        "E2E-MEMBERSHIP-01",
-        "E2E-SHOP-01",
-        "E2E-ORGANIZATION-01",
-        "E2E-ORGANIZATION-02",
-        "E2E-MANAGER-01",
-        "E2E-MANAGER-02",
-        "E2E-NAV-01",
-      ],
+      contractIds: contractIdsForProject("desktop-chromium"),
     },
   ],
   [
@@ -34,7 +25,7 @@ export const E2E_BURN_IN_PHASES = new Map([
       projectName: "mobile-chrome",
       setupCount: 0,
       repetitions: 10,
-      contractIds: ["E2E-MOBILE-01"],
+      contractIds: contractIdsForProject("mobile-chrome"),
     },
   ],
 ]);
