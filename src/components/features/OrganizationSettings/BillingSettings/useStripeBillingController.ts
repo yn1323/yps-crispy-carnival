@@ -6,6 +6,7 @@ import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedba
 import { toaster } from "@/src/components/ui/toaster";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { createBrowserUuid } from "@/src/lib/browserUuid";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import type {
   BillingPendingCheckoutPurpose,
   BillingPendingCheckoutStatus,
@@ -444,6 +445,7 @@ export function useStripeBillingController(input: Input) {
         if (result.status === "unavailable") return showUnavailable(result.reason);
         if (!isMountedRef.current || activeScopeIdRef.current !== organizationId) return;
         setDialog(null);
+        trackProductEvent({ kind: "plan_checkout_start", plan: currentDialog.targetPlan });
         openBillingUrl(result.url);
         return;
       }

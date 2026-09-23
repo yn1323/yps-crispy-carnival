@@ -1,10 +1,13 @@
 import {
   buildWebVitalEvent,
+  getMeasurementPagePath,
   getViewportClass,
   getWebMeasurementRouteFamily,
+  NOT_FOUND_MEASUREMENT_PAGE_PATH,
   normalizeMeasurementPathname,
   normalizeReleaseId,
   normalizeWebMeasurementEnvironment,
+  type ProductMeasurementInput,
   type PublicCtaId,
   serializeWebMeasurementEvent,
   type WebMeasurementContext,
@@ -22,6 +25,7 @@ export type WebMeasurementRuntimeConfig = {
 type DocumentMeasurementContext = {
   context: WebMeasurementContext;
   documentRouteFamily: ReturnType<typeof getWebMeasurementRouteFamily>;
+  isNotFoundDocument: boolean;
   viewportClass: ReturnType<typeof getViewportClass>;
 };
 
@@ -32,6 +36,7 @@ type RuntimeDependencies = {
 
 let documentContext: DocumentMeasurementContext | null = null;
 let lastPageViewPathname: string | null = null;
+let lastPageLocation: string | null = null;
 let webVitalsStarted = false;
 const deployMeasurementEnvironments = new Set(["develop", "preview", "production"]);
 
@@ -58,11 +63,14 @@ export function initializeDocumentWebMeasurement(
     config,
     currentPathname,
     initialDocumentPathname,
+    isNotFoundDocument = false,
     viewportWidth,
   }: {
     config: WebMeasurementRuntimeConfig;
     currentPathname: string;
     initialDocumentPathname: string;
+    /** Cloudflareが未知URLへ返す静的404。記事slugなど既知routeの形をしたpathでも404として数える。 */
+    isNotFoundDocument?: boolean;
     viewportWidth: number;
   },
   dependencies: RuntimeDependencies = {},
@@ -75,7 +83,8 @@ export function initializeDocumentWebMeasurement(
         environment: normalizeWebMeasurementEnvironment(config.environment),
         releaseId: normalizeReleaseId(config.releaseId),
       },
-      documentRouteFamily: getWebMeasurementRouteFamily(initialDocumentPathname),
+      documentRouteFamily: isNotFoundDocument ? "not_found" : getWebMeasurementRouteFamily(initialDocumentPathname),
+      isNotFoundDocument,
       viewportClass: getViewportClass(viewportWidth),
     };
   }
@@ -106,13 +115,28 @@ export function trackPageView(pathname: string): boolean {
   const normalizedPathname = normalizeMeasurementPathname(pathname);
   if (lastPageViewPathname === normalizedPathname) return false;
 
+  const routeFamily = documentContext.isNotFoundDocument ? "not_found" : getWebMeasurementRouteFamily(pathname);
+  // OAuthとLINE連携のcallbackは通過するだけの画面なので、page viewを数えない。
+  if (routeFamily === "callback") return false;
+
+  const pagePath = routeFamily === "not_found" ? NOT_FOUND_MEASUREMENT_PAGE_PATH : getMeasurementPagePath(pathname);
+  const pageLocation = `${window.location.origin}${pagePath}`;
   const sent = pushGtmEvent(
     serializeWebMeasurementEvent(
-      { kind: "page_view", routeFamily: getWebMeasurementRouteFamily(pathname) },
+      {
+        kind: "page_view",
+        routeFamily,
+        pageLocation,
+        // 初回はGA4がdocument.referrerを使う。SPA遷移では直前の画面を参照元にする。
+        ...(lastPageLocation ? { pageReferrer: lastPageLocation } : {}),
+      },
       documentContext.context,
     ),
   );
-  if (sent) lastPageViewPathname = normalizedPathname;
+  if (sent) {
+    lastPageViewPathname = normalizedPathname;
+    lastPageLocation = pageLocation;
+  }
   return sent;
 }
 
@@ -127,10 +151,22 @@ export function trackPublicCta(ctaId: PublicCtaId, pathname = window.location.pa
   );
 }
 
+export function trackProductEvent(input: ProductMeasurementInput, pathname = window.location.pathname): boolean {
+  if (!documentContext || !isGtmInitialized()) return false;
+
+  return pushGtmEvent(
+    serializeWebMeasurementEvent(
+      { ...input, routeFamily: getWebMeasurementRouteFamily(pathname) },
+      documentContext.context,
+    ),
+  );
+}
+
 export function stopDocumentWebMeasurement(): void {
   stopGTM();
   documentContext = null;
   lastPageViewPathname = null;
+  lastPageLocation = null;
   webVitalsStarted = false;
 }
 
@@ -138,5 +174,6 @@ export function resetWebMeasurementForTests(): void {
   resetGTM();
   documentContext = null;
   lastPageViewPathname = null;
+  lastPageLocation = null;
   webVitalsStarted = false;
 }

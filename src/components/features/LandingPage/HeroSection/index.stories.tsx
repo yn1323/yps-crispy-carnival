@@ -1,9 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { PUBLIC_PLAN_PRICE_FIXTURE } from "@/src/domains/publicPricing/fixture";
 import { HeroSection } from ".";
 
 const meta = {
   title: "Features/LandingPage/HeroSection",
   component: HeroSection,
+  args: {
+    prices: PUBLIC_PLAN_PRICE_FIXTURE,
+  },
   parameters: {
     layout: "fullscreen",
   },

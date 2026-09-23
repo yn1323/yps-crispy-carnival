@@ -1,3 +1,7 @@
+import { ORGANIZATION_PLAN_LIMITS } from "@/convex/organizationBilling/planLimits";
+
+const freeLimits = ORGANIZATION_PLAN_LIMITS.free;
+
 export type LandingFaq = {
   q: string;
   a: string;
@@ -27,10 +31,10 @@ LINEを利用するスタッフにはLINEで、利用しないスタッフには
 過去のシフトを移し替える必要はなく、現在の運用と併用しながら試すこともできます。`,
   },
   {
-    q: "無料トライアル終了後、自動で料金が発生しますか？",
-    a: `いいえ、自動では発生しません。
-トライアル中はクレジットカードの登録も不要です。
-有料プランを申し込んだ場合にのみ料金が発生します。`,
+    q: "トライアル終了後も無料で使えますか？",
+    a: `はい、利用人数${freeLimits.maxPeople}名（管理者を含む）、${freeLimits.maxShops}店舗、管理者${freeLimits.maxActiveManagers}名までなら、Freeプランで無料のまま使い続けられます。
+トライアル中はクレジットカードの登録も不要で、有料プランを申し込まない限り料金は発生しません。
+利用人数、店舗数、管理者数のいずれかが上限を超える場合は、上限内へ整理するか有料プランを選ぶと、引き続き利用できます。`,
   },
 ];
 

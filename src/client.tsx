@@ -4,14 +4,15 @@ import { hydrateRoot } from "react-dom/client";
 import { WEB_MEASUREMENT_RUNTIME_CONFIG } from "@/src/configs/webMeasurement";
 import { initializeDocumentWebMeasurement } from "@/src/lib/webMeasurement";
 
+const isStaticNotFoundDocument = document.querySelector("[data-static-not-found]") !== null;
+
 initializeDocumentWebMeasurement({
   config: WEB_MEASUREMENT_RUNTIME_CONFIG,
   currentPathname: window.location.pathname,
   initialDocumentPathname: window.location.pathname,
+  isNotFoundDocument: isStaticNotFoundDocument,
   viewportWidth: window.innerWidth,
 });
-
-const isStaticNotFoundDocument = document.querySelector("[data-static-not-found]") !== null;
 
 function reportCaughtRenderError(): void {
   console.error("Client render error", { errorCode: "client_render_error" });

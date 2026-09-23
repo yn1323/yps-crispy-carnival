@@ -5,6 +5,7 @@ import { PublicPageLayout } from "@/src/components/templates/PublicPageLayout";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
 import { Input } from "@/src/components/ui/FormControls";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import { HelpAudienceBadge } from "./HelpAudienceBadge";
 import {
   HelpNotificationBasicsLinkCard,
@@ -24,10 +25,25 @@ export type HelpIndexProps = {
   tasks?: readonly HelpTask[];
 };
 
+// 入力のたびに送らず、入力が止まった検索だけを1回として数える。
+const HELP_SEARCH_MEASUREMENT_DELAY_MS = 1500;
+
 export function HelpIndex({ metas = helpIndexMetas, tasks = HELP_TASKS }: HelpIndexProps) {
   const [query, setQuery] = useState("");
-  const hasQuery = query.trim().length > 0;
+  const normalizedQuery = query.trim();
+  const hasQuery = normalizedQuery.length > 0;
   const results = useMemo(() => searchHelpMetas(metas, query), [metas, query]);
+  const hasResults = results.length > 0;
+
+  useEffect(() => {
+    if (!normalizedQuery) return;
+    // 検索語は送らず、結果の有無だけを送る。
+    const timer = window.setTimeout(
+      () => trackProductEvent({ kind: "help_search", hasResults }),
+      HELP_SEARCH_MEASUREMENT_DELAY_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [normalizedQuery, hasResults]);
 
   useEffect(() => {
     const replaceLegacyHash = () => {

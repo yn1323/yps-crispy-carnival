@@ -35,7 +35,7 @@ afterEach(() => {
 });
 
 describe("client root error reporting", () => {
-  it("static 404 documentも計測を開始するがhydrateはしない", async () => {
+  it("static 404 documentも404として計測を開始するがhydrateはしない", async () => {
     window.history.replaceState({}, "", "/__smoke-404");
     document.body.innerHTML = '<main data-static-not-found="true"></main>';
 
@@ -45,6 +45,7 @@ describe("client root error reporting", () => {
       config: expect.objectContaining({ gtmId: "GTM-TEST123" }),
       currentPathname: "/__smoke-404",
       initialDocumentPathname: "/__smoke-404",
+      isNotFoundDocument: true,
       viewportWidth: window.innerWidth,
     });
     expect(mocks.hydrateRoot).not.toHaveBeenCalled();
