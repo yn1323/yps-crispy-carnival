@@ -12,9 +12,7 @@
       "containerId": "0",
       "name": "shiftori.app",
       "publicId": "GTM-P22XCGTD",
-      "usageContext": [
-        "WEB"
-      ],
+      "usageContext": ["WEB"],
       "fingerprint": "0"
     },
     "tag": [
@@ -67,9 +65,7 @@
             ]
           }
         ],
-        "firingTriggerId": [
-          "24"
-        ],
+        "firingTriggerId": ["24"],
         "tagFiringOption": "ONCE_PER_LOAD",
         "priority": {
           "type": "INTEGER",
@@ -203,9 +199,7 @@
             ]
           }
         ],
-        "firingTriggerId": [
-          "24"
-        ],
+        "firingTriggerId": ["24"],
         "tagFiringOption": "ONCE_PER_EVENT",
         "monitoringMetadata": {
           "type": "MAP"
@@ -349,9 +343,7 @@
             ]
           }
         ],
-        "firingTriggerId": [
-          "26"
-        ],
+        "firingTriggerId": ["26"],
         "tagFiringOption": "ONCE_PER_EVENT",
         "monitoringMetadata": {
           "type": "MAP"
@@ -495,9 +487,7 @@
             ]
           }
         ],
-        "firingTriggerId": [
-          "28"
-        ],
+        "firingTriggerId": ["28"],
         "tagFiringOption": "ONCE_PER_EVENT",
         "monitoringMetadata": {
           "type": "MAP"
@@ -626,9 +616,7 @@
             ]
           }
         ],
-        "firingTriggerId": [
-          "30"
-        ],
+        "firingTriggerId": ["30"],
         "tagFiringOption": "ONCE_PER_EVENT",
         "monitoringMetadata": {
           "type": "MAP"
@@ -757,9 +745,7 @@
             ]
           }
         ],
-        "firingTriggerId": [
-          "32"
-        ],
+        "firingTriggerId": ["32"],
         "tagFiringOption": "ONCE_PER_EVENT",
         "monitoringMetadata": {
           "type": "MAP"
@@ -888,9 +874,7 @@
             ]
           }
         ],
-        "firingTriggerId": [
-          "34"
-        ],
+        "firingTriggerId": ["34"],
         "tagFiringOption": "ONCE_PER_EVENT",
         "monitoringMetadata": {
           "type": "MAP"
@@ -1019,9 +1003,7 @@
             ]
           }
         ],
-        "firingTriggerId": [
-          "36"
-        ],
+        "firingTriggerId": ["36"],
         "tagFiringOption": "ONCE_PER_EVENT",
         "monitoringMetadata": {
           "type": "MAP"
@@ -1195,9 +1177,7 @@
             ]
           }
         ],
-        "firingTriggerId": [
-          "38"
-        ],
+        "firingTriggerId": ["38"],
         "tagFiringOption": "ONCE_PER_EVENT",
         "monitoringMetadata": {
           "type": "MAP"
