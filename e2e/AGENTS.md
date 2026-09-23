@@ -21,6 +21,8 @@
 - testing helperやtesting HTTP APIは、E2E専用credentialを検証してから状態を変更する。
 - token、credential、メール本文、LINE payload、個人情報をreport、trace、artifact、ログへ出さない。
 - 外部サービスの実到着を通常E2Eの成功条件にしない。
+- `DEBUG_NOTIFICATION_DELIVERY_MODE`などdeployment全体に効く設定を、E2E実行中に変更しない。
+- LINE Loginなど外部providerの本人確認を迂回する分岐をアプリへ追加しない。E2Eでの代替は`convex/testing.ts`のE2E専用関数に限る。
 - E2Eの構造、selector、待機、通知検証の手順は `test-strategy` に従う。
 - core E2Eを削減または統合するときは、件数ではなく契約IDの移管表でレビューし、`doc/rules/testing-strategy.md`のbrowser-only保全条件を満たす。
 - 匿名の保護route redirectとlogout後の保護route再アクセスを、coreまたは独立browser smokeで維持する。
@@ -37,7 +39,8 @@ pnpm e2e e2e/path/to/file.test.ts --retries=0 --workers=1
 pnpm e2e:burn-in
 ```
 
-`pnpm e2e:ci`はdesktop 15個、mobile 1個のcore契約とresult gateを実行する。
+`pnpm e2e:ci`は`scripts/assertE2ECoreResults.mjs`の`EXPECTED_CORE_CONTRACTS`に登録したcore契約とresult gateを実行する。
+core契約の件数と一覧は同scriptを正本とし、文書へ件数を転記しない。
 `pnpm e2e:burn-in`は局所E2Eが成功した後に使い、desktopとmobileを直列化したまま、retryなしで各core契約を10回反復する。
 各phaseは次のphaseがreportを上書きする前に、contract ID別の反復数、project、初回成功、skip、flakyとartifact privacyを検査する。
 

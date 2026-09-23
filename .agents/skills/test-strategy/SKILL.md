@@ -28,6 +28,16 @@ security-sensitiveな変更では`shiftori-security-review`を併用する。
 7. 仕様から消えたcontractを固定するtestは削除する。
 8. targeted testから実行し、最後に変更層のsuiteとrepoの必須検証を行う。
 
+## core E2E追加Workflow
+
+1. 追加するハッピーパスについて、`doc/specs/full-regression-contracts.md`の契約行と、前の機能の結果を次の機能で使う受け渡しを先に決める。
+2. validation、通知集合、DB状態など受け渡し以外の確認が主担当層にあるかを確認し、E2Eへ持ち込まない。
+3. 開始状態を作るseedと、匿名contextに必要なcapability helperを`convex/testing.ts`と`e2e/helpers/`の既存パターンで用意する。
+4. 対象testを`--retries=0 --workers=1`で成功させ、`pnpm e2e:burn-in`でretryなしの反復をすべて初回成功させる。
+5. `scripts/assertE2ECoreResults.mjs`の期待契約と契約表を同じ変更で更新する。
+
+seed、provider代替、失敗状態の作り方は`references/test-writing-rules.md`、E2Eへ上げる判断は`references/e2e-full-regression-rules.md`を正本とする。
+
 ## E2E安定化Workflow
 
 1. 失敗したE2Eより先に、現在の画面、機能文書、Story、主担当層のtestを確認し、現行contractを特定する。
