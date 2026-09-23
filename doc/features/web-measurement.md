@@ -24,7 +24,7 @@ local build、GTM ID欠落、不正なreleaseでは第三者URLを組み立て�
 
 初回page viewはclient起動時に送り、SPA遷移はrootのpathname変更から送る。  同じpathnameの重複とqueryだけの変更は送らない。  OAuthとLINE連携のcallback（`callback`）は通過するだけの画面なので、page viewを送らない。
 
-`page_view`には、有限の`route_family`と`route_area`、集計用の`page_location`を付ける。  `page_location`はqueryとhashを除き、店舗、募集、人物のIDを含むpathを`/manage/shops/:shopId`のような固定pathへ置き換えたURLである。  SPA遷移では直前の`page_location`を`page_referrer`として送り、初回はGA4がdocumentの参照元を使う。
+`page_view`には、有限の`route_family`と`route_area`、集計用の`page_location`を付ける。  `page_location`はqueryとhashを除き、店舗、募集、人物のIDを含むpathを`/manage/shops/:shopId`のような固定pathへ置き換えたURLである。  未知URLのpathには任意の文字列が入り得るため、`not_found`は入力されたpathを使わず`/404`にする。  Cloudflareが返す静的404は、記事slugなど既知routeの形をしたpathでも`not_found`として送る。  SPA遷移では直前の`page_location`を`page_referrer`として送り、初回はGA4がdocumentの参照元を使う。
 
 主な分類は次のとおりであり、完全な一覧と判定順は`src/domains/webMeasurement/routePolicy.ts`を正本とする。
 

@@ -12,14 +12,16 @@
       "containerId": "0",
       "name": "shiftori.app",
       "publicId": "GTM-P22XCGTD",
-      "usageContext": ["WEB"],
+      "usageContext": [
+        "WEB"
+      ],
       "fingerprint": "0"
     },
     "tag": [
       {
         "accountId": "0",
         "containerId": "0",
-        "tagId": "25",
+        "tagId": "23",
         "name": "GA4 - Google tag",
         "type": "googtag",
         "parameter": [
@@ -58,15 +60,22 @@
                   {
                     "type": "TEMPLATE",
                     "key": "parameterValue",
-                    "value": "{{JS - Page Location Without Query}}"
+                    "value": "{{JS - Measurement Page Location}}"
                   }
                 ]
               }
             ]
           }
         ],
-        "firingTriggerId": ["24"],
-        "tagFiringOption": "ONCE_PER_EVENT",
+        "firingTriggerId": [
+          "24"
+        ],
+        "tagFiringOption": "ONCE_PER_LOAD",
+        "priority": {
+          "type": "INTEGER",
+          "key": "priority",
+          "value": "10"
+        },
         "monitoringMetadata": {
           "type": "MAP"
         },
@@ -78,7 +87,7 @@
       {
         "accountId": "0",
         "containerId": "0",
-        "tagId": "27",
+        "tagId": "25",
         "name": "GA4 - page_view",
         "type": "gaawe",
         "parameter": [
@@ -194,7 +203,9 @@
             ]
           }
         ],
-        "firingTriggerId": ["26"],
+        "firingTriggerId": [
+          "24"
+        ],
         "tagFiringOption": "ONCE_PER_EVENT",
         "monitoringMetadata": {
           "type": "MAP"
@@ -207,7 +218,7 @@
       {
         "accountId": "0",
         "containerId": "0",
-        "tagId": "29",
+        "tagId": "27",
         "name": "GA4 - select_content",
         "type": "gaawe",
         "parameter": [
@@ -338,7 +349,9 @@
             ]
           }
         ],
-        "firingTriggerId": ["28"],
+        "firingTriggerId": [
+          "26"
+        ],
         "tagFiringOption": "ONCE_PER_EVENT",
         "monitoringMetadata": {
           "type": "MAP"
@@ -351,7 +364,7 @@
       {
         "accountId": "0",
         "containerId": "0",
-        "tagId": "31",
+        "tagId": "29",
         "name": "GA4 - setup_complete",
         "type": "gaawe",
         "parameter": [
@@ -482,7 +495,9 @@
             ]
           }
         ],
-        "firingTriggerId": ["30"],
+        "firingTriggerId": [
+          "28"
+        ],
         "tagFiringOption": "ONCE_PER_EVENT",
         "monitoringMetadata": {
           "type": "MAP"
@@ -495,7 +510,7 @@
       {
         "accountId": "0",
         "containerId": "0",
-        "tagId": "33",
+        "tagId": "31",
         "name": "GA4 - section_view",
         "type": "gaawe",
         "parameter": [
@@ -611,7 +626,9 @@
             ]
           }
         ],
-        "firingTriggerId": ["32"],
+        "firingTriggerId": [
+          "30"
+        ],
         "tagFiringOption": "ONCE_PER_EVENT",
         "monitoringMetadata": {
           "type": "MAP"
@@ -624,7 +641,7 @@
       {
         "accountId": "0",
         "containerId": "0",
-        "tagId": "35",
+        "tagId": "33",
         "name": "GA4 - shift_export",
         "type": "gaawe",
         "parameter": [
@@ -740,7 +757,9 @@
             ]
           }
         ],
-        "firingTriggerId": ["34"],
+        "firingTriggerId": [
+          "32"
+        ],
         "tagFiringOption": "ONCE_PER_EVENT",
         "monitoringMetadata": {
           "type": "MAP"
@@ -753,7 +772,7 @@
       {
         "accountId": "0",
         "containerId": "0",
-        "tagId": "37",
+        "tagId": "35",
         "name": "GA4 - help_search",
         "type": "gaawe",
         "parameter": [
@@ -869,7 +888,9 @@
             ]
           }
         ],
-        "firingTriggerId": ["36"],
+        "firingTriggerId": [
+          "34"
+        ],
         "tagFiringOption": "ONCE_PER_EVENT",
         "monitoringMetadata": {
           "type": "MAP"
@@ -882,7 +903,7 @@
       {
         "accountId": "0",
         "containerId": "0",
-        "tagId": "39",
+        "tagId": "37",
         "name": "GA4 - plan_checkout_start",
         "type": "gaawe",
         "parameter": [
@@ -998,7 +1019,9 @@
             ]
           }
         ],
-        "firingTriggerId": ["38"],
+        "firingTriggerId": [
+          "36"
+        ],
         "tagFiringOption": "ONCE_PER_EVENT",
         "monitoringMetadata": {
           "type": "MAP"
@@ -1011,7 +1034,7 @@
       {
         "accountId": "0",
         "containerId": "0",
-        "tagId": "41",
+        "tagId": "39",
         "name": "GA4 - web_vital",
         "type": "gaawe",
         "parameter": [
@@ -1172,7 +1195,9 @@
             ]
           }
         ],
-        "firingTriggerId": ["40"],
+        "firingTriggerId": [
+          "38"
+        ],
         "tagFiringOption": "ONCE_PER_EVENT",
         "monitoringMetadata": {
           "type": "MAP"
@@ -1188,31 +1213,6 @@
         "accountId": "0",
         "containerId": "0",
         "triggerId": "24",
-        "name": "Page View - shiftori.app",
-        "type": "PAGEVIEW",
-        "filter": [
-          {
-            "type": "EQUALS",
-            "parameter": [
-              {
-                "type": "TEMPLATE",
-                "key": "arg0",
-                "value": "{{Page Hostname}}"
-              },
-              {
-                "type": "TEMPLATE",
-                "key": "arg1",
-                "value": "shiftori.app"
-              }
-            ]
-          }
-        ],
-        "fingerprint": "0"
-      },
-      {
-        "accountId": "0",
-        "containerId": "0",
-        "triggerId": "26",
         "name": "CE - page_view",
         "type": "CUSTOM_EVENT",
         "filter": [
@@ -1254,7 +1254,7 @@
       {
         "accountId": "0",
         "containerId": "0",
-        "triggerId": "28",
+        "triggerId": "26",
         "name": "CE - select_content",
         "type": "CUSTOM_EVENT",
         "filter": [
@@ -1296,7 +1296,7 @@
       {
         "accountId": "0",
         "containerId": "0",
-        "triggerId": "30",
+        "triggerId": "28",
         "name": "CE - setup_complete",
         "type": "CUSTOM_EVENT",
         "filter": [
@@ -1338,7 +1338,7 @@
       {
         "accountId": "0",
         "containerId": "0",
-        "triggerId": "32",
+        "triggerId": "30",
         "name": "CE - section_view",
         "type": "CUSTOM_EVENT",
         "filter": [
@@ -1380,7 +1380,7 @@
       {
         "accountId": "0",
         "containerId": "0",
-        "triggerId": "34",
+        "triggerId": "32",
         "name": "CE - shift_export",
         "type": "CUSTOM_EVENT",
         "filter": [
@@ -1422,7 +1422,7 @@
       {
         "accountId": "0",
         "containerId": "0",
-        "triggerId": "36",
+        "triggerId": "34",
         "name": "CE - help_search",
         "type": "CUSTOM_EVENT",
         "filter": [
@@ -1464,7 +1464,7 @@
       {
         "accountId": "0",
         "containerId": "0",
-        "triggerId": "38",
+        "triggerId": "36",
         "name": "CE - plan_checkout_start",
         "type": "CUSTOM_EVENT",
         "filter": [
@@ -1506,7 +1506,7 @@
       {
         "accountId": "0",
         "containerId": "0",
-        "triggerId": "40",
+        "triggerId": "38",
         "name": "CE - web_vital",
         "type": "CUSTOM_EVENT",
         "filter": [
@@ -2066,28 +2066,13 @@
         "accountId": "0",
         "containerId": "0",
         "variableId": "22",
-        "name": "JS - Page Location Without Query",
-        "type": "jsm",
-        "parameter": [
-          {
-            "type": "TEMPLATE",
-            "key": "javascript",
-            "value": "function() {\n  return location.origin + location.pathname;\n}"
-          }
-        ],
-        "fingerprint": "0"
-      },
-      {
-        "accountId": "0",
-        "containerId": "0",
-        "variableId": "23",
         "name": "JS - Measurement Page Location",
         "type": "jsm",
         "parameter": [
           {
             "type": "TEMPLATE",
             "key": "javascript",
-            "value": "function() {\n  // アプリが送る集計用URLを優先し、未送信の旧版ではqueryとhashを除いたURLを使う。\n  var pageLocation = {{DLV - page_location}};\n  return pageLocation || location.origin + location.pathname;\n}"
+            "value": "function() {\n  // アプリが送る集計用URLを優先する。未送信の旧版ではqueryとhashを除き、未知URLは/404にする。\n  var pageLocation = {{DLV - page_location}};\n  if (pageLocation) return pageLocation;\n  if ({{DLV - route_family}} === \"not_found\") return location.origin + \"/404\";\n  return location.origin + location.pathname;\n}"
           }
         ],
         "fingerprint": "0"

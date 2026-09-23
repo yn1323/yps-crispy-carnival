@@ -45,7 +45,7 @@ describe("Web計測runtime", () => {
     ["/staff/person_internal_id", "staff_detail", "manager", "/staff/:personId"],
     ["/shifts/submit?token=secret", "staff_submit", "staff", "/shifts/submit"],
     ["/privacy", "legal", "other", "/privacy"],
-    ["/unknown", "not_found", "other", "/unknown"],
+    ["/unknown", "not_found", "other", "/404"],
   ] as const)(
     "同意・認証状態に関係なく%sでGTMと集計用page viewを開始する",
     (pathname, routeFamily, routeArea, pagePath) => {
@@ -73,6 +73,25 @@ describe("Web計測runtime", () => {
       expect(JSON.stringify(window.dataLayer)).not.toContain("internal_id");
     },
   );
+
+  it("静的404 documentは記事URLの形をしたpathでも404として送る", () => {
+    initializeDocumentWebMeasurement({
+      config: { ...config, webVitalsSampleRate: 0 },
+      currentPathname: "/articles/secret-token",
+      initialDocumentPathname: "/articles/secret-token",
+      isNotFoundDocument: true,
+      viewportWidth: 1280,
+    });
+
+    expect(window.dataLayer?.filter((event) => event.event === "page_view")).toEqual([
+      expect.objectContaining({
+        page_location: `${window.location.origin}/404`,
+        route_area: "other",
+        route_family: "not_found",
+      }),
+    ]);
+    expect(JSON.stringify(window.dataLayer)).not.toContain("secret");
+  });
 
   it("OAuthとLINE連携のcallbackではGTMを開始し、page viewを送らない", () => {
     expect(

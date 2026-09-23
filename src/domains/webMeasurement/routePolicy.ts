@@ -92,7 +92,8 @@ const templatedPagePaths: Partial<Record<WebMeasurementRouteFamily, string>> = {
   staff_shop: "/staff/:personId/shops/:shopId",
 };
 
-const MAX_PAGE_PATH_LENGTH = 200;
+// 未知URLのpathには任意の文字列が入り得るため、入力されたpathを送らない。
+export const NOT_FOUND_MEASUREMENT_PAGE_PATH = "/404";
 
 const fixedRouteFamilies = new Map<string, WebMeasurementRouteFamily>([
   ["/", "home"],
@@ -181,7 +182,9 @@ export function getWebMeasurementRouteArea(routeFamily: WebMeasurementRouteFamil
 /** 集計用のpathを返す。queryとhashを除き、IDを含むrouteは固定のpathへ置き換える。 */
 export function getMeasurementPagePath(value: string): string {
   const pathname = normalizeMeasurementPathname(value).toLowerCase();
-  const templatedPath = templatedPagePaths[getWebMeasurementRouteFamily(pathname)];
+  const routeFamily = getWebMeasurementRouteFamily(pathname);
+  if (routeFamily === "not_found") return NOT_FOUND_MEASUREMENT_PAGE_PATH;
+  const templatedPath = templatedPagePaths[routeFamily];
   if (templatedPath) return pathname.startsWith("/app/") ? `/app${templatedPath}` : templatedPath;
-  return pathname.slice(0, MAX_PAGE_PATH_LENGTH);
+  return pathname;
 }

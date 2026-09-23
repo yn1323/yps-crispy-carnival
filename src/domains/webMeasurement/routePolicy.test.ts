@@ -111,9 +111,12 @@ describe("Web計測route policy", () => {
     expect(getMeasurementPagePath(pathname)).toBe(pagePath);
   });
 
-  it("未知routeの集計用pathは長さを制限する", () => {
-    expect(getMeasurementPagePath(`/${"a".repeat(300)}`)).toHaveLength(200);
-  });
+  it.each(["/unknown", "/reset/secret-token", "/someone@example.com"])(
+    "未知route %sの集計用pathは入力を含まない固定pathにする",
+    (pathname) => {
+      expect(getMeasurementPagePath(pathname)).toBe("/404");
+    },
+  );
 
   it("query・hash・末尾slashを送信前の分類だけに使えるpathnameへ正規化する", () => {
     expect(normalizeMeasurementPathname("/features///?token=secret#part")).toBe("/features");

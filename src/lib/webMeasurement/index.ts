@@ -3,6 +3,7 @@ import {
   getMeasurementPagePath,
   getViewportClass,
   getWebMeasurementRouteFamily,
+  NOT_FOUND_MEASUREMENT_PAGE_PATH,
   normalizeMeasurementPathname,
   normalizeReleaseId,
   normalizeWebMeasurementEnvironment,
@@ -24,6 +25,7 @@ export type WebMeasurementRuntimeConfig = {
 type DocumentMeasurementContext = {
   context: WebMeasurementContext;
   documentRouteFamily: ReturnType<typeof getWebMeasurementRouteFamily>;
+  isNotFoundDocument: boolean;
   viewportClass: ReturnType<typeof getViewportClass>;
 };
 
@@ -61,11 +63,14 @@ export function initializeDocumentWebMeasurement(
     config,
     currentPathname,
     initialDocumentPathname,
+    isNotFoundDocument = false,
     viewportWidth,
   }: {
     config: WebMeasurementRuntimeConfig;
     currentPathname: string;
     initialDocumentPathname: string;
+    /** Cloudflareが未知URLへ返す静的404。記事slugなど既知routeの形をしたpathでも404として数える。 */
+    isNotFoundDocument?: boolean;
     viewportWidth: number;
   },
   dependencies: RuntimeDependencies = {},
@@ -78,7 +83,8 @@ export function initializeDocumentWebMeasurement(
         environment: normalizeWebMeasurementEnvironment(config.environment),
         releaseId: normalizeReleaseId(config.releaseId),
       },
-      documentRouteFamily: getWebMeasurementRouteFamily(initialDocumentPathname),
+      documentRouteFamily: isNotFoundDocument ? "not_found" : getWebMeasurementRouteFamily(initialDocumentPathname),
+      isNotFoundDocument,
       viewportClass: getViewportClass(viewportWidth),
     };
   }
@@ -109,11 +115,12 @@ export function trackPageView(pathname: string): boolean {
   const normalizedPathname = normalizeMeasurementPathname(pathname);
   if (lastPageViewPathname === normalizedPathname) return false;
 
-  const routeFamily = getWebMeasurementRouteFamily(pathname);
+  const routeFamily = documentContext.isNotFoundDocument ? "not_found" : getWebMeasurementRouteFamily(pathname);
   // OAuthとLINE連携のcallbackは通過するだけの画面なので、page viewを数えない。
   if (routeFamily === "callback") return false;
 
-  const pageLocation = `${window.location.origin}${getMeasurementPagePath(pathname)}`;
+  const pagePath = routeFamily === "not_found" ? NOT_FOUND_MEASUREMENT_PAGE_PATH : getMeasurementPagePath(pathname);
+  const pageLocation = `${window.location.origin}${pagePath}`;
   const sent = pushGtmEvent(
     serializeWebMeasurementEvent(
       {

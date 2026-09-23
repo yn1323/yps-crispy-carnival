@@ -25,7 +25,7 @@ containerの構成は[ga4-gtm-container.json](ga4-gtm-container.json)を正本�
 
 | 種類 | 内容 |
 |---|---|
-| Google tag | `GA4 - Google tag`。`send_page_view`を`false`、`page_location`をqueryとhashを除いたURLにする。`shiftori.app`のPage Viewで発火する |
+| Google tag | `GA4 - Google tag`。`send_page_view`を`false`、`page_location`をアプリが送る集計用URLにする。アプリの最初の`page_view`で、1ページにつき1回だけ発火する |
 | GA4 イベントタグ | `page_view`、`select_content`、`setup_complete`、`section_view`、`shift_export`、`help_search`、`plan_checkout_start`、`web_vital`の8つ。同名のカスタムイベントで発火する |
 | トリガー | すべて`Page Hostname`が`shiftori.app`のときだけ発火する。developとpreviewの計測を本番のpropertyへ混ぜないためである |
 | 変数 | 測定IDの定数、dataLayerの各パラメータ、`page_location`を決めるJavaScript変数 |
@@ -33,7 +33,7 @@ containerの構成は[ga4-gtm-container.json](ga4-gtm-container.json)を正本�
 
 イベントタグは、イベントごとに必要なパラメータだけを送る。  GTMのdataLayerは前のイベントの値を保持するため、一つのタグで全イベントを送ると、別のイベントの値が混ざるからである。
 
-各イベントタグの`page_location`は、アプリが直前の`page_view`で送った集計用URLを使う。  アプリが`page_location`を送らない旧版では、queryとhashを除いた現在のURLを使う。
+Google tagと各イベントタグの`page_location`は、アプリが直前の`page_view`で送った集計用URLを使う。  Google tagを`gtm.js`ではなく最初の`page_view`で起動するのは、セッション開始などの自動イベントにも集計用URLを使うためである。  そのため、`page_view`を送らないOAuthとLINE連携のcallback画面ではGA4を起動しない。  アプリが`page_location`を送らない旧版では、queryとhashを除いた現在のURLを使い、`route_family`が`not_found`なら`/404`にする。
 
 ### インポート手順
 
@@ -41,9 +41,8 @@ containerの構成は[ga4-gtm-container.json](ga4-gtm-container.json)を正本�
 2. ワークスペースは既存のもの、インポートオプションは「統合」と「競合するタグ、トリガー、変数の名前を変更する」を選ぶ。
 3. タグ一覧で、インポート前からあるGoogle tag（測定ID `G-892N66Y30T`、`send_page_view`が`true`のもの）を削除する。  Clarityタグは削除しない。
 4. 「プレビュー」でTag Assistantを開き、`https://shiftori.app/`で次を確認する。
-   - `Container Loaded`（Page View）で`GA4 - Google tag`が1回発火する。
-   - `page_view`で`GA4 - page_view`が1回発火する。
-   - TOPから記事へ移動すると、`page_view`がもう1回だけ発火する。
+   - `page_view`で`GA4 - Google tag`と`GA4 - page_view`がそれぞれ1回発火する。
+   - TOPから記事へ移動すると、`GA4 - page_view`だけがもう1回発火する。
 5. 「公開」で、変更内容が分かるバージョン名を付けて公開する。
 
 アプリが新しいイベントを送る前に公開しても問題はない。  新しいイベントは、アプリの反映後に発火し始める。
@@ -114,7 +113,7 @@ containerの構成は[ga4-gtm-container.json](ga4-gtm-container.json)を正本�
 GTMの公開後と、アプリの反映後に、GA4の「DebugView」またはリアルタイムレポートで次を確認する。
 
 - 画面を移動するたびに`page_view`が1件だけ増え、`route_family`、`route_area`、`page_location`が付いている。
-- `page_location`にqueryが含まれず、店舗、募集、人物のIDが`:shopId`などに置き換わっている。
+- `page_location`にqueryが含まれず、店舗、募集、人物のIDが`:shopId`などに置き換わっている。  存在しないURLでは`/404`になっている。
 - TOPのCTA、料金section、ヘルプ検索で、それぞれ`select_content`、`section_view`、`help_search`が届く。
 - `scroll`以外に`form_start`などの拡張計測イベントが届かない。
 
