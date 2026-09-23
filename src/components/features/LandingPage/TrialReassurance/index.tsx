@@ -1,19 +1,17 @@
 import { Flex, Icon, Text } from "@chakra-ui/react";
 import { LuCheck } from "react-icons/lu";
-import { ORGANIZATION_PLAN_LIMITS } from "@/convex/organizationBilling/planLimits";
 import { formatPublicPlanStartingPrice, type PublicPlanPriceCatalog } from "@/src/domains/publicPricing";
 
 type TrialReassuranceProps = {
   prices: PublicPlanPriceCatalog;
 };
 
-const freeLimits = ORGANIZATION_PLAN_LIMITS.free;
-
 export function TrialReassurance({ prices }: TrialReassuranceProps) {
   const conditions = [
     // 各項目は折り返さないため、幅360pxのスマートフォンにも一行で収まる長さにする。
     "カード登録不要の2か月無料トライアル",
-    `トライアル後も${freeLimits.maxPeople}名・${freeLimits.maxShops}店舗まで無料`,
+    // Freeの上限は人数・店舗・管理者の3条件あるため、一行に収まらない数値は料金sectionで示す。
+    "トライアル後もFreeプランで無料",
     `有料プランは${formatPublicPlanStartingPrice(prices)}`,
   ];
 
