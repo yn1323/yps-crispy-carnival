@@ -17,7 +17,7 @@ type LandingPageProps = {
 
 export const LandingPage = ({ prices }: LandingPageProps) => (
   <PublicPageLayout color="gray.950" headerProps={{ position: "sticky" }}>
-    <HeroSection />
+    <HeroSection prices={prices} />
     <ReliefSection />
     <FlowSection />
     <SubmissionTypesSection />
@@ -25,7 +25,7 @@ export const LandingPage = ({ prices }: LandingPageProps) => (
     <UseCasesSection />
     <OrganizationManagementSection />
     <PricingSection prices={prices} />
-    <BottomCtaSection />
+    <BottomCtaSection prices={prices} />
     <FaqArticlesSection />
   </PublicPageLayout>
 );

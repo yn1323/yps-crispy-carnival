@@ -1,9 +1,22 @@
 import { Flex, Icon, Text } from "@chakra-ui/react";
 import { LuCheck } from "react-icons/lu";
+import { ORGANIZATION_PLAN_LIMITS } from "@/convex/organizationBilling/planLimits";
+import { formatPublicPlanStartingPrice, type PublicPlanPriceCatalog } from "@/src/domains/publicPricing";
 
-const trialConditions = ["2か月無料トライアル", "トライアル中クレジットカード登録不要"];
+type TrialReassuranceProps = {
+  prices: PublicPlanPriceCatalog;
+};
 
-export function TrialReassurance() {
+const freeLimits = ORGANIZATION_PLAN_LIMITS.free;
+
+export function TrialReassurance({ prices }: TrialReassuranceProps) {
+  const conditions = [
+    // 各項目は折り返さないため、幅360pxのスマートフォンにも一行で収まる長さにする。
+    "カード登録不要の2か月無料トライアル",
+    `トライアル後も${freeLimits.maxPeople}名・${freeLimits.maxShops}店舗まで無料`,
+    `有料プランは${formatPublicPlanStartingPrice(prices)}`,
+  ];
+
   return (
     <Flex
       as="ul"
@@ -17,9 +30,9 @@ export function TrialReassurance() {
       fontSize="sm"
       fontWeight="semibold"
       listStyleType="none"
-      aria-label="無料トライアルの条件"
+      aria-label="料金の条件"
     >
-      {trialConditions.map((condition) => (
+      {conditions.map((condition) => (
         <Flex as="li" key={condition} align="center" gap={2} whiteSpace="nowrap">
           <Icon as={LuCheck} boxSize={4} color="teal.600" flexShrink={0} aria-hidden />
           <Text as="span">{condition}</Text>
