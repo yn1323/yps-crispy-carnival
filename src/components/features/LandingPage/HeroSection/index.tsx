@@ -6,7 +6,6 @@ import heroPcImage from "@/src/assets/hero-pc.webp";
 import heroSpImage from "@/src/assets/hero-sp.webp";
 import { MeasurementLink } from "@/src/components/shared/MeasurementLink";
 import { Button } from "@/src/components/ui/Button";
-import type { PublicPlanPriceCatalog } from "@/src/domains/publicPricing";
 import { TrialReassurance } from "../TrialReassurance";
 
 const heroBenefits: Array<{ icon: IconType; label: string }> = [
@@ -18,11 +17,7 @@ const heroBenefits: Array<{ icon: IconType; label: string }> = [
   { icon: LuMail, label: "メールでもOK" },
 ];
 
-type HeroSectionProps = {
-  prices: PublicPlanPriceCatalog;
-};
-
-export const HeroSection = ({ prices }: HeroSectionProps) => (
+export const HeroSection = () => (
   <Box as="section" bg="white" color="gray.950" overflow="hidden">
     <Container maxW="7xl" pt={{ base: 2, md: 6 }} pb={{ base: 8, md: 12 }}>
       <Grid
@@ -83,7 +78,7 @@ export const HeroSection = ({ prices }: HeroSectionProps) => (
                 measurementCtaId="hero_help"
               />
             </Stack>
-            <TrialReassurance prices={prices} />
+            <TrialReassurance />
           </VStack>
         </VStack>
 

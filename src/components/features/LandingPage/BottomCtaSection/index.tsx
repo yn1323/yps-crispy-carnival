@@ -2,14 +2,9 @@ import { Box, Container, Heading, Icon, Stack, Text, VStack } from "@chakra-ui/r
 import { LuBookOpen, LuChevronRight } from "react-icons/lu";
 import { MeasurementLink } from "@/src/components/shared/MeasurementLink";
 import { Button } from "@/src/components/ui/Button";
-import type { PublicPlanPriceCatalog } from "@/src/domains/publicPricing";
 import { TrialReassurance } from "../TrialReassurance";
 
-type BottomCtaSectionProps = {
-  prices: PublicPlanPriceCatalog;
-};
-
-export const BottomCtaSection = ({ prices }: BottomCtaSectionProps) => (
+export const BottomCtaSection = () => (
   <Box as="section" bg="#eaf8f6" py={14} overflow="hidden">
     <Container maxW="7xl">
       <VStack align="center" gap={6} textAlign="center">
@@ -29,7 +24,7 @@ export const BottomCtaSection = ({ prices }: BottomCtaSectionProps) => (
             <BottomButton href="/signup" label="シフトリをはじめる" primary />
             <BottomButton href="/help/scenarios/shift-management" label="基本の使い方を見る" />
           </Stack>
-          <TrialReassurance prices={prices} />
+          <TrialReassurance />
         </VStack>
       </VStack>
     </Container>
