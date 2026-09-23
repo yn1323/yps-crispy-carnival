@@ -21,7 +21,7 @@ FAQと使い方は同じMDX管理基盤へ所属するが、FAQは短い回答�
 | `/help/scenarios/shift-export` | シフト表をPDF・Excelで保存する手順を確認するページ |
 | `/help/<guide-id>` | 使い方の個別ページ |
 
-`/faq`と`/howto`は公開しない。  
+`/faq`と`/howto`は公開せず、旧URLは`/faq`を`/help`へ、`/howto`を`/help/scenarios/shift-management`へ恒久転送する。  
 旧`/help#task-<task-id>`と`/help#<faq-id>`は、ブラウザ上で対応する新URLへ置き換えて互換性を保つ。
 統合した旧使い方URLは、対応するシナリオまたはタスクページへ恒久転送する。
 

@@ -207,6 +207,12 @@ describe("static site manifest", () => {
     for (const { source, target, status } of RETIRED_PUBLIC_ROUTE_REDIRECTS) {
       expect(redirects).toContain(`${source} ${target} ${status}`);
     }
+    for (const source of ["/faq", "/faq/"]) {
+      expect(redirects).toContain(`${source} /help 301`);
+    }
+    for (const source of ["/howto", "/howto/"]) {
+      expect(redirects).toContain(`${source} /help/scenarios/shift-management 301`);
+    }
     expect(redirects).toContain("/features/ /features 200");
     expect(redirects).toContain("/articles/known/ /articles/known 200");
     expect(redirects).not.toContain("/articles/:slug");

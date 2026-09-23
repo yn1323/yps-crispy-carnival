@@ -56,6 +56,11 @@ export const LEGACY_HELP_ROUTE_REDIRECTS = Object.entries(legacyHelpGuideRedirec
 export const RETIRED_PUBLIC_ROUTE_REDIRECTS = [
   { source: "/demo/flow", target: SHIFT_MANAGEMENT_SCENARIO.href, status: 301 as const },
   { source: "/demo/flow/", target: SHIFT_MANAGEMENT_SCENARIO.href, status: 301 as const },
+  // ヘルプへ統合した旧FAQ・使い方は、index済みURLの評価をヘルプへ引き継ぐ。
+  { source: "/faq", target: "/help", status: 301 as const },
+  { source: "/faq/", target: "/help", status: 301 as const },
+  { source: "/howto", target: SHIFT_MANAGEMENT_SCENARIO.href, status: 301 as const },
+  { source: "/howto/", target: SHIFT_MANAGEMENT_SCENARIO.href, status: 301 as const },
 ] as const;
 
 /** Queryを含めず、指定されたpathだけをCSR shellへ渡す。 */
