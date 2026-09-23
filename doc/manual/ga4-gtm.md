@@ -33,7 +33,7 @@ containerの構成は[ga4-gtm-container.json](ga4-gtm-container.json)を正本�
 
 イベントタグは、イベントごとに必要なパラメータだけを送る。  GTMのdataLayerは前のイベントの値を保持するため、一つのタグで全イベントを送ると、別のイベントの値が混ざるからである。
 
-Google tagと各イベントタグの`page_location`は、アプリが直前の`page_view`で送った集計用URLを使う。  Google tagを`gtm.js`ではなく最初の`page_view`で起動するのは、セッション開始などの自動イベントにも集計用URLを使うためである。  そのため、`page_view`を送らないOAuthとLINE連携のcallback画面ではGA4を起動しない。  アプリが`page_location`を送らない旧版では、queryとhashを除いた現在のURLを使い、`route_family`が`not_found`なら`/404`にする。
+Google tagと各イベントタグの`page_location`は、アプリが直前の`page_view`で送った集計用URLを使う。  Google tagを`gtm.js`ではなく最初の`page_view`で起動するのは、セッション開始などの自動イベントにも集計用URLを使うためである。  そのため、`page_view`を送らないOAuthとLINE連携のcallback画面ではGA4を起動しない。  アプリが`page_location`を送らない旧版のタブでも、queryとhashを除き、`route_family`がIDを含む画面なら固定path、`not_found`と静的404なら`/404`にする。  そのため、アプリのリリースより先にcontainerを公開しても、IDや未知URLのpathはGA4へ送られない。
 
 ### インポート手順
 

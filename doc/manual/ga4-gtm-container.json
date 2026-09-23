@@ -2052,7 +2052,7 @@
           {
             "type": "TEMPLATE",
             "key": "javascript",
-            "value": "function() {\n  // アプリが送る集計用URLを優先する。未送信の旧版ではqueryとhashを除き、未知URLは/404にする。\n  var pageLocation = {{DLV - page_location}};\n  if (pageLocation) return pageLocation;\n  if ({{DLV - route_family}} === \"not_found\") return location.origin + \"/404\";\n  return location.origin + location.pathname;\n}"
+            "value": "function() {\n  // アプリが送る集計用URLを優先する。\n  var pageLocation = {{DLV - page_location}};\n  if (pageLocation) return pageLocation;\n  // page_locationを送らない旧版のタブでも、IDと未知URLのpathを送らない。\n  var family = {{DLV - route_family}};\n  if (family === \"not_found\" || document.querySelector(\"[data-static-not-found]\")) {\n    return location.origin + \"/404\";\n  }\n  var templatedPaths = {\n    shop_detail: \"/manage/shops/:shopId\",\n    shiftboard: \"/shifts/:recruitmentId/board\",\n    shift_export: \"/shifts/:recruitmentId/export\",\n    staff_detail: \"/staff/:personId\",\n    staff_shop: \"/staff/:personId/shops/:shopId\"\n  };\n  var pathname = location.pathname.toLowerCase();\n  var templatedPath = templatedPaths[family];\n  if (templatedPath) {\n    return location.origin + (pathname.indexOf(\"/app/\") === 0 ? \"/app\" : \"\") + templatedPath;\n  }\n  return location.origin + pathname;\n}"
           }
         ],
         "fingerprint": "0"
