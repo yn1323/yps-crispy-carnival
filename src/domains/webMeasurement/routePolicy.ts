@@ -10,7 +10,10 @@ export const webMeasurementRouteFamilies = [
   "demo_shiftboard",
   "legal",
   "utility",
-  "auth",
+  "auth_signup",
+  "auth_login",
+  "auth_password_reset",
+  "manager_invite",
   "dashboard",
   "account",
   "actions",
@@ -24,12 +27,72 @@ export const webMeasurementRouteFamilies = [
   "staff_management",
   "staff_detail",
   "staff_shop",
-  "capability",
+  "staff_submit",
+  "staff_submit_completed",
+  "staff_view",
+  "staff_reissue",
+  "staff_register",
+  "staff_legal_consent",
   "callback",
   "not_found",
 ] as const;
 
 export type WebMeasurementRouteFamily = (typeof webMeasurementRouteFamilies)[number];
+
+export const webMeasurementRouteAreas = ["public", "auth", "manager", "staff", "other"] as const;
+
+export type WebMeasurementRouteArea = (typeof webMeasurementRouteAreas)[number];
+
+// Recordにして、route familyを追加したときに所属areaの決め忘れを型検査で止める。
+const routeAreaByFamily: Record<WebMeasurementRouteFamily, WebMeasurementRouteArea> = {
+  home: "public",
+  features: "public",
+  help_index: "public",
+  help_guide: "public",
+  contact: "public",
+  articles_index: "public",
+  article_detail: "public",
+  article_category: "public",
+  demo_shiftboard: "public",
+  legal: "other",
+  utility: "other",
+  auth_signup: "auth",
+  auth_login: "auth",
+  auth_password_reset: "auth",
+  manager_invite: "auth",
+  dashboard: "manager",
+  account: "manager",
+  actions: "manager",
+  organization_management: "manager",
+  billing: "manager",
+  manager_management: "manager",
+  shop_detail: "manager",
+  shift_management: "manager",
+  shiftboard: "manager",
+  shift_export: "manager",
+  staff_management: "manager",
+  staff_detail: "manager",
+  staff_shop: "manager",
+  staff_submit: "staff",
+  staff_submit_completed: "staff",
+  staff_view: "staff",
+  staff_reissue: "staff",
+  staff_register: "staff",
+  staff_legal_consent: "staff",
+  callback: "other",
+  not_found: "other",
+};
+
+// IDを含むrouteは、ページ単位の集計でIDごとに行が分かれないよう固定のpathへ置き換える。
+const templatedPagePaths: Partial<Record<WebMeasurementRouteFamily, string>> = {
+  shop_detail: "/manage/shops/:shopId",
+  shiftboard: "/shifts/:recruitmentId/board",
+  shift_export: "/shifts/:recruitmentId/export",
+  staff_detail: "/staff/:personId",
+  staff_shop: "/staff/:personId/shops/:shopId",
+};
+
+const MAX_PAGE_PATH_LENGTH = 200;
 
 const fixedRouteFamilies = new Map<string, WebMeasurementRouteFamily>([
   ["/", "home"],
@@ -43,26 +106,26 @@ const fixedRouteFamilies = new Map<string, WebMeasurementRouteFamily>([
   ["/contact", "contact"],
   ["/demo/shiftboard", "demo_shiftboard"],
   ["/features", "features"],
-  ["/forgot-password", "auth"],
+  ["/forgot-password", "auth_password_reset"],
   ["/help", "help_index"],
   ["/help/basics/notifications", "help_guide"],
   ["/help/basics/organization-structure", "help_guide"],
   ["/help/scenarios/shift-management", "help_guide"],
   ["/help/scenarios/shift-export", "help_guide"],
-  ["/legal/staff/consent", "capability"],
+  ["/legal/staff/consent", "staff_legal_consent"],
   ["/line/callback", "callback"],
-  ["/login", "auth"],
-  ["/manager-invite", "capability"],
+  ["/login", "auth_login"],
+  ["/manager-invite", "manager_invite"],
   ["/privacy", "legal"],
   ["/privacy/manager", "legal"],
   ["/privacy/staff", "legal"],
-  ["/shifts/reissue", "capability"],
-  ["/shifts/submit", "capability"],
-  ["/shifts/submit/completed", "capability"],
-  ["/shifts/view", "capability"],
-  ["/signup", "auth"],
+  ["/shifts/reissue", "staff_reissue"],
+  ["/shifts/submit", "staff_submit"],
+  ["/shifts/submit/completed", "staff_submit_completed"],
+  ["/shifts/view", "staff_view"],
+  ["/signup", "auth_signup"],
   ["/sso-callback", "callback"],
-  ["/staff/register", "capability"],
+  ["/staff/register", "staff_register"],
   ["/terms", "legal"],
   ["/terms/manager", "legal"],
   ["/terms/staff", "legal"],
@@ -109,4 +172,16 @@ export function getWebMeasurementRouteFamily(value: string): WebMeasurementRoute
   if (/^\/staff\/[^/]+$/.test(appPathname)) return "staff_detail";
 
   return "not_found";
+}
+
+export function getWebMeasurementRouteArea(routeFamily: WebMeasurementRouteFamily): WebMeasurementRouteArea {
+  return routeAreaByFamily[routeFamily];
+}
+
+/** 集計用のpathを返す。queryとhashを除き、IDを含むrouteは固定のpathへ置き換える。 */
+export function getMeasurementPagePath(value: string): string {
+  const pathname = normalizeMeasurementPathname(value).toLowerCase();
+  const templatedPath = templatedPagePaths[getWebMeasurementRouteFamily(pathname)];
+  if (templatedPath) return pathname.startsWith("/app/") ? `/app${templatedPath}` : templatedPath;
+  return pathname.slice(0, MAX_PAGE_PATH_LENGTH);
 }

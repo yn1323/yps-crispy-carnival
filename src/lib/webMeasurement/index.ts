@@ -1,10 +1,12 @@
 import {
   buildWebVitalEvent,
+  getMeasurementPagePath,
   getViewportClass,
   getWebMeasurementRouteFamily,
   normalizeMeasurementPathname,
   normalizeReleaseId,
   normalizeWebMeasurementEnvironment,
+  type ProductMeasurementInput,
   type PublicCtaId,
   serializeWebMeasurementEvent,
   type WebMeasurementContext,
@@ -32,6 +34,7 @@ type RuntimeDependencies = {
 
 let documentContext: DocumentMeasurementContext | null = null;
 let lastPageViewPathname: string | null = null;
+let lastPageLocation: string | null = null;
 let webVitalsStarted = false;
 const deployMeasurementEnvironments = new Set(["develop", "preview", "production"]);
 
@@ -106,13 +109,27 @@ export function trackPageView(pathname: string): boolean {
   const normalizedPathname = normalizeMeasurementPathname(pathname);
   if (lastPageViewPathname === normalizedPathname) return false;
 
+  const routeFamily = getWebMeasurementRouteFamily(pathname);
+  // OAuthとLINE連携のcallbackは通過するだけの画面なので、page viewを数えない。
+  if (routeFamily === "callback") return false;
+
+  const pageLocation = `${window.location.origin}${getMeasurementPagePath(pathname)}`;
   const sent = pushGtmEvent(
     serializeWebMeasurementEvent(
-      { kind: "page_view", routeFamily: getWebMeasurementRouteFamily(pathname) },
+      {
+        kind: "page_view",
+        routeFamily,
+        pageLocation,
+        // 初回はGA4がdocument.referrerを使う。SPA遷移では直前の画面を参照元にする。
+        ...(lastPageLocation ? { pageReferrer: lastPageLocation } : {}),
+      },
       documentContext.context,
     ),
   );
-  if (sent) lastPageViewPathname = normalizedPathname;
+  if (sent) {
+    lastPageViewPathname = normalizedPathname;
+    lastPageLocation = pageLocation;
+  }
   return sent;
 }
 
@@ -127,10 +144,22 @@ export function trackPublicCta(ctaId: PublicCtaId, pathname = window.location.pa
   );
 }
 
+export function trackProductEvent(input: ProductMeasurementInput, pathname = window.location.pathname): boolean {
+  if (!documentContext || !isGtmInitialized()) return false;
+
+  return pushGtmEvent(
+    serializeWebMeasurementEvent(
+      { ...input, routeFamily: getWebMeasurementRouteFamily(pathname) },
+      documentContext.context,
+    ),
+  );
+}
+
 export function stopDocumentWebMeasurement(): void {
   stopGTM();
   documentContext = null;
   lastPageViewPathname = null;
+  lastPageLocation = null;
   webVitalsStarted = false;
 }
 
@@ -138,5 +167,6 @@ export function resetWebMeasurementForTests(): void {
   resetGTM();
   documentContext = null;
   lastPageViewPathname = null;
+  lastPageLocation = null;
   webVitalsStarted = false;
 }

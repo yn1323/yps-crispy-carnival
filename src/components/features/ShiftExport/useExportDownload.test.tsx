@@ -7,8 +7,10 @@ import { buildExportSchedule } from "./script";
 import { useExportDownload } from "./useExportDownload";
 
 const exporters = vi.hoisted(() => ({ pdf: vi.fn(), excel: vi.fn() }));
+const measurement = vi.hoisted(() => ({ trackProductEvent: vi.fn() }));
 vi.mock("./pdf", () => ({ createShiftPdf: exporters.pdf }));
 vi.mock("./excel", () => ({ createShiftExcel: exporters.excel }));
+vi.mock("@/src/lib/webMeasurement", () => measurement);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -31,6 +33,7 @@ describe("useExportDownload", () => {
     expect(exporters.excel).not.toHaveBeenCalled();
     expect(result.current.download).toMatchObject({ url: "blob:export-file", format: "pdf" });
     expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledTimes(1);
+    expect(measurement.trackProductEvent).toHaveBeenCalledExactlyOnceWith({ kind: "shift_export", format: "pdf" });
     await act(async () => {
       await result.current.generate("xlsx");
     });
@@ -66,6 +69,7 @@ describe("useExportDownload", () => {
       });
       expect(URL.createObjectURL).not.toHaveBeenCalled();
       expect(HTMLAnchorElement.prototype.click).not.toHaveBeenCalled();
+      expect(measurement.trackProductEvent).not.toHaveBeenCalled();
       if (action !== "unmount") expect(result.current.download).toBeNull();
       if (action === "splitPeriod") {
         exporters.pdf.mockResolvedValue(new Blob(["split data"]));
@@ -86,6 +90,7 @@ describe("useExportDownload", () => {
     });
     expect(result.current.error).toBe("ファイルを作成できませんでした。もう一度お試しください。");
     expect(result.current.isGenerating).toBe(false);
+    expect(measurement.trackProductEvent).not.toHaveBeenCalled();
     await act(async () => {
       await result.current.generate("pdf");
     });

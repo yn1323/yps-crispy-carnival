@@ -6,7 +6,9 @@ import { initGTM, isGtmInitialized, pushGtmEvent, resetGTM, stopGTM } from ".";
 const pageView = {
   event: "page_view",
   app_environment: "preview",
+  page_location: "https://shiftori.app/",
   release_id: "release-1",
+  route_area: "public",
   route_family: "home",
 } as const;
 

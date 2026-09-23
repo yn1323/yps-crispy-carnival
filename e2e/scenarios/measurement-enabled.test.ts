@@ -45,7 +45,14 @@ async function getDataLayerEvents(page: Page): Promise<DataLayerEvent[]> {
   return page.evaluate(() => (window as typeof window & { dataLayer?: DataLayerEvent[] }).dataLayer ?? []);
 }
 
-async function expectDocumentMeasurement(page: Page, requests: string[], routeFamily: string): Promise<void> {
+type ExpectedPageView = { pagePath: string; routeArea: string; routeFamily: string };
+
+async function expectDocumentMeasurement(
+  page: Page,
+  requests: string[],
+  { pagePath, routeArea, routeFamily }: ExpectedPageView,
+): Promise<void> {
+  const origin = new URL(page.url()).origin;
   await expect.poll(() => requests.filter(isGtmLoaderRequest), { timeout: 10_000 }).toHaveLength(1);
   await expect
     .poll(async () => (await getDataLayerEvents(page)).filter((event) => event.event === "page_view"), {
@@ -55,7 +62,9 @@ async function expectDocumentMeasurement(page: Page, requests: string[], routeFa
       {
         app_environment: "preview",
         event: "page_view",
+        page_location: `${origin}${pagePath}`,
         release_id: MEASUREMENT_CONTRACT_RELEASE,
+        route_area: routeArea,
         route_family: routeFamily,
       },
     ]);
@@ -85,7 +94,11 @@ test.describe("常時発火Web計測browser contract", { tag: ["@release", "@mea
     expect(response?.ok(), `/ returned ${response?.status() ?? "no response"}`).toBe(true);
     await expect(page.getByRole("heading", { level: 1, name: /シフトのやり取りを/ })).toBeVisible();
     await expectAppHydrated(page);
-    await expectDocumentMeasurement(page, measurementRequests, "home");
+    await expectDocumentMeasurement(page, measurementRequests, {
+      pagePath: "/",
+      routeArea: "public",
+      routeFamily: "home",
+    });
 
     await page.evaluate(() => {
       (window as typeof window & { measurementDocumentProbe?: string }).measurementDocumentProbe = "present";
@@ -94,7 +107,11 @@ test.describe("常時発火Web計測browser contract", { tag: ["@release", "@mea
     await page.getByRole("link", { name: "ログイン" }).click();
     await expect(page).toHaveURL((url) => url.origin === new URL(baseURL).origin && url.pathname === "/login");
     await expectAppHydrated(page);
-    await expectDocumentMeasurement(page, measurementRequests, "auth");
+    await expectDocumentMeasurement(page, measurementRequests, {
+      pagePath: "/login",
+      routeArea: "auth",
+      routeFamily: "auth_login",
+    });
     expect(
       await page.evaluate(
         () => (window as typeof window & { measurementDocumentProbe?: string }).measurementDocumentProbe,
@@ -103,7 +120,7 @@ test.describe("常時発火Web計測browser contract", { tag: ["@release", "@mea
     expect(runtimeErrors).toEqual([]);
   });
 
-  test("[MEASUREMENT-BROWSER-02] token付きCapability documentも計測しdataLayerへcredentialを載せない", async ({
+  test("[MEASUREMENT-BROWSER-02] token付きCapability documentもqueryを除いたpathで計測しdataLayerへcredentialを載せない", async ({
     baseURL,
     page,
   }) => {
@@ -116,16 +133,24 @@ test.describe("常時発火Web計測browser contract", { tag: ["@release", "@mea
       (url) => url.origin === expectedOrigin && url.pathname === "/manager-invite" && url.searchParams.has("token"),
     );
     await expectAppHydrated(page);
-    await expectDocumentMeasurement(page, measurementRequests, "capability");
+    await expectDocumentMeasurement(page, measurementRequests, {
+      pagePath: "/manager-invite",
+      routeArea: "auth",
+      routeFamily: "manager_invite",
+    });
 
     const serializedDataLayer = JSON.stringify(await getDataLayerEvents(page));
     expect(serializedDataLayer).not.toContain(CAPABILITY_TOKEN);
-    expect(serializedDataLayer).not.toContain("manager-invite");
+    expect(serializedDataLayer).not.toContain("?token");
 
     measurementRequests.length = 0;
     await page.goto("/privacy");
     await expect(page).toHaveURL((url) => url.origin === expectedOrigin && url.pathname === "/privacy");
     await expectAppHydrated(page);
-    await expectDocumentMeasurement(page, measurementRequests, "legal");
+    await expectDocumentMeasurement(page, measurementRequests, {
+      pagePath: "/privacy",
+      routeArea: "other",
+      routeFamily: "legal",
+    });
   });
 });

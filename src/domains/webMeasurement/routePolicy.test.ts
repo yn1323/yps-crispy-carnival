@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { getWebMeasurementRouteFamily, normalizeMeasurementPathname } from ".";
+import {
+  getMeasurementPagePath,
+  getWebMeasurementRouteArea,
+  getWebMeasurementRouteFamily,
+  normalizeMeasurementPathname,
+  webMeasurementRouteAreas,
+  webMeasurementRouteFamilies,
+} from ".";
 
 describe("Web計測route policy", () => {
   it.each([
@@ -44,15 +51,19 @@ describe("Web計測route policy", () => {
   });
 
   it.each([
-    ["/login?redirect=/dashboard", "auth"],
-    ["/forgot-password", "auth"],
-    ["/manager-invite?token=secret", "capability"],
-    ["/shifts/submit?token=secret", "capability"],
-    ["/shifts/view?recruitmentId=secret", "capability"],
-    ["/legal/staff/consent?token=secret", "capability"],
+    ["/signup?redirect=/dashboard", "auth_signup"],
+    ["/login?redirect=/dashboard", "auth_login"],
+    ["/forgot-password", "auth_password_reset"],
+    ["/manager-invite?token=secret", "manager_invite"],
+    ["/shifts/submit?token=secret", "staff_submit"],
+    ["/shifts/submit/completed", "staff_submit_completed"],
+    ["/shifts/view?recruitmentId=secret", "staff_view"],
+    ["/shifts/reissue", "staff_reissue"],
+    ["/staff/register?token=secret", "staff_register"],
+    ["/legal/staff/consent?token=secret", "staff_legal_consent"],
     ["/line/callback?code=secret&state=secret", "callback"],
     ["/sso-callback?code=secret&state=secret", "callback"],
-  ] as const)("認証前route %sをcredentialを含まないroute familyへ写像する", (pathname, routeFamily) => {
+  ] as const)("認証前route %sを用途別のroute familyへ写像する", (pathname, routeFamily) => {
     expect(getWebMeasurementRouteFamily(pathname)).toBe(routeFamily);
   });
 
@@ -62,6 +73,47 @@ describe("Web計測route policy", () => {
       expect(getWebMeasurementRouteFamily(pathname)).toBe("not_found");
     },
   );
+
+  it.each([
+    ["home", "public"],
+    ["article_detail", "public"],
+    ["auth_signup", "auth"],
+    ["manager_invite", "auth"],
+    ["dashboard", "manager"],
+    ["shiftboard", "manager"],
+    ["staff_submit", "staff"],
+    ["staff_legal_consent", "staff"],
+    ["legal", "other"],
+    ["callback", "other"],
+    ["not_found", "other"],
+  ] as const)("route family %sを利用者の区分%sへ分類する", (routeFamily, routeArea) => {
+    expect(getWebMeasurementRouteArea(routeFamily)).toBe(routeArea);
+  });
+
+  it("すべてのroute familyを定義済みの区分へ分類する", () => {
+    for (const routeFamily of webMeasurementRouteFamilies) {
+      expect(webMeasurementRouteAreas).toContain(getWebMeasurementRouteArea(routeFamily));
+    }
+  });
+
+  it.each([
+    ["/", "/"],
+    ["/articles/shiftori-line-workflow/?utm_source=x#toc", "/articles/shiftori-line-workflow"],
+    ["/shifts/submit?token=secret", "/shifts/submit"],
+    ["/manage/shops/shop_internal_id", "/manage/shops/:shopId"],
+    ["/shifts/recruitment_internal_id/board", "/shifts/:recruitmentId/board"],
+    ["/Shifts/recruitment_internal_id/Export", "/shifts/:recruitmentId/export"],
+    ["/staff/person_internal_id", "/staff/:personId"],
+    ["/staff/order", "/staff/order"],
+    ["/staff/register?token=secret", "/staff/register"],
+    ["/app/staff/person_internal_id/shops/shop_internal_id", "/app/staff/:personId/shops/:shopId"],
+  ] as const)("集計用pathは%sのqueryとIDを除いて%sにする", (pathname, pagePath) => {
+    expect(getMeasurementPagePath(pathname)).toBe(pagePath);
+  });
+
+  it("未知routeの集計用pathは長さを制限する", () => {
+    expect(getMeasurementPagePath(`/${"a".repeat(300)}`)).toHaveLength(200);
+  });
 
   it("query・hash・末尾slashを送信前の分類だけに使えるpathnameへ正規化する", () => {
     expect(normalizeMeasurementPathname("/features///?token=secret#part")).toBe("/features");

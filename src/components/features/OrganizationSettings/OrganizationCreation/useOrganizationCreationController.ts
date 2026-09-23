@@ -5,6 +5,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import type { ShopFormData } from "@/src/components/features/ShopForm";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import type { OrganizationCreationDialogState } from "./types";
 
 type Input = {
@@ -43,6 +44,11 @@ export function useOrganizationCreationController(input: Input) {
       const result = await createOrganizationForApp({
         ...baseArgs,
         organizationId: latest.organizationId,
+      });
+      trackProductEvent({
+        kind: "setup_complete",
+        setupKind: "additional",
+        submissionPattern: data.submissionPattern.kind,
       });
       showSuccessToast({ title: "新しい組織を作りました" });
       setDialog(null);

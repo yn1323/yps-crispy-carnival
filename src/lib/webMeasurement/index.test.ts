@@ -8,6 +8,7 @@ import {
   resetWebMeasurementForTests,
   stopDocumentWebMeasurement,
   trackPageView,
+  trackProductEvent,
   trackPublicCta,
 } from ".";
 
@@ -39,34 +40,52 @@ describe("Web計測runtime", () => {
   });
 
   it.each([
-    ["/", "home"],
-    ["/dashboard", "dashboard"],
-    ["/staff/person_internal_id", "staff_detail"],
-    ["/shifts/submit?token=secret", "capability"],
-    ["/line/callback?code=secret&state=secret", "callback"],
-    ["/privacy", "legal"],
-    ["/unknown", "not_found"],
-  ] as const)("同意・認証状態に関係なく%sでGTMと有限page viewを開始する", (pathname, routeFamily) => {
+    ["/", "home", "public", "/"],
+    ["/dashboard", "dashboard", "manager", "/dashboard"],
+    ["/staff/person_internal_id", "staff_detail", "manager", "/staff/:personId"],
+    ["/shifts/submit?token=secret", "staff_submit", "staff", "/shifts/submit"],
+    ["/privacy", "legal", "other", "/privacy"],
+    ["/unknown", "not_found", "other", "/unknown"],
+  ] as const)(
+    "同意・認証状態に関係なく%sでGTMと集計用page viewを開始する",
+    (pathname, routeFamily, routeArea, pagePath) => {
+      expect(
+        initializeDocumentWebMeasurement({
+          config: { ...config, webVitalsSampleRate: 0 },
+          currentPathname: pathname,
+          initialDocumentPathname: pathname,
+          viewportWidth: 1280,
+        }),
+      ).toBe("initialized");
+
+      expect(document.head.querySelectorAll('script[src*="googletagmanager"]').length).toBe(1);
+      expect(window.dataLayer?.filter((event) => event.event === "page_view")).toEqual([
+        {
+          event: "page_view",
+          app_environment: "preview",
+          page_location: `${window.location.origin}${pagePath}`,
+          release_id: "release-1",
+          route_area: routeArea,
+          route_family: routeFamily,
+        },
+      ]);
+      expect(JSON.stringify(window.dataLayer)).not.toContain("secret");
+      expect(JSON.stringify(window.dataLayer)).not.toContain("internal_id");
+    },
+  );
+
+  it("OAuthとLINE連携のcallbackではGTMを開始し、page viewを送らない", () => {
     expect(
       initializeDocumentWebMeasurement({
         config: { ...config, webVitalsSampleRate: 0 },
-        currentPathname: pathname,
-        initialDocumentPathname: pathname,
+        currentPathname: "/line/callback?code=secret&state=secret",
+        initialDocumentPathname: "/line/callback?code=secret&state=secret",
         viewportWidth: 1280,
       }),
     ).toBe("initialized");
 
     expect(document.head.querySelectorAll('script[src*="googletagmanager"]').length).toBe(1);
-    expect(window.dataLayer?.filter((event) => event.event === "page_view")).toEqual([
-      {
-        event: "page_view",
-        app_environment: "preview",
-        release_id: "release-1",
-        route_family: routeFamily,
-      },
-    ]);
-    expect(JSON.stringify(window.dataLayer)).not.toContain("secret");
-    expect(JSON.stringify(window.dataLayer)).not.toContain("internal_id");
+    expect(window.dataLayer?.filter((event) => event.event === "page_view")).toEqual([]);
   });
 
   it("同じdocumentではGTMと初回page viewを一度だけ開始する", () => {
@@ -101,11 +120,22 @@ describe("Web計測runtime", () => {
     expect(trackPageView("/dashboard")).toBe(true);
     expect(trackPageView("/staff/person_internal_id")).toBe(true);
     expect(document.head.querySelectorAll('script[src*="googletagmanager"]').length).toBe(1);
-    expect(window.dataLayer?.filter((event) => event.event === "page_view")).toEqual([
-      expect.objectContaining({ route_family: "article_detail" }),
-      expect.objectContaining({ route_family: "dashboard" }),
-      expect.objectContaining({ route_family: "staff_detail" }),
+    const origin = window.location.origin;
+    const pageViews = window.dataLayer?.filter((event) => event.event === "page_view");
+    expect(pageViews).toEqual([
+      expect.objectContaining({ route_family: "article_detail", page_location: `${origin}/articles/first` }),
+      expect.objectContaining({
+        route_family: "dashboard",
+        page_location: `${origin}/dashboard`,
+        page_referrer: `${origin}/articles/first`,
+      }),
+      expect.objectContaining({
+        route_family: "staff_detail",
+        page_location: `${origin}/staff/:personId`,
+        page_referrer: `${origin}/dashboard`,
+      }),
     ]);
+    expect(pageViews?.[0]).not.toHaveProperty("page_referrer");
     expect(JSON.stringify(window.dataLayer)).not.toContain("person_internal_id");
   });
 
@@ -121,6 +151,32 @@ describe("Web計測runtime", () => {
     expect(window.dataLayer?.at(-1)).toEqual(
       expect.objectContaining({ event: "select_content", content_id: "hero_signup" }),
     );
+  });
+
+  it("画面操作のイベントを現在のroute familyと一緒に送る", () => {
+    expect(trackProductEvent({ kind: "shift_export", format: "pdf" }, "/shifts/recruitment_internal_id/export")).toBe(
+      false,
+    );
+    expect(window.dataLayer).toEqual([]);
+
+    initializeDocumentWebMeasurement({
+      config: { ...config, webVitalsSampleRate: 0 },
+      currentPathname: "/dashboard",
+      initialDocumentPathname: "/dashboard",
+      viewportWidth: 1280,
+    });
+
+    expect(trackProductEvent({ kind: "shift_export", format: "pdf" }, "/shifts/recruitment_internal_id/export")).toBe(
+      true,
+    );
+    expect(window.dataLayer?.at(-1)).toEqual({
+      event: "shift_export",
+      app_environment: "preview",
+      format: "pdf",
+      release_id: "release-1",
+      route_area: "manager",
+      route_family: "shift_export",
+    });
   });
 
   it("Web Vitalsのdocument routeはcallback時の現在routeへ変えない", async () => {

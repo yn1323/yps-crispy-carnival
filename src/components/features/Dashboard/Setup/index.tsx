@@ -4,6 +4,7 @@ import { api } from "@/convex/_generated/api";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useDialog } from "@/src/components/ui/Dialog";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import type { SetupData } from "../SetupModal";
 import { SetupView } from "./SetupView";
 import { isPromotionCodeInvalidError } from "./script";
@@ -43,6 +44,11 @@ export function Setup({ managerProfileDefaults, showAccountDeletion, announcemen
         managerEmail: data.email,
         acceptedLegal: data.acceptedLegal as true,
         ...(data.promotionCode ? { promotionCode: data.promotionCode } : {}),
+      });
+      trackProductEvent({
+        kind: "setup_complete",
+        setupKind: "first",
+        submissionPattern: data.submissionPattern.kind,
       });
       showSuccessToast({ title: "セットアップが完了しました" });
       return { kind: "completed" } as const;
