@@ -70,10 +70,16 @@ async function waitWithTimeout(promise: Promise<unknown>, timeoutMs: number) {
   await Promise.race([promise, new Promise((resolve) => setTimeout(resolve, timeoutMs))]);
 }
 
+// 画面に入ると自動再生する動画があるため、再生を止めてposterのまま撮影する
+function freezeMediaPlayback() {
+  HTMLMediaElement.prototype.play = () => Promise.resolve();
+}
+
 beforeEach(async () => {
   await page.viewport(__VRT_VIEWPORT__.width, __VRT_VIEWPORT__.height);
   document.documentElement.setAttribute(VRT_ROOT_ATTRIBUTE, "true");
   freezeAnimations();
+  freezeMediaPlayback();
 });
 
 afterEach(async (context) => {

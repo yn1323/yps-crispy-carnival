@@ -6,6 +6,7 @@ import { ComparisonSection } from "./ComparisonSection";
 import { FaqArticlesSection } from "./FaqArticlesSection";
 import { FlowSection } from "./FlowSection";
 import { HeroSection } from "./HeroSection";
+import { IntroVideoSection } from "./IntroVideoSection";
 import { PricingSection } from "./PricingSection";
 import { ReliefSection } from "./ReliefSection";
 import { SubmissionTypesSection } from "./SubmissionTypesSection";
@@ -18,6 +19,7 @@ type LandingPageProps = {
 export const LandingPage = ({ prices }: LandingPageProps) => (
   <PublicPageLayout color="gray.950" headerProps={{ position: "sticky" }}>
     <HeroSection />
+    <IntroVideoSection />
     <ReliefSection />
     <FlowSection />
     <SubmissionTypesSection />

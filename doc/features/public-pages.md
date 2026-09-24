@@ -25,7 +25,13 @@
 | `/demo/shiftboard` | PC向けシフト表の入力と調整を、登録なしで試せるようにする | `src/pages/demo-shift-board/`、`Demo/DemoShiftBoardPage/` |
 
 TOPは`src/routes/index.tsx`から`HomePage`を呼び、`HomePage`が`LandingPage`を構成する。
-`LandingPage`は`PublicPageLayout`の中に、Hero、課題の軽減、利用の流れ、提出方法、比較、利用例、複数店舗・複数担当者での運用、料金プラン、CTA、ヘルプと記事の各sectionを並べる。
+`LandingPage`は`PublicPageLayout`の中に、Hero、紹介動画、課題の軽減、利用の流れ、提出方法、比較、利用例、複数店舗・複数担当者での運用、料金プラン、CTA、ヘルプと記事の各sectionを並べる。
+
+紹介動画のsectionは、音声のない約1分の動画を表示する。  
+幅767px以下ではスマホ向けの720p版、それより広い画面では1080p版を読み込む。  
+動画が画面に半分以上入ると音なしで自動再生し、半分未満になると一時停止する。利用者が止めた後と最後まで再生した後は、画面に入り直しても再開しない。OSで動きを減らす設定にしている場合は自動再生しない。  
+動画の内容は、画面に表示しない説明文を`aria-describedby`で結び、支援技術にも伝える。  
+動画の元データは`apps/video`で作る。
 
 ヘルプ、記事、デモは同じ公開サイトに属するが、内容の置き場所は分かれている。
 FAQ、使い方、TSXの基本ページは`HelpCenter`、記事は`ArticleSite`、操作できるデモは`Demo`が所有する。
