@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   isCurrentDocumentStandaloneLaunchAt,
   isCurrentWindowStandaloneWebApp,
+  recordAppDocumentLoad,
   STANDALONE_DISPLAY_QUERY,
 } from "./pwaDisplayMode";
 
@@ -38,14 +39,15 @@ describe("PWA display mode", () => {
 });
 
 describe("standalone起動の判定", () => {
-  const setDocument = ({ initialPath, referrer }: { initialPath: string; referrer: string }) => {
+  const loadDocument = (initialPath: string) => {
     vi.spyOn(performance, "getEntriesByType").mockReturnValue([
       { name: `${window.location.origin}${initialPath}` } as PerformanceNavigationTiming,
     ]);
-    vi.spyOn(document, "referrer", "get").mockReturnValue(referrer);
+    recordAppDocumentLoad();
   };
 
   beforeEach(() => {
+    window.sessionStorage.clear();
     window.matchMedia = vi.fn().mockReturnValue({ matches: true });
   });
 
@@ -54,32 +56,36 @@ describe("standalone起動の判定", () => {
   });
 
   it("ホーム画面から対象pathを開いた起動として扱う", () => {
-    setDocument({ initialPath: "/", referrer: "" });
+    loadDocument("/");
 
     expect(isCurrentDocumentStandaloneLaunchAt("/")).toBe(true);
   });
 
-  it("外部サイトから開いた場合も起動として扱う", () => {
-    setDocument({ initialPath: "/", referrer: "https://example.com/" });
-
-    expect(isCurrentDocumentStandaloneLaunchAt("/")).toBe(true);
-  });
-
-  it("アプリ内のリンクから対象pathへ移動した場合は起動として扱わない", () => {
-    setDocument({ initialPath: "/", referrer: `${window.location.origin}/login` });
+  it("同じウィンドウでアプリを開いた後に対象pathを読み込んだ場合は起動として扱わない", () => {
+    loadDocument("/login");
+    loadDocument("/");
 
     expect(isCurrentDocumentStandaloneLaunchAt("/")).toBe(false);
   });
 
+  it("sessionStorageを使えない場合は起動として扱う", () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("unavailable");
+    });
+    loadDocument("/");
+
+    expect(isCurrentDocumentStandaloneLaunchAt("/")).toBe(true);
+  });
+
   it("別pathで起動した後のクライアント遷移は起動として扱わない", () => {
-    setDocument({ initialPath: "/demo/shiftboard", referrer: "" });
+    loadDocument("/demo/shiftboard");
 
     expect(isCurrentDocumentStandaloneLaunchAt("/")).toBe(false);
   });
 
   it("通常ブラウザでは起動として扱わない", () => {
     window.matchMedia = vi.fn().mockReturnValue({ matches: false });
-    setDocument({ initialPath: "/", referrer: "" });
+    loadDocument("/");
 
     expect(isCurrentDocumentStandaloneLaunchAt("/")).toBe(false);
   });

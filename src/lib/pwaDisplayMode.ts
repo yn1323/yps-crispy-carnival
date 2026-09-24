@@ -16,8 +16,23 @@ export function isCurrentWindowStandaloneWebApp(): boolean {
   return isStandaloneWebApp(displayModeMatches, window.navigator);
 }
 
+const APP_WINDOW_SESSION_KEY = "shiftori:app-window-opened";
+
+let wasAppOpenedEarlierInWindow = false;
+
+// documentの読込ごとに1回呼び、同じウィンドウでアプリを既に開いていたかを記録する。
+// アプリ画面は`Referrer-Policy: no-referrer`で配信するため、referrerではアプリ内遷移とホーム画面起動を区別できない。
+export function recordAppDocumentLoad(): void {
+  try {
+    wasAppOpenedEarlierInWindow = window.sessionStorage.getItem(APP_WINDOW_SESSION_KEY) !== null;
+    window.sessionStorage.setItem(APP_WINDOW_SESSION_KEY, "1");
+  } catch {
+    wasAppOpenedEarlierInWindow = false;
+  }
+}
+
 // ホーム画面のアイコンから`pathname`を直接開いた起動かを判定する。
-// アプリ内のリンクから移動した場合は、同一originのreferrerが付くか、最初のdocumentが別のpathになる。
+// ログアウトやTOPリンクによるアプリ内のdocument遷移では、同じウィンドウのsessionStorageに記録が残る。
 export function isCurrentDocumentStandaloneLaunchAt(pathname: string): boolean {
   if (!isCurrentWindowStandaloneWebApp()) return false;
 
@@ -26,15 +41,5 @@ export function isCurrentDocumentStandaloneLaunchAt(pathname: string): boolean {
   const initialDocumentUrl = new URL(navigationEntry?.name || window.location.href);
   if (initialDocumentUrl.pathname !== pathname) return false;
 
-  return !isSameOriginUrl(document.referrer, window.location.origin);
-}
-
-function isSameOriginUrl(url: string, origin: string): boolean {
-  if (url === "") return false;
-
-  try {
-    return new URL(url).origin === origin;
-  } catch {
-    return false;
-  }
+  return !wasAppOpenedEarlierInWindow;
 }

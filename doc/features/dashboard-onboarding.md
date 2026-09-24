@@ -16,7 +16,7 @@
 - `src/components/features/Dashboard/SetupModal/` — 初回セットアップで店舗情報、本人の表示名、シフト連絡先、任意のプロモーションコードを登録する
 - `src/components/ui/Tour/` — Dashboard用の説明なしスポットライト表示に対応した既存Tourラッパー
 - `public/manifest.json` — 既存PWAの識別子`/`を維持し、ホーム画面からstandalone起動したときの開始先を`/dashboard`に指定する
-- `src/pages/home/index.tsx` — manifest更新が反映されない既存のホーム画面アプリでも、ホーム画面から旧開始先`/`を開いた起動に限り`/dashboard`へ移動する。  standalone内のリンクからTOPへ戻った場合は公開トップを表示する
+- `src/pages/home/index.tsx` — manifest更新が反映されない既存のホーム画面アプリでも、ホーム画面から旧開始先`/`を開いた起動に限り`/dashboard`へ移動する。  同じウィンドウでアプリを開いた後に、ログアウトやTOPリンクで`/`へ戻った場合は公開トップを表示する
 
 ### バックエンド（`convex/`）
 
