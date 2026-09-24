@@ -22,46 +22,54 @@ local build、GTM ID欠落、不正なreleaseでは第三者URLを組み立て�
 
 ## Page viewとroute family
 
-初回page viewはclient起動時に送り、SPA遷移はrootのpathname変更から送る。  同じpathnameの重複とqueryだけの変更は送らない。  異なる動的IDへの遷移は別page viewとして扱うが、ID自体はpayloadへ含めない。
+初回page viewはclient起動時に送り、SPA遷移はrootのpathname変更から送る。  同じpathnameの重複とqueryだけの変更は送らない。  OAuthとLINE連携のcallback（`callback`）は通過するだけの画面なので、page viewを送らない。
 
-Applicationの`page_view`は、raw pathnameではなく有限の`route_family`を送る。  主な分類は次のとおりであり、完全な一覧と判定順は`src/domains/webMeasurement/routePolicy.ts`を正本とする。
+`page_view`には、有限の`route_family`と`route_area`、集計用の`page_location`を付ける。  `page_location`はqueryとhashを除き、店舗、募集、人物のIDを含むpathを`/manage/shops/:shopId`のような固定pathへ置き換えたURLである。  未知URLのpathには任意の文字列が入り得るため、`not_found`は入力されたpathを使わず`/404`にする。  Cloudflareが返す静的404は、記事slugなど既知routeの形をしたpathでも`not_found`として送る。  SPA遷移では直前の`page_location`を`page_referrer`として送る。  documentを読み込んだ初回の`page_view`では`page_referrer`を送らず、GA4がbrowserの`document.referrer`を加工せずに使う。  そのため、直前が同じoriginの画面なら、queryの`token`や店舗・組織IDを含むURLがGA4へ送られる。
 
-| 画面 | route family例 |
-|---|---|
-| TOP、機能、ヘルプ、問い合わせ、記事、デモ | `home`、`features`、`help_*`、`contact`、`article_*`、`demo_shiftboard` |
-| 利用規約、プライバシーポリシー、特定商取引法 | `legal` |
-| ログイン、登録、パスワード再設定 | `auth` |
-| Dashboard、アカウント、要対応一覧 | `dashboard`、`account`、`actions` |
-| 組織、課金、管理者、店舗 | `organization_management`、`billing`、`manager_management`、`shop_detail` |
-| シフト、ShiftBoard、シフト出力、スタッフ | `shift_management`、`shiftboard`、`shift_export`、`staff_*` |
-| token付き導線、OAuth callback | `capability`、`callback` |
-| 未知URL・404 | `not_found` |
+主な分類は次のとおりであり、完全な一覧と判定順は`src/domains/webMeasurement/routePolicy.ts`を正本とする。
+
+| 画面 | route family例 | route area |
+|---|---|---|
+| TOP、機能、ヘルプ、問い合わせ、記事、デモ | `home`、`features`、`help_*`、`contact`、`article_*`、`demo_shiftboard` | `public` |
+| 登録、ログイン、パスワード再設定、管理者招待 | `auth_signup`、`auth_login`、`auth_password_reset`、`manager_invite` | `auth` |
+| Dashboard、アカウント、要対応一覧 | `dashboard`、`account`、`actions` | `manager` |
+| 組織、課金、管理者、店舗 | `organization_management`、`billing`、`manager_management`、`shop_detail` | `manager` |
+| シフト、ShiftBoard、シフト出力、スタッフ管理 | `shift_management`、`shiftboard`、`shift_export`、`staff_management`、`staff_detail`、`staff_shop` | `manager` |
+| スタッフの提出、提出完了、閲覧、再発行、登録、同意 | `staff_submit`、`staff_submit_completed`、`staff_view`、`staff_reissue`、`staff_register`、`staff_legal_consent` | `staff` |
+| 法務文書、utility、callback、未知URL | `legal`、`utility`、`callback`、`not_found` | `other` |
 
 ## Event contract
 
-ApplicationがdataLayerへ追加するイベントは次に限定する。
+ApplicationがdataLayerへ追加するイベントは次に限定する。  `web_vital`以外は、送信時の`route_family`と`route_area`を持つ。
 
-| 種類 | 発火条件 | 主な有限値 |
+| イベント | 発火条件 | 固有のパラメータ |
 |---|---|---|
-| page view | 初回documentとpathnameが変わるSPA遷移 | route family、environment、release |
-| 公開CTA | 登録、ヘルプ、ログインなど登録済みCTAの選択 | CTA ID、route family |
-| Web Vitals | sampling対象documentでcallbackを受けたとき | metric、rating、navigation type、viewport、初回document route family |
+| `page_view` | 初回documentとpathnameが変わるSPA遷移 | `page_location`、`page_referrer` |
+| `select_content` | TOPのheader・hero・下部CTAと、記事末尾CTAの選択 | `content_type`、`content_id` |
+| `setup_complete` | 初回Setupまたは追加組織の作成が成功したとき | `setup_kind`（`first`、`additional`）、`submission_pattern` |
+| `section_view` | TOPの料金sectionの上端が画面の上60%へ入ったとき（TOPの表示ごとに1回） | `section`（`pricing`） |
+| `shift_export` | シフト表のPDFまたはExcelを生成して保存を始めたとき | `format`（`pdf`、`xlsx`） |
+| `help_search` | ヘルプ検索の入力が1.5秒止まったとき | `has_results`（`true`、`false`） |
+| `plan_checkout_start` | 有料プランの申込みでStripeへ移動する直前 | `plan`（`standard`、`pro`） |
+| `web_vital` | sampling対象documentでcallbackを受けたとき | metric、rating、navigation type、viewport、初回documentのroute family |
 
-Event unionとserializerは`src/domains/webMeasurement/`を正本とする。  任意のevent名やparameterをGTMへ渡すAPIは公開しない。  Web Vitalsはdocument lifecycleに属し、callback時点で別routeへSPA遷移していても初回documentのroute familyを保持する。
+Event unionとserializerは`src/domains/webMeasurement/`を正本とする。  任意のevent名やparameterをGTMへ渡すAPIは公開しない。  画面操作のイベントは処理の成功後に一回だけ送り、失敗、古いリクエストの完了、再描画では送らない。  Web Vitalsはdocument lifecycleに属し、callback時点で別routeへSPA遷移していても初回documentのroute familyを保持する。
 
 ## GTM、GA、Clarityの責務
 
-Repositoryが保証するのは、GTM loaderと有限dataLayer eventを全routeで開始するところまでである。  GAとClarityのtag、trigger、property、project、masking、publish状態は外部GTM設定が所有する。
+Repositoryが保証するのは、GTM loaderと有限dataLayer eventを全routeで開始するところまでである。  GAとClarityのtag、trigger、property、project、publish状態は外部GTM設定が所有する。
 
-GTMの`gtm.js`でGoogle tagとClarityを一度だけ初期化する。  Clarityは同じdocumentのSPA遷移中も継続する。  GAのpage viewは、Google tagの自動page viewとApplicationのCustom Event `page_view`を併用すると重複するため、外部設定で発火元を一つに固定する。  exact contractと確認手順は[GA4・GTM・Clarity運用](../manual/ga4-gtm.md)を正本とする。
+GA4のpage viewは、Applicationの`page_view`だけを発火元にする。  Google tagの自動page viewとEnhanced Measurementのbrowser history page viewは無効にし、二重計測を防ぐ。  container構成、GA4 propertyの設定、確認手順は[GA4・GTM・Clarity運用](../manual/ga4-gtm.md)を正本とする。
 
 ## Privacyとlimitations
 
-ApplicationのdataLayer payloadには、query、hash、raw URL、raw referrer、page title、動的ID、token、OAuth `code`・`state`、氏名、連絡先、店舗名、組織名、自由入力、`user_id`を含めない。
+ApplicationのdataLayer payloadには、query、hash、動的ID、token、OAuth `code`・`state`、氏名、連絡先、店舗名、組織名、自由入力、検索語、`user_id`を含めない。
 
-ただし、GTM container内の第三者tagがbrowserのURL、referrer、title、DOMを独自取得することはApplication serializerでは防げない。  全route計測には、bearer tokenやOAuth値をURLに持つ認証前画面と、業務情報を表示する認証後画面も含まれる。  ClarityのURL parameter masking、DOM masking、権限、保持期間は補助防御として外部設定で管理し、この収集範囲を受容したProduct判断を前提とする。
+GA4とClarityの閲覧者はサービス運営者だけに限る。  GTM container内の第三者tagがbrowserのURL、referrer、DOMを独自取得することはApplication serializerでは防げないため、Google tagの`page_location`もqueryを除いたURLへ設定する。
 
-Web計測は、ad blocker、通信失敗、provider障害、別端末によって欠測する。  実人数、店舗単位のactivation、cross-device funnelの正本にはしない。
+一方、初回`page_view`の`page_referrer`は加工しないため、スタッフ画面の`token`や店舗・組織IDを含むURLがGA4に残り得る。  閲覧者がサービス運営者だけであることを前提に、この状態を許容している。  閲覧者を増やす前に、同じoriginのreferrerからqueryと動的IDを除く。
+
+Web計測は、ad blocker、通信失敗、provider障害、別端末によって欠測する。  実人数、店舗単位のactivation、cross-device funnelの正本にはしない。  初期設定の完了数は、Convex Analyticsの新規登録店舗と比べて計測の欠損率を確認する。
 
 ## 実装の入口
 
@@ -71,6 +79,7 @@ Web計測は、ad blocker、通信失敗、provider障害、別端末によっ�
 - `src/lib/webMeasurement/`：document lifecycle、page view、Web Vitals。
 - `src/lib/gtm/`：GTM scriptとdataLayerのtransport。
 - `src/components/shared/MeasurementLink/`：document navigation直前の登録済みCTA計測。
+- `Dashboard/Setup`、`OrganizationCreation`、`LandingPage/PricingSection`、`ShiftExport`、`HelpCenter/HelpIndex`、`BillingSettings`：画面操作のイベントを送る場所。
 - `src/configs/webMeasurement.ts`：deploy artifactのruntime設定。
 
 外部GTM container、GA4 property、Clarity projectの設定はリポジトリ実装と分ける。  設定と検証は[GA4・GTM・Clarity運用](../manual/ga4-gtm.md)、実環境への反映は[リリース状態](../manual/release-status.md)へ記録する。

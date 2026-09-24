@@ -1,9 +1,14 @@
 import { Flex, Icon, Text } from "@chakra-ui/react";
 import { LuCheck } from "react-icons/lu";
 
-const trialConditions = ["2か月無料トライアル", "トライアル中クレジットカード登録不要"];
-
 export function TrialReassurance() {
+  const conditions = [
+    // 各項目は折り返さないため、幅360pxのスマートフォンにも一行で収まる長さにする。
+    "カード登録不要の2か月無料トライアル",
+    // Freeの上限は人数・店舗・管理者の3条件あるため、一行に収まらない数値は料金sectionで示す。
+    "トライアル後も無料プランあり",
+  ];
+
   return (
     <Flex
       as="ul"
@@ -17,9 +22,9 @@ export function TrialReassurance() {
       fontSize="sm"
       fontWeight="semibold"
       listStyleType="none"
-      aria-label="無料トライアルの条件"
+      aria-label="料金の条件"
     >
-      {trialConditions.map((condition) => (
+      {conditions.map((condition) => (
         <Flex as="li" key={condition} align="center" gap={2} whiteSpace="nowrap">
           <Icon as={LuCheck} boxSize={4} color="teal.600" flexShrink={0} aria-hidden />
           <Text as="span">{condition}</Text>

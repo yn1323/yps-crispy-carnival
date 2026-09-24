@@ -27,6 +27,12 @@ export class StaffLifecyclePage {
       .click();
     await expect(shopSelectionDialog).toHaveCount(0, { timeout: STAFF_LIFECYCLE_TIMEOUT });
 
+    await this.registerManualStaffInOpenDialog(name, email);
+    await this.appStaff.expectPersonVisible(name);
+  }
+
+  /** 店舗が決まった状態で開いた「スタッフを追加」Dialogから、管理者入力でスタッフを登録する。 */
+  async registerManualStaffInOpenDialog(name: string, email: string) {
     const dialog = this.page.getByRole("dialog", { name: "スタッフを追加", exact: true });
     await expect(dialog).toBeVisible({ timeout: STAFF_LIFECYCLE_TIMEOUT });
 
@@ -40,6 +46,33 @@ export class StaffLifecyclePage {
     await dialog.getByRole("button", { name: "スタッフを登録する", exact: true }).click();
 
     await expect(dialog).toHaveCount(0, { timeout: STAFF_LIFECYCLE_TIMEOUT });
+  }
+
+  /** 「スタッフ本人に登録してもらう」を開き、画面に表示された登録URLを返す。 */
+  async readRegistrationUrl(shopName: string) {
+    await this.page.getByRole("button", { name: "スタッフを追加", exact: true }).click();
+    const shopSelectionDialog = this.page.getByRole("dialog", {
+      name: "スタッフを追加する店舗を選択",
+      exact: true,
+    });
+    const dialog = this.page.getByRole("dialog", { name: "スタッフを追加", exact: true });
+    await expect(shopSelectionDialog.or(dialog)).toBeVisible({ timeout: STAFF_LIFECYCLE_TIMEOUT });
+    if (await shopSelectionDialog.isVisible()) {
+      await shopSelectionDialog
+        .getByRole("button", { name: `${shopName}をスタッフ追加の対象店舗として選択`, exact: true })
+        .click();
+    }
+    await expect(dialog).toBeVisible({ timeout: STAFF_LIFECYCLE_TIMEOUT });
+    await dialog.getByRole("button", { name: /^スタッフ本人に登録してもらう/ }).click();
+    const url = dialog.getByText(/\/staff\/register\?token=/);
+    await expect(url).toBeVisible({ timeout: STAFF_LIFECYCLE_TIMEOUT });
+    const registrationUrl = new URL((await url.textContent())?.trim() ?? "");
+    await this.page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+    return registrationUrl;
+  }
+
+  async expectStaffVisible(name: string) {
     await this.appStaff.expectPersonVisible(name);
   }
 

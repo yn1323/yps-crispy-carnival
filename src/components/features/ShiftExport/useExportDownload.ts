@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import { getExportFileName } from "./script";
 import type { ExportSchedule } from "./types";
 
@@ -40,6 +41,7 @@ export function useExportDownload(schedule: ExportSchedule) {
       document.body.append(link);
       link.click();
       link.remove();
+      trackProductEvent({ kind: "shift_export", format: requestedFormat });
     } catch {
       if (request === generation.current && currentSchedule.current === schedule) {
         setError("ファイルを作成できませんでした。もう一度お試しください。");

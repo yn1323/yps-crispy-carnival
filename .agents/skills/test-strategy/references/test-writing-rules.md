@@ -264,6 +264,7 @@ E2E で見ると遅すぎる DB 状態遷移、通知、集計、dashboard 表�
 ## E2E
 
 E2Eは、ブラウザ、認証、フロントエンド、実バックエンドを結ぶ主要導線を検証する。
+core E2Eは、エラー系を除くハッピーパスを機能ごとに一契約ずつ持ち、各契約で前の機能の結果を次の機能で使う受け渡しを一つ以上確認する。
 デプロイ済みURLのSmokeは公開接続の確認に絞り、認証付きFull Regressionと分ける。
 現在の実行対象、ブラウザ、tag、Preview、credential、レポート公開は `.github/workflows/` とPlaywright設定を正本とする。
 機能棚卸し、テスト層との対応付け、通知目的、ライフサイクルは `e2e-full-regression-rules.md` に従う。
@@ -310,6 +311,11 @@ E2Eは、ブラウザ、認証、フロントエンド、実バックエンド�
 - 同じactorまたは同じ永続状態を使うprojectは同時実行しない。並列化は、actor、seed、cleanupの所有権が分離できる範囲だけで行う。
 - seedとresetは対象actorまたはownerのデータだけを扱う。広い全件削除や別workerのデータを含むcleanupで隔離を作らない。
 - test dataは再実行しても衝突しない一意性を持たせ、fixtureは期待値や暗黙の成功判定を隠さない。
+- seedは前提状態だけを作り、その契約の受け渡しにあたる操作（店舗設定の変更、募集作成、提出など）はseedで代替せず画面から行う。
+- E2E専用の`convex/testing.ts`関数は`internalMutation`または`internalAction`にし、状態を変える前に`assertE2EHelpersEnabled`を呼ぶ。対象の組織、店舗、人物は、同じactorのseedが作ったものであることを関数内で確認する。
+- 通知不達などの失敗状態は、本番の記録処理と同じ関数を呼んで作る。documentを直接insertしてschemaや表示条件とずらさない。
+- provider代替seedは、画面で発行したtokenを本番と同じ検証・確定処理へ通す。偽のprovider IDはworkerと実行ごとに一意にし、実在IDと衝突しない接頭辞を付ける。
+- メールアドレス、申請者、店舗は実行ごとに一意にし、IP単位のrate limitのように一意化できない上限にburn-inが当たる場合は、本番の上限値を変えず対象keyだけを`DEBUG_MODE`で戻すE2E専用関数を検討する。
 - localeとtimezoneに依存するE2EはPlaywright設定で固定し、境界値そのものは注入可能な純粋処理のLogic Testで守る。
 
 ### 通知、capability、artifact
@@ -331,7 +337,8 @@ E2Eは、ブラウザ、認証、フロントエンド、実バックエンド�
 
 避けること:
 
-- 外部サービスの実配送、Clerkの認証画面そのもの、ピクセル単位のUIを通常E2Eで検証しない。
+- 外部サービスの実配送、Clerkの認証画面そのもの、LINE Loginの画面とcode交換、ピクセル単位のUIを通常E2Eで検証しない。
+- `DEBUG_NOTIFICATION_DELIVERY_MODE`などdeployment全体に効く設定を、E2E実行中に切り替えない。
 - ガントチャートの精密なドラッグ座標や時間計算をE2Eに寄せない。必要ならLogic Testへ切り出す。
 
 ## 高リスク観点

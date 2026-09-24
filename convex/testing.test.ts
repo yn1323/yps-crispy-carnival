@@ -696,3 +696,139 @@ describe("E2E testing helpers", () => {
     expect(result).toEqual({ notificationDeliverySuppressed: true });
   });
 });
+
+describe("E2E専用の代替seed", () => {
+  beforeEach(() => {
+    vi.stubEnv("DEBUG_MODE", "true");
+    vi.stubEnv("DEBUG_NOTIFICATION_DELIVERY_MODE", "dry-run");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("DEBUG_MODEが無効なら不達・参加申請・LINE連携の代替seedを拒否する", async () => {
+    const t = convexTest(schema, modules);
+    const seed = await t.mutation(internal.testing.seedLineLinkScenario, {
+      managerAuthTokenIdentifier: "issuer|disabled-substitute-owner",
+      managerEmail: "disabled-substitute-owner@example.com",
+    });
+    vi.stubEnv("DEBUG_MODE", "false");
+    vi.stubEnv("DEBUG_NOTIFICATION_DELIVERY_MODE", "");
+
+    await expect(
+      t.mutation(internal.testing.seedNotificationFailureScenario, {
+        managerAuthTokenIdentifier: "issuer|disabled-failure-owner",
+        dates: DATES,
+      }),
+    ).rejects.toThrow("E2E testing helpers are disabled for this deployment.");
+    await expect(
+      t.mutation(internal.testing.submitStaffRegistrationRequestForE2E, {
+        managerAuthTokenIdentifier: "issuer|disabled-substitute-owner",
+        token: "registration-token",
+        name: "申請者",
+        email: "applicant@example.com",
+      }),
+    ).rejects.toThrow("E2E testing helpers are disabled for this deployment.");
+    await expect(
+      t.mutation(internal.testing.completeLineLinkForE2E, {
+        managerAuthTokenIdentifier: "issuer|disabled-substitute-owner",
+        organizationPersonId: seed.personId,
+      }),
+    ).rejects.toThrow("E2E testing helpers are disabled for this deployment.");
+  });
+
+  it("不達seedは本番の記録処理を通り、seedした店舗に未対応の不達を2件だけ作る", async () => {
+    const t = convexTest(schema, modules);
+    const seed = await t.mutation(internal.testing.seedNotificationFailureScenario, {
+      managerAuthTokenIdentifier: "issuer|failure-owner",
+      managerEmail: "failure-owner@example.com",
+      dates: DATES,
+    });
+
+    const failures = await t.run(async (ctx) => await ctx.db.query("notificationFailureInbox").collect());
+    expect(failures).toHaveLength(2);
+    expect(
+      failures.map(({ shopId, status, sourceType, channel, notificationContext }) => ({
+        shopId,
+        status,
+        sourceType,
+        channel,
+        notificationContext,
+      })),
+    ).toEqual(
+      Array(2).fill({
+        shopId: seed.shopId,
+        status: "open",
+        sourceType: "enqueue_preparation",
+        channel: "email",
+        notificationContext: "notification.sendRecruitmentNotificationEmails",
+      }),
+    );
+  });
+
+  it("参加申請の代替seedは別actorの店舗の登録linkを拒否し、申請を作らない", async () => {
+    const t = convexTest(schema, modules);
+    const ownerA = await t.mutation(internal.testing.seedAuthenticatedManagerScenario, {
+      managerAuthTokenIdentifier: "issuer|registration-owner-a",
+      managerEmail: "registration-owner-a@example.com",
+    });
+    await t.mutation(internal.testing.seedAuthenticatedManagerScenario, {
+      managerAuthTokenIdentifier: "issuer|registration-owner-b",
+      managerEmail: "registration-owner-b@example.com",
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.insert("shopRegistrationLinks", {
+        shopId: ownerA.shopId,
+        token: "owner-a-registration-token",
+        createdAt: Date.now(),
+      });
+    });
+
+    await expect(
+      t.mutation(internal.testing.submitStaffRegistrationRequestForE2E, {
+        managerAuthTokenIdentifier: "issuer|registration-owner-b",
+        token: "owner-a-registration-token",
+        name: "申請者",
+        email: "applicant@example.com",
+      }),
+    ).rejects.toThrow("E2E registration seed failed: registration-link-outside-actor");
+    const requests = await t.run(async (ctx) => await ctx.db.query("staffRegistrationRequests").collect());
+    expect(requests).toEqual([]);
+
+    const accepted = await t.mutation(internal.testing.submitStaffRegistrationRequestForE2E, {
+      managerAuthTokenIdentifier: "issuer|registration-owner-a",
+      token: "owner-a-registration-token",
+      name: "申請者",
+      email: "applicant@example.com",
+    });
+    expect(accepted).toEqual({ status: "accepted" });
+  });
+
+  it("LINE連携の代替seedは別actorの人物と、未発行のtokenを拒否する", async () => {
+    const t = convexTest(schema, modules);
+    const ownerA = await t.mutation(internal.testing.seedLineLinkScenario, {
+      managerAuthTokenIdentifier: "issuer|line-owner-a",
+      managerEmail: "line-owner-a@example.com",
+    });
+    await t.mutation(internal.testing.seedLineLinkScenario, {
+      managerAuthTokenIdentifier: "issuer|line-owner-b",
+      managerEmail: "line-owner-b@example.com",
+    });
+
+    await expect(
+      t.mutation(internal.testing.completeLineLinkForE2E, {
+        managerAuthTokenIdentifier: "issuer|line-owner-b",
+        organizationPersonId: ownerA.personId,
+      }),
+    ).rejects.toThrow("E2E LINE link seed failed: person-outside-actor");
+    await expect(
+      t.mutation(internal.testing.completeLineLinkForE2E, {
+        managerAuthTokenIdentifier: "issuer|line-owner-a",
+        organizationPersonId: ownerA.personId,
+      }),
+    ).rejects.toThrow("E2E LINE link seed failed: usable-token-not-unique");
+    const lineProviderUsers = await t.run(async (ctx) => await ctx.db.query("lineProviderUsers").collect());
+    expect(lineProviderUsers).toEqual([]);
+  });
+});

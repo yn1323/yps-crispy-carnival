@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { getOrganizationInvitationSigningSecret, isDebugModeEnabled } from "./_lib/config";
@@ -17,7 +18,9 @@ import { upsertStaffLineAccount } from "./line/service";
 import { clearResendDelayedFailureDeadline } from "./notificationOutbox/resendDelayedFailure";
 import { isOrganizationInvitationIssued } from "./organizationInvitation/lifecycle";
 import { deriveInvitationToken, digestInvitationToken, invitationRateLimitKey } from "./organizationInvitation/token";
+import { ensureDefaultPosition } from "./position/service";
 import schema from "./schema";
+import { resolveStaffRegistrationCapability } from "./staffRegistration/capability";
 
 const TABLE_NAMES = Object.keys(schema.tables) as (keyof typeof schema.tables)[];
 const CLEAR_TABLE_BATCH_SIZE = 1000;
@@ -1447,7 +1450,7 @@ export const seedNotificationSubmitScenario = internalMutation({
     managerLineState: v.optional(lineDeliveryStateValidator),
   },
   handler: async (ctx, args) => {
-    const { shopId, managerStaffId } = await createManagerScenario(ctx, {
+    const { organizationId, shopId, managerStaffId } = await createManagerScenario(ctx, {
       managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
       managerEmail: args.managerEmail,
       shopName: "通知募集テスト店舗",
@@ -1460,7 +1463,7 @@ export const seedNotificationSubmitScenario = internalMutation({
 
     // 募集作成・通知action・token発行はブラウザ操作から通す。
     // seedは認証済み管理者と店舗という前提状態だけを作る。
-    return { shopId, staffId: managerStaffId };
+    return { organizationId, shopId, staffId: managerStaffId };
   },
 });
 
@@ -1475,7 +1478,7 @@ export const seedOpenRecruitmentNotificationScenario = internalMutation({
     managerStaffLegalConsentState: v.optional(legalConsentStateValidator),
   },
   handler: async (ctx, args) => {
-    const { shopId, managerStaffId } = await createManagerScenario(ctx, {
+    const { organizationId, shopId, managerStaffId } = await createManagerScenario(ctx, {
       managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
       managerEmail: args.managerEmail,
       shopName: "追加通知テスト店舗",
@@ -1495,7 +1498,195 @@ export const seedOpenRecruitmentNotificationScenario = internalMutation({
       state: args.managerLineState,
     });
 
-    return { shopId, recruitmentId, staffId: managerStaffId };
+    return { organizationId, shopId, recruitmentId, staffId: managerStaffId };
+  },
+});
+
+/** 募集の編集・削除E2Eで使う、同じ店舗に募集中の募集2件だけがある前提を作る。 */
+export const seedRecruitmentManagementScenario = internalMutation({
+  args: {
+    managerAuthTokenIdentifier: v.string(),
+    managerEmail: v.optional(v.string()),
+    dates: scenarioDatesValidator,
+    otherDates: scenarioDatesValidator,
+  },
+  returns: v.object({
+    organizationId: v.id("organizations"),
+    shopId: v.id("shops"),
+    recruitmentId: v.id("recruitments"),
+    otherRecruitmentId: v.id("recruitments"),
+  }),
+  handler: async (ctx, args) => {
+    const { organizationId, shopId } = await createManagerScenario(ctx, {
+      managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
+      managerEmail: args.managerEmail,
+      shopName: "募集管理テスト店舗",
+    });
+    const recruitmentId = await createRecruitment(ctx, { shopId, dates: args.dates, status: "open" });
+    const otherRecruitmentId = await createRecruitment(ctx, { shopId, dates: args.otherDates, status: "open" });
+
+    // 編集・削除とその通知はブラウザ操作から通す。
+    return { organizationId, shopId, recruitmentId, otherRecruitmentId };
+  },
+});
+
+/** シフト対象外E2Eで使う、募集中の募集と管理者以外のスタッフ1名がいる前提を作る。 */
+export const seedShiftExclusionScenario = internalMutation({
+  args: {
+    managerAuthTokenIdentifier: v.string(),
+    managerEmail: v.optional(v.string()),
+    dates: scenarioDatesValidator,
+  },
+  returns: v.object({
+    organizationId: v.id("organizations"),
+    shopId: v.id("shops"),
+    recruitmentId: v.id("recruitments"),
+    staffPersonId: v.id("organizationPeople"),
+    staffName: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    const { organizationId, shopId } = await createManagerScenario(ctx, {
+      managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
+      managerEmail: args.managerEmail,
+      shopName: "対象外テスト店舗",
+    });
+    const staffName = "E2E対象外スタッフ";
+    const staff = await createScenarioStaff(ctx, {
+      organizationId,
+      shopId,
+      name: staffName,
+      email: "e2e-shift-exclusion-staff@example.test",
+    });
+    const recruitmentId = await createRecruitment(ctx, {
+      shopId,
+      dates: args.dates,
+      status: "open",
+      submissionPattern: { kind: "dateOnly" },
+    });
+
+    // 対象外化と復帰はブラウザ操作から通す。
+    return { organizationId, shopId, recruitmentId, staffPersonId: staff.personId, staffName };
+  },
+});
+
+/**
+ * 通知不達E2Eで使う、募集通知の準備に失敗した未対応の不達2件がある前提を作る。
+ * 本番の通知処理が失敗時に呼ぶ記録mutationを通し、不達documentを直接insertしない。
+ */
+export const seedNotificationFailureScenario = internalMutation({
+  args: {
+    managerAuthTokenIdentifier: v.string(),
+    managerEmail: v.optional(v.string()),
+    dates: scenarioDatesValidator,
+  },
+  returns: v.object({
+    organizationId: v.id("organizations"),
+    shopId: v.id("shops"),
+    retryStaffName: v.string(),
+    dismissStaffName: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    const { organizationId, shopId } = await createManagerScenario(ctx, {
+      managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
+      managerEmail: args.managerEmail,
+      shopName: "不達対応テスト店舗",
+    });
+    const recruitmentId = await createRecruitment(ctx, { shopId, dates: args.dates, status: "open" });
+    const retryStaffName = "E2E再送スタッフ";
+    const dismissStaffName = "E2E破棄スタッフ";
+
+    for (const [name, email] of [
+      [retryStaffName, "e2e-notification-retry-staff@example.test"],
+      [dismissStaffName, "e2e-notification-dismiss-staff@example.test"],
+    ] as const) {
+      const { staffId } = await createScenarioStaff(ctx, { organizationId, shopId, name, email });
+      await ctx.runMutation(internal.notificationOutbox.mutations.recordDeliveryEvent, {
+        eventType: "enqueue_preparation_failed",
+        shopId,
+        recruitmentId,
+        staffId,
+        channel: "email",
+        dedupeKey: `email:recruitment:${recruitmentId}:${staffId}`,
+        notificationContext: "notification.sendRecruitmentNotificationEmails",
+        errorMessage: "notification_preparation_failed",
+      });
+    }
+
+    // 再送と破棄はブラウザ操作から通す。
+    return { organizationId, shopId, retryStaffName, dismissStaffName };
+  },
+});
+
+/**
+ * E2E専用：Turnstileを通過した後の参加申請だけを、HTTP Actionと同じ内部mutationで作る。
+ * Cloudflareのchallengeは自動化せず、tokenの検証と申請作成は本番と同じ処理を通す。
+ */
+export const submitStaffRegistrationRequestForE2E = internalMutation({
+  args: {
+    managerAuthTokenIdentifier: v.string(),
+    token: v.string(),
+    name: v.string(),
+    email: v.string(),
+  },
+  returns: v.object({ status: v.string() }),
+  handler: async (ctx, args) => {
+    assertE2EHelpersEnabled();
+    const shop = await resolveStaffRegistrationCapability(ctx, args.token);
+    const organization = shop ? await ctx.db.get(shop.organizationId) : null;
+    const owner = await ctx.db
+      .query("users")
+      .withIndex("by_authTokenIdentifier", (q) => q.eq("authTokenIdentifier", args.managerAuthTokenIdentifier))
+      .filter((q) => q.eq(q.field("isDeleted"), false))
+      .first();
+    if (!organization || !owner || organization.createdByUserId !== owner._id) {
+      throw new Error("E2E registration seed failed: registration-link-outside-actor");
+    }
+
+    // 同じapi型を参照するためcircular inferenceを避け、戻り値の型を明示する。
+    const result: { status: "accepted" | "unavailable" } = await ctx.runMutation(
+      internal.staffRegistration.mutations.submitRegistrationRequestFromHttp,
+      {
+        token: args.token,
+        name: args.name,
+        email: args.email,
+        acceptedLegal: true,
+      },
+    );
+    return { status: result.status };
+  },
+});
+
+/** 閲覧リンク再発行E2Eで使う、管理者本人に1件の割当がある確定済み募集だけの前提を作る。 */
+export const seedConfirmedShiftScenario = internalMutation({
+  args: {
+    managerAuthTokenIdentifier: v.string(),
+    managerEmail: v.optional(v.string()),
+    dates: scenarioDatesValidator,
+  },
+  returns: v.object({
+    organizationId: v.id("organizations"),
+    shopId: v.id("shops"),
+    recruitmentId: v.id("recruitments"),
+  }),
+  handler: async (ctx, args) => {
+    const { organizationId, shopId, managerStaffId } = await createManagerScenario(ctx, {
+      managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
+      managerEmail: args.managerEmail,
+      shopName: "再発行テスト店舗",
+    });
+    const recruitmentId = await createRecruitment(ctx, { shopId, dates: args.dates, status: "confirmed" });
+    const positionId = await ensureDefaultPosition(ctx, shopId);
+    await ctx.db.insert("shiftAssignments", {
+      recruitmentId,
+      staffId: managerStaffId,
+      date: args.dates.periodStart,
+      startTime: "10:00",
+      endTime: "15:00",
+      positionId,
+    });
+
+    // 閲覧リンクは再発行画面の操作から発行する。
+    return { organizationId, shopId, recruitmentId };
   },
 });
 
@@ -1506,13 +1697,65 @@ export const seedLineLinkScenario = internalMutation({
     managerEmail: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const { shopId, managerStaffId } = await createManagerScenario(ctx, {
+    const { organizationId, ownerPersonId, shopId, managerStaffId } = await createManagerScenario(ctx, {
       managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
       managerEmail: args.managerEmail,
       shopName: "LINE連携テスト店舗",
     });
 
-    return { shopId, staffId: managerStaffId };
+    return { organizationId, personId: ownerPersonId, shopId, staffId: managerStaffId };
+  },
+});
+
+/**
+ * E2E専用：LINE Loginの画面とcode交換だけを代替し、画面で発行した最新の未使用連携tokenで連携を確定する。
+ * tokenの検証と連携確定は、OAuth callbackと同じinternal mutationを通す。
+ */
+export const completeLineLinkForE2E = internalMutation({
+  args: {
+    managerAuthTokenIdentifier: v.string(),
+    organizationPersonId: v.id("organizationPeople"),
+  },
+  returns: v.object({ status: v.string() }),
+  handler: async (ctx, args) => {
+    assertE2EHelpersEnabled();
+    const person = await ctx.db.get(args.organizationPersonId);
+    const organization = person ? await ctx.db.get(person.organizationId) : null;
+    const owner = await ctx.db
+      .query("users")
+      .withIndex("by_authTokenIdentifier", (q) => q.eq("authTokenIdentifier", args.managerAuthTokenIdentifier))
+      .filter((q) => q.eq(q.field("isDeleted"), false))
+      .first();
+    if (!organization || !owner || organization.createdByUserId !== owner._id) {
+      throw new Error("E2E LINE link seed failed: person-outside-actor");
+    }
+
+    const now = Date.now();
+    const tokens = await ctx.db
+      .query("lineLinkTokens")
+      .withIndex("by_organizationPersonId_and_expiresAt", (q) =>
+        q.eq("organizationPersonId", args.organizationPersonId).gt("expiresAt", now),
+      )
+      .order("desc")
+      .take(10);
+    const usable = tokens.filter((token) => !token.usedAt && !token.revokedAt);
+    if (usable.length !== 1) throw new Error("E2E LINE link seed failed: usable-token-not-unique");
+
+    // 同じapi型を参照するためcircular inferenceを避け、戻り値の型を明示する。
+    const validation: { status: string; staffId?: Id<"staffs">; tokenDocId?: Id<"lineLinkTokens"> } =
+      await ctx.runMutation(internal.line.mutations.validateLinkToken, { state: usable[0].token });
+    if (validation.status !== "ok" || !validation.staffId || !validation.tokenDocId) {
+      return { status: validation.status };
+    }
+    const finalized: { status: string } = await ctx.runMutation(internal.line.mutations.finalizeLinking, {
+      staffId: validation.staffId,
+      tokenDocId: validation.tokenDocId,
+      // 実在のLINE user ID（U + 32桁の16進数）と衝突しない形式にする。
+      lineUserId: `U_e2e_${args.organizationPersonId}_${now}`,
+      lineFollowing: true,
+      lineFriendshipObservedAt: now,
+    });
+    return { status: finalized.status };
   },
 });
 

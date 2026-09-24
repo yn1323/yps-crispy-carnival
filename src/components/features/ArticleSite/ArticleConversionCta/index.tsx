@@ -1,8 +1,9 @@
-import { Box, Grid, Heading, Image, Link, Text, VStack } from "@chakra-ui/react";
+import { Box, Grid, Heading, Image, Text, VStack } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 import { LuBookOpen } from "react-icons/lu";
 import heroPcImage from "@/src/assets/hero-pc.webp";
 import heroSpImage from "@/src/assets/hero-sp.webp";
+import { MeasurementLink } from "@/src/components/shared/MeasurementLink";
 import { Button } from "@/src/components/ui/Button";
 
 type ArticleConversionCtaProps = {
@@ -74,10 +75,10 @@ export function ArticleConversionCta({ compact = false }: ArticleConversionCtaPr
               fontWeight="bold"
               w="full"
             >
-              <Link href="/">
+              <MeasurementLink href="/" measurementCtaId="article_cta">
                 <LuBookOpen />
                 詳しく見る
-              </Link>
+              </MeasurementLink>
             </Button>
           </Box>
         </VStack>

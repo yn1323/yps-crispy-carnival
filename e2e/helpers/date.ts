@@ -33,6 +33,11 @@ export function getNextWeekDates(now: Date | number = Date.now()) {
   };
 }
 
+/** `YYYY-MM-DD`の暦日を指定日数だけずらす。 */
+export function addDaysToCalendarDate(date: string, days: number) {
+  return formatCalendarDate(addCalendarDays(parseCalendarDate(date), days));
+}
+
 export function formatDateWithWeekday(date: string) {
   const calendarDate = parseCalendarDate(date);
   return `${calendarDate.month}/${calendarDate.day}(${WEEKDAYS[toUtcCalendarDate(calendarDate).getUTCDay()]})`;

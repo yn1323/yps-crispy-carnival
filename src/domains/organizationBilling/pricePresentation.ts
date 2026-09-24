@@ -37,7 +37,7 @@ export function formatCurrencyAmount(currencyValue: string, amountInMinorUnit: n
   return currency === "JPY" ? formatted.replace("￥", "¥") : formatted;
 }
 
-function formatBillingUnit(interval: PricePresentationInput["interval"], intervalCount: number): string {
+export function formatBillingUnit(interval: PricePresentationInput["interval"], intervalCount: number): string {
   return `${intervalCount}${intervalUnit(interval)}`;
 }
 

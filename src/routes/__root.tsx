@@ -3,44 +3,14 @@ import { type ReactNode, useEffect } from "react";
 import { DocumentErrorFallback } from "@/src/components/ui/RouteErrorFallback";
 import { Toaster } from "@/src/components/ui/toaster";
 import { buildMeta, jsonLdMeta } from "@/src/lib/seo";
+import {
+  organizationJsonLd,
+  SITE_DESCRIPTION,
+  softwareApplicationJsonLd,
+  webSiteJsonLd,
+} from "@/src/lib/seo/siteJsonLd";
 import { trackPageView } from "@/src/lib/webMeasurement";
 import { ChakraProvider } from "@/src/providers/ChakraProvider";
-
-const SITE_DESCRIPTION =
-  "LINEでスタッフに希望シフトの提出を依頼し、提出状況の確認からシフト作成・確定共有まで進められます。\nスタッフはアプリ不要で、そのまま希望シフトを提出できます。";
-
-const softwareApplicationJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  name: "シフトリ",
-  description: SITE_DESCRIPTION,
-  url: "https://shiftori.app",
-  applicationCategory: "BusinessApplication",
-  operatingSystem: "Web",
-  image: "https://shiftori.app/ogp.png",
-  inLanguage: "ja",
-  provider: {
-    "@type": "Organization",
-    name: "シフトリ",
-    url: "https://shiftori.app",
-  },
-};
-
-const organizationJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "Organization",
-  name: "シフトリ",
-  url: "https://shiftori.app",
-  logo: "https://shiftori.app/logo512.png",
-};
-
-const webSiteJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "WebSite",
-  name: "シフトリ",
-  url: "https://shiftori.app",
-  inLanguage: "ja-JP",
-};
 
 const HydrationReadyMarker = () => {
   useEffect(() => {

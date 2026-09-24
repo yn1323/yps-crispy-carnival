@@ -17,7 +17,19 @@ export const EXPECTED_CORE_CONTRACTS = new Map([
   ["E2E-MANAGER-01", "desktop-chromium"],
   ["E2E-MANAGER-02", "desktop-chromium"],
   ["E2E-NAV-01", "desktop-chromium"],
+  ["E2E-SHIFT-02", "desktop-chromium"],
+  ["E2E-SHIFT-03", "desktop-chromium"],
+  ["E2E-SHIFT-04", "desktop-chromium"],
+  ["E2E-SHIFT-05", "desktop-chromium"],
+  ["E2E-RECRUITMENT-01", "desktop-chromium"],
+  ["E2E-EXCLUSION-01", "desktop-chromium"],
+  ["E2E-NOTIFY-01", "desktop-chromium"],
+  ["E2E-REGISTRATION-01", "desktop-chromium"],
+  ["E2E-LINE-01", "desktop-chromium"],
+  ["E2E-REISSUE-01", "desktop-chromium"],
+  ["E2E-ONBOARDING-01", "desktop-chromium"],
   ["E2E-MOBILE-01", "mobile-chrome"],
+  ["E2E-MOBILE-02", "mobile-chrome"],
 ]);
 
 const CONTRACT_PATTERN = /\b(E2E-[A-Z0-9]+-\d{2})\b/g;

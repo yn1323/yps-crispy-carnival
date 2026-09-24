@@ -3,6 +3,9 @@
 このファイルは、リポジトリ全体で常に守る制約と参照先を示す。
 設計原則や作業手順をここへ複製しない。
 
+## IMPORTANT
+- 必ず日本語で返答すること
+
 ## 適用範囲
 
 - このファイルはリポジトリ全体に適用する。
@@ -54,6 +57,7 @@
 - 認証、認可、IDOR、token、Capability、Webhook、外部副作用、billing、個人情報、retention、redactionに触れる相談・計画・設計・実装・レビューでは、プラン確定前に `shiftori-security-review` を使う。
 - Convexの複数ユースケース、public API境界、Capability、永続ワークフロー、データ寿命、運用契約を横断して扱う場合は `convex-design-review` を使う。
 - 保存済みデータの形を変える、既存documentが新schemaに合わなくなる、またはbackfillが必要な場合は `convex-migration-helper` を使う。
+- 公開ページのtitle、description、canonical、OGP、JSON-LD構造化データを追加・変更する場合は `public-page-metadata` を使う。
 
 Skillは特定作業の進め方であり、常時制約や設計原則の正本にしない。
 

@@ -121,7 +121,9 @@ E2Eの主担当:
 - 外部providerの実到着: 通常E2Eの対象外。
 
 E2Eでは、境界値によって業務結果や画面遷移が変わる代表点だけを選ぶ。最大件数の大量操作は、必要ならFull Regressionと分離したcapacity jobへ置く。
-core E2Eは安定したcontract IDを持つ少数の主要導線へ絞り、通知purpose、channel、状態分岐ごとに複製しない。
+core E2Eは、エラー系を除く利用者向けハッピーパスを機能ごとに一つの安定したcontract IDで持ち、通知purpose、channel、状態分岐ごとに複製しない。
+各契約は開始状態をseedで作り、前の機能で作った結果を次の機能で使う受け渡しを少なくとも一つ画面で確認する。
+受け渡しのない単機能の画面操作だけなら、BehaviorまたはFunction Testで足りないかを先に確認する。
 
 ### Submit・競合・通信失敗
 
@@ -147,7 +149,9 @@ core E2Eは安定したcontract IDを持つ少数の主要導線へ絞り、通�
 
 初回提出だけ、管理者編集だけ、確定画面だけでは、その方式の一気通貫を完了扱いにしない。再提出では追加と取り消しの両方を見て、置換更新が誤ってmergeへ退行することを検知する。
 ただし、この一覧を一つのE2Eへ詰め込まない。
-入力分岐と管理者編集はBehavior、置換更新と永続状態はFunctionまたはScenario、代表的な匿名提出・閲覧のブラウザ境界だけをE2Eで守る。
+core E2Eは方式ごとに、店舗設定での方式選択、募集作成、匿名提出、その方式の入力での割当、確定、別contextでの閲覧を一契約で通す。
+再提出（追加と取り消し）と、下書き保存後のreloadから再確定までは、代表の方式一つで別契約にする。
+入力分岐と管理者編集の細部はBehavior、置換更新と永続状態の完全性はFunctionまたはScenarioが守る。
 
 ## 6. 設定変更とユーザー変更の下流影響を閉じる
 
@@ -194,6 +198,8 @@ retry、fallback、FailureInbox、rate limit、署名、対象集合を通常E2E
 E2Eでは、代表的なUI操作からcapabilityが発行され、匿名contextでCTAの最終画面へ到達できるブラウザ境界だけを守る。
 emailとLINEで遷移先または認証境界が異なる場合だけ、異なる失敗境界を持つ代表経路を追加する。
 不達復旧が主要な利用者導線なら、dashboardから再通知操作を行い利用者に見える受付状態まで確認し、Outbox、retry、解消後の完全な集合はScenario Testへ分ける。
+E2Eの不達は、deployment全体の`DEBUG_NOTIFICATION_DELIVERY_MODE=force-failure`で作らず、Outboxの最終失敗と同じ記録処理を通るseedで対象actorの店舗に作る。
+再通知後は、一定時間待って不達が戻らないことを確認せず、reload後に未対応の一覧へ表示されないことを確認する。
 
 `accepted`、`scheduled`、`retrying`をproviderへの実到着と表現しない。
 Function / Scenarioはアプリ内の受付と予約を保証し、E2Eは代表的なCTAとのブラウザ接続を保証する。
@@ -230,6 +236,8 @@ E2Eは通知Outboxの集合を診断情報として取得しない。
 - Smoke対象はroute manifestの全件複製にせず、異なる配信境界を代表する数個のURLへ絞る。
 - 外部challengeを自動化するために、アプリ側の検証やセキュリティを弱めない。
 - challengeを安定して自動化できない場合は、routeとCTAのSmoke、内部受付契約までを自動化し、外部到達を保証したとは表現しない。
+- Turnstileなどのbot対策challengeはE2Eで突破しない。画面は匿名contextで開き、challenge通過後の申請作成だけを、HTTP Actionと同じinternal mutationを呼ぶE2E専用関数で代替する。bot対策、rate limit、Originの検証はFunction Testが主担当である。
+- LINE LoginなどのOAuthは、provider画面とcode交換だけをprovider代替seedで置き換える。provider代替seedは、画面で発行した最新の未使用tokenを本番と同じ検証・確定処理へ通し、偽のprovider IDには実在IDと衝突しない接頭辞を付ける。代替した区間はE2Eの保証に含めない。
 
 ## 11. CI結果の扱い
 
@@ -258,6 +266,8 @@ E2Eは通知Outboxの集合を診断情報として取得しない。
 - [ ] 匿名の保護route redirectとlogout後の保護route再アクセスを、coreまたは独立browser smokeで確認した。
 - [ ] feature flagでskipされた契約をcoverage済みと数えず、enabled環境での実行条件を記録した。
 - [ ] 外部サービスの実到着を通常E2Eの保証として扱っていない。
+- [ ] 各core契約が、前の機能の結果を次の機能で使う受け渡しを画面で確認している。
+- [ ] provider代替seedと失敗状態のseedが、本番と同じ内部処理を通り、対象actorの範囲に閉じている。
 - [ ] core E2Eのactor、認証状態、seed、cleanupがworker間で分離されている。
 - [ ] 固定秒待機と`networkidle`を、利用者に見える完了条件またはdeadline付きpollingへ置き換えた。
 - [ ] contract ID、project、skip、retry、flakyをresult gateで検証している。

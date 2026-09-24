@@ -28,6 +28,8 @@
 
 | 計画 | 状態 | 未完了条件 | 現在の正本 |
 |---|---|---|---|
+| [E2Eハッピーパス網羅](2026-09-24_E2Eハッピーパス網羅_実装計画.md) | `implementing` | 規約改訂と12契約はローカルで成功。PR PreviewでのCI、全core契約のburn-in、同一SHAの3回実行と実行時間の上限確認が残る | [テスト方針](../rules/testing-strategy.md)、[Full Regression横断契約表](../specs/full-regression-contracts.md) |
+| [獲得導線と利用状況のWeb計測](2026-09-23_獲得導線と利用状況のWeb計測_計画.md) | `repository implemented` | GTM containerのインポートと公開、GA4 propertyの設定、アプリのリリースと反映確認 | [全ページのWeb計測](../features/web-measurement.md)、[GA4・GTM運用](../manual/ga4-gtm.md) |
 | [URLクエリ順序とエラー復旧画面](2026-09-08_URLクエリ順序とエラー復旧画面_修正計画.md) | `実装済み・検証待ち` | CI・VRT capture・自動レビューと、有効な指摘への対応を完了する | [公開サイト](../features/public-pages.md)、[認証画面](../features/auth-pages.md) |
 | [シフト入力方法の用語統一](2026-09-07_シフト入力方法の用語統一_実装計画.md) | `コード・文書更新済み` | 関連Logic・Convex・PC/SP Behavior・型検査と、今回の変更だけの全体lint・buildは成功。LP画像の差し替え、動画内の旧称確認、VRT・実機確認が残る | [店舗設定](../features/shop-settings.md)、[希望シフト提出](../features/shift-submission.md)、[シフト表](../features/shift-board.md) |
 | [Analyticsの日次利用指標と問い合わせ閲覧](2026-09-05_Analytics日次利用指標と問い合わせ閲覧_設計実装計画.md) | `実装済み・反映待ち` | 日次3指標の自動記録・集計、店舗／スタッフ閲覧、要望の論理削除と打ち消し線、画面置換・テスト・文書更新は実装済み。PR #902で検証し、実環境への反映と翌日の集計確認は別作業 | [分析KPI蓄積基盤](../features/analytics.md)、[分析KPI可視化アプリ](../features/analytics-dashboard.md)、[要望受付](../features/feature-requests.md) |

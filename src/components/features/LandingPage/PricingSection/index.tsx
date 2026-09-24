@@ -1,4 +1,5 @@
 import { Badge, Box, Container, Flex, Grid, Heading, HStack, Icon, Stack, Text, VStack } from "@chakra-ui/react";
+import { useEffect, useRef } from "react";
 import type { IconType } from "react-icons";
 import { LuCheck, LuStar, LuStore, LuUserRoundCog, LuUsers } from "react-icons/lu";
 import { ORGANIZATION_PLAN_LIMITS, type OrganizationPlanLimits } from "@/convex/organizationBilling/planLimits";
@@ -9,6 +10,7 @@ import {
   type PublicPlanPrice,
   type PublicPlanPriceCatalog,
 } from "@/src/domains/publicPricing";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import { LANDING_HEADER_SCROLL_MARGIN_TOP } from "../constants";
 import { SectionHeading } from "../SectionHeading";
 
@@ -36,8 +38,11 @@ type PricingSectionProps = {
 };
 
 export function PricingSection({ prices }: PricingSectionProps) {
+  const sectionRef = usePricingViewMeasurement();
+
   return (
     <Box
+      ref={sectionRef}
       as="section"
       id="pricing"
       bg="gray.50"
@@ -66,6 +71,30 @@ export function PricingSection({ prices }: PricingSectionProps) {
       </Container>
     </Box>
   );
+}
+
+/** 料金sectionの上端が画面の上60%まで入ったら、TOPの表示ごとに1回だけ記録する。 */
+function usePricingViewMeasurement() {
+  const sectionRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (!section || typeof IntersectionObserver === "undefined") return;
+
+    // sectionはスマートフォンで画面より高いため、表示割合ではなく上端の到達で判定する。
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        observer.disconnect();
+        trackProductEvent({ kind: "section_view", section: "pricing" });
+      },
+      { rootMargin: "0px 0px -40% 0px" },
+    );
+    observer.observe(section);
+    return () => observer.disconnect();
+  }, []);
+
+  return sectionRef;
 }
 
 function ProTrialNotice() {

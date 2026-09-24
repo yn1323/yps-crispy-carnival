@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createExpectedSitemap } from "./sitemap";
@@ -21,6 +21,9 @@ import {
 
 const SITE_URL = "https://shiftori.app";
 const ARTICLE_ROUTE_PREFIX = "/articles/";
+const ARTICLE_CONTENT_DIR = join("src", "components", "features", "ArticleSite", "content", "articles");
+// 記事本文からMarkdownリンクで張った配布ファイル（scripts/generateArticleTemplates.tsxの生成物）
+const ARTICLE_TEMPLATE_LINK_PATTERN = /\]\((\/templates\/[^)\s]+)\)/g;
 const COMMERCIAL_TRANSACTIONS_ROUTE = "/commercial-transactions";
 const PUBLIC_PLAN_PRICE_ROUTES = new Set(["/", COMMERCIAL_TRANSACTIONS_ROUTE]);
 const MAX_STATIC_OUTPUT_ENTRIES = 10_000;
@@ -401,6 +404,17 @@ function assertCloudflareFiles(publicRoutes: string[], redirects: string, header
   assert(!/Clear-Site-Data:.*(?:cookies|storage|\*)/i.test(headers), "cache reset must preserve cookies and storage");
 }
 
+async function assertArticleTemplateLinks(route: string, sourcePath: string, outputDirectory: string): Promise<void> {
+  const source = await readFile(sourcePath, "utf8");
+  for (const [, href] of source.matchAll(ARTICLE_TEMPLATE_LINK_PATTERN)) {
+    const filePath = join(outputDirectory, href.slice(1));
+    assert(
+      existsSync(filePath) && (await stat(filePath)).size > 0,
+      `${route} links to missing ${href}; run \`pnpm templates:articles\` before \`vite build\``,
+    );
+  }
+}
+
 async function assertSitemap(repoRoot: string, outputDirectory: string): Promise<void> {
   const [expectedSitemap, sourceSitemap, deployedSitemap] = await Promise.all([
     createExpectedSitemap(repoRoot),
@@ -446,6 +460,7 @@ export async function validateStaticBuild(
   )) {
     const slug = getCanonicalRoute(route).slice(ARTICLE_ROUTE_PREFIX.length);
     assert(existsSync(join(resolvedOutput, "ogp", "articles", `${slug}.png`)), `${route} is missing its OGP image`);
+    await assertArticleTemplateLinks(route, join(repoRoot, ARTICLE_CONTENT_DIR, slug, "index.mdx"), resolvedOutput);
   }
 
   const shellPath = join(resolvedOutput, "_shell.html");
