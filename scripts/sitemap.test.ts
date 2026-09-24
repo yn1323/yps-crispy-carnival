@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   buildSitemapEntries,
@@ -14,6 +16,16 @@ import {
   HELP_TASK_ROUTES,
   NOINDEX_PUBLIC_ROUTES,
 } from "./staticSite";
+
+const ARTICLE_CONTENT_DIR = join("src", "components", "features", "ArticleSite", "content", "articles");
+
+/** 記事の日付更新で期待値を書き換えずに済むよう、YAMLの型変換を通さずfrontmatterに書かれたupdatedAtを読む */
+async function readRawUpdatedAt(slug: string): Promise<string> {
+  const source = await readFile(join(ARTICLE_CONTENT_DIR, slug, "index.mdx"), "utf8");
+  const updatedAt = source.match(/^updatedAt: "(\d{4}-\d{2}-\d{2})"$/m)?.[1];
+  if (!updatedAt) throw new Error(`${slug} has no quoted updatedAt`);
+  return updatedAt;
+}
 
 const article = (slug: string, publishedAt: string, updatedAt?: string): SitemapArticleMetadata => ({
   slug,
@@ -49,7 +61,7 @@ describe("sitemap generator", () => {
     const freeToolArticle = entries.find(({ loc }) => new URL(loc).pathname === "/articles/free-shift-tool-selection");
     expect(freeToolArticle).toEqual({
       loc: "https://shiftori.app/articles/free-shift-tool-selection",
-      lastmod: "2026-09-23",
+      lastmod: await readRawUpdatedAt("free-shift-tool-selection"),
     });
     expect(entries.find(({ loc }) => new URL(loc).pathname === "/articles")?.lastmod).toBeUndefined();
     expect(
@@ -106,6 +118,11 @@ describe("sitemap generator", () => {
     const sitemap = await createExpectedSitemap();
 
     expect(sitemap).toContain("<loc>https://shiftori.app/</loc>");
-    expect(sitemap).toContain("<lastmod>2026-08-15</lastmod>");
+    expect(sitemap).toContain(
+      [
+        "    <loc>https://shiftori.app/articles/excel-shift-management-limits</loc>",
+        `    <lastmod>${await readRawUpdatedAt("excel-shift-management-limits")}</lastmod>`,
+      ].join("\n"),
+    );
   });
 });

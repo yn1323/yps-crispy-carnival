@@ -2,7 +2,7 @@
 
 > 文書種別: feature
 >
-> 最終コード照合: 2026-09-07（この変更を含む）
+> 最終コード照合: 2026-09-24（この変更を含む）
 
 公開サイトは、登録前の製品理解と、利用中の疑問解消をつなぐ認証不要のページ群である。
 ルート`/`を入口に、機能紹介、ヘルプ、記事、操作デモへ利用者を案内する。
@@ -149,13 +149,15 @@ TanStack StartはこのallowlistだけをStatic Prerenderingし、認証routeや
 記事URLまたは記事の日付を変更した開発者は`pnpm sitemap:generate`を明示実行し、生成物を同じ変更へ含める。
 `public/llms.txt`は機械可読な公開コンテンツの入口を持つ。
 記事別OGPは`scripts/generateArticleOgp.ts`と`public/ogp/articles/`が所有し、生成物検証時に不足を検出する。
+記事で配布するExcelとPDFのテンプレートは`scripts/generateArticleTemplates.tsx`が所有し、`pnpm build`の最初に`public/templates/`へ生成する。
+生成物はコミットせず、ローカルの開発サーバーでリンク先を確かめるときは`pnpm templates:articles`を実行する。
 
 全ページのfallback metadataは`src/routes/__root.tsx`、route別metadataとJSON-LDは対応する`src/pages/*/meta.ts`とコンテンツfeatureが所有する。
 FAQPage、BlogPosting、BreadcrumbListなどの構造化データは、画面に表示する現在内容と一致させる。
 
-`pnpm build`はStatic Prerendering、Cloudflare用ルール生成、生成物検証、型検査を行う。
+`pnpm build`は記事の配布テンプレート生成、Static Prerendering、Cloudflare用ルール生成、生成物検証、型検査を行う。
 Cloudflare Pagesへ配信するのは`dist/client/`だけであり、`dist/server/`はbuild時のrenderにだけ使う。
-`scripts/validateStaticBuild.ts`は公開HTMLのcanonical、metadata、H1一件、Emotion style、hydration payload、特定商取引法ページのStandard・Pro料金snapshot、記事OGP、metadataから再生成したsitemapとの一致、CSR shell、404、Cloudflareルールを検証する。
+`scripts/validateStaticBuild.ts`は公開HTMLのcanonical、metadata、H1一件、Emotion style、hydration payload、特定商取引法ページのStandard・Pro料金snapshot、記事OGP、記事から`/templates/`へ張ったリンク先の存在、metadataから再生成したsitemapとの一致、CSR shell、404、Cloudflareルールを検証する。
 通常の`pnpm build`は`public/sitemap.xml`を書き換えず、sourceまたは配信artifactが生成期待値と異なる場合に失敗する。
 実際のdeployment状態はこの機能文書から推測せず、CI/CDの手順と実行結果で確認する。
 

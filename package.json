@@ -8,7 +8,7 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "build": "vite build && pnpm static:prepare && pnpm static:validate && tsc",
+    "build": "pnpm templates:articles && vite build && pnpm static:prepare && pnpm static:validate && tsc",
     "analytics:dev": "pnpm --filter @shiftori/analytics-dashboard dev",
     "analytics:dev:production": "pnpm --filter @shiftori/analytics-dashboard dev:production",
     "analytics:build": "pnpm --filter @shiftori/analytics-dashboard build",
@@ -21,6 +21,7 @@
     "static:validate": "tsx scripts/validateStaticBuild.ts",
     "sitemap:generate": "tsx scripts/sitemap.ts",
     "ogp:articles": "tsx scripts/generateArticleOgp.ts",
+    "templates:articles": "tsx scripts/generateArticleTemplates.tsx",
     "dev": "vite --port 3000",
     "dev:ngrok": "concurrently -n dev,ngrok -c blue,cyan \"vite --port 3000 --host 0.0.0.0\" \"tsx scripts/startNgrok.ts\"",
     "dev:all": "concurrently -n dev,convex,storybook -c blue,green,magenta \"pnpm dev\" \"pnpm convex:dev\" \"pnpm storybook\"",

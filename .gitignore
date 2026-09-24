@@ -13,6 +13,9 @@ count.txt
 .env*
 
 *storybook.log
+
+# 記事の配布テンプレートは`pnpm build`が生成する
+/public/templates/
 storybook-static
 vrt-actual/
 vrt-work/
