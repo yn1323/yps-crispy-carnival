@@ -150,7 +150,7 @@ TanStack StartはこのallowlistだけをStatic Prerenderingし、認証routeや
 記事URLまたは記事の日付を変更した開発者は`pnpm sitemap:generate`を明示実行し、生成物を同じ変更へ含める。
 `public/llms.txt`は機械可読な公開コンテンツの入口を持つ。
 記事別OGPは`scripts/generateArticleOgp.ts`と`public/ogp/articles/`が所有し、生成物検証時に不足を検出する。
-記事で配布するExcelとPDFのテンプレートは`scripts/generateArticleTemplates.tsx`が所有し、`pnpm build`の最初に`public/templates/`へ生成する。
+記事で配布するExcelとPDFのテンプレートは`scripts/generateArticleTemplates.tsx`が所有し、`pnpm build`の最初に`public/templates/`へ生成する。<!-- docs-check:ignore-path public/templates -->
 生成物はコミットせず、ローカルの開発サーバーでリンク先を確かめるときは`pnpm templates:articles`を実行する。
 
 全ページのfallback metadataは`src/routes/__root.tsx`、route別metadataとJSON-LDは対応する`src/pages/*/meta.ts`とコンテンツfeatureが所有する。
