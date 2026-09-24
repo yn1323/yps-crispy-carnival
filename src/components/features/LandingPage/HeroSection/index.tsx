@@ -1,7 +1,14 @@
 import { Box, Container, Flex, Grid, Heading, Icon, Image, SimpleGrid, Stack, Text, VStack } from "@chakra-ui/react";
 import type { IconType } from "react-icons";
-import { LuBell, LuCalendarCheck, LuChevronRight, LuMail, LuMousePointerClick, LuSmartphone } from "react-icons/lu";
-import { SiLine } from "react-icons/si";
+import {
+  LuChevronRight,
+  LuClipboardCheck,
+  LuListChecks,
+  LuMail,
+  LuSmartphone,
+  LuStore,
+  LuUsersRound,
+} from "react-icons/lu";
 import heroPcImage from "@/src/assets/hero-pc.webp";
 import heroSpImage from "@/src/assets/hero-sp.webp";
 import { MeasurementLink } from "@/src/components/shared/MeasurementLink";
@@ -9,11 +16,11 @@ import { Button } from "@/src/components/ui/Button";
 import { TrialReassurance } from "../TrialReassurance";
 
 const heroBenefits: Array<{ icon: IconType; label: string }> = [
-  { icon: SiLine, label: "LINEで希望シフト回収" },
-  { icon: LuBell, label: "自動リマインド" },
-  { icon: LuMousePointerClick, label: "アプリ不要" },
+  { icon: LuClipboardCheck, label: "提出状況を確認" },
+  { icon: LuListChecks, label: "3つの提出方法" },
   { icon: LuSmartphone, label: "スマホでシフト作成" },
-  { icon: LuCalendarCheck, label: "シフトを自動共有" },
+  { icon: LuStore, label: "複数店舗に対応" },
+  { icon: LuUsersRound, label: "複数管理者に対応" },
   { icon: LuMail, label: "メールでもOK" },
 ];
 
@@ -54,11 +61,11 @@ export const HeroSection = () => (
               lineHeight="1.9"
               fontWeight="semibold"
             >
-              シフトの回収、催促、調整、決まったら共有
+              希望シフトの回収、催促、調整、確定後の共有
               <br />
-              毎月くり返すやりとりをシフトリがまとめて担当
+              毎月くり返すやり取りをシフトリにまとめる
               <br />
-              専用アプリインストールはなし
+              スタッフはアプリのインストール不要
             </Text>
           </VStack>
 

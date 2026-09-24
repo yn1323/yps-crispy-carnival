@@ -24,7 +24,7 @@ export const UseCasesSection = () => (
             ))}
           </Flex>
           <Text color="gray.700" fontSize="sm" lineHeight="1.8" fontWeight="semibold" textAlign="center">
-            ランチ・ディナー、平日・週末、早番・遅番、短期スタッフなど、お店のシフトの組み方に合わせて使えます。
+            ランチ・ディナー、平日・週末、早番・遅番、単発のイベントなど、お店に合わせてシフトを組めます。
           </Text>
         </VStack>
       </VStack>

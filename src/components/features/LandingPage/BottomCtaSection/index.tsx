@@ -1,4 +1,4 @@
-import { Box, Container, Heading, Icon, Stack, Text, VStack } from "@chakra-ui/react";
+import { Box, Container, Heading, Icon, Stack, VStack } from "@chakra-ui/react";
 import { LuBookOpen, LuChevronRight } from "react-icons/lu";
 import { MeasurementLink } from "@/src/components/shared/MeasurementLink";
 import { Button } from "@/src/components/ui/Button";
@@ -11,14 +11,9 @@ export const BottomCtaSection = () => (
         <Heading as="h2" fontSize={{ base: "xl", sm: "2xl", md: "3xl" }} lineHeight="1.35" letterSpacing="0">
           シフトのやり取りを
           <Box as="span" display="block" color="teal.700">
-            LINEとメールでひとつに。
+            LINEやメールでひとつに
           </Box>
         </Heading>
-        <Text color="gray.800" fontSize="md" lineHeight="1.9" fontWeight="semibold" maxW="620px">
-          希望シフトを集めるところから、確定を知らせるところまで。
-          <br />
-          まずは2か月、実際の店舗とスタッフで試してみませんか。
-        </Text>
         <VStack align="center" gap={3} w={{ base: "full", md: "auto" }}>
           <Stack direction={{ base: "column", md: "row" }} gap={4} w={{ base: "full", md: "auto" }}>
             <BottomButton href="/signup" label="シフトリをはじめる" primary />

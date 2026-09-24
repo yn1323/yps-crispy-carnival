@@ -17,15 +17,15 @@ const submissionTypes: Array<{
   {
     icon: LuCalendarDays,
     title: "日付選択",
-    body: "出勤できる日を選ぶ方式",
-    badge: "短時間シフト向け",
+    body: "出勤できる日を選ぶ",
+    badge: "勤務時間が決まっている職場向け",
     imageSrc: dayImage,
     imageAlt: "日付選択で希望シフトを提出する画面",
   },
   {
     icon: LuClock3,
     title: "時間指定",
-    body: "働ける開始時間と終了時間を入力する方式",
+    body: "働ける開始・終了時間を入力する",
     badge: "飲食店・小売店向け",
     imageSrc: timeImage,
     imageAlt: "時間指定で希望シフトを提出する画面",
@@ -33,7 +33,7 @@ const submissionTypes: Array<{
   {
     icon: LuUsers,
     title: "パターン選択",
-    body: "早番や遅番など、店舗で決めた勤務パターンから選ぶ方式",
+    body: "店舗で決めた早番・遅番などから選ぶ",
     badge: "介護・施設向け",
     imageSrc: selectionImage,
     imageAlt: "パターン選択で希望シフトを提出する画面",
@@ -44,12 +44,7 @@ export const SubmissionTypesSection = () => (
   <Box as="section" bg="#fbfefe" py={16}>
     <Container maxW="7xl">
       <VStack gap={9}>
-        <VStack gap={3} textAlign="center">
-          <SectionHeading phrases={["希望シフトの集め方を3つから選べます"]} />
-          <Text color="gray.700" fontSize="md" lineHeight="1.8" fontWeight="semibold">
-            お店の働き方に合う方法を選べます
-          </Text>
-        </VStack>
+        <SectionHeading phrases={["希望シフトの集め方を3つから選べます"]} textAlign="center" />
 
         <SimpleGrid columns={{ base: 1, md: 3 }} gap={5} w="full">
           {submissionTypes.map((type) => (

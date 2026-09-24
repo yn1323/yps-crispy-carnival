@@ -8,18 +8,18 @@ import setCollectionPeriodImage from "./set-collection-period.webp";
 const flowSteps: Array<{ imageSrc: string; title: string; body: string }> = [
   {
     imageSrc: setCollectionPeriodImage,
-    title: "シフト募集期間を決める",
-    body: "指定した期間の提出リンクをLINE・メールで自動送信",
+    title: "シフトを募集する",
+    body: "提出リンクがLINE・メールで届く",
   },
   {
     imageSrc: buildShiftImage,
     title: "シフトを組む",
-    body: "集まった希望を見ながらシフトを組む",
+    body: "集まった希望シフトを見ながら割り当てる",
   },
   {
     imageSrc: confirmShiftImage,
     title: "シフトを確定する",
-    body: "確定シフトを自動でお知らせ",
+    body: "確定シフトがスタッフに届く",
   },
 ];
 
