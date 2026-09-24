@@ -43,6 +43,7 @@ FAQ、使い方、TSXの基本ページは`HelpCenter`、記事は`ArticleSite`�
 | ログインと登録 | `/login`、`/signup`、`/forgot-password` | [`auth-pages.md`](auth-pages.md) |
 
 `PublicPageLayout`のheaderとfooterがこれらの入口を接続する。
+PC幅のheaderは、機能、ヘルプ、記事をそれぞれ独立したページへ、導入事例と料金をTOPの該当sectionへリンクする。  モバイルではheaderのリンクを表示しないため、footerからも機能、ヘルプ、記事へ移動できるようにする。
 問い合わせの送信、法務同意の保存、認証処理は、それぞれの機能文書とConvex実装が所有する。
 
 ## コード境界

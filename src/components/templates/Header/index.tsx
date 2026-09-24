@@ -14,11 +14,11 @@ const GLASS_BACKDROP_FILTER = "blur(12px) saturate(135%)";
 const AUTHENTICATED_GLASS_BACKGROUND = "rgba(255, 255, 255, 0.08)";
 
 const publicNavItems = [
-  { label: "機能", href: "/#features" },
+  { label: "機能", href: "/features" },
   { label: "導入事例", href: "/#use-cases" },
   { label: "料金", href: "/#pricing" },
-  { label: "よくある質問", href: "/#faq" },
-  { label: "お役立ち記事", href: "/#articles" },
+  { label: "ヘルプ", href: "/help" },
+  { label: "お役立ち記事", href: "/articles" },
 ];
 
 type HeaderPosition = "fixed" | "sticky" | "static";

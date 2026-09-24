@@ -107,11 +107,11 @@ export const Public: Story = {
   play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
     const canvas = within(canvasElement);
     for (const [label, href] of [
-      ["機能", "/#features"],
+      ["機能", "/features"],
       ["導入事例", "/#use-cases"],
       ["料金", "/#pricing"],
-      ["よくある質問", "/#faq"],
-      ["お役立ち記事", "/#articles"],
+      ["ヘルプ", "/help"],
+      ["お役立ち記事", "/articles"],
     ]) {
       await expect(canvas.getByRole("link", { name: label })).toHaveAttribute("href", href);
     }

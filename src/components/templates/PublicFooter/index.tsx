@@ -6,6 +6,7 @@ const productLinks: FooterColLink[] = [{ label: "できること", href: "/featu
 
 const supportLinks: FooterColLink[] = [
   { label: "ヘルプ・使い方", href: "/help" },
+  { label: "お役立ち記事", href: "/articles" },
   { label: "お問い合わせ", href: "/contact" },
 ];
 
