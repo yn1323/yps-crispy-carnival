@@ -28,6 +28,7 @@
 
 | 計画 | 状態 | 未完了条件 | 現在の正本 |
 |---|---|---|---|
+| [LP改善と機能ページ](2026-09-25_LP改善と機能ページ_計画.md) | `implementing` | TOPの再構成と機能ページはrepositoryで実装済み。VRTの差分承認、追加PNGのWebP変換、公開後のSearch Console確認が残る | [公開サイト](../features/public-pages.md) |
 | [LP紹介動画 絵コンテ](2026-09-25_LP紹介動画_絵コンテ.md) | `implementing` | 動画とLPへの埋め込みはrepositoryで実装済み。計測の設計とVRTの差分承認が残る | 企画・演出の判断基準は[LP埋め込み動画の参照](../../.agents/skills/remotion-best-practices/lp-product-video/REFERENCE.md) |
 | [E2Eハッピーパス網羅](2026-09-24_E2Eハッピーパス網羅_実装計画.md) | `implementing` | 規約改訂と12契約はローカルで成功。PR PreviewでのCI、全core契約のburn-in、同一SHAの3回実行と実行時間の上限確認が残る | [テスト方針](../rules/testing-strategy.md)、[Full Regression横断契約表](../specs/full-regression-contracts.md) |
 | [獲得導線と利用状況のWeb計測](2026-09-23_獲得導線と利用状況のWeb計測_計画.md) | `repository implemented` | GTM containerのインポートと公開、GA4 propertyの設定、アプリのリリースと反映確認 | [全ページのWeb計測](../features/web-measurement.md)、[GA4・GTM運用](../manual/ga4-gtm.md) |

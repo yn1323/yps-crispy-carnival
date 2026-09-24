@@ -30,7 +30,7 @@ local build、GTM ID欠落、不正なreleaseでは第三者URLを組み立て�
 
 | 画面 | route family例 | route area |
 |---|---|---|
-| TOP、機能、ヘルプ、問い合わせ、記事、デモ | `home`、`features`、`help_*`、`contact`、`article_*`、`demo_shiftboard` | `public` |
+| TOP、機能一覧、機能ページ、ヘルプ、問い合わせ、記事、デモ | `home`、`features`、`feature_detail`、`help_*`、`contact`、`article_*`、`demo_shiftboard` | `public` |
 | 登録、ログイン、パスワード再設定、管理者招待 | `auth_signup`、`auth_login`、`auth_password_reset`、`manager_invite` | `auth` |
 | Dashboard、アカウント、要対応一覧 | `dashboard`、`account`、`actions` | `manager` |
 | 組織、課金、管理者、店舗 | `organization_management`、`billing`、`manager_management`、`shop_detail` | `manager` |
@@ -45,7 +45,7 @@ ApplicationがdataLayerへ追加するイベントは次に限定する。  `web
 | イベント | 発火条件 | 固有のパラメータ |
 |---|---|---|
 | `page_view` | 初回documentとpathnameが変わるSPA遷移 | `page_location`、`page_referrer` |
-| `select_content` | TOPのheader・hero・下部CTAと、記事末尾CTAの選択 | `content_type`、`content_id` |
+| `select_content` | TOPのheader・hero・下部CTA、機能一覧と機能ページの上部・下部CTA、記事末尾CTAの選択 | `content_type`、`content_id` |
 | `setup_complete` | 初回Setupまたは追加組織の作成が成功したとき | `setup_kind`（`first`、`additional`）、`submission_pattern` |
 | `section_view` | TOPの料金sectionの上端が画面の上60%へ入ったとき（TOPの表示ごとに1回） | `section`（`pricing`） |
 | `shift_export` | シフト表のPDFまたはExcelを生成して保存を始めたとき | `format`（`pdf`、`xlsx`） |
