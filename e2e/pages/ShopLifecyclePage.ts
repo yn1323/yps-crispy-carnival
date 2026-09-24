@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 import { expectAppHydrated } from "../helpers/appReadiness";
 
 const SHOP_DATA_TIMEOUT = 20_000;
@@ -94,6 +94,37 @@ export class ShopLifecyclePage {
     });
   }
 
+  async gotoShopDetail(organizationId: string, shopId: string, shopName: string) {
+    await this.page.goto(`/manage/shops/${shopId}?org=${encodeURIComponent(organizationId)}`, {
+      waitUntil: "domcontentloaded",
+    });
+    await expectAppHydrated(this.page);
+    await expect(this.page.getByRole("heading", { name: shopName, exact: true })).toBeVisible({
+      timeout: SHOP_DATA_TIMEOUT,
+    });
+  }
+
+  async changeSubmissionMethodToDateOnly() {
+    const dialog = await this.openSubmissionMethodStep();
+    await dialog.getByRole("button", { name: /^日付選択 日付選択/ }).click();
+    await dialog.getByRole("button", { name: "次へ", exact: true }).click();
+    await this.saveRegularClosedDaysStep(dialog);
+    await this.expectSubmissionMethod("日付選択");
+  }
+
+  /** パターン選択へ変え、既定の先頭パターン（早番）の名前だけを変えて保存する。 */
+  async changeSubmissionMethodToShiftType(firstPatternName: string) {
+    const dialog = await this.openSubmissionMethodStep();
+    await dialog.getByRole("button", { name: /^パターン選択 パターン選択/ }).click();
+    await dialog.getByRole("button", { name: "次へ", exact: true }).click();
+    const firstPatternNameInput = dialog.getByRole("textbox", { name: "パターン名" }).first();
+    await expect(firstPatternNameInput).toHaveValue("早番");
+    await firstPatternNameInput.fill(firstPatternName);
+    await dialog.getByRole("button", { name: "次へ", exact: true }).click();
+    await this.saveRegularClosedDaysStep(dialog);
+    await this.expectSubmissionMethod("パターン選択");
+  }
+
   async deleteCurrentShop(shopName: string) {
     await expect(this.page.getByRole("heading", { name: shopName, exact: true })).toBeVisible({
       timeout: SHOP_DATA_TIMEOUT,
@@ -103,6 +134,28 @@ export class ShopLifecyclePage {
     await expect(dialog).toBeVisible();
     await dialog.getByRole("button", { name: "店舗を削除", exact: true }).click();
     await expect(dialog).toHaveCount(0, { timeout: SHOP_DATA_TIMEOUT });
+  }
+
+  private async openSubmissionMethodStep() {
+    await this.page.getByRole("button", { name: "編集する", exact: true }).click();
+    const dialog = this.page.getByRole("dialog", { name: "店舗設定", exact: true });
+    await expect(dialog).toBeVisible({ timeout: SHOP_DATA_TIMEOUT });
+    await dialog.getByRole("button", { name: "次へ", exact: true }).click();
+    await expect(dialog.getByText("シフトの提出方法", { exact: true })).toBeVisible();
+    return dialog;
+  }
+
+  private async saveRegularClosedDaysStep(dialog: Locator) {
+    await expect(dialog.getByText("毎週休みにする曜日", { exact: true })).toBeVisible();
+    await dialog.getByRole("button", { name: "変更を保存", exact: true }).click();
+    await expect(dialog).toHaveCount(0, { timeout: SHOP_DATA_TIMEOUT });
+  }
+
+  private async expectSubmissionMethod(methodLabel: string) {
+    const basicInformation = this.page.getByRole("region", { name: "基本情報", exact: true });
+    await expect(basicInformation.getByText(methodLabel, { exact: true })).toBeVisible({
+      timeout: SHOP_DATA_TIMEOUT,
+    });
   }
 
   async expectManagementReady(organizationId: string) {

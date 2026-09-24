@@ -56,7 +56,7 @@ Logic、Frontend Unit、Behavior、VRT、Convex Function、Convex Scenario、E2E
 | VRT | `vitest.vrt.config.ts`のdesktop / mobile1 / mobile2 project | 代表状態のlayout。文言・全状態の総当たりはしない |
 | Convex Function | `vitest.config.ts`の`convex(logic)` project | 単一functionの認証・tenant・入力・副作用0・冪等性 |
 | Convex Scenario | `vitest.config.ts`の`convex(scenario)` project | 複数function、scheduler、provider代替をまたぐ永続状態と復旧 |
-| E2E | `playwright.config.ts`と`e2e/scenarios/` | 認証・frontend・Convexを実接続するdesktop 13契約とmobile 1契約 |
+| E2E | `playwright.config.ts`と`e2e/scenarios/` | 認証・frontend・Convexを実接続し、エラー系を除くハッピーパスを機能ごとに一契約ずつ持つ。契約の一覧は`scripts/assertE2ECoreResults.mjs`を正とする |
 | Deployed Smoke | `playwright.deployed.config.ts` | build済みPreviewのHTTP配信とhydrationの2契約。業務操作は重ねない |
 
 Analytics Dashboardの専用build、VRT baseline、E2E / Deployed Smokeの結果件数はCI gateとして別に扱う。
@@ -218,6 +218,18 @@ E2Eは代表CTAとのbrowser接続だけを守り、対象集合、channel、件
 | `E2E-MANAGER-02` | 別Clerk actorが招待を受諾し、管理者権限の取得・解除後の拒否とスタッフ所属維持を確認する | Desktop Chrome / E2E Preview、通知配送dry-run、trace・screenshot・video off | 実装済み。Preview実行未確認 | `e2e/scenarios/manager-lifecycle.test.ts` |
 | `E2E-NAV-01` | canonical組織scopeを保持して新appのスタッフ画面へ移動し、親ナビの現在地と実人物rowの店舗所属を表示する | Desktop Chrome / core E2E。人物情報を含むartifactは保存しない | 実装済み。Preview実行未確認 | `e2e/scenarios/app-navigation.test.ts` |
 | `E2E-MOBILE-01` | Mobile Chromeでstaff提出の代表日を選び完了する | Mobile Chrome / core E2E | 実装済み | `e2e/scenarios/release-support-staff-submit.mobile.test.ts` |
+| `E2E-SHIFT-02` | 店舗設定で日付選択へ変えた提出方法が、募集、匿名提出、○×シフト表での割当変更、確定、別匿名contextの閲覧まで引き継がれる | Desktop Chrome / core E2E、trace・screenshot・video off | 2026-09-24にローカルで成功。Preview実行未確認 | `e2e/scenarios/shift-submission-methods.test.ts` |
+| `E2E-SHIFT-03` | 店舗設定で名前を変えた勤務パターンが、提出、パターン別シフト表での割当変更、確定、閲覧まで引き継がれる | Desktop Chrome / core E2E、trace・screenshot・video off | 2026-09-24にローカルで成功。Preview実行未確認 | `e2e/scenarios/shift-submission-methods.test.ts` |
+| `E2E-SHIFT-04` | 同じ提出linkで希望の追加と取消を再提出し、置換後の希望だけがシフト表へ反映される | Desktop Chrome / core E2E。置換更新の完全性は`SHIFT-SUBMISSION-01`のFunction Testが主担当 | 2026-09-24にローカルで成功。Preview実行未確認 | `e2e/scenarios/shift-revision.test.ts` |
+| `E2E-SHIFT-05` | 下書きが再読込後も残り、確定後に変えた割当を「変更があるスタッフに通知」した内容を匿名contextで閲覧できる | Desktop Chrome / core E2E。差分再通知の対象集合はScenario Testが主担当 | 2026-09-24にローカルで成功。Preview実行未確認 | `e2e/scenarios/shift-revision.test.ts` |
+| `E2E-RECRUITMENT-01` | 募集の期間と提出期限の編集が提出画面へ反映され、削除した募集は一覧から消えて提出linkが削除済みの案内になる | Desktop Chrome / core E2E。編集可否の境界と変更通知はFunction・Scenario Testが主担当 | 2026-09-24にローカルで成功。Preview実行未確認 | `e2e/scenarios/recruitment-management.test.ts` |
+| `E2E-EXCLUSION-01` | スタッフ店舗別設定の対象外化がシフト表と提出人数の母数から外れ、復帰で再び含まれる | Desktop Chrome / core E2E。旧linkの失効と通知対象はScenario Testが主担当 | 2026-09-24にローカルで成功。Preview実行未確認 | `e2e/scenarios/shift-exclusion.test.ts` |
+| `E2E-NOTIFY-01` | 不達seedから作った未対応の通知をDashboardで再送・破棄し、再読込後のDashboardと`/actions`に表示しない | Desktop Chrome / core E2E。不達はOutboxと同じ記録mutationで作り、`force-failure`は使わない | 2026-09-24にローカルで成功。Preview実行未確認 | `e2e/scenarios/notification-failure-recovery.test.ts`、`convex/testing.test.ts` |
+| `E2E-REGISTRATION-01` | 管理者が表示した参加URLが匿名の登録画面を開き、申請を承認するとスタッフ一覧に表示される | Desktop Chrome / core E2E。Turnstile通過後の申請作成だけをHTTP Actionと同じinternal mutationで代替し、bot対策とrate limitはFunction Testが主担当 | 2026-09-24にローカルで成功。Preview実行未確認 | `e2e/scenarios/staff-registration.test.ts`、`convex/testing.test.ts` |
+| `E2E-LINE-01` | スタッフ詳細で発行した連携tokenで連携が確定し、明示解除で未連携へ戻る | Desktop Chrome / core E2E。LINE Loginとcode交換だけをprovider代替seedで置き換え、保証に含めない | 2026-09-24にローカルで成功。Preview実行未確認 | `e2e/scenarios/line-link.test.ts`、`convex/testing.test.ts` |
+| `E2E-REISSUE-01` | 再発行画面で申し込んだ閲覧linkから確定シフトを開ける | Desktop Chrome / core E2E。応答の同一性と連続要求の制限はFunction Testが主担当 | 2026-09-24にローカルで成功。Preview実行未確認 | `e2e/scenarios/shift-view-reissue.test.ts` |
+| `E2E-ONBOARDING-01` | 体験ガイドの4ステップが募集作成、自分宛て提出、シフト表確認、スタッフ追加で進み、閉じると再読込後も表示しない | Desktop Chrome / core E2E | 2026-09-24にローカルで成功。Preview実行未確認 | `e2e/scenarios/dashboard-onboarding.test.ts` |
+| `E2E-MOBILE-02` | Mobile Chromeの日別シフト表で割り当てて確定し、再読込後も保持される | Mobile Chrome / core E2E | 2026-09-24にローカルで成功。Preview実行未確認 | `e2e/scenarios/shift-board.mobile.test.ts` |
 | `DEPLOY-SMOKE-HTTP-01` | Previewで代表公開route、slash URL、CSR shell、未知URL 404が実配信される | Deployed Smoke / Preview URL | 実装済み。実Preview未実行 | `e2e/scenarios/deployed-smoke.test.ts`、`scripts/assertDeployedSmokeResults.mjs` |
 | `DEPLOY-SMOKE-BROWSER-01` | Previewの代表公開pageがhydrateし、固有landmark・CTAを表示し、`pageerror`を出さない | Deployed Smoke / Preview URL | 実装済み。実Preview未実行 | `e2e/scenarios/deployed-smoke.test.ts`、`scripts/assertDeployedSmokeResults.mjs` |
 | `TEST-PUBLIC-SURFACE-01` | Public Convex functionの追加・削除時にFull Regression台帳の件数またはexport一覧を更新し忘れない | lint / `pnpm docs:check`。生成`api.d.ts`と完全一致 | 実装済み。GitHub Actions未実行 | `scripts/checkDocs.ts`、`scripts/checkDocs.test.ts`、`package.json` |
@@ -328,7 +340,7 @@ Mobile VRTはviewport指定だけでなく`vrt-mobile1`または`vrt-mobile2` ta
 - 通知purposeごとに対象、channel、CTA、dedupe、不在条件をFunctionまたはScenarioで確認している。
 - submit / view / LINE / legal / registrationのCapabilityでscope、各contractが定めるTTLまたは再利用条件、失効条件、削除後の拒否を確認している。
 - 課金、通知、削除のworkflowが中断、replay、stale worker、削除競合から収束する。
-- core E2Eのdesktop 13契約とmobile 1契約、Deployed Smokeの2契約を、欠落、重複、skip、retryなしでCIが検査する。
+- `scripts/assertE2ECoreResults.mjs`に登録したcore E2E契約とDeployed Smokeの2契約を、欠落、重複、skip、retryなしでCIが検査する。
 - VRT baseline欠落をPR成功にせず、内部BI変更時に専用lint、type-check、buildを実行する。
 - `対象外`には理由と再評価条件があり、理由のないskipをcoverage済みと数えない。
 - Production availability、migration完了、provider実到着は、同じrevisionの運用証跡として別に確認する。

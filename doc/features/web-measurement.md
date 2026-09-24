@@ -24,7 +24,7 @@ local build、GTM ID欠落、不正なreleaseでは第三者URLを組み立て�
 
 初回page viewはclient起動時に送り、SPA遷移はrootのpathname変更から送る。  同じpathnameの重複とqueryだけの変更は送らない。  OAuthとLINE連携のcallback（`callback`）は通過するだけの画面なので、page viewを送らない。
 
-`page_view`には、有限の`route_family`と`route_area`、集計用の`page_location`を付ける。  `page_location`はqueryとhashを除き、店舗、募集、人物のIDを含むpathを`/manage/shops/:shopId`のような固定pathへ置き換えたURLである。  未知URLのpathには任意の文字列が入り得るため、`not_found`は入力されたpathを使わず`/404`にする。  Cloudflareが返す静的404は、記事slugなど既知routeの形をしたpathでも`not_found`として送る。  SPA遷移では直前の`page_location`を`page_referrer`として送り、初回はGA4がdocumentの参照元を使う。
+`page_view`には、有限の`route_family`と`route_area`、集計用の`page_location`を付ける。  `page_location`はqueryとhashを除き、店舗、募集、人物のIDを含むpathを`/manage/shops/:shopId`のような固定pathへ置き換えたURLである。  未知URLのpathには任意の文字列が入り得るため、`not_found`は入力されたpathを使わず`/404`にする。  Cloudflareが返す静的404は、記事slugなど既知routeの形をしたpathでも`not_found`として送る。  SPA遷移では直前の`page_location`を`page_referrer`として送る。  documentを読み込んだ初回の`page_view`では`page_referrer`を送らず、GA4がbrowserの`document.referrer`を加工せずに使う。  そのため、直前が同じoriginの画面なら、queryの`token`や店舗・組織IDを含むURLがGA4へ送られる。
 
 主な分類は次のとおりであり、完全な一覧と判定順は`src/domains/webMeasurement/routePolicy.ts`を正本とする。
 
@@ -66,6 +66,8 @@ GA4のpage viewは、Applicationの`page_view`だけを発火元にする。  Go
 ApplicationのdataLayer payloadには、query、hash、動的ID、token、OAuth `code`・`state`、氏名、連絡先、店舗名、組織名、自由入力、検索語、`user_id`を含めない。
 
 GA4とClarityの閲覧者はサービス運営者だけに限る。  GTM container内の第三者tagがbrowserのURL、referrer、DOMを独自取得することはApplication serializerでは防げないため、Google tagの`page_location`もqueryを除いたURLへ設定する。
+
+一方、初回`page_view`の`page_referrer`は加工しないため、スタッフ画面の`token`や店舗・組織IDを含むURLがGA4に残り得る。  閲覧者がサービス運営者だけであることを前提に、この状態を許容している。  閲覧者を増やす前に、同じoriginのreferrerからqueryと動的IDを除く。
 
 Web計測は、ad blocker、通信失敗、provider障害、別端末によって欠測する。  実人数、店舗単位のactivation、cross-device funnelの正本にはしない。  初期設定の完了数は、Convex Analyticsの新規登録店舗と比べて計測の欠損率を確認する。
 

@@ -62,7 +62,7 @@ flake調査はretryを無効にした次のcommandで行う。
 pnpm e2e:burn-in
 ```
 
-このcommandはdesktop 15契約を各10回（計150回）実行した後、mobile 1契約を依存projectなしで10回実行する。
+このcommandは`scripts/assertE2ECoreResults.mjs`に登録したdesktopのcore契約を各10回実行した後、mobileのcore契約を依存projectなしで各10回実行する。
 Playwrightのproject dependencyを含む一括`repeat-each`では依存側のdesktopが1回しか反復されないため、2段階を直列実行する。
 各段階は次の段階が`test-results.json`とreportを上書きする前に、contract ID別の反復数、project、初回成功、skip、flakyを結果ゲートで確認し、artifact privacy検査を通す。
 Full Regressionは認証付きE2Eだけで担わず、Logic、Frontend Unit、Behavior、VRT、Convex Function、Convex Scenario、Deployed Smokeへ分担する。

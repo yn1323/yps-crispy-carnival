@@ -4,7 +4,7 @@
 
 この手順は、全画面で起動するGTM container `GTM-P22XCGTD`、GA4 property（測定ID `G-892N66Y30T`）、Clarity projectの設定と、変更の反映・確認を扱う。  アプリが送るイベントの契約は[全ページのWeb計測](../features/web-measurement.md)を正本とする。
 
-GA4とClarityを閲覧できるのはサービス運営者だけとする。  閲覧者を増やす場合は、token付きURLや業務情報がClarityの録画に映ることを踏まえて、先に収集範囲を見直す。
+GA4とClarityを閲覧できるのはサービス運営者だけとする。  閲覧者を増やす場合は、token付きURLや業務情報がClarityの録画に映ること、GA4の初回`page_view`の`page_referrer`にtoken付きURLが残ることを踏まえて、先に収集範囲を見直す。
 
 ## Build設定
 

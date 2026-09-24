@@ -1,4 +1,4 @@
-import { Box, Flex, Grid, Heading, Text, useBreakpointValue, VisuallyHidden } from "@chakra-ui/react";
+import { Box, Flex, Grid, Heading, useBreakpointValue, VisuallyHidden } from "@chakra-ui/react";
 import { Provider, useAtom, useAtomValue, useSetAtom } from "jotai";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
@@ -189,7 +189,7 @@ const ShiftFormInner = ({
           unsubmittedNames={unsubmittedNames}
           reminderStatus={reminderStatus}
           onOpenUnsubmittedDetails={onOpenUnsubmittedDetails}
-          singleViewLabel={isDateOnlyPattern ? "日ごと" : undefined}
+          hideViewTabs={isDateOnlyPattern}
           validationIssues={displayIssues}
           onSelectIssue={handleSelectIssue}
           onDismissValidationIssues={onDismissValidationIssues}
@@ -280,7 +280,7 @@ type ShellProps = {
   unsubmittedNames: string[];
   reminderStatus?: ReminderStatus;
   onOpenUnsubmittedDetails?: () => void;
-  singleViewLabel?: string;
+  hideViewTabs?: boolean;
   validationIssues: DisplayIssue[];
   onSelectIssue: (issue: DisplayIssue) => void;
   onDismissValidationIssues?: () => void;
@@ -302,7 +302,7 @@ const Shell = ({
   unsubmittedNames,
   reminderStatus,
   onOpenUnsubmittedDetails,
-  singleViewLabel,
+  hideViewTabs,
   validationIssues,
   onSelectIssue,
   onDismissValidationIssues,
@@ -327,11 +327,7 @@ const Shell = ({
     >
       <Flex minW={0} align="center" alignSelf="stretch" gap={header ? { base: 3, lg: 4 } : undefined}>
         {header && <FocusedFlowBackButton backLabel={header.backLabel} backAriaLabel={header.backAriaLabel} />}
-        {singleViewLabel ? (
-          <Text py="10px" textStyle="sm" fontWeight={700} color="gray.800">
-            {singleViewLabel}
-          </Text>
-        ) : (
+        {!hideViewTabs && (
           <ViewTabs value={viewMode} onChange={setViewMode} compactSpacing={compact && Boolean(header)} />
         )}
       </Flex>
