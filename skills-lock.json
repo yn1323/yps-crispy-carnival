@@ -216,6 +216,12 @@
       "sourceType": "github",
       "skillPath": "skills/convex-verify/SKILL.md",
       "computedHash": "dbe65a37ca2e9a5afa55669b8928ce1dc3ac765151452008f9105bde049228f7"
+    },
+    "remotion-best-practices": {
+      "source": "remotion-dev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/remotion-best-practices/SKILL.md",
+      "computedHash": "f61f08b2e0890c94c617bb8cc99ac9d255b3d8902484139403839e4427227852"
     }
   }
 }
