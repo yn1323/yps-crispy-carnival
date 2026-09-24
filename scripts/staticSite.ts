@@ -8,6 +8,10 @@ import { NOTIFICATION_BASICS_HELP } from "../src/components/features/HelpCenter/
 import { ORGANIZATION_STRUCTURE_HELP } from "../src/components/features/HelpCenter/organizationStructureHelp";
 
 import { SHIFT_EXPORT_HELP } from "../src/components/features/HelpCenter/shiftExportHelp";
+import {
+  getProductFeatureHref,
+  PRODUCT_FEATURE_SLUGS,
+} from "../src/components/features/ProductFeatures/productFeatureRoutes";
 
 export const STATIC_CLIENT_OUTPUT_DIR = "dist/client";
 export const STATIC_404_BUILD_PATH = "/__static-404";
@@ -47,6 +51,8 @@ export const NOINDEX_PUBLIC_ROUTES = new Set<string>([
 ]);
 
 export const HELP_TASK_ROUTES = HELP_TASK_IDS.map((taskId) => `/help/tasks/${taskId}`);
+
+export const PRODUCT_FEATURE_ROUTES = PRODUCT_FEATURE_SLUGS.map(getProductFeatureHref);
 
 export const LEGACY_HELP_ROUTE_REDIRECTS = Object.entries(legacyHelpGuideRedirects).flatMap(([slug, target]) => [
   { source: `/help/${slug}`, target, status: 301 as const },
@@ -164,7 +170,14 @@ export function collectPublicRoutes(repoRoot = process.cwd()): string[] {
   const helpGuideRoutes = listPublishedHelpGuideSlugs(repoRoot).map((slug) => `/help/${slug}`);
 
   const publicRoutes = Array.from(
-    new Set([...FIXED_PUBLIC_ROUTES, ...HELP_TASK_ROUTES, ...articleRoutes, ...categoryRoutes, ...helpGuideRoutes]),
+    new Set([
+      ...FIXED_PUBLIC_ROUTES,
+      ...HELP_TASK_ROUTES,
+      ...PRODUCT_FEATURE_ROUTES,
+      ...articleRoutes,
+      ...categoryRoutes,
+      ...helpGuideRoutes,
+    ]),
   ).sort((left, right) => left.localeCompare(right));
 
   for (const [slug, target] of Object.entries(legacyHelpGuideRedirects)) {

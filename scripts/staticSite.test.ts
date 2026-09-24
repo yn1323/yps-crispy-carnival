@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { PRODUCT_FEATURES } from "../src/components/features/ProductFeatures/productFeatureContent";
 import {
   assertNoLoopbackUrls,
   assertOutputDirectory,
@@ -16,6 +17,7 @@ import {
   HELP_TASK_ROUTES,
   LEGACY_HELP_ROUTE_REDIRECTS,
   NOINDEX_PUBLIC_ROUTES,
+  PRODUCT_FEATURE_ROUTES,
   RETIRED_PUBLIC_ROUTE_REDIRECTS,
   routeToHtmlPath,
 } from "./staticSite";
@@ -38,6 +40,7 @@ describe("static site manifest", () => {
       ...FIXED_PUBLIC_ROUTES,
       "/articles/$slug",
       "/articles/categories/$categorySlug",
+      "/features/$featureSlug",
       "/help/$slug",
       "/help/tasks/$taskId",
       "/app/staff/order",
@@ -87,6 +90,10 @@ describe("static site manifest", () => {
       for (const taskRoute of HELP_TASK_ROUTES) {
         expect(routes).toContain(taskRoute);
       }
+      expect(PRODUCT_FEATURE_ROUTES).toContain("/features/shift-request-collection");
+      for (const featureRoute of PRODUCT_FEATURE_ROUTES) {
+        expect(routes).toContain(featureRoute);
+      }
       expect(routes).not.toContain("/articles/missing-entry");
       expect(routes).not.toContain("/articles/_draft");
       expect(routes).not.toContain("/help/missing-entry");
@@ -100,6 +107,15 @@ describe("static site manifest", () => {
       }
     } finally {
       rmSync(repoRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("機能ページから張るヘルプの使い方は公開routeを指す", () => {
+    const routes = collectPublicRoutes();
+    for (const feature of PRODUCT_FEATURES) {
+      for (const link of feature.helpLinks) {
+        expect(routes, `${feature.slug} -> ${link.href}`).toContain(link.href);
+      }
     }
   });
 
