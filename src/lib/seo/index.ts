@@ -10,8 +10,9 @@
  */
 import type { JSX } from "react";
 
-const SITE_NAME = "シフトリ";
+export const SITE_NAME = "シフトリ";
 export const SITE_URL = "https://shiftori.app";
+const TITLE_SEPARATOR = "｜";
 
 type MetaList = NonNullable<JSX.IntrinsicElements["meta"]>[];
 type LinkList = NonNullable<JSX.IntrinsicElements["link"]>[];
@@ -41,18 +42,16 @@ type BuildMetaOptions = {
 
 /**
  * Build route meta tags for TanStack Router's `head` option.
- * - Appends the site name to the title (except when the title already starts with the site name)
+ * - Appends `｜シフトリ` to the title (except when the title already starts or ends with the site name)
  * - Mirrors title/description to Open Graph and Twitter Card tags
  * - Adds `robots: noindex, nofollow` when `noindex` is set
  */
 export const buildMeta = ({ title, description, noindex, canonical, ogType, ogImage }: BuildMetaOptions): MetaList => {
   const hasSiteName =
     title === SITE_NAME ||
-    title.startsWith(`${SITE_NAME}｜`) ||
-    title.startsWith(`${SITE_NAME} | `) ||
-    title.endsWith(`｜${SITE_NAME}`) ||
-    title.endsWith(` | ${SITE_NAME}`);
-  const fullTitle = hasSiteName ? title : `${title} | ${SITE_NAME}`;
+    title.startsWith(`${SITE_NAME}${TITLE_SEPARATOR}`) ||
+    title.endsWith(`${TITLE_SEPARATOR}${SITE_NAME}`);
+  const fullTitle = hasSiteName ? title : `${title}${TITLE_SEPARATOR}${SITE_NAME}`;
   const entries: MetaEntry[] = [
     { title: fullTitle },
     { property: "og:title", content: fullTitle },

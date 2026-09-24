@@ -153,6 +153,7 @@ TanStack StartはこのallowlistだけをStatic Prerenderingし、認証routeや
 生成物はコミットせず、ローカルの開発サーバーでリンク先を確かめるときは`pnpm templates:articles`を実行する。
 
 全ページのfallback metadataは`src/routes/__root.tsx`、route別metadataとJSON-LDは対応する`src/pages/*/meta.ts`とコンテンツfeatureが所有する。
+titleは`src/lib/seo`の`buildMeta`が「ページ固有の語｜シフトリ」の形へそろえる。  サイト名、英字の別名、公式プロフィールを表すWebSite、Organization、SoftwareApplicationのJSON-LDは`src/lib/seo/siteJsonLd.ts`が所有し、全ページへ出力する。
 FAQPage、BlogPosting、BreadcrumbListなどの構造化データは、画面に表示する現在内容と一致させる。
 
 `pnpm build`は記事の配布テンプレート生成、Static Prerendering、Cloudflare用ルール生成、生成物検証、型検査を行う。
