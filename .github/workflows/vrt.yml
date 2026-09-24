@@ -131,13 +131,23 @@ jobs:
               run_id: context.runId,
               per_page: 100,
             });
+            // 同じrunのartifactは全attemptで同じcommitから作られる。
+            // 「Re-run failed jobs」では成功済みshardが再実行されないため、shardごとに最新attemptを採用する。
+            const currentAttempt = Number(process.env.RUN_ATTEMPT);
             const ids = [1, 2, 3, 4].map((shard) => {
-              const name = `vrt-actual-${process.env.RUN_ATTEMPT}-${shard}`;
-              const matches = artifacts.filter((artifact) => artifact.name === name && !artifact.expired);
-              if (matches.length !== 1) {
-                throw new Error(`Missing or duplicate current-attempt capture shard ${shard}; rerun all jobs.`);
+              const pattern = new RegExp(`^vrt-actual-(\\d+)-${shard}$`);
+              const candidates = artifacts
+                .filter((artifact) => !artifact.expired)
+                .map((artifact) => ({ artifact, attempt: Number(artifact.name.match(pattern)?.[1]) }))
+                .filter(({ attempt }) => Number.isInteger(attempt) && attempt <= currentAttempt)
+                .sort((a, b) => b.attempt - a.attempt);
+              if (candidates.length === 0) {
+                throw new Error(`Missing capture shard ${shard}; rerun all jobs.`);
               }
-              return matches[0].id;
+              if (candidates[1]?.attempt === candidates[0].attempt) {
+                throw new Error(`Duplicate capture shard ${shard} in attempt ${candidates[0].attempt}; rerun all jobs.`);
+              }
+              return candidates[0].artifact.id;
             });
             core.setOutput('ids', ids.join(','));
       - name: Download VRT screenshots
