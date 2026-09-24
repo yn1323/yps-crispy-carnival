@@ -1,27 +1,18 @@
 import { Box, Container, Flex, Grid, Heading, Icon, Image, SimpleGrid, Stack, Text, VStack } from "@chakra-ui/react";
 import type { IconType } from "react-icons";
-import {
-  LuChevronRight,
-  LuClipboardCheck,
-  LuListChecks,
-  LuMail,
-  LuSmartphone,
-  LuStore,
-  LuUsersRound,
-} from "react-icons/lu";
+import { LuBellRing, LuChevronRight, LuMail, LuSendHorizontal, LuSmartphone } from "react-icons/lu";
 import heroPcImage from "@/src/assets/hero-pc.webp";
 import heroSpImage from "@/src/assets/hero-sp.webp";
 import { MeasurementLink } from "@/src/components/shared/MeasurementLink";
+import { TrialReassurance } from "@/src/components/shared/TrialReassurance";
 import { Button } from "@/src/components/ui/Button";
-import { TrialReassurance } from "../TrialReassurance";
 
+// 検索から来た人が最初に気にする「スタッフの負担」と「自動になる連絡」だけを並べる。
 const heroBenefits: Array<{ icon: IconType; label: string }> = [
-  { icon: LuClipboardCheck, label: "提出状況を確認" },
-  { icon: LuListChecks, label: "3つの提出方法" },
-  { icon: LuSmartphone, label: "スマホでシフト作成" },
-  { icon: LuStore, label: "複数店舗に対応" },
-  { icon: LuUsersRound, label: "複数管理者に対応" },
-  { icon: LuMail, label: "メールでもOK" },
+  { icon: LuSmartphone, label: "スタッフはアプリ不要" },
+  { icon: LuMail, label: "LINEがない人はメールで" },
+  { icon: LuBellRing, label: "未提出者へ自動催促" },
+  { icon: LuSendHorizontal, label: "確定シフトを自動共有" },
 ];
 
 export const HeroSection = () => (
@@ -39,18 +30,24 @@ export const HeroSection = () => (
           textAlign={{ base: "center", lg: "start" }}
         >
           <VStack align={{ base: "center", lg: "start" }} gap={{ base: 4, md: 5 }}>
+            <Text color="teal.700" fontSize={{ base: "sm", md: "md" }} fontWeight="bold" lineHeight="1.6">
+              LINE・メールで使えるシフト管理ツール
+            </Text>
             <Heading
               as="h1"
-              fontSize={{ base: "3xl", sm: "2xl", md: "3xl", xl: "4xl" }}
-              lineHeight={{ base: "1.3", md: "1.18" }}
+              fontSize={{ base: "2xl", sm: "3xl", xl: "4xl" }}
+              lineHeight={{ base: "1.4", md: "1.25" }}
               letterSpacing="0"
             >
-              シフトのやり取りを
+              {/* 文節の途中で折り返さないよう、1行目を文節ごとのinline-blockにする。 */}
+              <Box as="span" display="inline-block">
+                希望シフトを
+              </Box>
+              <Box as="span" display="inline-block">
+                LINEで集めて
+              </Box>
               <Box as="span" display="block" color="teal.600">
-                LINEやメール
-                <Box as="span" color="gray.950">
-                  でひとつに
-                </Box>
+                そのままシフト表に
               </Box>
             </Heading>
 
@@ -61,11 +58,7 @@ export const HeroSection = () => (
               lineHeight="1.9"
               fontWeight="semibold"
             >
-              希望シフトの回収、催促、調整、確定後の共有
-              <br />
-              毎月くり返すやり取りをシフトリにまとめる
-              <br />
-              スタッフはアプリのインストール不要
+              シフト募集を作ると、スタッフのLINEやメールに提出リンクが届きます。スタッフはアプリを入れずに提出でき、集まった希望シフトはシフト表に並びます。
             </Text>
           </VStack>
 
@@ -77,7 +70,7 @@ export const HeroSection = () => (
               gap={4}
               w={{ base: "full", md: "auto" }}
             >
-              <HeroButton href="/signup" label="シフトリをはじめる" tone="primary" measurementCtaId="hero_signup" />
+              <HeroButton href="/signup" label="無料ではじめる" tone="primary" measurementCtaId="hero_signup" />
               <HeroButton
                 href="/help/scenarios/shift-management"
                 label="基本の使い方を見る"
@@ -93,19 +86,15 @@ export const HeroSection = () => (
       </Grid>
 
       <SimpleGrid
-        columns={{ base: 2, md: 3, lg: 6 }}
+        columns={{ base: 2, lg: 4 }}
         gap={{ base: 3, md: 4, lg: 5 }}
         mt={10}
         pt={7}
         borderTopWidth="1px"
         borderColor="gray.100"
       >
-        {heroBenefits.map((benefit, index) => (
-          <HeroBenefit
-            key={benefit.label}
-            spanOnSm={heroBenefits.length % 2 === 1 && index === heroBenefits.length - 1}
-            {...benefit}
-          />
+        {heroBenefits.map((benefit) => (
+          <HeroBenefit key={benefit.label} {...benefit} />
         ))}
       </SimpleGrid>
     </Container>
@@ -191,19 +180,18 @@ const HeroVisual = () => (
   </Box>
 );
 
-const HeroBenefit = ({ icon, label, spanOnSm }: { icon: IconType; label: string; spanOnSm: boolean }) => (
+const HeroBenefit = ({ icon, label }: { icon: IconType; label: string }) => (
   <Flex
     align="center"
     justify={{ base: "flex-start", md: "center" }}
-    gap={3}
+    gap={{ base: 2, sm: 3 }}
     minH={{ base: "32px", md: "48px" }}
     w="full"
-    px={{ base: 2, sm: 5, md: 0 }}
+    px={{ base: 1, sm: 5, md: 0 }}
     color="gray.800"
-    gridColumn={{ sm: spanOnSm ? "1 / -1" : "auto", md: "auto" }}
   >
     <Icon as={icon} boxSize={6} color="teal.600" flexShrink={0} />
-    <Text fontSize="sm" fontWeight="bold" lineHeight="1.5">
+    <Text fontSize={{ base: "xs", sm: "sm" }} fontWeight="bold" lineHeight="1.5">
       {label}
     </Text>
   </Flex>

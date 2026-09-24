@@ -1,27 +1,51 @@
-import { Box, Container, Heading, Icon, Stack, VStack } from "@chakra-ui/react";
+import { Box, Container, Grid, Heading, Icon, Image, Stack, Text, VStack } from "@chakra-ui/react";
 import { LuBookOpen, LuChevronRight } from "react-icons/lu";
+import relaxedStoreImage from "@/src/assets/illustrations/relaxed-store.png";
 import { MeasurementLink } from "@/src/components/shared/MeasurementLink";
+import { TrialReassurance } from "@/src/components/shared/TrialReassurance";
 import { Button } from "@/src/components/ui/Button";
-import { TrialReassurance } from "../TrialReassurance";
 
 export const BottomCtaSection = () => (
-  <Box as="section" bg="#eaf8f6" py={14} overflow="hidden">
-    <Container maxW="7xl">
-      <VStack align="center" gap={6} textAlign="center">
-        <Heading as="h2" fontSize={{ base: "xl", sm: "2xl", md: "3xl" }} lineHeight="1.35" letterSpacing="0">
-          シフトのやり取りを
-          <Box as="span" display="block" color="teal.700">
-            LINEやメールでひとつに
-          </Box>
-        </Heading>
-        <VStack align="center" gap={3} w={{ base: "full", md: "auto" }}>
-          <Stack direction={{ base: "column", md: "row" }} gap={4} w={{ base: "full", md: "auto" }}>
-            <BottomButton href="/signup" label="シフトリをはじめる" primary />
-            <BottomButton href="/help/scenarios/shift-management" label="基本の使い方を見る" />
-          </Stack>
-          <TrialReassurance />
+  <Box as="section" bg="#eaf8f6" py={{ base: 14, md: 16 }} overflow="hidden">
+    <Container maxW="6xl">
+      <Grid
+        templateColumns={{ base: "minmax(0, 1fr)", lg: "minmax(0, 1.05fr) minmax(0, 0.95fr)" }}
+        gap={{ base: 8, lg: 10 }}
+        alignItems="center"
+      >
+        <VStack align={{ base: "center", lg: "start" }} gap={6} textAlign={{ base: "center", lg: "start" }}>
+          <VStack align={{ base: "center", lg: "start" }} gap={3}>
+            <Heading as="h2" fontSize={{ base: "xl", sm: "2xl", md: "3xl" }} lineHeight="1.35" letterSpacing="0">
+              次のシフト募集は
+              <Box as="span" display="block" color="teal.700">
+                シフトリで始めよう
+              </Box>
+            </Heading>
+            <Text color="gray.700" fontSize={{ base: "sm", md: "md" }} fontWeight="semibold" lineHeight="1.8">
+              登録から2か月は、すべての機能を無料で試せます。
+            </Text>
+          </VStack>
+          <VStack align={{ base: "center", lg: "start" }} gap={3} w={{ base: "full", md: "auto" }}>
+            <Stack direction={{ base: "column", md: "row" }} gap={4} w={{ base: "full", md: "auto" }}>
+              <BottomButton href="/signup" label="無料ではじめる" primary />
+              <BottomButton href="/help/scenarios/shift-management" label="基本の使い方を見る" />
+            </Stack>
+            <TrialReassurance />
+          </VStack>
         </VStack>
-      </VStack>
+
+        <Image
+          src={relaxedStoreImage}
+          alt="営業前の店内で、店長がコーヒーを飲み、スタッフがスマートフォンでシフトを確認しているイラスト"
+          w="full"
+          maxW={{ base: "440px", lg: "none" }}
+          mx="auto"
+          aspectRatio={3 / 2}
+          objectFit="contain"
+          loading="lazy"
+          decoding="async"
+        />
+      </Grid>
     </Container>
   </Box>
 );

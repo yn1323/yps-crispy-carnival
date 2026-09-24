@@ -1,33 +1,32 @@
-import { OrganizationManagementSection } from "@/src/components/features/OrganizationManagementSection";
 import { PublicPageLayout } from "@/src/components/templates/PublicPageLayout";
 import type { PublicPlanPriceCatalog } from "@/src/domains/publicPricing";
 import { BottomCtaSection } from "./BottomCtaSection";
-import { ComparisonSection } from "./ComparisonSection";
 import { FaqArticlesSection } from "./FaqArticlesSection";
-import { FlowSection } from "./FlowSection";
+import { FeaturesOverviewSection } from "./FeaturesOverviewSection";
 import { HeroSection } from "./HeroSection";
+import { HowItWorksSection } from "./HowItWorksSection";
 import { IntroVideoSection } from "./IntroVideoSection";
 import { PricingSection } from "./PricingSection";
-import { ReliefSection } from "./ReliefSection";
-import { SubmissionTypesSection } from "./SubmissionTypesSection";
+import { ProblemSection } from "./ProblemSection";
+import { StaffSubmissionSection } from "./StaffSubmissionSection";
 import { UseCasesSection } from "./UseCasesSection";
 
 type LandingPageProps = {
   prices: PublicPlanPriceCatalog;
 };
 
+// 課題、毎月の流れ、スタッフ側、機能の詳細、料金の順に、検討の進み方に合わせて並べる。
 export const LandingPage = ({ prices }: LandingPageProps) => (
   <PublicPageLayout color="gray.950" headerProps={{ position: "sticky" }}>
     <HeroSection />
     <IntroVideoSection />
-    <ReliefSection />
-    <FlowSection />
-    <SubmissionTypesSection />
-    <ComparisonSection />
+    <ProblemSection />
+    <HowItWorksSection />
+    <StaffSubmissionSection />
+    <FeaturesOverviewSection />
     <UseCasesSection />
-    <OrganizationManagementSection />
     <PricingSection prices={prices} />
-    <BottomCtaSection />
     <FaqArticlesSection />
+    <BottomCtaSection />
   </PublicPageLayout>
 );

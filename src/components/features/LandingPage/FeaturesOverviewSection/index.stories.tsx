@@ -1,13 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { ComparisonSection } from ".";
+import { FeaturesOverviewSection } from ".";
 
 const meta = {
-  title: "Features/LandingPage/ComparisonSection",
-  component: ComparisonSection,
+  title: "Features/LandingPage/FeaturesOverviewSection",
+  component: FeaturesOverviewSection,
   parameters: {
     layout: "fullscreen",
   },
-} satisfies Meta<typeof ComparisonSection>;
+} satisfies Meta<typeof FeaturesOverviewSection>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
@@ -18,12 +18,5 @@ export const Mobile: Story = {
   tags: ["vrt-mobile2"],
   globals: {
     viewport: { value: "mobile2", isRotated: false },
-  },
-};
-
-export const MobileNarrow: Story = {
-  tags: ["vrt-mobile1"],
-  globals: {
-    viewport: { value: "mobile1", isRotated: false },
   },
 };

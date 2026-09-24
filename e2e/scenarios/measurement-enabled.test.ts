@@ -92,7 +92,7 @@ test.describe("常時発火Web計測browser contract", { tag: ["@release", "@mea
 
     const response = await page.goto("/");
     expect(response?.ok(), `/ returned ${response?.status() ?? "no response"}`).toBe(true);
-    await expect(page.getByRole("heading", { level: 1, name: /シフトのやり取りを/ })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: /希望シフトをLINEで集めて/ })).toBeVisible();
     await expectAppHydrated(page);
     await expectDocumentMeasurement(page, measurementRequests, {
       pagePath: "/",

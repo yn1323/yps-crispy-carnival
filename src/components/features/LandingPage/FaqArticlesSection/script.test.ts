@@ -11,8 +11,8 @@ describe("トップページFAQの回答表示", () => {
     ]);
   });
 
-  it("表示中の5件からFAQPage構造化データを生成する", () => {
-    expect(landingFaqs).toHaveLength(5);
+  it("表示中の8件からFAQPage構造化データを生成する", () => {
+    expect(landingFaqs).toHaveLength(8);
     for (const faq of landingFaqs) {
       expect(faq.a.split("\n")).toEqual(splitLandingFaqAnswerSentences(faq.a));
     }
