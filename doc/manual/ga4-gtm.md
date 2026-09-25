@@ -92,13 +92,14 @@ Google tagと各イベントタグの`page_location`は、アプリが直前の`
 
 ### キーイベント
 
-`setup_complete`をキーイベントにする。  集客レポートで、チャネルごとの初期設定の完了数を見られるようになる。
+`setup_complete`をキーイベントにする。  集客レポートで、チャネルごとの初期設定の完了数を見られるようになる。  GA4では届いたイベントにだけスターを付けられるため、GTMの公開後に`setup_complete`が1件届いてから登録する。
 
 ### 除外する参照
 
-ウェブストリームの「タグ設定を行う」から「除外する参照のリスト」を開き、参照元ドメインが次と完全に一致する場合を除外する。  ログインや決済から戻ったときに、流入元が上書きされないようにするためである。
+ウェブストリームの「タグ設定を行う」から「除外する参照のリスト」を開き、参照元ドメインが次を含む場合を除外する。  ログインや決済から戻ったときに、流入元が上書きされないようにするためである。  どれも固有のドメインなので、「次を含む」でも「完全に一致」と同じ効果になる。
 
 - `accounts.google.com`
+- `accounts.google.co.jp`
 - `clerk.shiftori.app`
 - `access.line.me`
 - `checkout.stripe.com`
@@ -107,6 +108,19 @@ Google tagと各イベントタグの`page_location`は、アプリが直前の`
 ### Search Consoleとのリンク
 
 「Search Consoleのリンク」で`https://shiftori.app`のプロパティとリンクする。  GA4上で、検索語とランディングページを並べて見られるようになる。
+
+## Develop環境
+
+`dev-yps-crispy-carnival.pages.dev`は、GTM container `GTM-P3DL2WK5`とGA4 property「dev-シフトリ」（測定ID `G-524JVKWP2P`）を使う。  本番のpropertyへ開発中の計測を混ぜないためである。
+
+containerは`ga4-gtm-container.json`を次のように置き換えた複製を、本番と同じ手順でインポートする。  置き換えたファイルはリポジトリに置かない。
+
+- `Const - GA4 Measurement ID`の値を`G-524JVKWP2P`にする。
+- 全トリガーの`Page Hostname`の条件を`dev-yps-crispy-carnival.pages.dev`にする。
+
+GA4 propertyには、本番と同じカスタム定義、拡張計測機能、除外する参照を設定する。  除外する参照には、Clerkの開発用ドメインのため`accounts.dev`も加える。  データ保持とSearch Consoleとのリンクは設定しない。
+
+Develop GA4の設定は2026-09-25時点の状態で止め、以後は追加しない。  探索、ダッシュボード、キーイベントなどの分析用設定は本番のpropertyだけで行う。
 
 ## 反映後の確認
 

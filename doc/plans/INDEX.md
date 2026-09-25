@@ -28,6 +28,9 @@
 
 | 計画 | 状態 | 未完了条件 | 現在の正本 |
 |---|---|---|---|
+| [LP・機能ページ SPレビュー修正](2026-09-25_LP機能ページ_SPレビュー修正_計画.md) | `implementing` | Phase 1〜4と実装後レビューの追加修正（余白、途中の登録section、活用例の統合、機能ページの画面追加）はrepositoryで実装済み。VRTの差分承認と、変えていない文言の孤立・シフト表下部の折り返しを直すかの判断が残る。紹介動画のスマホ版は計測後に別計画で判断する | [公開サイト](../features/public-pages.md) |
+| [LP改善と機能ページ](2026-09-25_LP改善と機能ページ_計画.md) | `implementing` | TOPの再構成と機能ページはrepositoryで実装済み。VRTの差分承認、追加PNGのWebP変換、公開後のSearch Console確認が残る | [公開サイト](../features/public-pages.md) |
+| [LP紹介動画 絵コンテ](2026-09-25_LP紹介動画_絵コンテ.md) | `implementing` | 動画とLPへの埋め込みはrepositoryで実装済み。計測の設計とVRTの差分承認が残る | 企画・演出の判断基準は[LP埋め込み動画の参照](../../.agents/skills/remotion-best-practices/lp-product-video/REFERENCE.md) |
 | [E2Eハッピーパス網羅](2026-09-24_E2Eハッピーパス網羅_実装計画.md) | `implementing` | 規約改訂と12契約はローカルで成功。PR PreviewでのCI、全core契約のburn-in、同一SHAの3回実行と実行時間の上限確認が残る | [テスト方針](../rules/testing-strategy.md)、[Full Regression横断契約表](../specs/full-regression-contracts.md) |
 | [獲得導線と利用状況のWeb計測](2026-09-23_獲得導線と利用状況のWeb計測_計画.md) | `repository implemented` | GTM containerのインポートと公開、GA4 propertyの設定、アプリのリリースと反映確認 | [全ページのWeb計測](../features/web-measurement.md)、[GA4・GTM運用](../manual/ga4-gtm.md) |
 | [URLクエリ順序とエラー復旧画面](2026-09-08_URLクエリ順序とエラー復旧画面_修正計画.md) | `実装済み・検証待ち` | CI・VRT capture・自動レビューと、有効な指摘への対応を完了する | [公開サイト](../features/public-pages.md)、[認証画面](../features/auth-pages.md) |

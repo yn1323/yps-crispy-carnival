@@ -76,6 +76,21 @@
     <loc>https://shiftori.app/features</loc>
   </url>
   <url>
+    <loc>https://shiftori.app/features/multi-store</loc>
+  </url>
+  <url>
+    <loc>https://shiftori.app/features/shift-request-collection</loc>
+  </url>
+  <url>
+    <loc>https://shiftori.app/features/shift-schedule</loc>
+  </url>
+  <url>
+    <loc>https://shiftori.app/features/shift-sharing</loc>
+  </url>
+  <url>
+    <loc>https://shiftori.app/features/submission-reminder</loc>
+  </url>
+  <url>
     <loc>https://shiftori.app/help</loc>
   </url>
   <url>

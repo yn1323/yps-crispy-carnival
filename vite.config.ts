@@ -68,6 +68,11 @@ export default defineConfig(async ({ mode }) => {
     server: {
       allowedHosts: [".ngrok.app", ".ngrok-free.app"],
     },
+    // prerenderは同じprocessで起動したpreview serverへfetchする。`localhost`だと::1と127.0.0.1の両方を試し、
+    // SSRでevent loopが詰まると::1の250msの試行timeoutの後に待ち受けていない127.0.0.1へ切り替わってbuildが落ちる。
+    preview: {
+      host: "127.0.0.1",
+    },
     define: {
       __APP_ENVIRONMENT__: JSON.stringify(appEnvironment),
       __APP_VERSION__: JSON.stringify(pkg.version),

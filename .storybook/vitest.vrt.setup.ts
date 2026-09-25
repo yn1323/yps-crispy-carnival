@@ -10,6 +10,7 @@ type ViewportSize = {
 declare const __VRT_VIEWPORT__: ViewportSize;
 
 const FREEZE_STYLE_ID = "vrt-freeze-animations";
+const FREEZE_MEDIA_CONTROLS_STYLE_ID = "vrt-freeze-media-controls";
 const RELEASE_FIXED_HEADER_STYLE_ID = "vrt-release-fixed-header";
 const VRT_ROOT_ATTRIBUTE = "data-vrt";
 const VRT_FONT_READY_TIMEOUT_MS = 1500;
@@ -70,10 +71,22 @@ async function waitWithTimeout(promise: Promise<unknown>, timeoutMs: number) {
   await Promise.race([promise, new Promise((resolve) => setTimeout(resolve, timeoutMs))]);
 }
 
+// 画面に入ると自動再生する動画があるため、再生を止めてposterのまま撮影する
+// ブラウザ標準の操作バーは撮影のたびに描画が変わり、安定した画像にならないため隠す
+function freezeMediaPlayback() {
+  HTMLMediaElement.prototype.play = () => Promise.resolve();
+  if (document.getElementById(FREEZE_MEDIA_CONTROLS_STYLE_ID)) return;
+  const style = document.createElement("style");
+  style.id = FREEZE_MEDIA_CONTROLS_STYLE_ID;
+  style.textContent = "video::-webkit-media-controls { display: none !important; }";
+  document.head.appendChild(style);
+}
+
 beforeEach(async () => {
   await page.viewport(__VRT_VIEWPORT__.width, __VRT_VIEWPORT__.height);
   document.documentElement.setAttribute(VRT_ROOT_ATTRIBUTE, "true");
   freezeAnimations();
+  freezeMediaPlayback();
 });
 
 afterEach(async (context) => {

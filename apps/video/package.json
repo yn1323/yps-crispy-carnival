@@ -1,0 +1,29 @@
+{
+  "name": "@shiftori/video",
+  "version": "0.0.0",
+  "private": true,
+  "license": "PolyForm-Strict-1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "remotion studio",
+    "render": "remotion render",
+    "check:frames": "bash scripts/find-broken-frames.sh",
+    "type-check": "tsc -p tsconfig.json --noEmit",
+    "lint": "biome check ."
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.527",
+    "@remotion/google-fonts": "4.0.527",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "remotion": "4.0.527",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@typescript/native": "catalog:",
+    "typescript": "catalog:"
+  }
+}

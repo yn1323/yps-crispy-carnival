@@ -37,6 +37,8 @@ import { Route as AuthStaffRouteImport } from './routes/_auth/staff'
 import { Route as ArticlesIndexRouteImport } from './routes/articles.index'
 import { Route as ArticlesSlugRouteImport } from './routes/articles.$slug'
 import { Route as DemoShiftboardRouteImport } from './routes/demo.shiftboard'
+import { Route as FeaturesIndexRouteImport } from './routes/features.index'
+import { Route as FeaturesFeatureSlugRouteImport } from './routes/features.$featureSlug'
 import { Route as HelpIndexRouteImport } from './routes/help.index'
 import { Route as HelpSlugRouteImport } from './routes/help.$slug'
 import { Route as PrivacyManagerRouteImport } from './routes/privacy_.manager'
@@ -219,6 +221,16 @@ const DemoShiftboardRoute = DemoShiftboardRouteImport.update({
   id: '/demo/shiftboard',
   path: '/demo/shiftboard',
   getParentRoute: () => rootRouteImport,
+} as any)
+const FeaturesIndexRoute = FeaturesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => FeaturesRoute,
+} as any)
+const FeaturesFeatureSlugRoute = FeaturesFeatureSlugRouteImport.update({
+  id: '/$featureSlug',
+  path: '/$featureSlug',
+  getParentRoute: () => FeaturesRoute,
 } as any)
 const HelpIndexRoute = HelpIndexRouteImport.update({
   id: '/',
@@ -470,7 +482,7 @@ export interface FileRoutesByFullPath {
   '/cache-reset': typeof CacheResetRoute
   '/commercial-transactions': typeof CommercialTransactionsRoute
   '/contact': typeof ContactRoute
-  '/features': typeof FeaturesRoute
+  '/features': typeof FeaturesRouteWithChildren
   '/forgot-password': typeof ForgotPasswordRoute
   '/help': typeof HelpRouteWithChildren
   '/login': typeof LoginRoute
@@ -488,12 +500,14 @@ export interface FileRoutesByFullPath {
   '/staff': typeof AuthStaffRoute
   '/articles/$slug': typeof ArticlesSlugRoute
   '/demo/shiftboard': typeof DemoShiftboardRoute
+  '/features/$featureSlug': typeof FeaturesFeatureSlugRoute
   '/help/$slug': typeof HelpSlugRoute
   '/privacy/manager': typeof PrivacyManagerRoute
   '/privacy/staff': typeof PrivacyStaffRoute
   '/terms/manager': typeof TermsManagerRoute
   '/terms/staff': typeof TermsStaffRoute
   '/articles/': typeof ArticlesIndexRoute
+  '/features/': typeof FeaturesIndexRoute
   '/help/': typeof HelpIndexRoute
   '/app/actions': typeof AuthAppActionsRoute
   '/app/manage': typeof AuthAppManageRoute
@@ -541,7 +555,6 @@ export interface FileRoutesByTo {
   '/cache-reset': typeof CacheResetRoute
   '/commercial-transactions': typeof CommercialTransactionsRoute
   '/contact': typeof ContactRoute
-  '/features': typeof FeaturesRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/manager-invite': typeof ManagerInviteRoute
@@ -558,12 +571,14 @@ export interface FileRoutesByTo {
   '/staff': typeof AuthStaffRoute
   '/articles/$slug': typeof ArticlesSlugRoute
   '/demo/shiftboard': typeof DemoShiftboardRoute
+  '/features/$featureSlug': typeof FeaturesFeatureSlugRoute
   '/help/$slug': typeof HelpSlugRoute
   '/privacy/manager': typeof PrivacyManagerRoute
   '/privacy/staff': typeof PrivacyStaffRoute
   '/terms/manager': typeof TermsManagerRoute
   '/terms/staff': typeof TermsStaffRoute
   '/articles': typeof ArticlesIndexRoute
+  '/features': typeof FeaturesIndexRoute
   '/help': typeof HelpIndexRoute
   '/app/actions': typeof AuthAppActionsRoute
   '/app/manage': typeof AuthAppManageRoute
@@ -615,7 +630,7 @@ export interface FileRoutesById {
   '/cache-reset': typeof CacheResetRoute
   '/commercial-transactions': typeof CommercialTransactionsRoute
   '/contact': typeof ContactRoute
-  '/features': typeof FeaturesRoute
+  '/features': typeof FeaturesRouteWithChildren
   '/forgot-password': typeof ForgotPasswordRoute
   '/help': typeof HelpRouteWithChildren
   '/login': typeof LoginRoute
@@ -633,12 +648,14 @@ export interface FileRoutesById {
   '/_auth/staff': typeof AuthStaffRoute
   '/articles/$slug': typeof ArticlesSlugRoute
   '/demo/shiftboard': typeof DemoShiftboardRoute
+  '/features/$featureSlug': typeof FeaturesFeatureSlugRoute
   '/help/$slug': typeof HelpSlugRoute
   '/privacy_/manager': typeof PrivacyManagerRoute
   '/privacy_/staff': typeof PrivacyStaffRoute
   '/terms_/manager': typeof TermsManagerRoute
   '/terms_/staff': typeof TermsStaffRoute
   '/articles/': typeof ArticlesIndexRoute
+  '/features/': typeof FeaturesIndexRoute
   '/help/': typeof HelpIndexRoute
   '/_auth/app_/actions': typeof AuthAppActionsRoute
   '/_auth/app_/manage': typeof AuthAppManageRoute
@@ -707,12 +724,14 @@ export interface FileRouteTypes {
     | '/staff'
     | '/articles/$slug'
     | '/demo/shiftboard'
+    | '/features/$featureSlug'
     | '/help/$slug'
     | '/privacy/manager'
     | '/privacy/staff'
     | '/terms/manager'
     | '/terms/staff'
     | '/articles/'
+    | '/features/'
     | '/help/'
     | '/app/actions'
     | '/app/manage'
@@ -760,7 +779,6 @@ export interface FileRouteTypes {
     | '/cache-reset'
     | '/commercial-transactions'
     | '/contact'
-    | '/features'
     | '/forgot-password'
     | '/login'
     | '/manager-invite'
@@ -777,12 +795,14 @@ export interface FileRouteTypes {
     | '/staff'
     | '/articles/$slug'
     | '/demo/shiftboard'
+    | '/features/$featureSlug'
     | '/help/$slug'
     | '/privacy/manager'
     | '/privacy/staff'
     | '/terms/manager'
     | '/terms/staff'
     | '/articles'
+    | '/features'
     | '/help'
     | '/app/actions'
     | '/app/manage'
@@ -851,12 +871,14 @@ export interface FileRouteTypes {
     | '/_auth/staff'
     | '/articles/$slug'
     | '/demo/shiftboard'
+    | '/features/$featureSlug'
     | '/help/$slug'
     | '/privacy_/manager'
     | '/privacy_/staff'
     | '/terms_/manager'
     | '/terms_/staff'
     | '/articles/'
+    | '/features/'
     | '/help/'
     | '/_auth/app_/actions'
     | '/_auth/app_/manage'
@@ -908,7 +930,7 @@ export interface RootRouteChildren {
   CacheResetRoute: typeof CacheResetRoute
   CommercialTransactionsRoute: typeof CommercialTransactionsRoute
   ContactRoute: typeof ContactRoute
-  FeaturesRoute: typeof FeaturesRoute
+  FeaturesRoute: typeof FeaturesRouteWithChildren
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   HelpRoute: typeof HelpRouteWithChildren
   LoginRoute: typeof LoginRoute
@@ -1121,6 +1143,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/demo/shiftboard'
       preLoaderRoute: typeof DemoShiftboardRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/features/': {
+      id: '/features/'
+      path: '/'
+      fullPath: '/features/'
+      preLoaderRoute: typeof FeaturesIndexRouteImport
+      parentRoute: typeof FeaturesRoute
+    }
+    '/features/$featureSlug': {
+      id: '/features/$featureSlug'
+      path: '/$featureSlug'
+      fullPath: '/features/$featureSlug'
+      preLoaderRoute: typeof FeaturesFeatureSlugRouteImport
+      parentRoute: typeof FeaturesRoute
     }
     '/help/': {
       id: '/help/'
@@ -1546,6 +1582,20 @@ const ArticlesRouteWithChildren = ArticlesRoute._addFileChildren(
   ArticlesRouteChildren,
 )
 
+interface FeaturesRouteChildren {
+  FeaturesFeatureSlugRoute: typeof FeaturesFeatureSlugRoute
+  FeaturesIndexRoute: typeof FeaturesIndexRoute
+}
+
+const FeaturesRouteChildren: FeaturesRouteChildren = {
+  FeaturesFeatureSlugRoute: FeaturesFeatureSlugRoute,
+  FeaturesIndexRoute: FeaturesIndexRoute,
+}
+
+const FeaturesRouteWithChildren = FeaturesRoute._addFileChildren(
+  FeaturesRouteChildren,
+)
+
 interface HelpRouteChildren {
   HelpSlugRoute: typeof HelpSlugRoute
   HelpIndexRoute: typeof HelpIndexRoute
@@ -1578,7 +1628,7 @@ const rootRouteChildren: RootRouteChildren = {
   CacheResetRoute: CacheResetRoute,
   CommercialTransactionsRoute: CommercialTransactionsRoute,
   ContactRoute: ContactRoute,
-  FeaturesRoute: FeaturesRoute,
+  FeaturesRoute: FeaturesRouteWithChildren,
   ForgotPasswordRoute: ForgotPasswordRoute,
   HelpRoute: HelpRouteWithChildren,
   LoginRoute: LoginRoute,

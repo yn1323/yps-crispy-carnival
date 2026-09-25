@@ -12,6 +12,7 @@ describe("Web計測route policy", () => {
   it.each([
     ["/", "home"],
     ["/features/", "features"],
+    ["/features/shift-request-collection/", "feature_detail"],
     ["/help?from=top", "help_index"],
     ["/help/tasks/staff-management#add-staff-methods", "help_index"],
     ["/help/basics/notifications", "help_guide"],

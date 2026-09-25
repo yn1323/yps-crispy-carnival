@@ -92,7 +92,8 @@ test.describe("常時発火Web計測browser contract", { tag: ["@release", "@mea
 
     const response = await page.goto("/");
     expect(response?.ok(), `/ returned ${response?.status() ?? "no response"}`).toBe(true);
-    await expect(page.getByRole("heading", { level: 1, name: /シフトのやり取りを/ })).toBeVisible();
+    // H1は文節ごとのinline-blockで組むため、accessible nameでは文節の間に空白が入る。
+    await expect(page.getByRole("heading", { level: 1, name: /希望シフトを\s*LINEで集めて/ })).toBeVisible();
     await expectAppHydrated(page);
     await expectDocumentMeasurement(page, measurementRequests, {
       pagePath: "/",

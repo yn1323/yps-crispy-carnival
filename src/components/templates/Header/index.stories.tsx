@@ -108,7 +108,7 @@ export const Public: Story = {
     const canvas = within(canvasElement);
     for (const [label, href] of [
       ["機能", "/features"],
-      ["導入事例", "/#use-cases"],
+      ["活用例", "/#use-cases"],
       ["料金", "/#pricing"],
       ["ヘルプ", "/help"],
       ["お役立ち記事", "/articles"],

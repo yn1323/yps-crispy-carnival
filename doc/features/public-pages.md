@@ -2,7 +2,7 @@
 
 > 文書種別: feature
 >
-> 最終コード照合: 2026-09-24（この変更を含む）
+> 最終コード照合: 2026-09-25（この変更を含む）
 
 公開サイトは、登録前の製品理解と、利用中の疑問解消をつなぐ認証不要のページ群である。
 ルート`/`を入口に、機能紹介、ヘルプ、記事、操作デモへ利用者を案内する。
@@ -11,8 +11,9 @@
 
 | パス | 役割 | 主な実装 |
 |---|---|---|
-| `/` | 価値、利用の流れ、提出方法、利用例、料金プラン、ヘルプと記事への入口、登録導線をまとめるTOP | `src/pages/home/`、`src/components/features/LandingPage/` |
-| `/features` | 希望回収、未提出確認、シフト作成、確定通知など、できることを詳しく示す | `src/pages/features/`、`FeatureSection`、`BenefitsSection` |
+| `/` | 課題、毎月の流れ、スタッフ側の提出方法と向いているお店、主な機能、料金プラン、FAQ、記事への入口、登録導線をまとめるTOP | `src/pages/home/`、`src/components/features/LandingPage/` |
+| `/features` | 機能ページの一覧と各機能のできること、シフトリにない機能、プランと機能の関係を示す | `src/pages/features/`、`ProductFeatures` |
+| `/features/:featureSlug` | 一つの機能について、困りごと、できること、使い方、FAQ、関連する機能・ヘルプ・記事を示す | `src/pages/features/`、`ProductFeatures` |
 | `/commercial-transactions` | 有料プランの販売条件と、特定商取引法に基づく事業者情報を示す | `src/pages/commercial-transactions/`、`CommercialTransactions` |
 | `/help` | 「ヘルプ・使い方」として、FAQと使い方を検索とやりたいことから探す入口を示す | `src/pages/help/`、`src/components/features/HelpCenter/` |
 | `/help/tasks/:taskId` | 一つのやりたいことに属するFAQと使い方を表示する | `src/pages/help/`、`src/components/features/HelpCenter/` |
@@ -25,7 +26,18 @@
 | `/demo/shiftboard` | PC向けシフト表の入力と調整を、登録なしで試せるようにする | `src/pages/demo-shift-board/`、`Demo/DemoShiftBoardPage/` |
 
 TOPは`src/routes/index.tsx`から`HomePage`を呼び、`HomePage`が`LandingPage`を構成する。
-`LandingPage`は`PublicPageLayout`の中に、Hero、課題の軽減、利用の流れ、提出方法、比較、利用例、複数店舗・複数担当者での運用、料金プラン、CTA、ヘルプと記事の各sectionを並べる。
+`LandingPage`は`PublicPageLayout`の中に、Hero、紹介動画、課題、毎月の流れ、登録、スタッフ側の提出方法、主な機能、料金プラン、FAQと記事、CTAの各sectionを並べる。  
+課題と主な機能は、希望シフトの回収、催促、シフト作成、共有の同じ4つの仕事で並べ、主な機能のsectionから各機能ページと機能一覧へつなぐ。  
+毎月の流れは、担当者の操作を募集、作成、確定の3ステップで示し、機能一覧も同じ3ステップで機能を分ける。  
+スタッフ側の提出方法は、3つの提出方法ごとに向いているお店を示し、headerとfooterの「活用例」の移動先（`#use-cases`）を兼ねる。  
+前回と同じ入力や出し直しなど、提出の細かい機能は機能ページで説明する。  
+登録ボタンはHero、毎月の流れの直後の登録section、料金sectionの無料トライアルの枠、末尾に置く。
+
+紹介動画のsectionは、音声のない約1分の動画を表示する。  
+幅767px以下ではスマホ向けの720p版、それより広い画面では1080p版を読み込む。  
+動画が画面に半分以上入ると音なしで自動再生し、半分未満になると一時停止する。利用者が止めた後と最後まで再生した後は、画面に入り直しても再開しない。OSで動きを減らす設定にしている場合は自動再生しない。  
+動画の内容は、画面に表示しない説明文を`aria-describedby`で結び、支援技術にも伝える。  
+動画の元データは`apps/video`で作る。
 
 ヘルプ、記事、デモは同じ公開サイトに属するが、内容の置き場所は分かれている。
 FAQ、使い方、TSXの基本ページは`HelpCenter`、記事は`ArticleSite`、操作できるデモは`Demo`が所有する。
@@ -43,7 +55,7 @@ FAQ、使い方、TSXの基本ページは`HelpCenter`、記事は`ArticleSite`�
 | ログインと登録 | `/login`、`/signup`、`/forgot-password` | [`auth-pages.md`](auth-pages.md) |
 
 `PublicPageLayout`のheaderとfooterがこれらの入口を接続する。
-PC幅のheaderは、機能、ヘルプ、記事をそれぞれ独立したページへ、導入事例と料金をTOPの該当sectionへリンクする。  モバイルではheaderのリンクを表示しないため、footerからも機能、ヘルプ、記事へ移動できるようにする。
+PC幅のheaderは、機能、ヘルプ、記事をそれぞれ独立したページへ、活用例と料金をTOPの該当sectionへリンクする。  活用例は導入実績ではなく、提出方法ごとに向いているお店を示すスタッフ側の提出方法のsectionである。  モバイルではheaderのリンクと登録ボタンを表示しないため、footerからも機能、活用例、料金、ヘルプ、記事へ移動できるようにする。
 問い合わせの送信、法務同意の保存、認証処理は、それぞれの機能文書とConvex実装が所有する。
 
 ## コード境界
@@ -115,7 +127,8 @@ Productionの設定値と公開表示の確認状況は、[リリース状態](.
 | 場所 | 利用者の問い | 内容の責務 |
 |---|---|---|
 | TOP | 自分の店舗で何が楽になるか | 価値と利用の流れ、導入前のよくある質問を短く示し、詳しい入口を選べるようにする |
-| 機能紹介 | どの作業を支援できるか | 主な機能と利用場面を比較できるようにする |
+| 機能一覧 | どの作業を支援できるか | TOPの毎月の流れと同じ3ステップと、店舗とスタッフの管理に分けて、各機能のできることと機能ページへの入口を示す。シフトリにない機能も示す |
+| 機能ページ | その機能で自分の困りごとが解決するか | 一つの機能の困りごと、できること、使い方、FAQを示し、操作手順はヘルプへ、判断材料は記事へつなぐ。できることのうち主な項目は実際の画面と並べ、各ページに画面を1枚以上置く |
 | TOPの料金プランsection | 人数と店舗数に合うプランと料金を比較したい | シフト管理の基本機能が共通であることと、Free・Standard・Proの料金と利用上限を示す。Standard・Proの金額は特定商取引法ページと同じbuild時料金カタログを使う |
 | ヘルプのFAQ | 料金、通知、導入、運用について結論を知りたい | 質問ごとに結論と必要な注意点を示す |
 | ヘルプの使い方 | 画面でどう操作し、失敗時にどう戻るか | 操作場所、手順、結果、回復方法を示す |
@@ -124,7 +137,9 @@ Productionの設定値と公開表示の確認状況は、[リリース状態](.
 | 記事 | シフト運営の課題をどう判断するか | 課題の整理、選択肢、関連する製品導線を示す |
 | デモ | 登録前に操作と結果を確かめたい | 実データを保存せず、主要な操作の流れを体験できるようにする |
 
-TOPのFAQは、導入を検討する利用者向けの5件を`LandingPage/faqs.ts`で管理する。  表示内容とTOPの`FAQPage`構造化データは同じデータから生成し、各回答は文ごとに改行して表示する。
+TOPのFAQは、導入を検討する利用者向けの8件を`LandingPage/faqs.ts`で管理する。  表示内容とTOPの`FAQPage`構造化データは同じデータから生成し、各回答は文ごとに改行して表示する。
+
+機能ページの内容は`ProductFeatures/productFeatureContent.ts`、URLのslugは`ProductFeatures/productFeatureRoutes.ts`で管理する。  slugの定義は静的生成とsitemapのscriptからも読むため、画像とReactを持たないsecondary public entryに分けている。  TOPの主な機能sectionも、同じ内容の名前と説明から各機能ページへリンクする。  各機能ページのFAQと`FAQPage`構造化データ、パンくずと`BreadcrumbList`構造化データは、画面に表示する同じデータから生成する。  機能ページに書く内容は現在の実装で確認できる事実に限り、勤怠管理、給与計算、シフトの自動作成のようにない機能は、機能一覧の「シフトリにない機能」で明示する。
 
 ヘルプは利用開始後のFAQと使い方を一つのMDX形式で管理し、利用者が完了したい仕事ごとに分類する。組織構造と動画シナリオはTOPから直接開くTSXページとして分ける。
 FAQは`/help/tasks/:taskId#<faq-id>`で展開・共有し、使い方は`/help/:slug`の個別ページで表示する。
@@ -140,7 +155,7 @@ frontmatter、検索、関連付け、本文の表示規則は[ヘルプセン�
 
 ## 静的生成とメタデータ
 
-`scripts/staticSite.ts`はTOP、機能紹介、ヘルプTOP・組織構造・動画シナリオ・タスクページ、問い合わせ、記事一覧、汎用の法務文書、特定商取引法に基づく表記、シフトボードデモなどを公開routeとして持つ。  現在、独立した`/pricing` routeはない。
+`scripts/staticSite.ts`はTOP、機能一覧、機能ページ、ヘルプTOP・組織構造・動画シナリオ・タスクページ、問い合わせ、記事一覧、汎用の法務文書、特定商取引法に基づく表記、シフトボードデモなどを公開routeとして持つ。  現在、独立した`/pricing` routeはない。
 ヘルプの使い方は`HelpCenter/content/guides/`、記事詳細とカテゴリは`ArticleSite/content/`の公開済みslugから対象routeを組み立てる。
 TanStack StartはこのallowlistだけをStatic Prerenderingし、認証routeやCapability routeを自動探索しない。
 
@@ -203,7 +218,8 @@ route inventory testは各`Disallow`が実在するCSR routeのprefixまたは�
 - `src/routes/index.tsx`、`src/pages/home/`、`src/components/features/LandingPage/`：公開TOP
 - `src/components/features/LandingPage/faqs.ts`：TOPのFAQ表示と`FAQPage`構造化データ
 - `src/components/features/LandingPage/PricingSection/`：TOPの料金プラン比較
-- `src/routes/features.tsx`、`src/pages/features/`：機能紹介
+- `src/routes/features.tsx`、`src/routes/features.index.tsx`、`src/routes/features.$featureSlug.tsx`、`src/pages/features/`：機能一覧と機能ページのURL、page、metadata
+- `src/components/features/ProductFeatures/`：機能一覧と機能ページの表示、内容、slug
 - `src/routes/commercial-transactions.tsx`、`src/pages/commercial-transactions/`、`src/components/features/CommercialTransactions/`：特定商取引法に基づく表記
 - `src/routes/help.tsx`、`src/routes/help.*.tsx`、`src/pages/help/`：ヘルプTOP、タスク、使い方詳細のURL境界
 - `src/components/features/HelpCenter/`：FAQ、使い方、検索、構造化データ

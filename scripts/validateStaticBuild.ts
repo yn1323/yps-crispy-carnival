@@ -475,7 +475,8 @@ export async function validateStaticBuild(
     "shell has no no-referrer policy",
   );
   assert(!findTag(shellHtml, "link", "rel", "canonical"), "shell must not contain a public canonical URL");
-  assert(!/シフトのやり取りを/.test(shellHtml), "shell contains baked TOP content");
+  // TOPのH1は文節ごとのspanに分かれるため、1つのspanに収まる文節で焼き込みを判定する。
+  assert(!/そのままシフト表に/.test(shellHtml), "shell contains baked TOP content");
   assertNoBakedMeasurementScripts("_shell.html", shellHtml);
 
   const notFoundHtml = await readFile(notFoundPath, "utf8");

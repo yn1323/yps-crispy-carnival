@@ -2,17 +2,17 @@
 
 > 文書種別: 実環境状態
 >
-> 最終更新: 2026-09-05
+> 最終更新: 2026-09-25
 >
-> 実環境確認: 未確認
+> 実環境確認: 一部確認済み（全ページWeb計測のGTM公開とGA4 property設定だけ）
 
 この文書は、Productionの公開、deployment、migration、外部サービス設定を、実環境の証跡とともに記録する正本です。
 リポジトリ内の実装、テスト成功、計画書の記述だけでは、実環境へ反映済みとは判定しません。
 
 ## 現在の確認状態
 
-最終更新時点で、この文書へProductionを確認済みとするための実環境証跡は登録されていません。
-RepositoryまたはDevelopmentの確認を明記した行を含め、Productionの状態はすべて**未確認**です。
+最終更新時点で、Productionを確認済みとする実環境証跡が登録されているのは、全ページWeb計測のGTM公開とGA4 property設定（2026-09-24）だけです。
+それ以外は、RepositoryまたはDevelopmentの確認を明記した行を含め、Productionの状態を**未確認**とします。
 
 現在のrepository artifactは、追加組織、複数店舗、複数管理者、支払いを機能ごとの環境変数なしで提供します。
 このrepository上の方針から、Productionのartifact、migration、外部設定、既存データの状態を確認済みとは判定しません。
@@ -47,7 +47,7 @@ RepositoryまたはDevelopmentの確認を明記した行を含め、Production�
 | `/commercial-transactions`の事業者名、運営責任者、所在地、電話番号 | **要対応（Production設定・公開未確認）** | 2026-08-23 | Repository | release buildはProduction GitHub Environment Variablesから3項目を取得し、欠落時に失敗する。実値とProduction表示は未確認 |
 | Resendの`email.delivered` Webhook | 未確認 | 未確認 | 未確認 | 未登録 |
 | Clerk、Cloudflare、Stripeのセキュリティ設定とprovider canary | 未確認 | 未確認 | 未確認 | 未登録 |
-| 全ページWeb計測のGTM container、GA4 property、Clarity、Production request | 未確認 | 未確認 | 未確認 | 未登録 |
+| 全ページWeb計測のGTM container、GA4 property、Clarity、Production request | **GTM公開・GA4 property設定済み・`setup_complete`キーイベント未登録** | 2026-09-24 17:24 JST | GTM `GTM-P22XCGTD` バージョン8、GA4 property `G-892N66Y30T`、Production release `d758aecd` | `ga4-gtm-container.json`を統合インポートし、旧Google tag（`send_page_view=true`）を削除してバージョン8を公開した。Clarityタグは維持。公開前のTag AssistantでTOPと記事の`GA4 - Google tag`と`GA4 - page_view`がdocumentごとに1回、`section_view`と`web_vital`の発火を確認し、公開後はGA4リアルタイムで`web_vital`の受信を確認した。GA4ではカスタムディメンション14件、カスタム指標`metric_value`、拡張計測の変更（履歴ベースのpage view、サイト内検索、フォームの操作、動画、ファイルのダウンロードをオフ）、除外する参照6件、イベントデータ保持14か月、Search Consoleリンクを設定した。`setup_complete`は受信後にキーイベントへ登録する。戻す場合はGTMバージョン7を公開する。Developでは2026-09-24 17:40 JSTにGTM `GTM-P3DL2WK5`バージョン6を公開し、GA4「dev-シフトリ」の設定後、実際の初回Setupで`setup_complete`が`setup_kind`、`submission_pattern`、`route_family`、`route_area`、`release_id`付きでリアルタイムに届くことを確認した。2026-09-25にDevelopの`setup_complete`をキーイベントへ登録した。本番の`setup_complete`は未受信のためキーイベント未登録。同日、本番の探索「新規ユーザーの登録ファネル」のステップ3を`select_content`かつ`content_id`に`signup`を含む条件へ絞った。Develop GA4は今後の追加設定を行わない |
 | `ENV-CLERK-02`のログイン方法・シフト連絡先分離canary | 未確認 | 未確認 | 未確認 | 未登録 |
 | `verifyStaffs.activeStaffPersonEmailMismatch`の全ページ合計0件 | Development確認済み・Production未確認 | 2026-08-04 09:18 JST | `dev:fortunate-mallard-809` | 本文のDevelopment確認記録 |
 
