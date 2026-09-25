@@ -1,6 +1,6 @@
 import { Box, Container, Grid, Heading, Icon, Image, Stack, VStack } from "@chakra-ui/react";
 import { LuBookOpen, LuChevronRight } from "react-icons/lu";
-import relaxedStoreImage from "@/src/assets/illustrations/relaxed-store.png";
+import relaxedStoreImage from "@/src/assets/illustrations/relaxed-store.webp";
 import { MeasurementLink } from "@/src/components/shared/MeasurementLink";
 import { TrialReassurance } from "@/src/components/shared/TrialReassurance";
 import { Button } from "@/src/components/ui/Button";
