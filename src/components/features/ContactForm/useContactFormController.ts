@@ -2,6 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useCallback, useState } from "react";
 import { useForm } from "react-hook-form";
 import { type ContactFormData, contactFormSchema } from "@/convex/contact/schemas";
+import { VERIFICATION_FAILED_MESSAGE, VERIFICATION_PENDING_MESSAGE } from "@/src/components/shared/TurnstileWidget";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { createContactFormDefaultValues, getContactMessagePresentation } from "./script";
 import type { ContactSubmitData } from "./submitContactRequest";
@@ -44,12 +45,15 @@ export function useContactFormController({ onSubmit, verification }: UseContactF
   const handleVerificationError = useCallback((errorCode?: string) => {
     if (import.meta.env.DEV && errorCode) console.warn("Turnstile client verification failed", { errorCode });
     setTurnstileToken("");
-    setVerificationError("セキュリティ確認をやり直してください");
+    setVerificationError(VERIFICATION_FAILED_MESSAGE);
   }, []);
 
   const { run: submitOnce, isRunning } = useSingleFlight(async (values: ContactFormData) => {
     if (!turnstileToken) {
-      setVerificationError("セキュリティ確認を完了してください");
+      // Turnstileが失敗済み、またはsite key未設定なら確認欄は表示されないため、待機案内を出さない。
+      if ("siteKey" in verification && verification.siteKey) {
+        setVerificationError((current) => current ?? VERIFICATION_PENDING_MESSAGE);
+      }
       return;
     }
 

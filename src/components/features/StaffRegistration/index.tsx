@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import type { StaffRegistrationFormData } from "@/convex/staffRegistration/schemas";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
+import { VERIFICATION_FAILED_MESSAGE, VERIFICATION_PENDING_MESSAGE } from "@/src/components/shared/TurnstileWidget";
 import { TURNSTILE_SITE_KEY } from "@/src/configs/publicEnv";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { StaffRegistrationFlow } from "./StaffRegistrationFlow";
@@ -26,14 +27,15 @@ export function StaffRegistration({ token, data }: Props) {
   const handleVerificationError = useCallback((errorCode?: string) => {
     if (import.meta.env.DEV && errorCode) console.warn("Turnstile client verification failed", { errorCode });
     setTurnstileToken("");
-    setVerificationError("セキュリティ確認をやり直してください");
+    setVerificationError(VERIFICATION_FAILED_MESSAGE);
   }, []);
 
   const { run: handleSubmit, isRunning: isSubmitting } = useSingleFlight(
     async (formData: StaffRegistrationFormData) => {
       if (!token) return;
       if (!turnstileToken) {
-        setVerificationError("セキュリティ確認を完了してください");
+        // Turnstileが失敗済み、またはsite key未設定なら確認欄は表示されないため、待機案内を出さない。
+        if (TURNSTILE_SITE_KEY) setVerificationError((current) => current ?? VERIFICATION_PENDING_MESSAGE);
         return;
       }
 

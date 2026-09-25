@@ -23,6 +23,11 @@ declare global {
   }
 }
 
+export const VERIFICATION_PENDING_MESSAGE =
+  "セキュリティ確認が終わるまでお待ちください。\n確認欄が表示されるのを待ち、チェックを入れてください。";
+export const VERIFICATION_FAILED_MESSAGE =
+  "セキュリティ確認を完了できませんでした。\nページを再読み込みするか、Google Chromeで開いてください。";
+
 const SCRIPT_ID = "cloudflare-turnstile-script";
 const SCRIPT_SRC = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
 let scriptPromise: Promise<TurnstileApi> | null = null;

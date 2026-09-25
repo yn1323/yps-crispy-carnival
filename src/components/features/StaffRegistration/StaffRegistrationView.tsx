@@ -103,7 +103,7 @@ export function StaffRegistrationView({ state }: Props) {
               />
             ) : null}
             {state.verificationError ? (
-              <Text color="red.600" fontSize="sm">
+              <Text color="red.600" fontSize="sm" whiteSpace="pre-line">
                 {state.verificationError}
               </Text>
             ) : null}
