@@ -174,7 +174,7 @@ export function ContactFormView(props: ContactFormViewProps) {
           />
         ) : null}
         {props.verificationError ? (
-          <Text color="red.600" fontSize="sm">
+          <Text color="red.600" fontSize="sm" whiteSpace="pre-line">
             {props.verificationError}
           </Text>
         ) : null}
