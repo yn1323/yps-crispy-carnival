@@ -8,3 +8,5 @@ Config.setRspack(true);
 // イラストとUIは平らな色面が多く、JPEGのノイズで動画が重くなるためPNGで書き出す
 Config.setVideoImageFormat("png");
 Config.setOverwriteOutput(true);
+// GPU描画では、並行して書き出すと一部のフレームの取得が壊れることがあったため、ソフトウェア描画にする
+Config.setChromiumOpenGlRenderer("swangle");

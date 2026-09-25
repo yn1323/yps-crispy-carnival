@@ -29,4 +29,5 @@ pnpm video:lint
 pnpm video:type-check
 ```
 
+- 動画を書き出したら、`pnpm --filter @shiftori/video check:frames out/shiftori-intro.mp4`で壊れたフレームがないことを確かめる。LP用に作ったPC向けとスマホ向けも同じく確かめる。
 - Remotion Studioはユーザーが起動するため、新規起動しない。

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "remotion studio",
     "render": "remotion render",
+    "check:frames": "bash scripts/find-broken-frames.sh",
     "type-check": "tsc -p tsconfig.json --noEmit",
     "lint": "biome check ."
   },
