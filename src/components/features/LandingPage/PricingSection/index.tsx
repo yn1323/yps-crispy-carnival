@@ -13,6 +13,7 @@ import {
 import { trackProductEvent } from "@/src/lib/webMeasurement";
 import { LANDING_HEADER_SCROLL_MARGIN_TOP } from "../constants";
 import { SectionHeading } from "../SectionHeading";
+import { SignupButton } from "../SignupButton";
 
 const planCards = [
   {
@@ -56,7 +57,7 @@ export function PricingSection({ prices }: PricingSectionProps) {
             <Text color="gray.700" fontSize={{ base: "md", md: "lg" }} fontWeight="semibold" lineHeight="1.8">
               どのプランでも基本機能は同じです。
               <br />
-              人数と店舗数に合わせて選べます。
+              違いは人数・店舗数・管理者数の上限です。
             </Text>
           </VStack>
 
@@ -154,6 +155,8 @@ function ProTrialNotice() {
           利用人数{limits.maxPeople}名・{limits.maxShops}店舗・管理者{limits.maxActiveManagers}名まで
         </Text>
       </Flex>
+      {/* 料金を読んで試そうと決めた人が、末尾まで戻らずに登録できるようにする。 */}
+      <SignupButton measurementCtaId="pricing_signup" />
     </Stack>
   );
 }
@@ -239,8 +242,9 @@ function PlanPrice({ plan, price }: { plan: keyof PublicPlanPriceCatalog | null;
         >
           ¥0
         </Text>
+        {/* 有料プランの「(税込) / 1か月」と同じ並びにする。0円には税区分を付けない。 */}
         <Text as="span" fontSize="sm" fontWeight="semibold">
-          /月（税込）
+          / 1か月
         </Text>
       </HStack>
     );

@@ -1,6 +1,6 @@
-import { Box, Container, Flex, Icon, LinkBox, LinkOverlay, SimpleGrid, Text } from "@chakra-ui/react";
+import { Box, Container, Flex, Icon, Link, LinkBox, LinkOverlay, SimpleGrid, Text } from "@chakra-ui/react";
 import type { IconType } from "react-icons";
-import { LuArrowRight, LuLayoutGrid } from "react-icons/lu";
+import { LuArrowRight } from "react-icons/lu";
 import { PRODUCT_FEATURES } from "@/src/components/features/ProductFeatures/productFeatureContent";
 import { PRODUCT_FEATURES_HREF } from "@/src/components/features/ProductFeatures/productFeatureRoutes";
 import { LANDING_HEADER_SCROLL_MARGIN_TOP } from "../constants";
@@ -11,7 +11,7 @@ export const FeaturesOverviewSection = () => (
     as="section"
     id="features"
     bg="white"
-    py={{ base: 14, md: 18 }}
+    py={{ base: 14, md: 20 }}
     scrollMarginTop={LANDING_HEADER_SCROLL_MARGIN_TOP}
   >
     <Container maxW="7xl">
@@ -27,13 +27,21 @@ export const FeaturesOverviewSection = () => (
             body={feature.summary}
           />
         ))}
-        <FeatureLinkCard
-          href={PRODUCT_FEATURES_HREF}
-          icon={LuLayoutGrid}
-          title="機能一覧"
-          body="すべての機能を確認できます"
-        />
       </SimpleGrid>
+
+      <Flex justify="center" mt={{ base: 8, md: 10 }}>
+        <Link
+          href={PRODUCT_FEATURES_HREF}
+          color="teal.700"
+          fontWeight="bold"
+          display="inline-flex"
+          alignItems="center"
+          gap={2}
+        >
+          機能一覧を見る
+          <Icon as={LuArrowRight} boxSize={4} aria-hidden />
+        </Link>
+      </Flex>
     </Container>
   </Box>
 );

@@ -33,7 +33,7 @@ const steps: Step[] = [
   {
     title: "シフトを確定する",
     body: "確定後も変更できます",
-    automations: ["確定シフトが一人ひとりに届く", "変更は変わった人にだけ届く"],
+    automations: ["確定シフトが一人ひとりに届く", "勤務が変わった人にだけお知らせ"],
     imageSrc: confirmedShiftNoticeImage,
     imageAlt: "スタッフのスマートフォンに届いた、確定シフトのお知らせ",
   },
@@ -44,7 +44,7 @@ export const HowItWorksSection = () => (
     as="section"
     id="how-it-works"
     bg="white"
-    py={{ base: 14, md: 18 }}
+    py={{ base: 14, md: 20 }}
     scrollMarginTop={LANDING_HEADER_SCROLL_MARGIN_TOP}
   >
     <Container maxW="7xl">

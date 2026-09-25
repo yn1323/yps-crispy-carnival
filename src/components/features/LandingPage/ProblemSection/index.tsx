@@ -2,7 +2,7 @@ import { Box, Container, Flex, Grid, Icon, Image, Stack, Text, VStack } from "@c
 import type { IconType } from "react-icons";
 import { LuArrowDown, LuFileSpreadsheet, LuImage, LuMessagesSquare, LuUserX } from "react-icons/lu";
 import { SectionHeading } from "../SectionHeading";
-import backofficeShiftChaosImage from "./backoffice-shift-chaos.png";
+import backofficeShiftChaosImage from "./backoffice-shift-chaos.webp";
 
 // 以降のsectionが「募集・催促・作成・共有」の順に解決策を示すため、課題も同じ4つの仕事で並べる。
 const problems: Array<{ icon: IconType; title: string; body: string }> = [
@@ -23,13 +23,13 @@ const problems: Array<{ icon: IconType; title: string; body: string }> = [
   },
   {
     icon: LuImage,
-    title: "確定シフトを伝え直している",
-    body: "変更のたびに送り直しています",
+    title: "変更のたびに伝え直している",
+    body: "表を撮ってグループに送っています",
   },
 ];
 
 export const ProblemSection = () => (
-  <Box as="section" bg="#fbfefe" borderTopWidth="1px" borderColor="gray.100" py={{ base: 14, md: 18 }}>
+  <Box as="section" bg="#fbfefe" borderTopWidth="1px" borderColor="gray.100" py={{ base: 14, md: 20 }}>
     <Container maxW="7xl">
       <SectionHeading phrases={["シフト集めで", "こんなことに", "困っていませんか"]} textAlign="center" />
 
