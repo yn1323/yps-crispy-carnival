@@ -2,17 +2,17 @@
 
 > 文書種別: 実環境状態
 >
-> 最終更新: 2026-09-05
+> 最終更新: 2026-09-25
 >
-> 実環境確認: 未確認
+> 実環境確認: 一部確認済み（全ページWeb計測のGTM公開とGA4 property設定だけ）
 
 この文書は、Productionの公開、deployment、migration、外部サービス設定を、実環境の証跡とともに記録する正本です。
 リポジトリ内の実装、テスト成功、計画書の記述だけでは、実環境へ反映済みとは判定しません。
 
 ## 現在の確認状態
 
-最終更新時点で、この文書へProductionを確認済みとするための実環境証跡は登録されていません。
-RepositoryまたはDevelopmentの確認を明記した行を含め、Productionの状態はすべて**未確認**です。
+最終更新時点で、Productionを確認済みとする実環境証跡が登録されているのは、全ページWeb計測のGTM公開とGA4 property設定（2026-09-24）だけです。
+それ以外は、RepositoryまたはDevelopmentの確認を明記した行を含め、Productionの状態を**未確認**とします。
 
 現在のrepository artifactは、追加組織、複数店舗、複数管理者、支払いを機能ごとの環境変数なしで提供します。
 このrepository上の方針から、Productionのartifact、migration、外部設定、既存データの状態を確認済みとは判定しません。
