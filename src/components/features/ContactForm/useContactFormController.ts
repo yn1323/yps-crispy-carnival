@@ -50,8 +50,10 @@ export function useContactFormController({ onSubmit, verification }: UseContactF
 
   const { run: submitOnce, isRunning } = useSingleFlight(async (values: ContactFormData) => {
     if (!turnstileToken) {
-      // Turnstileが失敗済みなら、待っても進まないため失敗時の案内を残す。
-      setVerificationError((current) => current ?? VERIFICATION_PENDING_MESSAGE);
+      // Turnstileが失敗済み、またはsite key未設定なら確認欄は表示されないため、待機案内を出さない。
+      if ("siteKey" in verification && verification.siteKey) {
+        setVerificationError((current) => current ?? VERIFICATION_PENDING_MESSAGE);
+      }
       return;
     }
 

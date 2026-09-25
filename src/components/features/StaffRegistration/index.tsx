@@ -34,8 +34,8 @@ export function StaffRegistration({ token, data }: Props) {
     async (formData: StaffRegistrationFormData) => {
       if (!token) return;
       if (!turnstileToken) {
-        // Turnstileが失敗済みなら、待っても進まないため失敗時の案内を残す。
-        setVerificationError((current) => current ?? VERIFICATION_PENDING_MESSAGE);
+        // Turnstileが失敗済み、またはsite key未設定なら確認欄は表示されないため、待機案内を出さない。
+        if (TURNSTILE_SITE_KEY) setVerificationError((current) => current ?? VERIFICATION_PENDING_MESSAGE);
         return;
       }
 
