@@ -174,7 +174,8 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
       },
       {
         title: "前日17時に自動で催促",
-        body: "未提出の人にだけ届きます",
+        // 予定時刻を過ぎてから作成・変更した募集には予約しない（convex/recruitment/mutations.ts）。
+        body: "未提出の人にだけ届きます。17時より前に作った募集が対象です。",
       },
       {
         title: "催促を送ったか画面で分かる",
@@ -206,7 +207,7 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
       },
       {
         q: "催促を送る日時は変えられますか？",
-        a: "いいえ、提出期限の前日17時に固定です。期限を変えた場合は、その前日に送ります。",
+        a: "いいえ、提出期限の前日17時に固定です。期限を変えた場合は、新しい期限の前日17時に送ります。その時刻を過ぎてから作成・変更した募集には送りません。",
       },
       {
         q: "特定のスタッフにだけ、もう一度お知らせできますか？",
