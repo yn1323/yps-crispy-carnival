@@ -6,16 +6,16 @@ import { PublicPageLayout } from "@/src/components/templates/PublicPageLayout";
 import { FeatureBreadcrumbs } from "./FeatureBreadcrumbs";
 import { FeatureCard } from "./FeatureCard";
 import { FeatureCtaBand, FeatureSignupButton } from "./FeatureSignupCta";
-import { PRODUCT_FEATURES } from "./productFeatureContent";
+import { getProductFeature, type ProductFeature } from "./productFeatureContent";
 import type { ProductFeatureSlug } from "./productFeatureRoutes";
 import { SentenceLines } from "./SentenceLines";
 
-/** 毎月のシフト作成で使う順番。店舗とスタッフの管理は流れの外に置く。 */
-const MONTHLY_FLOW_SLUGS: readonly ProductFeatureSlug[] = [
-  "shift-request-collection",
-  "submission-reminder",
-  "shift-schedule",
-  "shift-sharing",
+/** TOPの「毎月やることは3つだけ」と同じ3ステップで分け、店舗とスタッフの管理は流れの外に置く。 */
+const FEATURE_GROUPS: ReadonlyArray<{ step?: number; title: string; slugs: readonly ProductFeatureSlug[] }> = [
+  { step: 1, title: "シフトを募集する", slugs: ["shift-request-collection", "submission-reminder"] },
+  { step: 2, title: "シフトを組む", slugs: ["shift-schedule"] },
+  { step: 3, title: "シフトを確定する", slugs: ["shift-sharing"] },
+  { title: "店舗とスタッフの管理", slugs: ["multi-store"] },
 ];
 
 const unsupportedFeatures = ["出勤・退勤の打刻などの勤怠管理", "給与計算", "人数や条件からシフトを自動で組む機能"];
@@ -48,20 +48,19 @@ export function FeaturesHub() {
       </Box>
 
       <Box as="section" bg="gray.50" py={{ base: 12, md: 16 }}>
-        <Container maxW="7xl">
-          <SectionTitle title="毎月のシフト作成で使う機能" description="使う順に並べています" />
-          <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} gap={5} mt={{ base: 6, md: 8 }}>
-            {PRODUCT_FEATURES.map((feature) => {
-              const flowIndex = MONTHLY_FLOW_SLUGS.indexOf(feature.slug);
-              return (
-                <FeatureCard
-                  key={feature.slug}
-                  feature={feature}
-                  stepNumber={flowIndex === -1 ? undefined : flowIndex + 1}
-                />
-              );
-            })}
-          </SimpleGrid>
+        <Container maxW="5xl">
+          <VStack align="stretch" gap={{ base: 10, md: 12 }}>
+            {FEATURE_GROUPS.map((group) => (
+              <FeatureGroup
+                key={group.title}
+                step={group.step}
+                title={group.title}
+                features={group.slugs
+                  .map((slug) => getProductFeature(slug))
+                  .filter((feature): feature is ProductFeature => feature !== undefined)}
+              />
+            ))}
+          </VStack>
         </Container>
       </Box>
 
@@ -113,23 +112,23 @@ export function FeaturesHub() {
   );
 }
 
-function SectionTitle({ title, description }: { title: string; description: string }) {
+function FeatureGroup({ step, title, features }: { step?: number; title: string; features: ProductFeature[] }) {
   return (
-    <VStack gap={2} textAlign="center">
-      <Heading
-        as="h2"
-        wordBreak="auto-phrase"
-        fontSize={{ base: "2xl", md: "3xl" }}
-        lineHeight="1.5"
-        letterSpacing="0"
-        textWrap="balance"
-      >
+    <Box>
+      {step !== undefined && (
+        <Text color="teal.700" fontSize="sm" fontWeight="bold" lineHeight="1.4">
+          STEP {step}
+        </Text>
+      )}
+      <Heading as="h2" mt={1} fontSize={{ base: "xl", md: "2xl" }} lineHeight="1.4" letterSpacing="0">
         {title}
       </Heading>
-      <Text color="gray.700" fontSize={{ base: "sm", md: "md" }} lineHeight="1.8" fontWeight="semibold">
-        {description}
-      </Text>
-    </VStack>
+      <SimpleGrid columns={{ base: 1, md: 2 }} gap={5} mt={{ base: 4, md: 5 }}>
+        {features.map((feature) => (
+          <FeatureCard key={feature.slug} feature={feature} showCapabilities />
+        ))}
+      </SimpleGrid>
+    </Box>
   );
 }
 

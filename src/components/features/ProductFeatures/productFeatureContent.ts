@@ -3,14 +3,18 @@ import { LuBellRing, LuCalendarRange, LuMessageCircle, LuSendHorizontal, LuStore
 import { ORGANIZATION_PLAN_LIMITS } from "@/convex/organizationBilling/planLimits";
 import heroPcImage from "@/src/assets/hero-pc.webp";
 import confirmedShiftNoticeImage from "@/src/assets/screens/confirmed-shift-notice.webp";
+import multiStoreRecruitmentsImage from "@/src/assets/screens/multi-store-recruitments.webp";
+import recruitmentSubmissionStatusImage from "@/src/assets/screens/recruitment-submission-status.webp";
+import shiftBoardReminderImage from "@/src/assets/screens/shift-board-reminder.webp";
 import shiftBoardSpImage from "@/src/assets/screens/shift-board-sp.webp";
+import staffInvitationQrImage from "@/src/assets/screens/staff-invitation-qr.webp";
 import staffRequestNoticeImage from "@/src/assets/screens/staff-request-notice.webp";
 import submitTimeImage from "@/src/assets/screens/submit-time.webp";
-import buildScheduleImage from "./images/build-schedule.png";
-import collectRequestsImage from "./images/collect-requests.png";
-import deadlineReminderImage from "./images/deadline-reminder.png";
-import multiStoreMapImage from "./images/multi-store-map.png";
-import shareConfirmedImage from "./images/share-confirmed.png";
+import buildScheduleImage from "./images/build-schedule.webp";
+import collectRequestsImage from "./images/collect-requests.webp";
+import deadlineReminderImage from "./images/deadline-reminder.webp";
+import multiStoreMapImage from "./images/multi-store-map.webp";
+import shareConfirmedImage from "./images/share-confirmed.webp";
 import { getProductFeatureHref, PRODUCT_FEATURE_SLUGS, type ProductFeatureSlug } from "./productFeatureRoutes";
 
 // 表示の大半はスマホ（幅360px前後）で読まれる。
@@ -76,7 +80,7 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
     metaDescription:
       "シフト募集を作ると、スタッフのLINEやメールに提出リンクが届きます。スタッフはアプリのインストールや会員登録なしで、時間指定・日付選択・パターン選択から希望シフトを提出できます。",
     heading: ["LINEで", "希望シフトを集める"],
-    lead: "募集を作ると提出リンクが届きます。希望はそのままシフト表に並びます。",
+    lead: "スタッフに提出リンクが自動で届きます。希望はそのままシフト表に並びます。",
     illustration: {
       src: collectRequestsImage,
       alt: "4人のスタッフがスマートフォンから提出した希望が、1枚のシフト表に集まるイラスト",
@@ -85,7 +89,7 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
     capabilities: [
       {
         title: "提出リンクがLINE・メールで届く",
-        body: "募集を作ると自動で届きます。LINE未連携の人にはメールで届きます。",
+        body: "募集を作るとスタッフに届きます。LINEを使わない人にはメールで届きます。",
         screen: {
           src: staffRequestNoticeImage,
           alt: "スタッフのスマートフォンに届いた、希望シフトの提出を依頼するお知らせ",
@@ -110,8 +114,8 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
         body: "直近の週と同じ曜日・時間を入力できます",
       },
       {
-        title: "提出期限までは出し直せる",
-        body: "期限までは何度でも変更できます",
+        title: "何度でも出し直せる",
+        body: "提出期限までは変更できます",
       },
     ],
     steps: [
@@ -162,6 +166,11 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
       {
         title: "提出人数と未提出の人が分かる",
         body: "ダッシュボードとシフト表で確認できます",
+        screen: {
+          src: recruitmentSubmissionStatusImage,
+          alt: "ダッシュボードの募集一覧で、募集ごとの提出期限までの日数と提出人数を確認する画面",
+          frame: "phone",
+        },
       },
       {
         title: "前日17時に自動で催促",
@@ -169,7 +178,12 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
       },
       {
         title: "催促を送ったか画面で分かる",
-        body: "送った日時と予定をシフト表に表示します",
+        body: "送った日時か送る予定を表示します",
+        screen: {
+          src: shiftBoardReminderImage,
+          alt: "スマートフォンのシフト表の下部に、未提出の人数と、提出期限の前日17時に催促を送る予定が表示された画面",
+          frame: "phone",
+        },
       },
       {
         title: "未提出の人は期限後も出せる",
@@ -177,7 +191,7 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
       },
       {
         title: "確定し忘れを知らせる",
-        body: "期限後も未確定なら「要対応」に出ます",
+        body: "期限の翌日17時に管理者へ届きます",
       },
     ],
     steps: [
@@ -304,8 +318,8 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
         },
       },
       {
-        title: "変更は変わった人にだけ届く",
-        body: "変更のない人には届きません",
+        title: "勤務が変わった人にだけお知らせ",
+        body: "ほかの人には届きません",
       },
       {
         title: "リンクから確定シフトを見返せる",
@@ -313,7 +327,7 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
       },
       {
         title: "送れなかったお知らせに気づける",
-        body: "「要対応」から送り直せます",
+        body: "送れなかった相手に送り直せます",
       },
       {
         title: "スタッフごとの通知履歴",
@@ -349,7 +363,7 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
   "multi-store": {
     name: "複数店舗・スタッフ管理",
     icon: LuStore,
-    summary: "まとめて管理できます",
+    summary: "掛け持ちも1名で管理できます",
     metaTitle: "複数店舗のシフト管理｜掛け持ちスタッフと複数の管理者に対応",
     metaDescription: `ひとつの組織で最大${paidLimits.maxShops}店舗、管理者${paidLimits.maxActiveManagers}名までシフトを管理できます。店舗を掛け持ちするスタッフも1名として登録でき、スタッフ本人が店舗専用のQRコードから参加を申請することもできます。`,
     heading: ["複数店舗とスタッフを", "まとめて管理する"],
@@ -367,6 +381,11 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
       {
         title: "複数の店舗をひとつの組織で",
         body: "全店舗の募集も一覧で見られます",
+        screen: {
+          src: multiStoreRecruitmentsImage,
+          alt: "本店、駅前店、中央店の募集が、店舗名とともに1つの一覧に並ぶ画面",
+          frame: "phone",
+        },
       },
       {
         title: "掛け持ちスタッフも1名で登録",
@@ -374,11 +393,16 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
       },
       {
         title: "シフト担当者を複数人に",
-        body: "管理者を招待して、作業を分担できます",
+        body: "管理者を招待して分担できます",
       },
       {
         title: "スタッフはQRコードから参加申請",
         body: "担当者の承認で登録が完了します",
+        screen: {
+          src: staffInvitationQrImage,
+          alt: "スタッフに読み取ってもらう、店舗のQRコードを表示した画面",
+          frame: "phone",
+        },
       },
       {
         title: "まとめて手入力でも追加できる",
@@ -386,7 +410,7 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
       },
       {
         title: "シフトを出さない人は対象外に",
-        body: "オーナーなどを通知と提出率から外せます",
+        body: "オーナーなどを通知から外せます",
       },
     ],
     steps: [

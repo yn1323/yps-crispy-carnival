@@ -105,10 +105,13 @@ function FeatureDetailView({ feature }: { feature: ProductFeature }) {
         </Container>
       </Box>
 
-      <Box as="section" bg="gray.50" py={{ base: 12, md: 16 }}>
+      {/* 困りごとは「できること」の前置きのため、大きなsectionにせず帯にまとめる。 */}
+      <Box as="section" bg="gray.50" py={{ base: 8, md: 10 }}>
         <Container maxW="6xl">
-          <SectionTitle>こんなことに困っていませんか</SectionTitle>
-          <SimpleGrid as="ul" columns={{ base: 1, md: 3 }} gap={4} mt={{ base: 6, md: 8 }} listStyleType="none" p={0}>
+          <Heading as="h2" fontSize={{ base: "lg", md: "xl" }} lineHeight="1.5" letterSpacing="0" textAlign="center">
+            こんなことに困っていませんか
+          </Heading>
+          <SimpleGrid as="ul" columns={{ base: 1, md: 3 }} gap={3} mt={{ base: 4, md: 5 }} listStyleType="none" p={0}>
             {feature.pains.map((pain) => (
               <Flex
                 as="li"
@@ -119,7 +122,8 @@ function FeatureDetailView({ feature }: { feature: ProductFeature }) {
                 borderWidth="1px"
                 borderColor="gray.200"
                 borderRadius="lg"
-                p={5}
+                px={4}
+                py={3.5}
               >
                 <Icon as={LuCircleAlert} boxSize={5} mt={0.5} color="orange.500" flexShrink={0} aria-hidden />
                 <Text color="gray.900" fontSize="sm" fontWeight="bold" lineHeight="1.7">
@@ -131,16 +135,17 @@ function FeatureDetailView({ feature }: { feature: ProductFeature }) {
         </Container>
       </Box>
 
-      <Box as="section" bg="white" py={{ base: 14, md: 20 }}>
+      <Box as="section" bg="white" py={{ base: 12, md: 16 }}>
         <Container maxW="6xl">
           <SectionTitle>できること</SectionTitle>
-          <VStack align="stretch" gap={{ base: 12, md: 16 }} mt={{ base: 8, md: 12 }}>
+          <VStack align="stretch" gap={{ base: 10, md: 12 }} mt={{ base: 6, md: 10 }}>
             {showcased.map((capability, index) => (
               <ShowcaseRow key={capability.title} capability={capability} reverse={index % 2 === 1} />
             ))}
           </VStack>
           {others.length > 0 && (
-            <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} gap={5} mt={{ base: 12, md: 16 }}>
+            // 画面のない項目は短い説明だけのため、カードを大きくせず2列の一覧にする。
+            <SimpleGrid columns={{ base: 1, md: 2 }} gap={{ base: 3, md: 4 }} mt={{ base: 10, md: 12 }}>
               {others.map((capability) => (
                 <CapabilityCard key={capability.title} capability={capability} />
               ))}
@@ -152,37 +157,62 @@ function FeatureDetailView({ feature }: { feature: ProductFeature }) {
       <Box as="section" bg="#fbfefe" py={{ base: 12, md: 16 }}>
         <Container maxW="6xl">
           <SectionTitle>使い方</SectionTitle>
-          <SimpleGrid as="ol" columns={{ base: 1, md: 3 }} gap={5} mt={{ base: 6, md: 8 }} p={0} listStyleType="none">
+          {/* PCでは3つの手順を線でつなぎ、順番に進むことを見せる。 */}
+          <SimpleGrid
+            as="ol"
+            columns={{ base: 1, md: 3 }}
+            gap={{ base: 3, md: 8 }}
+            mt={{ base: 6, md: 8 }}
+            p={0}
+            listStyleType="none"
+          >
             {feature.steps.map((step, index) => (
-              <Stack
+              <Flex
                 as="li"
                 key={step.title}
+                position="relative"
+                align="flex-start"
                 gap={3}
                 bg="white"
                 borderWidth="1px"
                 borderColor="gray.200"
                 borderRadius="xl"
-                p={{ base: 5, md: 6 }}
+                p={{ base: 4, md: 5 }}
+                _after={{
+                  content: '""',
+                  display: { base: "none", md: "block" },
+                  position: "absolute",
+                  top: "50%",
+                  left: "calc(100% + 1px)",
+                  w: 8,
+                  h: "2px",
+                  bg: "gray.300",
+                }}
+                _last={{ _after: { display: "none" } }}
               >
                 <Flex
                   align="center"
                   justify="center"
-                  boxSize={9}
+                  flexShrink={0}
+                  boxSize={8}
                   bg="teal.600"
                   color="white"
                   borderRadius="full"
+                  fontSize="sm"
                   fontWeight="bold"
                   aria-hidden
                 >
                   {index + 1}
                 </Flex>
-                <Heading as="h3" wordBreak="auto-phrase" fontSize="lg" lineHeight="1.5">
-                  {step.title}
-                </Heading>
-                <Text color="gray.700" fontSize="sm" lineHeight="1.8">
-                  <SentenceLines text={step.body} />
-                </Text>
-              </Stack>
+                <Box minW={0}>
+                  <Heading as="h3" wordBreak="auto-phrase" fontSize={{ base: "md", md: "lg" }} lineHeight="1.5">
+                    {step.title}
+                  </Heading>
+                  <Text mt={1} color="gray.700" fontSize="sm" lineHeight="1.8">
+                    <SentenceLines text={step.body} />
+                  </Text>
+                </Box>
+              </Flex>
             ))}
           </SimpleGrid>
         </Container>
@@ -232,7 +262,8 @@ function FeatureDetailView({ feature }: { feature: ProductFeature }) {
             ))}
           </SimpleGrid>
           <SimpleGrid columns={{ base: 1, md: 2 }} gap={{ base: 8, md: 10 }} mt={{ base: 10, md: 12 }}>
-            <LinkList title="使い方" icon={LuBookOpen} links={feature.helpLinks} />
+            {/* 手順のsection「使い方」と区別するため、ヘルプへのリンクは「ヘルプ」と呼ぶ。 */}
+            <LinkList title="ヘルプ" icon={LuBookOpen} links={feature.helpLinks} />
             <LinkList title="関連する記事" icon={LuNewspaper} links={articleLinks} />
           </SimpleGrid>
           <Flex justify="center" mt={{ base: 10, md: 12 }}>
@@ -339,17 +370,27 @@ function ScreenVisual({ screen }: { screen: ProductFeatureScreen }) {
 
 function CapabilityCard({ capability }: { capability: ProductFeatureCapability }) {
   return (
-    <Stack gap={3} borderWidth="1px" borderColor="gray.200" borderRadius="xl" p={{ base: 5, md: 6 }}>
-      <Flex align="center" justify="center" boxSize={9} bg="teal.50" color="teal.700" borderRadius="full">
-        <Icon as={LuCheck} boxSize={5} aria-hidden />
+    <Flex align="flex-start" gap={3} borderWidth="1px" borderColor="gray.200" borderRadius="xl" p={{ base: 4, md: 5 }}>
+      <Flex
+        align="center"
+        justify="center"
+        flexShrink={0}
+        boxSize={8}
+        bg="teal.50"
+        color="teal.700"
+        borderRadius="full"
+      >
+        <Icon as={LuCheck} boxSize={4} aria-hidden />
       </Flex>
-      <Heading as="h3" wordBreak="auto-phrase" fontSize="lg" lineHeight="1.5">
-        {capability.title}
-      </Heading>
-      <Text color="gray.700" fontSize="sm" lineHeight="1.8">
-        <SentenceLines text={capability.body} />
-      </Text>
-    </Stack>
+      <Box minW={0}>
+        <Heading as="h3" wordBreak="auto-phrase" fontSize={{ base: "md", md: "lg" }} lineHeight="1.5">
+          {capability.title}
+        </Heading>
+        <Text mt={1} color="gray.700" fontSize="sm" lineHeight="1.8">
+          <SentenceLines text={capability.body} />
+        </Text>
+      </Box>
+    </Flex>
   );
 }
 
