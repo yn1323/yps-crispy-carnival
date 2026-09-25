@@ -45,7 +45,7 @@ ApplicationがdataLayerへ追加するイベントは次に限定する。  `web
 | イベント | 発火条件 | 固有のパラメータ |
 |---|---|---|
 | `page_view` | 初回documentとpathnameが変わるSPA遷移 | `page_location`、`page_referrer` |
-| `select_content` | TOPのheader・hero・下部CTA、機能一覧と機能ページの上部・下部CTA、記事末尾CTAの選択 | `content_type`、`content_id` |
+| `select_content` | TOPのheader・hero・毎月の流れ・料金section・下部CTA、機能一覧と機能ページの上部・下部CTA、記事末尾CTAの選択 | `content_type`、`content_id` |
 | `setup_complete` | 初回Setupまたは追加組織の作成が成功したとき | `setup_kind`（`first`、`additional`）、`submission_pattern` |
 | `section_view` | TOPの料金sectionの上端が画面の上60%へ入ったとき（TOPの表示ごとに1回） | `section`（`pricing`） |
 | `shift_export` | シフト表のPDFまたはExcelを生成して保存を始めたとき | `format`（`pdf`、`xlsx`） |
