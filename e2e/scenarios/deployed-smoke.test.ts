@@ -125,7 +125,8 @@ test.describe("デプロイ済み静的サイト", { tag: ["@release", "@deploye
     const response = await page.goto("/");
     expect(response?.ok(), `/ returned ${response?.status() ?? "no response"}`).toBe(true);
     await expect(page).toHaveURL((url) => url.origin === expectedOrigin && url.pathname === "/");
-    await expect(page.getByRole("heading", { level: 1, name: /シフトのやり取りを/ })).toBeVisible();
+    // H1は文節ごとのinline-blockで組むため、accessible nameでは文節の間に空白が入る。
+    await expect(page.getByRole("heading", { level: 1, name: /希望シフトを\s*LINEで集めて/ })).toBeVisible();
     const basicHelpLink = page.getByRole("link", { name: "基本の使い方を見る" }).first();
     await expect(basicHelpLink).toBeVisible();
     await expect(basicHelpLink).toHaveAttribute("href", "/help/scenarios/shift-management");

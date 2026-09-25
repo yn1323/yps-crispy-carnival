@@ -13,6 +13,7 @@ import {
 import { trackProductEvent } from "@/src/lib/webMeasurement";
 import { LANDING_HEADER_SCROLL_MARGIN_TOP } from "../constants";
 import { SectionHeading } from "../SectionHeading";
+import { SignupButton } from "../SignupButton";
 
 const planCards = [
   {
@@ -54,9 +55,9 @@ export function PricingSection({ prices }: PricingSectionProps) {
           <VStack gap={3} textAlign="center">
             <SectionHeading phrases={["料金プラン"]} textAlign="center" />
             <Text color="gray.700" fontSize={{ base: "md", md: "lg" }} fontWeight="semibold" lineHeight="1.8">
-              基本機能はすべてのプランで共通。
+              どのプランでも基本機能は同じです。
               <br />
-              人数と店舗数に合わせて選べます。
+              違いは人数・店舗数・管理者数の上限です。
             </Text>
           </VStack>
 
@@ -151,9 +152,11 @@ function ProTrialNotice() {
           <Text as="span">クレジットカード不要</Text>
         </Flex>
         <Text fontSize={{ base: "sm", md: "md" }} fontWeight="semibold" lineHeight="1.7">
-          スタッフ{limits.maxPeople}名・{limits.maxShops}店舗・管理者{limits.maxActiveManagers}名まで
+          利用人数{limits.maxPeople}名・{limits.maxShops}店舗・管理者{limits.maxActiveManagers}名まで
         </Text>
       </Flex>
+      {/* 料金を読んで試そうと決めた人が、末尾まで戻らずに登録できるようにする。 */}
+      <SignupButton measurementCtaId="pricing_signup" />
     </Stack>
   );
 }
@@ -218,8 +221,8 @@ function PlanCard({
       </Stack>
 
       <Stack as="ul" gap={3} listStyle="none" p={0} mt={3}>
-        <PlanLimit icon={LuUsers} label={`スタッフ ${limits.maxPeople}名まで`} description="管理者を含む" />
-        <PlanLimit icon={LuStore} label={`店舗数 ${limits.maxShops}店舗まで`} />
+        <PlanLimit icon={LuUsers} label={`利用人数 ${limits.maxPeople}名まで`} description="管理者を含む" />
+        <PlanLimit icon={LuStore} label={`${limits.maxShops}店舗まで`} />
         <PlanLimit icon={LuUserRoundCog} label={`管理者数 ${limits.maxActiveManagers}名まで`} />
       </Stack>
     </Box>
@@ -239,8 +242,9 @@ function PlanPrice({ plan, price }: { plan: keyof PublicPlanPriceCatalog | null;
         >
           ¥0
         </Text>
+        {/* 有料プランの「(税込) / 1か月」と同じ並びにする。0円には税区分を付けない。 */}
         <Text as="span" fontSize="sm" fontWeight="semibold">
-          /月（税込）
+          / 1か月
         </Text>
       </HStack>
     );

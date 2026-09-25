@@ -7,11 +7,11 @@ const managementFeatures: Array<{ icon: IconType; title: string; body: string }>
   {
     icon: LuStore,
     title: "複数店舗のスタッフ・シフトをまとめて管理",
-    body: "店舗ごとにスタッフ、シフトを設定できます。",
+    body: "ひとつの組織で複数の店舗を管理できます。店舗を掛け持ちするスタッフも1名として登録できます。",
   },
   {
     icon: LuUsersRound,
-    title: "シフト管理者を複数人登録可能",
+    title: "シフト管理者を複数人登録できる",
     body: "募集・調整・確定を一人で抱えずに進められます。",
   },
 ];
@@ -34,7 +34,7 @@ export function OrganizationManagementSection() {
         >
           <VStack gridArea="copy" align="center" width="full">
             <Heading as="h2" color="gray.950" fontSize={{ base: "2xl", md: "4xl" }} lineHeight="1.35" letterSpacing="0">
-              複数店舗・複数管理者も対応
+              複数店舗・複数管理者にも対応
             </Heading>
           </VStack>
 

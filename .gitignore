@@ -31,6 +31,9 @@ test-results-measurement.json
 /blob-report/
 /playwright/.cache/
 
+# Remotionの書き出し結果
+/apps/video/out/
+
 # いろいろな一時ファイルを置く
 log/
 # clerk configuration (can include secrets)

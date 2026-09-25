@@ -40,7 +40,7 @@ Good (one idea, fires at the right moment):
 
 ### 句読点と半角スペース
 
-- **本文** (tooltip content, banner body): 句読点（、。）を普通に使う。半角スペースで区切らない
+- **本文** (tooltip content, banner body): 読点は普通に使い、句点は`ui-architect`の`references/ui-writing.md`「句点」に従う。半角スペースで区切らない
 - **タイトル・見出し** (tooltip title, banner heading): 句読点なしでOK。体言止め可。半角スペースで区切ってリズムを作るのも可
 - 混ぜない。タイトルで「日別 と 一覧」と書いたなら、本文では「日別で細かく、一覧で俯瞰できます。」のように明確に切り替える
 

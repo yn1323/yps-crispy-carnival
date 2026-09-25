@@ -1,6 +1,7 @@
 export const webMeasurementRouteFamilies = [
   "home",
   "features",
+  "feature_detail",
   "help_index",
   "help_guide",
   "contact",
@@ -47,6 +48,7 @@ export type WebMeasurementRouteArea = (typeof webMeasurementRouteAreas)[number];
 const routeAreaByFamily: Record<WebMeasurementRouteFamily, WebMeasurementRouteArea> = {
   home: "public",
   features: "public",
+  feature_detail: "public",
   help_index: "public",
   help_guide: "public",
   contact: "public",
@@ -143,6 +145,9 @@ export function getWebMeasurementRouteFamily(value: string): WebMeasurementRoute
   const fixedFamily = fixedRouteFamilies.get(pathname);
   if (fixedFamily) return fixedFamily;
 
+  if (/^\/features\/[^/]+$/.test(pathname)) {
+    return "feature_detail";
+  }
   if (/^\/articles\/categories\/[^/]+$/.test(pathname)) {
     return "article_category";
   }

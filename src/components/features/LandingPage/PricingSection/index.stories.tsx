@@ -26,7 +26,9 @@ export const Desktop: Story = {
     await expect(trialNotice.getByText("登録から2か月間")).toBeInTheDocument();
     await expect(trialNotice.getByText("Proプランを無料でお試し")).toBeInTheDocument();
     await expect(trialNotice.getByText("クレジットカード不要")).toBeInTheDocument();
-    await expect(trialNotice.getByText("スタッフ50名・5店舗・管理者5名まで")).toBeInTheDocument();
+    await expect(trialNotice.getByText("利用人数50名・5店舗・管理者5名まで")).toBeInTheDocument();
+    await expect(trialNotice.getByRole("link", { name: "無料ではじめる" })).toHaveAttribute("href", "/signup");
+    await expect(canvas.getByText("/ 1か月")).toBeInTheDocument();
   },
 };
 

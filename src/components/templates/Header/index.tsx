@@ -15,7 +15,7 @@ const AUTHENTICATED_GLASS_BACKGROUND = "rgba(255, 255, 255, 0.08)";
 
 const publicNavItems = [
   { label: "機能", href: "/features" },
-  { label: "導入事例", href: "/#use-cases" },
+  { label: "活用例", href: "/#use-cases" },
   { label: "料金", href: "/#pricing" },
   { label: "ヘルプ", href: "/help" },
   { label: "お役立ち記事", href: "/articles" },

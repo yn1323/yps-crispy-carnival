@@ -4,10 +4,10 @@ import type { IconType } from "react-icons";
 import { LuArrowRight, LuBookOpen, LuFileSpreadsheet, LuMessageCircle, LuMonitorCheck } from "react-icons/lu";
 import type { ArticleMetadata } from "@/src/components/features/ArticleSite/articleMeta";
 import { articleMetas } from "@/src/components/features/ArticleSite/articleMeta";
+import { splitJapaneseSentences } from "@/src/lib/japaneseSentences";
 import { LANDING_HEADER_SCROLL_MARGIN_TOP } from "../constants";
 import { landingFaqs } from "../faqs";
 import { SectionHeading } from "../SectionHeading";
-import { splitLandingFaqAnswerSentences } from "./script";
 
 const articleIcons = [LuMessageCircle, LuMonitorCheck, LuFileSpreadsheet, LuBookOpen];
 const previewArticles = articleMetas.slice(0, 4);
@@ -39,7 +39,7 @@ export const FaqArticlesSection = () => (
                   <Accordion.ItemContent borderTopWidth="1px" borderTopColor="gray.100">
                     <Accordion.ItemBody px={4} py={4}>
                       <Text color="gray.700" fontSize="sm" lineHeight="1.8" fontWeight="semibold">
-                        {splitLandingFaqAnswerSentences(faq.a).map((sentence, index) => (
+                        {splitJapaneseSentences(faq.a).map((sentence, index) => (
                           <Fragment key={`${faq.q}-${index}`}>
                             {index > 0 && <br />}
                             {sentence}
