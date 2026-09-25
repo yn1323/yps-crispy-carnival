@@ -36,7 +36,7 @@ export function FeaturesHub() {
               lineHeight="1.9"
               fontWeight="semibold"
             >
-              希望シフトの回収から確定シフトの共有まで、毎月のシフト作成に必要な機能をまとめています。スタッフはアプリを入れずに、LINEやメールに届くリンクから使えます。
+              希望シフトの回収から確定シフトの共有までを、シフトリだけで進められます。
             </Text>
             <VStack align="center" gap={3} w={{ base: "full", md: "auto" }} pt={2}>
               <FeatureSignupButton position="hero" />
@@ -48,10 +48,7 @@ export function FeaturesHub() {
 
       <Box as="section" bg="gray.50" py={{ base: 12, md: 16 }}>
         <Container maxW="7xl">
-          <SectionTitle
-            title="毎月のシフト作成で使う機能"
-            description="シフト募集から確定シフトの共有までの順に並べています。複数の店舗やシフト担当者で使うための機能もあります。"
-          />
+          <SectionTitle title="毎月のシフト作成で使う機能" description="使う順に並べています。" />
           <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} gap={5} mt={{ base: 6, md: 8 }}>
             {PRODUCT_FEATURES.map((feature) => {
               const flowIndex = MONTHLY_FLOW_SLUGS.indexOf(feature.slug);
@@ -80,12 +77,12 @@ export function FeaturesHub() {
                 ))}
               </Stack>
               <Text color="gray.700" fontSize="sm" lineHeight="1.8">
-                シフトの募集から確定と共有までに機能を絞っています。確定したシフトはPDFやExcelに出力できるので、勤怠管理や給与計算の資料に使えます。
+                確定したシフトはPDFやExcelに出力して、給与計算などの資料に使えます。
               </Text>
             </InfoPanel>
             <InfoPanel title="料金プランと機能">
               <Text color="gray.700" fontSize="sm" lineHeight="1.8">
-                Free、Standard、Proのどのプランでも、基本機能は同じです。プランによって変わるのは、利用人数、店舗数、管理者数の上限です。
+                基本機能はどのプランも同じです。違うのは、利用人数・店舗数・管理者数の上限です。
               </Text>
               <Link
                 href="/#pricing"
@@ -103,7 +100,7 @@ export function FeaturesHub() {
           </SimpleGrid>
           <Flex justify="center" mt={{ base: 8, md: 10 }}>
             <Link href="/help" color="teal.700" fontWeight="bold" display="inline-flex" alignItems="center" gap={1}>
-              操作方法はヘルプ・使い方で確認できます
+              ヘルプ・使い方を見る
               <Icon as={LuChevronRight} boxSize={4} aria-hidden />
             </Link>
           </Flex>

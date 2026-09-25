@@ -19,7 +19,7 @@ const submissionMethods: Array<{
   {
     icon: LuClock3,
     title: "時間指定",
-    body: "日ごとに、働ける開始時間と終了時間を入力します。",
+    body: "働ける時間を日ごとに入力します。",
     badge: "飲食店・小売店向け",
     imageSrc: submitTimeImage,
     imageAlt: "時間指定で希望シフトを提出する画面",
@@ -27,7 +27,7 @@ const submissionMethods: Array<{
   {
     icon: LuCalendarDays,
     title: "日付選択",
-    body: "出勤できる日だけを選んで提出します。",
+    body: "出勤できる日を選びます。",
     badge: "勤務時間が決まっている職場向け",
     imageSrc: submitDateSelectionImage,
     imageAlt: "日付選択で希望シフトを提出する画面",
@@ -35,7 +35,7 @@ const submissionMethods: Array<{
   {
     icon: LuUsers,
     title: "パターン選択",
-    body: "早番・遅番など、お店で決めた勤務パターンから選びます。",
+    body: "早番・遅番などから選びます。",
     badge: "介護・施設向け",
     imageSrc: submitPatternSelectionImage,
     imageAlt: "パターン選択で希望シフトを提出する画面",
@@ -46,17 +46,17 @@ const staffConveniences: Array<{ icon: IconType; title: string; body: string }> 
   {
     icon: LuHistory,
     title: "前回と同じ希望を入力",
-    body: "以前に提出したシフトと同じ曜日・時間の希望を、ボタン1つで入力できます。",
+    body: "前回と同じ曜日・時間を、ボタン1つで入力できます。",
   },
   {
     icon: LuMail,
     title: "LINEがない人にはメールで",
-    body: "LINEを連携していないスタッフには、同じ案内がメールで届きます。",
+    body: "LINE未連携の人には、メールで届きます。",
   },
   {
     icon: LuPencilLine,
     title: "提出期限までは出し直せる",
-    body: "予定が変わっても、提出期限までは希望シフトを変更できます。",
+    body: "予定が変わっても、提出期限までは変更できます。",
   },
 ];
 
@@ -70,9 +70,9 @@ export const StaffSubmissionSection = () => (
   >
     <Container maxW="7xl">
       <VStack gap={3} textAlign="center">
-        <SectionHeading phrases={["スタッフは", "アプリを入れずに", "リンクから提出"]} textAlign="center" />
+        <SectionHeading phrases={["スタッフは", "アプリもログインも不要"]} textAlign="center" />
         <Text color="gray.700" fontSize={{ base: "sm", md: "md" }} fontWeight="semibold" lineHeight="1.8">
-          ログインや会員登録もいりません。提出方法は、お店の働き方に合わせて3つから選べます。
+          提出方法は、お店に合わせて3つから選べます。
         </Text>
       </VStack>
 
@@ -119,7 +119,7 @@ export const StaffSubmissionSection = () => (
           alignItems="center"
           gap={2}
         >
-          希望シフトの回収について詳しく見る
+          希望シフトの回収を詳しく見る
           <Icon as={LuArrowRight} boxSize={4} aria-hidden />
         </Link>
       </Flex>

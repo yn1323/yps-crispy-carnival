@@ -18,22 +18,22 @@ type Step = {
 const steps: Step[] = [
   {
     title: "シフトを募集する",
-    body: "シフト期間と提出期限を決めて、シフト募集を作ります。",
-    automations: ["スタッフのLINEやメールに提出リンクが届く", "提出期限の前日に未提出の人へ催促が届く"],
+    body: "シフト期間と提出期限を決めます。",
+    automations: ["提出リンクがLINEやメールで届く", "提出期限の前日に未提出の人へ催促"],
     imageSrc: staffRequestNoticeImage,
     imageAlt: "スタッフのスマートフォンに届いた、希望シフトの提出のお願い",
   },
   {
     title: "シフトを組む",
-    body: "集まった希望シフトを見ながら勤務を割り当てます。PCでもスマホでも操作できます。",
-    automations: ["提出された希望シフトがシフト表に並ぶ", "休業日への割り当てなどを保存前にチェック"],
+    body: "希望シフトを見ながら割り当てます。スマホでも操作できます。",
+    automations: ["希望シフトがシフト表に並ぶ", "保存前に割り当てのミスをチェック"],
     imageSrc: shiftBoardSpImage,
     imageAlt: "スマートフォンのシフト表で、1日分のスタッフの勤務を割り当てる画面",
   },
   {
     title: "シフトを確定する",
-    body: "内容を確認して確定します。確定したあとで変更することもできます。",
-    automations: ["確定シフトがスタッフ一人ひとりに届く", "変更したときは変わった人にだけ届く"],
+    body: "内容を確かめて確定します。あとから変更もできます。",
+    automations: ["確定シフトが一人ひとりに届く", "変更は変わった人にだけ届く"],
     imageSrc: confirmedShiftNoticeImage,
     imageAlt: "スタッフのスマートフォンに届いた、確定シフトのお知らせ",
   },
@@ -51,7 +51,7 @@ export const HowItWorksSection = () => (
       <VStack gap={3} textAlign="center">
         <SectionHeading phrases={["毎月やることは", "3つだけ"]} textAlign="center" />
         <Text color="gray.700" fontSize={{ base: "sm", md: "md" }} fontWeight="semibold" lineHeight="1.8">
-          スタッフへの連絡は、シフトリからLINEやメールで届きます。
+          スタッフへの連絡は、シフトリから自動で届きます。
         </Text>
       </VStack>
 
@@ -100,7 +100,7 @@ const StepCard = ({ number, step }: { number: number; step: Step }) => (
       <Box mt="auto" pt={4} borderTopWidth="1px" borderColor="gray.100">
         <Flex align="center" gap={1.5} color="teal.700" fontSize="xs" fontWeight="bold">
           <Icon as={LuZap} boxSize={4} aria-hidden />
-          シフトリが自動で行うこと
+          自動で行うこと
         </Flex>
         <Stack as="ul" gap={2} mt={2} listStyleType="none" p={0}>
           {step.automations.map((automation) => (

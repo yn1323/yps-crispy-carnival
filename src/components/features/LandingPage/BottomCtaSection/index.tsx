@@ -1,4 +1,4 @@
-import { Box, Container, Grid, Heading, Icon, Image, Stack, Text, VStack } from "@chakra-ui/react";
+import { Box, Container, Grid, Heading, Icon, Image, Stack, VStack } from "@chakra-ui/react";
 import { LuBookOpen, LuChevronRight } from "react-icons/lu";
 import relaxedStoreImage from "@/src/assets/illustrations/relaxed-store.png";
 import { MeasurementLink } from "@/src/components/shared/MeasurementLink";
@@ -14,17 +14,12 @@ export const BottomCtaSection = () => (
         alignItems="center"
       >
         <VStack align={{ base: "center", lg: "start" }} gap={6} textAlign={{ base: "center", lg: "start" }}>
-          <VStack align={{ base: "center", lg: "start" }} gap={3}>
-            <Heading as="h2" fontSize={{ base: "xl", sm: "2xl", md: "3xl" }} lineHeight="1.35" letterSpacing="0">
-              次のシフト募集は
-              <Box as="span" display="block" color="teal.700">
-                シフトリで始めよう
-              </Box>
-            </Heading>
-            <Text color="gray.700" fontSize={{ base: "sm", md: "md" }} fontWeight="semibold" lineHeight="1.8">
-              登録から2か月は、すべての機能を無料で試せます。
-            </Text>
-          </VStack>
+          <Heading as="h2" fontSize={{ base: "xl", sm: "2xl", md: "3xl" }} lineHeight="1.35" letterSpacing="0">
+            次のシフト募集は
+            <Box as="span" display="block" color="teal.700">
+              シフトリで始めよう
+            </Box>
+          </Heading>
           <VStack align={{ base: "center", lg: "start" }} gap={3} w={{ base: "full", md: "auto" }}>
             <Stack direction={{ base: "column", md: "row" }} gap={4} w={{ base: "full", md: "auto" }}>
               <BottomButton href="/signup" label="無料ではじめる" primary />

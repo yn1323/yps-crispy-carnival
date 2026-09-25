@@ -1,4 +1,4 @@
-import { Box, Container, Heading, Icon, Image, Stack, Text, VStack } from "@chakra-ui/react";
+import { Box, Container, Heading, Icon, Image, Stack, VStack } from "@chakra-ui/react";
 import { LuChevronRight } from "react-icons/lu";
 import relaxedStoreImage from "@/src/assets/illustrations/relaxed-store.png";
 import { MeasurementLink } from "@/src/components/shared/MeasurementLink";
@@ -31,7 +31,7 @@ export function FeatureSignupButton({ position }: { position: SignupPosition }) 
   );
 }
 
-/** 機能ページの最後に置く登録導線。ページごとの説明は本文で済ませ、ここでは試し方だけを伝える。 */
+/** 機能ページの最後に置く登録導線。無料で試せる条件はTrialReassuranceだけで伝える。 */
 export function FeatureCtaBand() {
   return (
     <Box as="section" bg="#eaf8f6" py={{ base: 12, md: 16 }} overflow="hidden">
@@ -56,9 +56,6 @@ export function FeatureCtaBand() {
             <Heading as="h2" fontSize={{ base: "xl", md: "2xl" }} lineHeight="1.5" letterSpacing="0">
               次のシフト募集からシフトリで
             </Heading>
-            <Text color="gray.700" fontSize={{ base: "sm", md: "md" }} lineHeight="1.8" fontWeight="semibold">
-              登録から2か月は、すべての機能を無料で試せます。
-            </Text>
             <FeatureSignupButton position="bottom" />
             <TrialReassurance />
           </VStack>

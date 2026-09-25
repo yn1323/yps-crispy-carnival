@@ -9,22 +9,22 @@ const problems: Array<{ icon: IconType; title: string; body: string }> = [
   {
     icon: LuMessagesSquare,
     title: "希望シフトがトークに流れる",
-    body: "LINEのグループや個別のトークで集めると、希望シフトがほかの会話に埋もれて見落としやすくなります。",
+    body: "ほかの会話に埋もれて見落とします。",
   },
   {
     icon: LuUserX,
     title: "誰が未提出か分からない",
-    body: "提出した人を名簿と見比べて数え、出していない人へ一人ずつ連絡することになります。",
+    body: "名簿と見比べて、一人ずつ催促しています。",
   },
   {
     icon: LuFileSpreadsheet,
     title: "表への書き写しに時間がかかる",
-    body: "紙やメッセージで届いた希望シフトをExcelに転記するたびに、手間と入力ミスが増えます。",
+    body: "Excelへの転記で、手間とミスが増えます。",
   },
   {
     icon: LuImage,
     title: "確定シフトを伝え直している",
-    body: "完成したシフト表を撮影して送ったり、変更をもう一度知らせたりする作業が毎月発生します。",
+    body: "撮影して送り、変更のたびに連絡し直しています。",
   },
 ];
 
@@ -91,7 +91,7 @@ export const ProblemSection = () => (
 
       <VStack gap={2} mt={{ base: 10, md: 12 }} color="teal.700">
         <Text fontSize={{ base: "lg", md: "xl" }} fontWeight="bold" textAlign="center" lineHeight="1.6">
-          {["この4つの手間は", "シフトリで", "まとめて減らせます"].map((phrase) => (
+          {["この手間は", "シフトリで減らせます"].map((phrase) => (
             <Box key={phrase} as="span" display="inline-block">
               {phrase}
             </Box>

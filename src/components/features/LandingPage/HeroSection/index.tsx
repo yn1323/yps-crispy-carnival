@@ -58,7 +58,7 @@ export const HeroSection = () => (
               lineHeight="1.9"
               fontWeight="semibold"
             >
-              シフト募集を作ると、スタッフのLINEやメールに提出リンクが届きます。スタッフはアプリを入れずに提出でき、集まった希望シフトはシフト表に並びます。
+              スタッフはLINEやメールに届くリンクから提出するだけです。
             </Text>
           </VStack>
 

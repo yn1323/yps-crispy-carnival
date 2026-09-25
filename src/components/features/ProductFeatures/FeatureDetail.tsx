@@ -132,7 +132,7 @@ function FeatureDetailView({ feature }: { feature: ProductFeature }) {
 
       <Box as="section" bg="white" py={{ base: 14, md: 20 }}>
         <Container maxW="6xl">
-          <SectionTitle>{feature.name}でできること</SectionTitle>
+          <SectionTitle>できること</SectionTitle>
           <VStack align="stretch" gap={{ base: 12, md: 16 }} mt={{ base: 8, md: 12 }}>
             {showcased.map((capability, index) => (
               <ShowcaseRow key={capability.title} capability={capability} reverse={index % 2 === 1} />
@@ -231,7 +231,7 @@ function FeatureDetailView({ feature }: { feature: ProductFeature }) {
             ))}
           </SimpleGrid>
           <SimpleGrid columns={{ base: 1, md: 2 }} gap={{ base: 8, md: 10 }} mt={{ base: 10, md: 12 }}>
-            <LinkList title="使い方を見る" icon={LuBookOpen} links={feature.helpLinks} />
+            <LinkList title="使い方" icon={LuBookOpen} links={feature.helpLinks} />
             <LinkList title="関連する記事" icon={LuNewspaper} links={articleLinks} />
           </SimpleGrid>
           <Flex justify="center" mt={{ base: 10, md: 12 }}>

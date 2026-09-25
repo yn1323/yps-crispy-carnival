@@ -12,7 +12,7 @@ const industries: Array<{ imageSrc: string; label: string; body: string }> = [
   {
     imageSrc: restaurantImage,
     label: "飲食店・カフェ",
-    body: "ランチやディナーの希望を、時間指定で集められます。",
+    body: "ランチ・ディナーの希望を時間で集められます。",
   },
   {
     imageSrc: retailImage,
@@ -22,17 +22,17 @@ const industries: Array<{ imageSrc: string; label: string; body: string }> = [
   {
     imageSrc: salonImage,
     label: "美容室・サロン",
-    body: "出勤できる日だけを、日付選択で集められます。",
+    body: "出勤できる日だけを選んでもらえます。",
   },
   {
     imageSrc: careImage,
     label: "介護・施設",
-    body: "早番・遅番などの勤務パターンから選んでもらえます。",
+    body: "早番・遅番などのパターンで集められます。",
   },
   {
     imageSrc: eventImage,
     label: "イベント運営",
-    body: "開催日に合わせた短い期間の募集も作れます。",
+    body: "開催日だけの短い募集も作れます。",
   },
 ];
 
@@ -48,7 +48,7 @@ export const UseCasesSection = () => (
       <VStack gap={3} textAlign="center">
         <SectionHeading phrases={["いろいろなお店の", "シフトに使えます"]} textAlign="center" />
         <Text color="gray.700" fontSize={{ base: "sm", md: "md" }} fontWeight="semibold" lineHeight="1.8">
-          ランチ・ディナー、平日・週末、早番・遅番、単発のイベントなど、お店に合わせてシフトを組めます。
+          お店の働き方に合う提出方法を選べます。
         </Text>
       </VStack>
 
