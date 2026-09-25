@@ -2,7 +2,12 @@ import { Box, Flex, HStack, Image, Link, Text, VStack } from "@chakra-ui/react";
 
 type FooterColLink = { label: string; href: string };
 
-const productLinks: FooterColLink[] = [{ label: "機能一覧", href: "/features" }];
+// スマホではheaderのリンクを表示しないため、PCのheaderと同じ行き先をfooterにも置く。
+const productLinks: FooterColLink[] = [
+  { label: "機能一覧", href: "/features" },
+  { label: "活用例", href: "/#use-cases" },
+  { label: "料金", href: "/#pricing" },
+];
 
 const supportLinks: FooterColLink[] = [
   { label: "ヘルプ・使い方", href: "/help" },
@@ -37,9 +42,9 @@ export const PublicFooter = () => (
         </Text>
       </VStack>
 
-      <FooterCol title="Product" links={productLinks} />
-      <FooterCol title="Support" links={supportLinks} />
-      <FooterCol title="Company" links={companyLinks} />
+      <FooterCol title="サービス" links={productLinks} />
+      <FooterCol title="サポート" links={supportLinks} />
+      <FooterCol title="規約" links={companyLinks} />
     </Box>
 
     <Flex
@@ -64,7 +69,7 @@ export const PublicFooter = () => (
 
 const FooterCol = ({ title, links }: { title: string; links: FooterColLink[] }) => (
   <VStack align="start" gap={2.5}>
-    <Text textStyle="label" fontWeight="bold" opacity={0.7} letterSpacing="0.08em" textTransform="uppercase" mb={1}>
+    <Text textStyle="label" fontWeight="bold" opacity={0.7} mb={1}>
       {title}
     </Text>
     {links.map(({ label, href }) => (
