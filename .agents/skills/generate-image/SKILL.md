@@ -19,7 +19,8 @@ Guide the user from an unclear visual need to a selected format and generated im
 5. Ask the user to select a format or adjust the proposed direction. Do not generate during this turn.
 6. After selection, summarize the final direction briefly only if clarification remains necessary.
 7. Generate with the image-generation tool. Resolve `doc/assets/article-hero-style-reference.png` from the repository root, then pass its absolute path through `referenced_image_paths`; mentioning it in the prompt alone is insufficient.
-8. Follow explicit user instructions over defaults. If the output will be added to the web application, convert it with `$convert-images-to-webp` before referencing it in code.
+8. Follow explicit user instructions over defaults.
+9. Always convert every generated image with `$convert-images-to-webp` before using it. Reference only the `.webp` output from code, Markdown, and MDX; the generated PNG may remain only as an editing source.
 
 ## Format catalog
 
