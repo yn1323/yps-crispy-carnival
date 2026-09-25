@@ -8,6 +8,7 @@ import { FeatureCard } from "./FeatureCard";
 import { FeatureCtaBand, FeatureSignupButton } from "./FeatureSignupCta";
 import { PRODUCT_FEATURES } from "./productFeatureContent";
 import type { ProductFeatureSlug } from "./productFeatureRoutes";
+import { SentenceLines } from "./SentenceLines";
 
 /** 毎月のシフト作成で使う順番。店舗とスタッフの管理は流れの外に置く。 */
 const MONTHLY_FLOW_SLUGS: readonly ProductFeatureSlug[] = [
@@ -36,7 +37,7 @@ export function FeaturesHub() {
               lineHeight="1.9"
               fontWeight="semibold"
             >
-              希望シフトの回収から確定シフトの共有までを、シフトリだけで進められます。
+              <SentenceLines text="シフト作成に使う機能をまとめました。スタッフはアプリなしで使えます。" />
             </Text>
             <VStack align="center" gap={3} w={{ base: "full", md: "auto" }} pt={2}>
               <FeatureSignupButton position="hero" />
@@ -48,7 +49,7 @@ export function FeaturesHub() {
 
       <Box as="section" bg="gray.50" py={{ base: 12, md: 16 }}>
         <Container maxW="7xl">
-          <SectionTitle title="毎月のシフト作成で使う機能" description="使う順に並べています。" />
+          <SectionTitle title="毎月のシフト作成で使う機能" description="使う順に並べています" />
           <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} gap={5} mt={{ base: 6, md: 8 }}>
             {PRODUCT_FEATURES.map((feature) => {
               const flowIndex = MONTHLY_FLOW_SLUGS.indexOf(feature.slug);
@@ -77,12 +78,12 @@ export function FeaturesHub() {
                 ))}
               </Stack>
               <Text color="gray.700" fontSize="sm" lineHeight="1.8">
-                確定したシフトはPDFやExcelに出力して、給与計算などの資料に使えます。
+                <SentenceLines text="確定シフトはPDFやExcelに出力できます。給与計算などの資料に使えます。" />
               </Text>
             </InfoPanel>
             <InfoPanel title="料金プランと機能">
               <Text color="gray.700" fontSize="sm" lineHeight="1.8">
-                基本機能はどのプランも同じです。違うのは、利用人数・店舗数・管理者数の上限です。
+                <SentenceLines text="基本機能はどのプランも同じです。違いは人数・店舗数・管理者数の上限です。" />
               </Text>
               <Link
                 href="/#pricing"

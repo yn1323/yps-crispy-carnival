@@ -18,21 +18,21 @@ type Step = {
 const steps: Step[] = [
   {
     title: "シフトを募集する",
-    body: "シフト期間と提出期限を決めます。",
+    body: "シフト期間と提出期限を決めます",
     automations: ["提出リンクがLINEやメールで届く", "提出期限の前日に未提出の人へ催促"],
     imageSrc: staffRequestNoticeImage,
     imageAlt: "スタッフのスマートフォンに届いた、希望シフトの提出のお願い",
   },
   {
     title: "シフトを組む",
-    body: "希望シフトを見ながら割り当てます。スマホでも操作できます。",
+    body: "希望を見ながら、スマホでも組めます",
     automations: ["希望シフトがシフト表に並ぶ", "保存前に割り当てのミスをチェック"],
     imageSrc: shiftBoardSpImage,
     imageAlt: "スマートフォンのシフト表で、1日分のスタッフの勤務を割り当てる画面",
   },
   {
     title: "シフトを確定する",
-    body: "内容を確かめて確定します。あとから変更もできます。",
+    body: "確定後も変更できます",
     automations: ["確定シフトが一人ひとりに届く", "変更は変わった人にだけ届く"],
     imageSrc: confirmedShiftNoticeImage,
     imageAlt: "スタッフのスマートフォンに届いた、確定シフトのお知らせ",
@@ -51,7 +51,7 @@ export const HowItWorksSection = () => (
       <VStack gap={3} textAlign="center">
         <SectionHeading phrases={["毎月やることは", "3つだけ"]} textAlign="center" />
         <Text color="gray.700" fontSize={{ base: "sm", md: "md" }} fontWeight="semibold" lineHeight="1.8">
-          スタッフへの連絡は、シフトリから自動で届きます。
+          スタッフへの連絡は自動で届きます
         </Text>
       </VStack>
 

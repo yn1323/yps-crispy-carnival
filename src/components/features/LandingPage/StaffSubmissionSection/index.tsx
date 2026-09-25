@@ -19,7 +19,7 @@ const submissionMethods: Array<{
   {
     icon: LuClock3,
     title: "時間指定",
-    body: "働ける時間を日ごとに入力します。",
+    body: "働ける時間を入力します",
     badge: "飲食店・小売店向け",
     imageSrc: submitTimeImage,
     imageAlt: "時間指定で希望シフトを提出する画面",
@@ -27,7 +27,7 @@ const submissionMethods: Array<{
   {
     icon: LuCalendarDays,
     title: "日付選択",
-    body: "出勤できる日を選びます。",
+    body: "出勤できる日を選びます",
     badge: "勤務時間が決まっている職場向け",
     imageSrc: submitDateSelectionImage,
     imageAlt: "日付選択で希望シフトを提出する画面",
@@ -35,7 +35,7 @@ const submissionMethods: Array<{
   {
     icon: LuUsers,
     title: "パターン選択",
-    body: "早番・遅番などから選びます。",
+    body: "早番・遅番などから選びます",
     badge: "介護・施設向け",
     imageSrc: submitPatternSelectionImage,
     imageAlt: "パターン選択で希望シフトを提出する画面",
@@ -46,17 +46,17 @@ const staffConveniences: Array<{ icon: IconType; title: string; body: string }> 
   {
     icon: LuHistory,
     title: "前回と同じ希望を入力",
-    body: "前回と同じ曜日・時間を、ボタン1つで入力できます。",
+    body: "ボタン1つで済みます",
   },
   {
     icon: LuMail,
     title: "LINEがない人にはメールで",
-    body: "LINE未連携の人には、メールで届きます。",
+    body: "LINE未連携の人にはメールで届きます",
   },
   {
     icon: LuPencilLine,
     title: "提出期限までは出し直せる",
-    body: "予定が変わっても、提出期限までは変更できます。",
+    body: "期限までは何度でも変更できます",
   },
 ];
 
@@ -72,7 +72,7 @@ export const StaffSubmissionSection = () => (
       <VStack gap={3} textAlign="center">
         <SectionHeading phrases={["スタッフは", "アプリもログインも不要"]} textAlign="center" />
         <Text color="gray.700" fontSize={{ base: "sm", md: "md" }} fontWeight="semibold" lineHeight="1.8">
-          提出方法は、お店に合わせて3つから選べます。
+          提出方法はお店に合わせて3つから選べます
         </Text>
       </VStack>
 

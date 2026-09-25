@@ -49,7 +49,7 @@ export const IntroVideoSection = () => {
             >
               <source src={mobileVideoUrl} media={MOBILE_MEDIA_QUERY} type="video/mp4" />
               <source src={desktopVideoUrl} type="video/mp4" />
-              お使いのブラウザでは動画を再生できません。
+              お使いのブラウザでは動画を再生できません
             </chakra.video>
           </Box>
           <VisuallyHidden id={descriptionId}>{VIDEO_DESCRIPTION}</VisuallyHidden>

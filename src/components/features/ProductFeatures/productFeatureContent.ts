@@ -13,6 +13,9 @@ import multiStoreMapImage from "./images/multi-store-map.png";
 import shareConfirmedImage from "./images/share-confirmed.png";
 import { getProductFeatureHref, PRODUCT_FEATURE_SLUGS, type ProductFeatureSlug } from "./productFeatureRoutes";
 
+// 表示の大半はスマホ（幅360px前後）で読まれる。
+// 本文は1文ごとに改行して表示するため、1文を20文字前後、カードの見出しを15文字以内に収める。
+
 export type ProductFeatureFaq = {
   q: string;
   a: string;
@@ -46,7 +49,8 @@ export type ProductFeature = {
   summary: string;
   metaTitle: string;
   metaDescription: string;
-  heading: string;
+  /** 文節ごとに分け、スマホでも文節の途中で折り返さないようにする。 */
+  heading: string[];
   lead: string;
   illustration: { src: string; alt: string };
   pains: string[];
@@ -66,26 +70,22 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
   "shift-request-collection": {
     name: "希望シフトの回収",
     icon: LuMessageCircle,
-    summary: "LINEやメールのリンクから、スタッフはアプリなしで提出できます。",
+    summary: "LINEやメールから提出できます",
     // 画面の用語は「希望シフト」だが、検索では「シフト希望」の語順が使われるためtitleだけ合わせる。
     metaTitle: "LINEでシフト希望を回収｜スタッフはアプリ不要で提出できる",
     metaDescription:
       "シフト募集を作ると、スタッフのLINEやメールに提出リンクが届きます。スタッフはアプリのインストールや会員登録なしで、時間指定・日付選択・パターン選択から希望シフトを提出できます。",
-    heading: "LINEで希望シフトを集める",
-    lead: "シフト募集を作ると、スタッフに提出リンクが届きます。集まった希望シフトは、そのままシフト表に並びます。",
+    heading: ["LINEで", "希望シフトを集める"],
+    lead: "募集を作ると提出リンクが届きます。希望はそのままシフト表に並びます。",
     illustration: {
       src: collectRequestsImage,
       alt: "4人のスタッフがスマートフォンから提出した希望が、1枚のシフト表に集まるイラスト",
     },
-    pains: [
-      "LINEグループの希望シフトが会話に流れる",
-      "書き方がバラバラで読み取りにくい",
-      "集まった希望シフトをExcelに書き写している",
-    ],
+    pains: ["希望シフトがLINEの会話に流れる", "書き方がバラバラで読み取りにくい", "希望シフトをExcelに書き写している"],
     capabilities: [
       {
         title: "提出リンクがLINE・メールで届く",
-        body: "募集を作ると自動で届きます。LINEを連携していない人は、メールで受け取れます。",
+        body: "募集を作ると自動で届きます。LINE未連携の人にはメールで届きます。",
         screen: {
           src: staffRequestNoticeImage,
           alt: "スタッフのスマートフォンに届いた、希望シフトの提出を依頼するお知らせ",
@@ -93,12 +93,12 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
         },
       },
       {
-        title: "スタッフはアプリも会員登録も不要",
-        body: "リンクを開けば、スマホのブラウザからそのまま提出できます。",
+        title: "アプリも会員登録も不要",
+        body: "リンクを開けば、そのまま提出できます",
       },
       {
         title: "提出方法を3つから選べる",
-        body: "時間指定・日付選択・パターン選択から、店舗ごとに選べます。勤務パターンは4つまで登録できます。",
+        body: "時間指定・日付選択・パターン選択です。店舗ごとに設定できます。",
         screen: {
           src: submitTimeImage,
           alt: "時間指定で、日付ごとに働ける開始時間と終了時間を入力する提出画面",
@@ -106,35 +106,35 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
         },
       },
       {
-        title: "前回と同じ希望をボタン1つで入力",
-        body: "直近の週と同じ曜日・時間の希望を、そのまま入力できます。",
+        title: "前回の希望をボタン1つで入力",
+        body: "直近の週と同じ曜日・時間を入力できます",
       },
       {
         title: "提出期限までは出し直せる",
-        body: "予定が変わっても、提出期限までは変更できます。",
+        body: "期限までは何度でも変更できます",
       },
     ],
     steps: [
-      { title: "シフト募集を作る", body: "シフト期間と提出期限を入力します。" },
-      { title: "スタッフが提出する", body: "届いたリンクからスマホで提出します。" },
-      { title: "提出状況を確認する", body: "未提出の人をダッシュボードで確認します。" },
+      { title: "シフト募集を作る", body: "シフト期間と提出期限を入力します" },
+      { title: "スタッフが提出する", body: "届いたリンクからスマホで提出します" },
+      { title: "提出状況を確認する", body: "未提出の人を画面で確認します" },
     ],
     faqs: [
       {
         q: "スタッフにアプリを入れてもらう必要はありますか？",
-        a: "いいえ、必要ありません。届いたリンクをスマートフォンのブラウザで開いて提出します。アカウント登録もいりません。",
+        a: "いいえ、必要ありません。届いたリンクをブラウザで開いて提出します。アカウント登録もいりません。",
       },
       {
         q: "お店でLINE公式アカウントを用意する必要はありますか？",
-        a: "いいえ、必要ありません。お知らせはシフトリのLINE公式アカウントから届きます。",
+        a: "いいえ、必要ありません。シフトリの公式アカウントから届きます。",
       },
       {
         q: "LINEを使っていないスタッフはどうなりますか？",
-        a: "登録したメールアドレスに、同じ提出リンクが届きます。LINEかメールかは、シフトリが自動で切り替えます。",
+        a: "登録したメールアドレスに届きます。送り先はシフトリが自動で切り替えます。",
       },
       {
         q: "提出方法はあとから変えられますか？",
-        a: "はい、店舗設定から変更できます。変更は、次に作るシフト募集から反映されます。",
+        a: "はい、店舗設定から変更できます。次のシフト募集から反映されます。",
       },
     ],
     related: ["submission-reminder", "shift-schedule", "shift-sharing"],
@@ -147,43 +147,43 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
   "submission-reminder": {
     name: "提出状況の確認と自動催促",
     icon: LuBellRing,
-    summary: "未提出の人が一覧で分かり、提出期限の前日に催促が自動で届きます。",
+    summary: "未提出の人に自動で催促します",
     metaTitle: "シフト未提出の催促を自動化｜提出状況を一覧で確認",
     metaDescription:
       "希望シフトを提出していないスタッフを一覧で確認できます。提出期限の前日17時には、未提出のスタッフへ催促のお知らせがLINEやメールで自動で届きます。",
-    heading: "シフト未提出の催促を自動にする",
-    lead: "未提出の人を一覧で確認できます。提出期限の前日には、未提出の人にだけ催促が自動で届きます。",
+    heading: ["シフト未提出の", "催促を自動にする"],
+    lead: "未提出の人を一覧で確認できます。期限の前日には催促が自動で届きます。",
     illustration: {
       src: deadlineReminderImage,
       alt: "提出期限の日に印を付けたカレンダーから、スタッフのスマートフォンへお知らせが届くイラスト",
     },
-    pains: ["名簿と見比べて未提出の人を数えている", "一人ずつ「シフトまだ？」と連絡している", "催促し忘れた人がいた"],
+    pains: ["名簿と見比べて未提出の人を数えている", "「シフトまだ？」と一人ずつ聞いている", "催促し忘れた人がいた"],
     capabilities: [
       {
         title: "提出人数と未提出の人が分かる",
-        body: "募集ごとの提出人数と、未提出のスタッフを表示します。",
+        body: "ダッシュボードとシフト表で確認できます",
       },
       {
-        title: "提出期限の前日17時に自動で催促",
-        body: "未提出の人にだけ、LINEやメールで届きます。",
+        title: "前日17時に自動で催促",
+        body: "未提出の人にだけ届きます",
       },
       {
         title: "催促を送ったか画面で分かる",
-        body: "送った日時と送る予定を、シフト表に表示します。",
+        body: "送った日時と予定をシフト表に表示します",
       },
       {
-        title: "提出期限を過ぎても受け付けられる",
-        body: "確定前でシフト期間の開始前なら、未提出の人は期限後も提出できます。",
+        title: "未提出の人は期限後も出せる",
+        body: "確定前で、期間の開始前に限ります",
       },
       {
-        title: "確定していないシフトを知らせる",
-        body: "提出期限を過ぎて未確定のシフトは、「要対応」に表示されます。",
+        title: "確定し忘れを知らせる",
+        body: "期限後も未確定なら「要対応」に出ます",
       },
     ],
     steps: [
-      { title: "提出期限を決める", body: "シフト募集を作るときに設定します。" },
-      { title: "提出状況を見る", body: "未提出の人を画面で確認します。" },
-      { title: "前日に催促が届く", body: "17時に未提出の人へ届きます。" },
+      { title: "提出期限を決める", body: "シフト募集を作るときに設定します" },
+      { title: "提出状況を見る", body: "未提出の人を画面で確認します" },
+      { title: "前日に催促が届く", body: "17時に未提出の人へ届きます" },
     ],
     faqs: [
       {
@@ -192,7 +192,7 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
       },
       {
         q: "催促を送る日時は変えられますか？",
-        a: "いいえ、提出期限の前日17時に固定です。提出期限を変えた場合は、新しい期限の前日に送ります。",
+        a: "いいえ、提出期限の前日17時に固定です。期限を変えた場合は、その前日に送ります。",
       },
       {
         q: "特定のスタッフにだけ、もう一度お知らせできますか？",
@@ -206,12 +206,12 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
   "shift-schedule": {
     name: "シフト表の作成",
     icon: LuCalendarRange,
-    summary: "希望シフトが並んだシフト表を、PCでもスマホでも組めます。",
+    summary: "PCでもスマホでも組めます",
     metaTitle: "シフト表作成ツール｜希望シフトを見ながらPC・スマホで作れる",
     metaDescription:
       "提出された希望シフトがそのままシフト表に並び、見比べながら割り当てられます。PCでもスマホでも作成でき、休業日への割り当てなどは保存前にチェックします。PDF・Excelにも出力できます。",
-    heading: "希望シフトを見ながらシフト表を作る",
-    lead: "提出された希望シフトは、転記しなくてもシフト表に並びます。あとは調整して確定します。",
+    heading: ["希望シフトを見ながら", "シフト表を作る"],
+    lead: "希望シフトは転記なしで表に並びます。あとは調整して確定するだけです。",
     illustration: {
       src: buildScheduleImage,
       alt: "店長がノートPCとスマートフォンで同じシフト表を見ながら作業するイラスト",
@@ -220,7 +220,7 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
     capabilities: [
       {
         title: "希望シフトが最初から並んでいる",
-        body: "開くと、提出された希望シフトが割り当ての下書きとして並んでいます。",
+        body: "提出された希望が下書きとして並びます",
         screen: {
           src: heroPcImage,
           alt: "PCのシフト表で、スタッフごとの勤務時間が横棒で並んでいる画面",
@@ -229,7 +229,7 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
       },
       {
         title: "PCでもスマホでも作れる",
-        body: "PCは表全体を、スマホは1日ずつ編集できます。",
+        body: "PCは表全体を、スマホは1日ずつ編集できます",
         screen: {
           src: shiftBoardSpImage,
           alt: "スマートフォンで1日分のスタッフの勤務を割り当てる画面",
@@ -238,37 +238,37 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
       },
       {
         title: "希望と違う割り当てを知らせる",
-        body: "休み希望の日や希望外の時間に入れると、確認事項として表示します。",
+        body: "休み希望の日などに入れると知らせます",
       },
       {
         title: "保存前にミスをチェック",
-        body: "休業日への割り当てなどを、保存前に一覧で知らせます。",
+        body: "休業日への割り当てなどを知らせます",
       },
       {
         title: "下書き保存で少しずつ仕上げる",
-        body: "下書きのうちは、スタッフに通知されません。",
+        body: "下書きはスタッフに通知されません",
       },
       {
         title: "PDF・Excelに出力できる",
-        body: "店内への掲示や、給与計算の資料に使えます。",
+        body: "掲示や給与計算の資料に使えます",
       },
     ],
     steps: [
-      { title: "シフト表を開く", body: "ダッシュボードの募集から開きます。" },
-      { title: "希望を見ながら割り当てる", body: "調整して下書き保存します。" },
-      { title: "シフトを確定する", body: "確定すると、スタッフにお知らせが届きます。" },
+      { title: "シフト表を開く", body: "ダッシュボードの募集から開きます" },
+      { title: "希望を見ながら割り当てる", body: "調整して下書き保存します" },
+      { title: "シフトを確定する", body: "確定するとスタッフに届きます" },
     ],
     faqs: [
       {
         q: "スマホだけでシフト表を作れますか？",
-        a: "はい、作成から確定までスマホでできます。1日に複数の勤務時間を入れる編集など、一部はPCでの操作になります。",
+        a: "はい、作成から確定までスマホでできます。複数の時間帯を入れる日は、PCで編集します。",
       },
       {
         q: "シフトを自動で組んでくれますか？",
-        a: "いいえ、自動で組む機能はありません。提出された希望シフトを下書きとして並べるので、そこから調整します。",
+        a: "いいえ、自動で組む機能はありません。希望を並べた下書きから調整します。",
       },
       {
-        q: "Excelで直したシフト表を取り込めますか？",
+        q: "Excelで直した表を取り込めますか？",
         a: "いいえ、取り込めません。変更はシフトリのシフト表で行ってください。",
       },
     ],
@@ -282,21 +282,21 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
   "shift-sharing": {
     name: "確定シフトの共有",
     icon: LuSendHorizontal,
-    summary: "確定したシフトが、LINEやメールで一人ひとりに届きます。",
+    summary: "一人ひとりに自動で届きます",
     metaTitle: "確定シフトをLINEで共有｜変更したスタッフにだけ再通知",
     metaDescription:
       "シフトを確定すると、スタッフのLINEやメールに確定シフトのお知らせが届きます。確定後に変更したときは、勤務が変わったスタッフにだけお知らせが届きます。",
-    heading: "確定シフトをLINEやメールで届ける",
-    lead: "確定すると、スタッフ一人ひとりに自分の勤務日と時間が届きます。",
+    heading: ["確定シフトを", "LINEやメールで届ける"],
+    lead: "確定すると一人ひとりに届きます。届くのは本人の勤務日と時間です。",
     illustration: {
       src: shareConfirmedImage,
       alt: "教室、電車、自宅にいる3人のスタッフが、それぞれスマートフォンで確定シフトのお知らせを見るイラスト",
     },
-    pains: ["シフト表を撮影してグループに送っている", "変更を誰に伝え直すか迷う", "伝えたはずが届いていなかった"],
+    pains: ["シフト表を撮ってグループに送っている", "変更を誰に伝え直すか迷う", "伝えたはずが届いていなかった"],
     capabilities: [
       {
         title: "確定するとお知らせが届く",
-        body: "その人の勤務日と時間が、LINEやメールで届きます。",
+        body: "本人の勤務日と時間が届きます",
         screen: {
           src: confirmedShiftNoticeImage,
           alt: "スタッフのスマートフォンに届いた、確定シフトの勤務日と時間のお知らせ",
@@ -304,29 +304,26 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
         },
       },
       {
-        title: "変更したときは変わった人にだけ届く",
-        body: "直して再確定すると、勤務が変わった人にだけ届きます。",
+        title: "変更は変わった人にだけ届く",
+        body: "変更のない人には届きません",
       },
       {
         title: "リンクから確定シフトを見返せる",
-        body: "期限が切れたリンクは、スタッフ自身で再発行できます。",
+        body: "期限切れのリンクは本人が再発行できます",
       },
       {
         title: "送れなかったお知らせに気づける",
-        body: "送れなかったお知らせは「要対応」に表示され、送り直せます。",
+        body: "「要対応」から送り直せます",
       },
       {
-        title: "スタッフごとに通知履歴を確認できる",
-        body: "いつ、どの方法で送ったかを確認できます。",
+        title: "スタッフごとの通知履歴",
+        body: "いつ、どの方法で送ったか確認できます",
       },
     ],
     steps: [
-      { title: "シフトを確定する", body: "シフト表を確認して確定します。" },
-      {
-        title: "スタッフに届く",
-        body: "LINEかメールに自動で届きます。",
-      },
-      { title: "変更したら再度確定する", body: "変わった人にだけ届きます。" },
+      { title: "シフトを確定する", body: "シフト表を確認して確定します" },
+      { title: "スタッフに届く", body: "LINEかメールに自動で届きます" },
+      { title: "変更したら再度確定する", body: "変わった人にだけ届きます" },
     ],
     faqs: [
       {
@@ -339,7 +336,7 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
       },
       {
         q: "紙に印刷して掲示したい場合はどうすればよいですか？",
-        a: "シフト表からPDFやExcelに出力して、印刷できます。",
+        a: "PDFやExcelに出力して印刷できます。",
       },
     ],
     related: ["shift-schedule", "shift-request-collection", "multi-store"],
@@ -352,11 +349,11 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
   "multi-store": {
     name: "複数店舗・スタッフ管理",
     icon: LuStore,
-    summary: "複数の店舗と管理者を、ひとつの組織で管理できます。",
+    summary: "まとめて管理できます",
     metaTitle: "複数店舗のシフト管理｜掛け持ちスタッフと複数の管理者に対応",
     metaDescription: `ひとつの組織で最大${paidLimits.maxShops}店舗、管理者${paidLimits.maxActiveManagers}名までシフトを管理できます。店舗を掛け持ちするスタッフも1名として登録でき、スタッフ本人が店舗専用のQRコードから参加を申請することもできます。`,
-    heading: "複数店舗とスタッフをまとめて管理する",
-    lead: "店舗ごとにシフトを作りながら、スタッフと管理者はひとつの組織で管理できます。",
+    heading: ["複数店舗とスタッフを", "まとめて管理する"],
+    lead: "店舗ごとにシフトを作れます。スタッフと管理者は一か所で管理できます。",
     illustration: {
       src: multiStoreMapImage,
       alt: "3つの店舗と管理者の机が点線でつながる、地図のようなイラスト",
@@ -369,49 +366,46 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
     capabilities: [
       {
         title: "複数の店舗をひとつの組織で",
-        body: "店舗を切り替えて管理でき、全店舗の募集も一覧で見られます。",
+        body: "全店舗の募集も一覧で見られます",
       },
       {
-        title: "掛け持ちスタッフは1名として登録",
-        body: "登録済みの情報から別の店舗へ追加でき、利用人数も1名です。",
+        title: "掛け持ちスタッフも1名で登録",
+        body: "登録済みの情報から追加できます",
       },
       {
         title: "シフト担当者を複数人に",
-        body: "管理者を招待して、作業を分担できます。",
+        body: "管理者を招待して、作業を分担できます",
       },
       {
         title: "スタッフはQRコードから参加申請",
-        body: "本人がQRコードから申請し、担当者の承認で登録が完了します。",
+        body: "担当者の承認で登録が完了します",
       },
       {
         title: "まとめて手入力でも追加できる",
-        body: "1回に50名まで、まとめて追加できます。",
+        body: "1回に50名まで追加できます",
       },
       {
         title: "シフトを出さない人は対象外に",
-        body: "オーナーなどを、お知らせと提出率の計算から外せます。",
+        body: "オーナーなどを通知と提出率から外せます",
       },
     ],
     steps: [
-      { title: "店舗を追加する", body: "組織の設定から追加します。" },
-      {
-        title: "スタッフを追加する",
-        body: "QRコードや手入力で追加します。",
-      },
-      { title: "管理者を招待する", body: "一緒にシフトを作る人を招待します。" },
+      { title: "店舗を追加する", body: "組織の設定から追加します" },
+      { title: "スタッフを追加する", body: "QRコードや手入力で追加します" },
+      { title: "管理者を招待する", body: "一緒にシフトを作る人を招待します" },
     ],
     faqs: [
       {
         q: "何店舗まで管理できますか？",
-        a: `無料トライアル、Standard、Proでは${paidLimits.maxShops}店舗まで、Freeプランでは${freeLimits.maxShops}店舗まで管理できます。`,
+        a: `無料トライアル・Standard・Proは${paidLimits.maxShops}店舗までです。Freeプランは${freeLimits.maxShops}店舗までです。`,
       },
       {
         q: "店舗を掛け持ちするスタッフは、何人として数えますか？",
-        a: "同じ組織の中なら、店舗の数にかかわらず1名です。",
+        a: "同じ組織の中なら、何店舗でも1名です。",
       },
       {
         q: "管理者は何人まで登録できますか？",
-        a: `無料トライアル、Standard、Proでは${paidLimits.maxActiveManagers}名まで、Freeプランでは${freeLimits.maxActiveManagers}名まで登録できます。`,
+        a: `無料トライアル・Standard・Proは${paidLimits.maxActiveManagers}名までです。Freeプランは${freeLimits.maxActiveManagers}名までです。`,
       },
     ],
     related: ["shift-request-collection", "shift-sharing", "submission-reminder"],

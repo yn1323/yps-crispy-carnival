@@ -9,10 +9,10 @@ import { Button } from "@/src/components/ui/Button";
 
 // 検索から来た人が最初に気にする「スタッフの負担」と「自動になる連絡」だけを並べる。
 const heroBenefits: Array<{ icon: IconType; label: string }> = [
-  { icon: LuSmartphone, label: "スタッフはアプリ不要" },
-  { icon: LuMail, label: "LINEがない人はメールで" },
+  { icon: LuSmartphone, label: "アプリ不要で提出" },
+  { icon: LuMail, label: "メールでも届く" },
   { icon: LuBellRing, label: "未提出者へ自動催促" },
-  { icon: LuSendHorizontal, label: "確定シフトを自動共有" },
+  { icon: LuSendHorizontal, label: "確定も自動で共有" },
 ];
 
 export const HeroSection = () => (
@@ -58,7 +58,7 @@ export const HeroSection = () => (
               lineHeight="1.9"
               fontWeight="semibold"
             >
-              スタッフはLINEやメールに届くリンクから提出するだけです。
+              スタッフはリンクから提出するだけです
             </Text>
           </VStack>
 

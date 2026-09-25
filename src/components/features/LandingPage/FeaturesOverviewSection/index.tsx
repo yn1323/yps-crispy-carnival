@@ -31,7 +31,7 @@ export const FeaturesOverviewSection = () => (
           href={PRODUCT_FEATURES_HREF}
           icon={LuLayoutGrid}
           title="機能一覧"
-          body="すべての機能と、シフトリにない機能を確認できます。"
+          body="すべての機能を確認できます"
         />
       </SimpleGrid>
     </Container>

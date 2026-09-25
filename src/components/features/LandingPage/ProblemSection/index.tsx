@@ -9,22 +9,22 @@ const problems: Array<{ icon: IconType; title: string; body: string }> = [
   {
     icon: LuMessagesSquare,
     title: "希望シフトがトークに流れる",
-    body: "ほかの会話に埋もれて見落とします。",
+    body: "ほかの会話に埋もれて見落とします",
   },
   {
     icon: LuUserX,
     title: "誰が未提出か分からない",
-    body: "名簿と見比べて、一人ずつ催促しています。",
+    body: "一人ずつ確認して催促しています",
   },
   {
     icon: LuFileSpreadsheet,
     title: "表への書き写しに時間がかかる",
-    body: "Excelへの転記で、手間とミスが増えます。",
+    body: "転記のたびに手間とミスが増えます",
   },
   {
     icon: LuImage,
     title: "確定シフトを伝え直している",
-    body: "撮影して送り、変更のたびに連絡し直しています。",
+    body: "変更のたびに送り直しています",
   },
 ];
 

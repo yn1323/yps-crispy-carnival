@@ -30,6 +30,7 @@ import {
   type ProductFeatureScreen,
 } from "./productFeatureContent";
 import { PRODUCT_FEATURES_HREF } from "./productFeatureRoutes";
+import { PhraseLines, SentenceLines } from "./SentenceLines";
 
 export function FeatureDetail({ slug }: { slug: string }) {
   const feature = getProductFeature(slug);
@@ -81,10 +82,10 @@ function FeatureDetailView({ feature }: { feature: ProductFeature }) {
                 letterSpacing="0"
                 textWrap="balance"
               >
-                {feature.heading}
+                <PhraseLines phrases={feature.heading} />
               </Heading>
               <Text color="gray.800" fontSize={{ base: "md", md: "lg" }} lineHeight="1.9" fontWeight="semibold">
-                {feature.lead}
+                <SentenceLines text={feature.lead} />
               </Text>
               <VStack align={{ base: "stretch", md: "start" }} gap={3} w="full" pt={2}>
                 <FeatureSignupButton position="hero" />
@@ -179,7 +180,7 @@ function FeatureDetailView({ feature }: { feature: ProductFeature }) {
                   {step.title}
                 </Heading>
                 <Text color="gray.700" fontSize="sm" lineHeight="1.8">
-                  {step.body}
+                  <SentenceLines text={step.body} />
                 </Text>
               </Stack>
             ))}
@@ -211,7 +212,7 @@ function FeatureDetailView({ feature }: { feature: ProductFeature }) {
                   <Accordion.ItemContent borderTopWidth="1px" borderTopColor="gray.100">
                     <Accordion.ItemBody px={4} py={4}>
                       <Text color="gray.700" fontSize="sm" lineHeight="1.8" fontWeight="semibold">
-                        {faq.a}
+                        <SentenceLines text={faq.a} />
                       </Text>
                     </Accordion.ItemBody>
                   </Accordion.ItemContent>
@@ -289,7 +290,7 @@ function ShowcaseRow({ capability, reverse }: { capability: ProductFeatureCapabi
           {capability.title}
         </Heading>
         <Text color="gray.700" fontSize={{ base: "sm", md: "md" }} lineHeight="1.9">
-          {capability.body}
+          <SentenceLines text={capability.body} />
         </Text>
       </VStack>
       {capability.screen && <ScreenVisual screen={capability.screen} />}
@@ -346,7 +347,7 @@ function CapabilityCard({ capability }: { capability: ProductFeatureCapability }
         {capability.title}
       </Heading>
       <Text color="gray.700" fontSize="sm" lineHeight="1.8">
-        {capability.body}
+        <SentenceLines text={capability.body} />
       </Text>
     </Stack>
   );
