@@ -12,13 +12,14 @@ import type {
   NotificationSummaryResponse,
   OrganizationEventsResponse,
   OverviewResponse,
+  ShopBillingFilter,
   ShopDetailResponse,
   ShopsResponse,
   StaffDetailResponse,
   StaffTimelineResponse,
 } from "./analyticsTypes";
 
-type SearchValue = string | number | null | undefined;
+type SearchValue = string | number | boolean | null | undefined;
 type PaginationParams = { cursor?: string | null; limit?: number };
 export const ANALYTICS_AUTH_EXPIRED_EVENT = "analytics-auth-expired";
 export class AnalyticsApiError extends Error {
@@ -76,16 +77,21 @@ async function fetchEndpoint<T>(
 export function fetchOverview(rangeDays: AnalyticsRangeDays, signal?: AbortSignal) {
   return fetchEndpoint<OverviewResponse>("/api/analytics/overview", { rangeDays }, undefined, signal);
 }
-export async function fetchShops(
-  params: PaginationParams & { search?: string; date?: string | null; metric?: AnalyticsMetric | null },
-  signal?: AbortSignal,
-) {
+export type ShopSearchParams = PaginationParams & {
+  search?: string;
+  from?: string | null;
+  to?: string | null;
+  metric?: AnalyticsMetric | null;
+  billing?: ShopBillingFilter | null;
+  attention?: boolean;
+};
+export async function fetchShops(params: ShopSearchParams, signal?: AbortSignal) {
   for (let attempt = 0; ; attempt += 1) {
     try {
       return await fetchEndpoint<ShopsResponse>("/api/analytics/shops", params, undefined, signal);
     } catch (error) {
       if (!(error instanceof AnalyticsApiError) || error.status !== 429 || attempt >= 3) throw error;
-      // 全ページ取得中にrate limitへ達しても、取得済みのページを捨てず同じcursorから再開する。
+      // 続きを連続で読む途中でrate limitへ達しても、取得済みのページを捨てず同じcursorから再開する。
       await new Promise<void>((resolve, reject) => {
         signal?.throwIfAborted();
         const onAbort = () => {
@@ -142,6 +148,7 @@ export type NotificationSearchParams = PaginationParams & {
   status?: NotificationOutboxStatus | null;
   channel?: "email" | "line" | null;
   category?: NotificationCategory | null;
+  search?: string | null;
   lookup?: string | null;
 };
 export function fetchNotifications(params: NotificationSearchParams, signal?: AbortSignal) {

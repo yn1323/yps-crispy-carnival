@@ -1,5 +1,5 @@
 import { getDeadlineCutoff } from "@convex/_lib/dateFormat";
-import type { AnalyticsShopAttention, OrganizationBillingSummaryDto } from "@/api/analyticsTypes";
+import type { AnalyticsShopAttention, OrganizationBillingSummaryDto, ShopBillingFilter } from "@/api/analyticsTypes";
 
 export const METRICS = [
   { key: "registered", label: "新規登録店舗", description: "その日に新しく登録された店舗" },
@@ -47,6 +47,13 @@ export function cyclePath(shopId: string, recruitmentId: string) {
 export function dayShopsPath(date: string, metric: string) {
   return `/shops?${new URLSearchParams({ date, metric })}`;
 }
+/** 期間内に実績があった店舗の内訳。店舗は期間内で重複させない。 */
+export function rangeShopsPath(from: string, to: string, metric: string) {
+  return `/shops?${new URLSearchParams({ from, to, metric })}`;
+}
+export function billingShopsPath(billing: ShopBillingFilter) {
+  return `/shops?${new URLSearchParams({ billing })}`;
+}
 export function lineStatusLabel(status: string) {
   return (
     (
@@ -83,6 +90,16 @@ export function billingLabel(billing: OrganizationBillingSummaryDto | null) {
       return "支払い失敗・停止処理中";
   }
 }
+/** 日次分析の契約状況カードと店舗一覧の契約絞り込みで同じ名称を使う。 */
+export const BILLING_FILTER_LABELS: Record<ShopBillingFilter, string> = {
+  trial: "トライアル中",
+  paid: "有料プラン",
+  free: "Free",
+  complimentary: "無償",
+  pending: "支払い・切替の手続き中",
+  scheduledChange: "プラン変更の予定",
+  paymentTerminationPending: "支払い失敗・停止処理中",
+};
 export const ATTENTION_LABELS: Record<AnalyticsShopAttention, string> = {
   shift_ended: "次の募集なし",
   inactive: "14日以上利用なし",

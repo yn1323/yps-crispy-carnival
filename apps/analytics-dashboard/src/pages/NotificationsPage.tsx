@@ -44,6 +44,7 @@ const AUTO_CONTINUE_REQUESTS = 5;
 const MIN_ROWS_PER_LOAD = 20;
 const DEFAULT_DAYS = 7;
 const MAX_DAYS = 90;
+const SEARCH_MAX_LENGTH = 100;
 
 type Filters = {
   from: string;
@@ -52,6 +53,7 @@ type Filters = {
   status: NotificationOutboxStatus | null;
   channel: "email" | "line" | null;
   category: NotificationCategory | null;
+  search: string | null;
   lookup: string | null;
 };
 
@@ -75,18 +77,19 @@ function readFilters(search: string): Filters {
     status: status && status in NOTIFICATION_STATUS_LABELS ? (status as NotificationOutboxStatus) : null,
     channel: channel === "email" || channel === "line" ? channel : null,
     category: category && category in NOTIFICATION_CATEGORY_LABELS ? (category as NotificationCategory) : null,
+    search: params.get("q")?.trim().slice(0, SEARCH_MAX_LENGTH) || null,
     lookup: params.get("lookup"),
   };
 }
 function filtersPath(filters: Partial<Filters>) {
   const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(filters)) if (value) params.set(key, value);
+  for (const [key, value] of Object.entries(filters)) if (value) params.set(key === "search" ? "q" : key, value);
   return params.size ? `/notifications?${params}` : "/notifications";
 }
 function requestParams(filters: Filters): NotificationSearchParams {
   if (filters.lookup) return { lookup: filters.lookup };
-  const { from, to, shopId, status, channel, category } = filters;
-  return { from, to, shopId, status, channel, category };
+  const { from, to, shopId, status, channel, category, search } = filters;
+  return { from, to, shopId, status, channel, category, search };
 }
 
 function Tile({ label, children, tone }: { label: string; children: ReactNode; tone?: "warning" }) {
@@ -622,13 +625,13 @@ export function NotificationsPage({ navigate }: { navigate: (path: string) => vo
       />
       <Panel
         title="通知を検索"
-        description="受付日時の新しい順に表示します。店舗で絞り込むときは、店舗詳細の「この店舗の通知を調べる」から開きます。送信済みは相手への到達を保証しません。"
+        description="受付日時の新しい順に表示します。組織名・店舗名は現在の名称の一部で探します。送信済みは相手への到達を保証しません。"
       >
         <form
           onSubmit={(event) => {
             event.preventDefault();
             if (rangeError) return;
-            navigate(filtersPath({ ...draft, lookup: null }));
+            navigate(filtersPath({ ...draft, search: draft.search?.trim() || null, lookup: null }));
           }}
         >
           <Stack gap={3}>
@@ -647,6 +650,21 @@ export function NotificationsPage({ navigate }: { navigate: (path: string) => vo
               </Flex>
             )}
             <Flex gap={3} wrap="wrap" align="end">
+              <Stack gap={1} flex="1" minW={{ base: "full", md: "220px" }} maxW={{ md: "sm" }}>
+                <Text as="label" fontSize="xs" color="gray.700" fontWeight="bold">
+                  組織名・店舗名
+                  <Input
+                    size="sm"
+                    mt={1}
+                    bg="white"
+                    fontSize={{ base: "md", md: "sm" }}
+                    maxLength={SEARCH_MAX_LENGTH}
+                    placeholder="名称の一部"
+                    value={draft.search ?? ""}
+                    onChange={(event) => setDraftValue("search", event.target.value || null)}
+                  />
+                </Text>
+              </Stack>
               <Stack gap={1}>
                 <Text as="label" fontSize="xs" color="gray.700" fontWeight="bold">
                   開始日
@@ -751,8 +769,8 @@ export function NotificationsPage({ navigate }: { navigate: (path: string) => vo
             <>
               {!filters.lookup && (
                 <Text color="gray.600" fontSize="xs">
-                  {formatDate(first?.data.range?.from)}〜{formatDate(first?.data.range?.to)}（日本時間）・
-                  {formatCount(scanned)}件を確認
+                  {formatDate(first?.data.range?.from)}〜{formatDate(first?.data.range?.to)}（日本時間）
+                  {filters.search ? `・名称に「${filters.search}」を含む` : ""}・{formatCount(scanned)}件を確認
                 </Text>
               )}
               <DataTable

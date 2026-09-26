@@ -27,6 +27,7 @@ const FILTER = {
   status: null,
   channel: null,
   category: null,
+  search: null,
   lookup: null,
 } as const;
 
@@ -231,6 +232,38 @@ describe("analyticsDashboardの通知検索", () => {
     expect(manager?.rows[0]).toMatchObject({ shop: null, purpose: "billing", recipient: { kind: "none" } });
     expect(manager?.rows[1].recipient).toEqual({ kind: "manager", name: "管理者", staffId: null });
     expect((await t.query(getNotificationsRef, { ...FILTER, category: "confirmation", asOf: NOW }))?.rows).toEqual([]);
+  });
+
+  it("組織名・店舗名は現在の名称の部分一致で探し、削除済みの店舗・組織の旧名称では一致させない", async () => {
+    const ids = await t.run(async (ctx) => {
+      const target = await seedShop(ctx, "渋谷Cafe");
+      const other = await seedShop(ctx, "新宿店");
+      const deleted = await seedShop(ctx, "渋谷旧店");
+      const targetShop = await ctx.db.get(target);
+      const deletedShop = await ctx.db.get(deleted);
+      if (!targetShop || !deletedShop) throw new Error("missing fixture shop");
+      await ctx.db.patch(deleted, { isDeleted: true });
+      await ctx.db.patch(deletedShop.organizationId, { isDeleted: true });
+      const byShop = await insertOutbox(ctx, target);
+      await advance();
+      const byOrganization = await insertOutbox(ctx, target, {
+        shopId: undefined,
+        purpose: "billing",
+        notificationContext: "organizationBilling.billingEmailChanged",
+      });
+      await advance();
+      await insertOutbox(ctx, other);
+      await advance();
+      await insertOutbox(ctx, deleted);
+      await ctx.db.patch(targetShop.organizationId, { name: "株式会社シブヤ" });
+      return { byShop, byOrganization };
+    });
+    const byShopName = await t.query(getNotificationsRef, { ...FILTER, search: "渋谷cafe", asOf: NOW });
+    expect(byShopName?.rows.map((row) => row.id)).toEqual([ids.byShop]);
+    const byOrganizationName = await t.query(getNotificationsRef, { ...FILTER, search: " シブヤ ", asOf: NOW });
+    expect(byOrganizationName?.rows.map((row) => row.id)).toEqual([ids.byOrganization, ids.byShop]);
+    expect(byOrganizationName?.scannedCount).toBe(4);
+    expect((await t.query(getNotificationsRef, { ...FILTER, search: "旧店", asOf: NOW }))?.rows).toEqual([]);
   });
 
   it("通知の状態は7日以内の失敗、予定を過ぎた送信待ち、今月の送信数を返す", async () => {

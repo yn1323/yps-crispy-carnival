@@ -43,8 +43,11 @@ describe("Analyticsの日次利用と問い合わせシナリオ", () => {
       cursor: null,
       limit: 50,
       search: "",
-      date: null,
+      from: null,
+      to: null,
       metric: null,
+      billing: null,
+      attention: false,
       asOf: startAt,
     });
     expect(shops.rows.map((row) => row.shopId)).toEqual([ids.shopId]);
@@ -92,15 +95,23 @@ describe("Analyticsの日次利用と問い合わせシナリオ", () => {
       counts: { registered: 0, submitted: 1, confirmed: 1 },
     });
     expect(overview.period).toMatchObject({ status: "partial", counts: { registered: 0, submitted: 1, confirmed: 1 } });
+    const scopeArgs = { cursor: null, limit: 50, search: "", billing: null, attention: false, asOf: nextMorning };
     const submittedShops = await t.query(getShopsRef, {
-      cursor: null,
-      limit: 50,
-      search: "",
-      date: dateJST(startAt),
+      ...scopeArgs,
+      from: dateJST(startAt),
+      to: dateJST(startAt),
       metric: "submitted",
-      asOf: nextMorning,
     });
     expect(submittedShops.rows.map((row) => row.shopId)).toEqual([ids.shopId]);
+    // 日次分析の期間から開く内訳は、計測開始前の日を除いて集計済みなら返す。
+    const periodShops = await t.query(getShopsRef, {
+      ...scopeArgs,
+      from: overview.range.from,
+      to: overview.range.to,
+      metric: "confirmed",
+    });
+    expect(periodShops).toMatchObject({ scopeStatus: "available" });
+    expect(periodShops.rows.map((row) => row.shopId)).toEqual([ids.shopId]);
     const after = await t.query(getStaffRef, { ...ids, cursor: null, limit: 20, asOf: nextMorning });
     expect(after?.submissions).toEqual([
       expect.objectContaining({ recruitmentId, submittedAt: startAt, status: "confirmed" }),
