@@ -1,4 +1,5 @@
 import { getDeadlineCutoff } from "@convex/_lib/dateFormat";
+import type { AnalyticsShopAttention, OrganizationBillingSummaryDto } from "@/api/analyticsTypes";
 
 export const METRICS = [
   { key: "registered", label: "新規登録店舗", description: "その日に新しく登録された店舗" },
@@ -58,3 +59,31 @@ export function lineStatusLabel(status: string) {
     )[status] ?? "確認できません"
   );
 }
+const PLAN_LABELS: Record<"free" | "standard" | "pro", string> = { free: "Free", standard: "Standard", pro: "Pro" };
+export function planLabel(plan: "free" | "standard" | "pro" | null) {
+  return plan ? PLAN_LABELS[plan] : "未確定";
+}
+/** 組織の現在の契約状態。期日はトライアル終了または変更予定の日付。 */
+export function billingLabel(billing: OrganizationBillingSummaryDto | null) {
+  if (!billing) return "確認できません";
+  switch (billing.kind) {
+    case "trial":
+      return `トライアル（${formatDate(billing.dueAt)}まで${billing.targetPlan ? `・${planLabel(billing.targetPlan)}を選択済み` : ""}）`;
+    case "initialPaymentPending":
+      return `初回支払い待ち（${planLabel(billing.targetPlan)}）`;
+    case "pendingActivation":
+      return `有効化待ち（${planLabel(billing.targetPlan)}）`;
+    case "active":
+      return planLabel(billing.plan);
+    case "complimentary":
+      return `${planLabel(billing.plan)}（無償）`;
+    case "scheduledChange":
+      return `${planLabel(billing.plan)}（${formatDate(billing.dueAt)}から${planLabel(billing.targetPlan)}）`;
+    case "paymentTerminationPending":
+      return "支払い失敗・停止処理中";
+  }
+}
+export const ATTENTION_LABELS: Record<AnalyticsShopAttention, string> = {
+  shift_ended: "次の募集なし",
+  inactive: "14日以上利用なし",
+};

@@ -15,10 +15,12 @@ import type {
   StaffDetailResponse,
 } from "./dto";
 import {
+  billingOverview,
   currentShop,
   cycleRow,
   deletedShopRow,
   emptyPageInfo,
+  organizationBilling,
   pageInfo,
   paginationOptions,
   recentCycles,
@@ -75,7 +77,7 @@ export const getOverview = internalQuery({
     const today = dateJST(args.asOf);
     const to = addDays(today, -1);
     const from = addDays(to, 1 - args.rangeDays);
-    const [state, results] = await Promise.all([
+    const [state, results, billing] = await Promise.all([
       ctx.db
         .query("analyticsState")
         .withIndex("by_key", (q) => q.eq("key", "usage"))
@@ -84,6 +86,7 @@ export const getOverview = internalQuery({
         .query("analyticsDailyResults")
         .withIndex("by_date", (q) => q.gte("date", from).lte("date", to))
         .take(90),
+      billingOverview(ctx, args.asOf),
     ]);
     const byDate = new Map(results.map((row) => [row.date, row]));
     const startedAt = state?.startedAt ?? null;
@@ -117,6 +120,7 @@ export const getOverview = internalQuery({
         observedDays: observed.filter((day) => day.status === "complete" || day.status === "partial").length,
         observationStartAt: startedAt === null ? null : Math.max(startedAt, jstDayRangeMs(from).startMs),
       },
+      billing,
     };
   },
 });
@@ -142,6 +146,7 @@ export const getShops = internalQuery({
       throw new Error("invalid_request");
     const scope = args.date && args.metric ? { date: args.date, metric: args.metric } : null;
     const search = args.search.trim().toLocaleLowerCase("ja");
+    const today = dateJST(args.asOf);
     if (scope) {
       const retentionDate = subtractCalendarMonths(dateJST(args.asOf), 25);
       const result = await ctx.db
@@ -175,8 +180,8 @@ export const getShops = internalQuery({
         if (search && !row.name.toLocaleLowerCase("ja").includes(search)) continue;
         rows.push(
           current
-            ? await shopListRow(ctx, current.shop, current.organization)
-            : { ...row, staffCount: null, latestShift: null },
+            ? await shopListRow(ctx, current.shop, current.organization, today)
+            : { ...row, staffCount: null, latestShift: null, lastActivityDate: null, billing: null, attention: [] },
         );
       }
       return {
@@ -198,7 +203,7 @@ export const getShops = internalQuery({
       if (search && !shop.name.toLocaleLowerCase("ja").includes(search)) continue;
       const organization = await ctx.db.get(shop.organizationId);
       if (!organization || organization.isDeleted) continue;
-      rows.push(await shopListRow(ctx, shop, organization));
+      rows.push(await shopListRow(ctx, shop, organization, today));
     }
     return {
       kind: "shops",
@@ -221,7 +226,7 @@ export const getShop = internalQuery({
     const { shop, organization } = current;
     const to = dateJST(args.asOf);
     const from = addDays(to, -89);
-    const [staffPage, cycles, state, days, evidence] = await Promise.all([
+    const [staffPage, cycles, state, days, evidence, billing] = await Promise.all([
       ctx.db
         .query("staffs")
         .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
@@ -240,6 +245,7 @@ export const getShop = internalQuery({
         .withIndex("by_shopId_and_lastObservedAt", (q) => q.eq("shopId", shop._id))
         .order("desc")
         .take(21),
+      organizationBilling(ctx, organization._id),
     ]);
     const staff = [];
     for (const row of staffPage.page) {
@@ -271,6 +277,7 @@ export const getShop = internalQuery({
           : shop.submissionPattern.kind === "dateOnly"
             ? "日付選択で提出"
             : `パターン選択で提出（${shop.submissionPattern.options.map((option) => `${option.name} ${option.startTime}〜${option.endTime}`).join("、")}）`,
+      billing,
       staff,
       pageInfo: pageInfo(args.cursor, args.limit, staffPage, staff.length),
       cycles: cycles.map(cycleRow),

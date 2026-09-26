@@ -29,6 +29,62 @@ function DayStatus({ day }: { day: AnalyticsDayDto }) {
     </Badge>
   );
 }
+function BillingPanel({
+  billing,
+  navigate,
+}: {
+  billing: OverviewResponse["billing"];
+  navigate: (path: string) => void;
+}) {
+  const items = [
+    { label: "組織数", value: billing.organizationCount },
+    {
+      label: "トライアル中",
+      value: billing.counts.trial,
+      note: `7日以内に終了：${formatCount(billing.trialEndingWithin7Days)}`,
+    },
+    {
+      label: "有料プラン",
+      value: billing.activeByPlan.standard + billing.activeByPlan.pro,
+      note: `Standard ${formatCount(billing.activeByPlan.standard)}・Pro ${formatCount(billing.activeByPlan.pro)}`,
+    },
+    { label: "Free", value: billing.activeByPlan.free },
+    { label: "無償", value: billing.counts.complimentary },
+    {
+      label: "支払い・切替の手続き中",
+      value: billing.counts.initialPaymentPending + billing.counts.pendingActivation,
+    },
+    { label: "プラン変更の予定", value: billing.counts.scheduledChange },
+    { label: "支払い失敗・停止処理中", value: billing.counts.paymentTerminationPending },
+  ];
+  return (
+    <Panel
+      title="契約状況"
+      description={`現在の契約状態ごとの組織数です。削除済みの組織は含みません。${billing.isPartial ? "組織が多いため一部だけを数えています。" : ""}`}
+    >
+      <Grid templateColumns={{ base: "repeat(2, 1fr)", md: "repeat(4, 1fr)" }} gap={3}>
+        {items.map((item) => (
+          <Stack key={item.label} gap={1} bg="gray.50" borderRadius="md" p={3}>
+            <Text color="gray.700" fontSize="xs" fontWeight="bold">
+              {item.label}
+            </Text>
+            <Text fontSize="2xl" fontWeight="bold">
+              {formatCount(item.value)}
+            </Text>
+            {item.note && (
+              <Text color="gray.600" fontSize="xs">
+                {item.note}
+              </Text>
+            )}
+          </Stack>
+        ))}
+      </Grid>
+      <Button alignSelf="start" size="sm" variant="outline" onClick={() => navigate("/shops?attention=1")}>
+        要注意の店舗を見る
+      </Button>
+    </Panel>
+  );
+}
 function downloadSummary(data: OverviewResponse) {
   // 匿名の集計専用。問い合わせDTOや内訳の識別子を出力に渡さない。
   const rows = [
@@ -173,6 +229,7 @@ export function OverviewPage({ navigate }: { navigate: (path: string) => void })
           ))}
         </Grid>
       </Stack>
+      <BillingPanel billing={data.billing} navigate={navigate} />
       <Panel title="日別推移" description="期間内の店舗数も重複を除きます。同じ店舗が毎日使っても期間内では1店舗です。">
         <Flex align="center" justify="space-between" gap={3} wrap="wrap">
           <Flex gap={2} role="group" aria-label="集計期間">

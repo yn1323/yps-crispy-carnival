@@ -120,6 +120,7 @@ describe("analyticsDashboardの日次結果", () => {
     expect(Object.keys(overview).sort()).toEqual(
       [
         "asOf",
+        "billing",
         "definitionVersion",
         "kind",
         "nextAggregationAt",
@@ -195,6 +196,9 @@ describe("analyticsDashboardの日次結果", () => {
       isDeleted: true,
       staffCount: null,
       latestShift: null,
+      lastActivityDate: null,
+      billing: null,
+      attention: [],
     });
     expect(response.rows.find((row) => row.shopId === ids.active)).toMatchObject({
       staffCount: 1,
@@ -245,6 +249,9 @@ describe("analyticsDashboardの問い合わせ境界", () => {
       isDeleted: false,
       staffCount: 3,
       latestShift: null,
+      lastActivityDate: null,
+      billing: null,
+      attention: [],
     });
   });
 
@@ -550,5 +557,93 @@ describe("要望のチェック", () => {
     expect(all.rows.map((row) => row.id)).toEqual([...ids].reverse());
     expect(all.rows.map((row) => row.comment)).toEqual(["本文2", "本文1", "本文0"]);
     expect(await t.mutation(setFeatureRequestDeletedRef, { id: "missing", isDeleted: true })).toBeNull();
+  });
+});
+
+describe("analyticsDashboardの要注意店舗と契約状態", () => {
+  it("最新の募集期間の終了と14日以上の未利用を理由付きで返し、契約状態を要約する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const ended = await seedShop(ctx, "終了店舗");
+      await seedRecruitment(ctx, { shopId: ended, periodStart: "2026-08-20", periodEnd: "2026-09-08" });
+      for (const [date, submitted] of [
+        ["2026-08-26", true],
+        ["2026-09-01", false],
+      ] as const)
+        await ctx.db.insert("analyticsShopDays", {
+          shopId: ended,
+          date,
+          registered: !submitted,
+          submitted,
+          confirmed: false,
+        });
+      const active = await seedShop(ctx, "利用中店舗");
+      await seedRecruitment(ctx, { shopId: active, periodStart: "2026-09-10", periodEnd: "2026-09-16" });
+      await ctx.db.insert("analyticsShopDays", {
+        shopId: active,
+        date: "2026-08-27",
+        registered: false,
+        submitted: false,
+        confirmed: true,
+      });
+      const [endedShop, activeShop] = await Promise.all([ctx.db.get(ended), ctx.db.get(active)]);
+      if (!endedShop || !activeShop) throw new Error("missing fixture shop");
+      const now = Date.now();
+      await ctx.db.insert("organizationBillingStates", {
+        organizationId: endedShop.organizationId,
+        state: { kind: "trial", trialEndsAt: AS_OF + 3 * 24 * 60 * 60 * 1000, selectedPaidPlan: "standard" },
+        version: 1,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.insert("organizationBillingStates", {
+        organizationId: activeShop.organizationId,
+        state: { kind: "active", plan: "pro" },
+        version: 1,
+        createdAt: now,
+        updatedAt: now,
+      });
+      const deleted = await seedShop(ctx, "削除組織店舗");
+      const deletedShop = await ctx.db.get(deleted);
+      if (!deletedShop) throw new Error("missing fixture shop");
+      await ctx.db.patch(deletedShop.organizationId, { isDeleted: true });
+      await ctx.db.insert("organizationBillingStates", {
+        organizationId: deletedShop.organizationId,
+        state: { kind: "active", plan: "free" },
+        version: 1,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { ended, active };
+    });
+    const response = await t.query(getShopsRef, { ...PAGE, search: "", date: null, metric: null });
+    expect(response.rows.find((row) => row.shopId === ids.ended)).toMatchObject({
+      lastActivityDate: "2026-08-26",
+      attention: ["shift_ended", "inactive"],
+      billing: { kind: "trial", plan: null, targetPlan: "standard", dueAt: AS_OF + 3 * 24 * 60 * 60 * 1000 },
+    });
+    expect(response.rows.find((row) => row.shopId === ids.active)).toMatchObject({
+      lastActivityDate: "2026-08-27",
+      attention: [],
+      billing: { kind: "active", plan: "pro", targetPlan: null, dueAt: null },
+    });
+    const detail = await t.query(getShopRef, { ...PAGE, shopId: ids.active });
+    expect(detail?.billing).toEqual({ kind: "active", plan: "pro", targetPlan: null, dueAt: null });
+    const overview = await t.query(getOverviewRef, { rangeDays: 7, asOf: AS_OF });
+    expect(overview.billing).toEqual({
+      organizationCount: 2,
+      counts: {
+        trial: 1,
+        initialPaymentPending: 0,
+        pendingActivation: 0,
+        active: 1,
+        complimentary: 0,
+        scheduledChange: 0,
+        paymentTerminationPending: 0,
+      },
+      activeByPlan: { free: 0, standard: 0, pro: 1 },
+      trialEndingWithin7Days: 1,
+      isPartial: false,
+    });
   });
 });

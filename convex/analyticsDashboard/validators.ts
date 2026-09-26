@@ -4,11 +4,44 @@ import {
   notificationChannelValidator,
   notificationHistoryDeliveryStatusValidator,
   notificationHistorySendStatusValidator,
+  notificationOutboxStatusValidator,
+  notificationPurposeValidator,
 } from "../notificationOutbox/schemas";
 
 export const nullableString = v.union(v.string(), v.null());
 const nullableNumber = v.union(v.number(), v.null());
 export const pageArgs = { cursor: nullableString, limit: v.number() };
+const planValidator = v.union(v.literal("free"), v.literal("standard"), v.literal("pro"));
+const nullablePlan = v.union(planValidator, v.null());
+export const billingSummaryValidator = v.object({
+  kind: v.union(
+    v.literal("trial"),
+    v.literal("initialPaymentPending"),
+    v.literal("pendingActivation"),
+    v.literal("active"),
+    v.literal("complimentary"),
+    v.literal("scheduledChange"),
+    v.literal("paymentTerminationPending"),
+  ),
+  plan: nullablePlan,
+  targetPlan: nullablePlan,
+  dueAt: nullableNumber,
+});
+const nullableBillingSummary = v.union(billingSummaryValidator, v.null());
+const recruitmentPeriodValidator = v.object({
+  recruitmentId: v.string(),
+  periodStart: v.string(),
+  periodEnd: v.string(),
+});
+export const notificationCategoryValidator = v.union(
+  v.literal("recruitment"),
+  v.literal("reminder"),
+  v.literal("confirmation"),
+  v.literal("lineInvite"),
+  v.literal("legalConsent"),
+  v.literal("manager"),
+  v.literal("other"),
+);
 export const pageInfoValidator = v.object({
   cursor: nullableString,
   continueCursor: nullableString,
@@ -47,6 +80,21 @@ export const overviewResponseValidator = v.object({
     observedDays: v.number(),
     observationStartAt: nullableNumber,
   }),
+  billing: v.object({
+    organizationCount: v.number(),
+    counts: v.object({
+      trial: v.number(),
+      initialPaymentPending: v.number(),
+      pendingActivation: v.number(),
+      active: v.number(),
+      complimentary: v.number(),
+      scheduledChange: v.number(),
+      paymentTerminationPending: v.number(),
+    }),
+    activeByPlan: v.object({ free: v.number(), standard: v.number(), pro: v.number() }),
+    trialEndingWithin7Days: v.number(),
+    isPartial: v.boolean(),
+  }),
 });
 export const shopRowValidator = v.object({
   shopId: v.string(),
@@ -59,6 +107,9 @@ export const shopRowValidator = v.object({
 const shopListRowValidator = shopRowValidator.extend({
   staffCount: nullableNumber,
   latestShift: v.union(v.object({ periodStart: v.string(), periodEnd: v.string() }), v.null()),
+  lastActivityDate: nullableString,
+  billing: nullableBillingSummary,
+  attention: v.array(v.union(v.literal("shift_ended"), v.literal("inactive"))),
 });
 export const shopsResponseValidator = v.object({
   kind: v.literal("shops"),
@@ -111,6 +162,7 @@ export const shopDetailResponseValidator = v.union(
     shop: shopRowValidator,
     regularClosedDays: v.array(v.string()),
     submissionPattern: v.string(),
+    billing: nullableBillingSummary,
     staff: v.array(staffRowValidator),
     pageInfo: pageInfoValidator,
     cycles: v.array(cycleRowValidator),
@@ -191,4 +243,130 @@ export const featureRequestsResponseValidator = v.object({
 export const featureRequestUpdateResponseValidator = v.union(
   v.null(),
   v.object({ kind: v.literal("requestUpdated"), id: v.string(), isDeleted: v.boolean() }),
+);
+export const notificationSearchResponseValidator = v.union(
+  v.null(),
+  v.object({
+    kind: v.literal("notifications"),
+    asOf: v.number(),
+    mode: v.union(v.literal("filter"), v.literal("lookup")),
+    range: v.union(v.object({ from: v.string(), to: v.string() }), v.null()),
+    shop: v.union(shopRowValidator, v.null()),
+    rows: v.array(
+      v.object({
+        id: v.string(),
+        createdAt: v.number(),
+        status: notificationOutboxStatusValidator,
+        channel: notificationChannelValidator,
+        purpose: notificationPurposeValidator,
+        category: notificationCategoryValidator,
+        notificationContext: v.string(),
+        shop: v.union(v.object({ shopId: v.string(), name: v.string(), isDeleted: v.boolean() }), v.null()),
+        organizationName: nullableString,
+        recipient: v.object({
+          kind: v.union(v.literal("staff"), v.literal("manager"), v.literal("invitation"), v.literal("none")),
+          name: nullableString,
+          staffId: nullableString,
+        }),
+        recruitment: v.union(recruitmentPeriodValidator, v.null()),
+        attemptCount: v.number(),
+        nextRunAt: nullableNumber,
+        sentAt: nullableNumber,
+        failedAt: nullableNumber,
+        cancelledAt: nullableNumber,
+        errorCode: nullableString,
+        cancelReason: nullableString,
+        deliverySuppressed: v.boolean(),
+        resendEmailId: nullableString,
+        deliveryStatus: v.union(notificationHistoryDeliveryStatusValidator, v.null()),
+        deliveredAt: nullableNumber,
+        payloadRedacted: v.boolean(),
+      }),
+    ),
+    scannedCount: v.number(),
+    pageInfo: pageInfoValidator,
+  }),
+);
+const partialCountValidator = v.object({ count: v.number(), isPartial: v.boolean() });
+export const notificationSummaryResponseValidator = v.object({
+  kind: v.literal("notificationSummary"),
+  asOf: v.number(),
+  month: v.object({
+    month: v.string(),
+    email: v.number(),
+    line: v.number(),
+    shopCount: v.number(),
+    isPartial: v.boolean(),
+  }),
+  failedLast7Days: partialCountValidator,
+  delayed: v.object({ pending: v.number(), processing: v.number(), isPartial: v.boolean() }),
+  lineQuota: v.union(
+    v.object({
+      status: v.union(v.literal("normal"), v.literal("exceeded")),
+      remaining: v.number(),
+      totalQuota: v.number(),
+      checkedAt: v.number(),
+    }),
+    v.null(),
+  ),
+});
+export const staffTimelineEventTypeValidator = v.union(
+  v.literal("staff_created"),
+  v.literal("registration_requested"),
+  v.literal("registration_reviewed"),
+  v.literal("legal_consent_link_issued"),
+  v.literal("legal_consent_link_used"),
+  v.literal("legal_consented"),
+  v.literal("submit_link_issued"),
+  v.literal("view_link_issued"),
+  v.literal("view_link_used"),
+  v.literal("session_started"),
+  v.literal("first_submitted"),
+  v.literal("last_submitted"),
+  v.literal("line_link_issued"),
+  v.literal("line_link_used"),
+  v.literal("line_linked"),
+  v.literal("line_unlinked"),
+  v.literal("line_unfollowed"),
+  v.literal("notification_requested"),
+  v.literal("feature_request_sent"),
+);
+export const staffTimelineResponseValidator = v.union(
+  v.null(),
+  v.object({
+    kind: v.literal("staffTimeline"),
+    asOf: v.number(),
+    events: v.array(
+      v.object({
+        at: v.number(),
+        type: staffTimelineEventTypeValidator,
+        recruitment: v.union(recruitmentPeriodValidator, v.null()),
+        detail: nullableString,
+        status: nullableString,
+      }),
+    ),
+    isTruncated: v.boolean(),
+  }),
+);
+export const organizationEventsResponseValidator = v.union(
+  v.null(),
+  v.object({
+    kind: v.literal("organizationEvents"),
+    asOf: v.number(),
+    organizationId: v.string(),
+    organizationName: v.string(),
+    rows: v.array(
+      v.object({
+        id: v.string(),
+        occurredAt: v.number(),
+        action: v.string(),
+        actorName: nullableString,
+        targetKind: nullableString,
+        targetName: nullableString,
+        fromState: nullableString,
+        toState: nullableString,
+      }),
+    ),
+    pageInfo: pageInfoValidator,
+  }),
 );

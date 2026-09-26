@@ -208,6 +208,21 @@ describe("analyticsDashboard/httpActions", () => {
       { endpoint: "staff", shopId: ids.shopId, staffId: ids.staffId, cursor: null, limit: 1 },
       { endpoint: "cycle", shopId: ids.shopId, recruitmentId: ids.recruitmentId },
       { endpoint: "requests", cursor: null, limit: 1 },
+      {
+        endpoint: "notifications",
+        cursor: null,
+        limit: 1,
+        from: null,
+        to: null,
+        shopId: ids.shopId,
+        status: null,
+        channel: null,
+        category: null,
+        lookup: null,
+      },
+      { endpoint: "notificationSummary" },
+      { endpoint: "staffTimeline", shopId: ids.shopId, staffId: ids.staffId },
+      { endpoint: "organizationEvents", shopId: ids.shopId, cursor: null, limit: 1 },
     ];
     for (const request of cases) {
       const response = await post(t, request);

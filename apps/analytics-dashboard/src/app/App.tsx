@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { CycleDetailPage } from "@/pages/CycleDetailPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
+import { NotificationsPage } from "@/pages/NotificationsPage";
 import { OverviewPage } from "@/pages/OverviewPage";
 import { RequestsPage } from "@/pages/RequestsPage";
 import { ShopDetailPage } from "@/pages/ShopDetailPage";
@@ -27,6 +28,10 @@ export const App = () => {
       break;
     case "cycle":
       page = <CycleDetailPage recruitmentId={route.recruitmentId} shopId={route.shopId} />;
+      break;
+    case "notifications":
+      // 検索条件はURLが正本。条件が変わったら入力中の値も作り直す。
+      page = <NotificationsPage key={window.location.search} navigate={navigate} />;
       break;
     case "requests":
       page = <RequestsPage />;
