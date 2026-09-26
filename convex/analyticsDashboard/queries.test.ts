@@ -88,7 +88,17 @@ describe("analyticsDashboardの日次結果", () => {
     const staff = await t.query(getStaffRef, { ...PAGE, ...ids });
     expect(staff?.staff.email).toBe("support@example.com");
     expect(Object.keys(staff?.staff ?? {}).sort()).toEqual(
-      ["accountLinked", "email", "excludedFromShift", "isManager", "lineStatus", "name", "staffId"].sort(),
+      [
+        "accountLinked",
+        "email",
+        "excludedFromShift",
+        "isManager",
+        "lineStatus",
+        "name",
+        "personId",
+        "staffId",
+        "userId",
+      ].sort(),
     );
   });
 

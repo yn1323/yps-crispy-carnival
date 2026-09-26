@@ -223,6 +223,7 @@ describe("analyticsDashboard/httpActions", () => {
       { endpoint: "notificationSummary" },
       { endpoint: "staffTimeline", shopId: ids.shopId, staffId: ids.staffId },
       { endpoint: "organizationEvents", shopId: ids.shopId, cursor: null, limit: 1 },
+      { endpoint: "magicLinkLookup", token: "missing0-0000-0000" },
     ];
     for (const request of cases) {
       const response = await post(t, request);

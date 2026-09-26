@@ -5,6 +5,7 @@ import type {
   CycleDetailResponse,
   FeatureRequestsResponse,
   FeatureRequestUpdateResponse,
+  MagicLinkLookupResponse,
   NotificationCategory,
   NotificationOutboxStatus,
   NotificationSearchResponse,
@@ -163,5 +164,13 @@ export function fetchOrganizationEvents(shopId: string, params: PaginationParams
     params,
     undefined,
     signal,
+  );
+}
+/** tokenはURLやcacheへ残さないよう、POST bodyだけで送る。 */
+export function lookupMagicLink(token: string) {
+  return fetchEndpoint<MagicLinkLookupResponse>(
+    "/api/analytics/magic-links/lookup",
+    {},
+    { endpoint: "magicLinkLookup", token },
   );
 }

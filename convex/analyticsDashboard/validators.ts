@@ -184,7 +184,7 @@ export const staffDetailResponseValidator = v.union(
     kind: v.literal("staff"),
     asOf: v.number(),
     shop: shopRowValidator,
-    staff: staffRowValidator.extend({ email: v.string() }),
+    staff: staffRowValidator.extend({ email: v.string(), personId: v.string(), userId: nullableString }),
     memberships: v.array(
       v.object({ shopId: v.string(), shopName: v.string(), staffId: v.string(), excludedFromShift: v.boolean() }),
     ),
@@ -269,6 +269,14 @@ export const notificationSearchResponseValidator = v.union(
           staffId: nullableString,
         }),
         recruitment: v.union(recruitmentPeriodValidator, v.null()),
+        ids: v.object({
+          organizationId: v.string(),
+          shopId: nullableString,
+          staffId: nullableString,
+          userId: nullableString,
+          recruitmentId: nullableString,
+          invitationId: nullableString,
+        }),
         attemptCount: v.number(),
         nextRunAt: nullableNumber,
         sentAt: nullableNumber,
@@ -361,7 +369,9 @@ export const organizationEventsResponseValidator = v.union(
         occurredAt: v.number(),
         action: v.string(),
         actorName: nullableString,
+        actorUserId: nullableString,
         targetKind: nullableString,
+        targetId: nullableString,
         targetName: nullableString,
         fromState: nullableString,
         toState: nullableString,
@@ -370,3 +380,74 @@ export const organizationEventsResponseValidator = v.union(
     pageInfo: pageInfoValidator,
   }),
 );
+const staffAccessKind = v.union(v.literal("submit"), v.literal("view"));
+export const magicLinkLookupResponseValidator = v.object({
+  kind: v.literal("magicLinkLookup"),
+  asOf: v.number(),
+  link: v.union(
+    v.null(),
+    v.object({
+      id: v.string(),
+      accessKind: staffAccessKind,
+      createdAt: v.number(),
+      expiresAt: v.number(),
+      usedAt: nullableNumber,
+      revokedAt: nullableNumber,
+      ids: v.object({
+        organizationId: nullableString,
+        shopId: v.string(),
+        staffId: v.string(),
+        personId: nullableString,
+        userId: nullableString,
+        recruitmentId: v.string(),
+      }),
+      shopName: nullableString,
+      organizationName: nullableString,
+      shopAvailable: v.boolean(),
+      staff: v.union(
+        v.object({ name: nullableString, isDeleted: v.boolean(), excludedFromShift: v.boolean() }),
+        v.null(),
+      ),
+      recruitment: v.union(
+        v.object({
+          periodStart: v.string(),
+          periodEnd: v.string(),
+          deadline: v.string(),
+          status: v.union(v.literal("open"), v.literal("confirmed")),
+          isDeleted: v.boolean(),
+        }),
+        v.null(),
+      ),
+      submitCutoffAt: nullableNumber,
+      sessions: v.array(
+        v.object({
+          createdAt: v.number(),
+          expiresAt: v.number(),
+          accessKind: staffAccessKind,
+          revokedAt: nullableNumber,
+        }),
+      ),
+      diagnosis: v.object({
+        result: v.union(
+          v.literal("ok"),
+          v.literal("invalid_link"),
+          v.literal("recruitment_deleted"),
+          v.literal("submission_closed"),
+        ),
+        reason: v.union(
+          v.literal("ok"),
+          v.literal("duplicate_token"),
+          v.literal("revoked"),
+          v.literal("recruitment_mismatch"),
+          v.literal("recruitment_deleted"),
+          v.literal("staff_unavailable"),
+          v.literal("shop_unavailable"),
+          v.literal("recruitment_status"),
+          v.literal("submit_cutoff"),
+          v.literal("expired"),
+          v.literal("used"),
+        ),
+      }),
+    }),
+  ),
+});

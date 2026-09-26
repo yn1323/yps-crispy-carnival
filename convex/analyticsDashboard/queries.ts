@@ -345,7 +345,7 @@ export const getStaff = internalQuery({
       kind: "staff",
       asOf: args.asOf,
       shop: shopRow(scope.shop, scope.organization),
-      staff: { ...row, email: scope.person.email },
+      staff: { ...row, email: scope.person.email, personId: scope.person._id, userId: scope.person.userId ?? null },
       memberships: membershipRows,
       submissions,
       notifications: notifications.page.map((notification) => ({

@@ -145,7 +145,7 @@ export type StaffDetailResponse = {
   kind: "staff";
   asOf: number;
   shop: AnalyticsShopRowDto;
-  staff: StaffRowDto & { email: string };
+  staff: StaffRowDto & { email: string; personId: string; userId: string | null };
   memberships: Array<{ shopId: string; shopName: string; staffId: string; excludedFromShift: boolean }>;
   submissions: Array<CycleRowDto & { firstSubmittedAt: number | null; submittedAt: number | null }>;
   notifications: StaffNotificationDto[];
@@ -208,6 +208,15 @@ export type NotificationSearchRowDto = {
     staffId: string | null;
   };
   recruitment: RecruitmentPeriodDto | null;
+  /** 削除済みの対象も含め、Outboxに記録された内部ID。 */
+  ids: {
+    organizationId: string;
+    shopId: string | null;
+    staffId: string | null;
+    userId: string | null;
+    recruitmentId: string | null;
+    invitationId: string | null;
+  };
   attemptCount: number;
   nextRunAt: number | null;
   sentAt: number | null;
@@ -287,7 +296,9 @@ export type OrganizationEventDto = {
   occurredAt: number;
   action: string;
   actorName: string | null;
+  actorUserId: string | null;
   targetKind: string | null;
+  targetId: string | null;
   targetName: string | null;
   fromState: string | null;
   toState: string | null;
@@ -300,6 +311,59 @@ export type OrganizationEventsResponse = {
   rows: OrganizationEventDto[];
   pageInfo: AnalyticsPageInfoDto;
 };
+export type MagicLinkDiagnosisReason =
+  | "ok"
+  | "duplicate_token"
+  | "revoked"
+  | "recruitment_mismatch"
+  | "recruitment_deleted"
+  | "staff_unavailable"
+  | "shop_unavailable"
+  | "recruitment_status"
+  | "submit_cutoff"
+  | "expired"
+  | "used";
+/** tokenとsession tokenは含めない。 */
+export type MagicLinkLookupResponse = {
+  kind: "magicLinkLookup";
+  asOf: number;
+  link: {
+    id: string;
+    accessKind: "submit" | "view";
+    createdAt: number;
+    expiresAt: number;
+    usedAt: number | null;
+    revokedAt: number | null;
+    ids: {
+      organizationId: string | null;
+      shopId: string;
+      staffId: string;
+      personId: string | null;
+      userId: string | null;
+      recruitmentId: string;
+    };
+    /** 利用できない店舗・組織は名称を返さない。 */
+    shopName: string | null;
+    organizationName: string | null;
+    shopAvailable: boolean;
+    staff: { name: string | null; isDeleted: boolean; excludedFromShift: boolean } | null;
+    recruitment: {
+      periodStart: string;
+      periodEnd: string;
+      deadline: string;
+      status: "open" | "confirmed";
+      isDeleted: boolean;
+    } | null;
+    submitCutoffAt: number | null;
+    /** 同じスタッフ・募集で現在残っている画面の記録。期限切れは削除済み。 */
+    sessions: Array<{ createdAt: number; expiresAt: number; accessKind: "submit" | "view"; revokedAt: number | null }>;
+    /** リンクを開いたときに`verifyToken`が返す結果と、その理由。 */
+    diagnosis: {
+      result: "ok" | "invalid_link" | "recruitment_deleted" | "submission_closed";
+      reason: MagicLinkDiagnosisReason;
+    };
+  } | null;
+};
 export type AnalyticsDashboardResponse =
   | OverviewResponse
   | ShopsResponse
@@ -310,4 +374,5 @@ export type AnalyticsDashboardResponse =
   | NotificationSearchResponse
   | NotificationSummaryResponse
   | StaffTimelineResponse
-  | OrganizationEventsResponse;
+  | OrganizationEventsResponse
+  | MagicLinkLookupResponse;

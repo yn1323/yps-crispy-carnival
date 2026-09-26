@@ -33,6 +33,10 @@ describe("Analytics BFFの入力契約", () => {
     { endpoint: "notificationSummary", rangeDays: 7 },
     { endpoint: "staffTimeline", shopId: "shop" },
     { endpoint: "organizationEvents", shopId: "shop", limit: 51 },
+    { endpoint: "magicLinkLookup" },
+    { endpoint: "magicLinkLookup", token: "short" },
+    { endpoint: "magicLinkLookup", token: "https://example.com/s?token=abcdefgh" },
+    { endpoint: "magicLinkLookup", token: "abcdefgh-1234", shopId: "shop" },
   ])("集計queryの不正・更新入力を拒否する", (request) => {
     expect(parseAnalyticsDashboardRequest(request)).toEqual({ ok: false });
   });
@@ -81,6 +85,15 @@ describe("Analytics BFFの入力契約", () => {
     expect(
       normalizeBrowserRequestInput("staffTimeline", new URLSearchParams(), { shopId: "shop", staffId: "staff" }),
     ).toEqual({ ok: true, value: { endpoint: "staffTimeline", shopId: "shop", staffId: "staff" } });
+  });
+  it("マジックリンク検索はPOST bodyのtokenだけで受け付け、ブラウザのURL入力からは組み立てない", () => {
+    expect(parseAnalyticsDashboardRequest({ endpoint: "magicLinkLookup", token: "abcdefgh-1234" })).toEqual({
+      ok: true,
+      value: { endpoint: "magicLinkLookup", token: "abcdefgh-1234" },
+    });
+    expect(normalizeBrowserRequestInput("magicLinkLookup", new URLSearchParams({ token: "abcdefgh-1234" }))).toEqual({
+      ok: false,
+    });
   });
   it("専用要望更新はIDとboolean以外を受け付けない", () => {
     expect(parseFeatureRequestUpdate({ endpoint: "setFeatureRequestDeleted", id: "request", isDeleted: true })).toEqual(

@@ -16,7 +16,7 @@ import {
   METRICS,
   staffPath,
 } from "@/features/analytics/format";
-import { AnalyticsPageLoading, Details, MoreButton, Panel, QueryError } from "@/features/analytics/PageState";
+import { AnalyticsPageLoading, Details, IdText, MoreButton, Panel, QueryError } from "@/features/analytics/PageState";
 
 function eventChange(row: OrganizationEventDto) {
   if (row.fromState === null && row.toState === null) return null;
@@ -64,8 +64,26 @@ function OrganizationEventsPanel({ shopId }: { shopId: string }) {
                   </Stack>
                 ),
               },
-              { key: "actor", header: "操作者", render: (row) => row.actorName ?? "システム・確認できません" },
-              { key: "target", header: "対象", render: (row) => row.targetName ?? "—" },
+              {
+                key: "actor",
+                header: "操作者",
+                render: (row) => (
+                  <Stack gap={1}>
+                    <Text>{row.actorName ?? "システム・確認できません"}</Text>
+                    {row.actorUserId && <IdText value={row.actorUserId} />}
+                  </Stack>
+                ),
+              },
+              {
+                key: "target",
+                header: "対象",
+                render: (row) => (
+                  <Stack gap={1}>
+                    <Text>{row.targetName ?? "—"}</Text>
+                    {row.targetId && <IdText value={row.targetId} />}
+                  </Stack>
+                ),
+              },
             ]}
             renderMobileRow={(row) => (
               <Stack gap={1}>
@@ -73,6 +91,18 @@ function OrganizationEventsPanel({ shopId }: { shopId: string }) {
                 {eventChange(row) && <Text fontSize="sm">{eventChange(row)}</Text>}
                 <Text fontSize="sm">操作者：{row.actorName ?? "システム・確認できません"}</Text>
                 {row.targetName && <Text fontSize="sm">対象：{row.targetName}</Text>}
+                {row.actorUserId && (
+                  <Text fontSize="xs">
+                    操作者ID：
+                    <IdText value={row.actorUserId} />
+                  </Text>
+                )}
+                {row.targetId && (
+                  <Text fontSize="xs">
+                    対象ID：
+                    <IdText value={row.targetId} />
+                  </Text>
+                )}
                 <Text color="gray.600" fontSize="xs">
                   {formatDateTime(row.occurredAt)}
                 </Text>
@@ -136,7 +166,9 @@ export function ShopDetailPage({ shopId, navigate }: { shopId: string; navigate:
       <Panel title="店舗情報">
         <Details
           items={[
+            { label: "店舗ID", value: <IdText value={data.shop.shopId} /> },
             { label: "組織", value: data.shop.organizationName ?? "確認できません" },
+            { label: "組織ID", value: <IdText value={data.shop.organizationId} /> },
             { label: "契約", value: billingLabel(data.billing) },
             { label: "登録日", value: formatDate(data.shop.registeredAt) },
             {

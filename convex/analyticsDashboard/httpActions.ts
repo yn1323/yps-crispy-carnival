@@ -5,6 +5,7 @@ import {
   consumeServiceRequestRef,
   getCycleRef,
   getFeatureRequestsRef,
+  getMagicLinkLookupRef,
   getNotificationSummaryRef,
   getNotificationsRef,
   getOrganizationEventsRef,
@@ -127,6 +128,8 @@ async function dispatchQuery(
       return await ctx.runQuery(getNotificationSummaryRef, { asOf });
     case "staffTimeline":
       return await ctx.runQuery(getStaffTimelineRef, { shopId: input.shopId, staffId: input.staffId, asOf });
+    case "magicLinkLookup":
+      return await ctx.runQuery(getMagicLinkLookupRef, { token: input.token, asOf });
     case "organizationEvents":
       return await ctx.runQuery(getOrganizationEventsRef, {
         shopId: input.shopId,

@@ -3,6 +3,7 @@ import type {
   CycleDetailResponse,
   FeatureRequestsResponse,
   FeatureRequestUpdateResponse,
+  MagicLinkLookupResponse,
   NotificationSearchResponse,
   NotificationSummaryResponse,
   OrganizationEventsResponse,
@@ -19,6 +20,7 @@ import type {
   AnalyticsShopsRequest,
   AnalyticsStaffRequest,
   FeatureRequestsRequest,
+  MagicLinkLookupRequest,
   NotificationSearchRequest,
   NotificationSummaryRequest,
   OrganizationEventsRequest,
@@ -60,6 +62,9 @@ export const getOrganizationEventsRef = queryRef<
   QueryArgs<OrganizationEventsRequest>,
   OrganizationEventsResponse | null
 >("analyticsDashboard/investigationQueries:getOrganizationEvents");
+export const getMagicLinkLookupRef = queryRef<QueryArgs<MagicLinkLookupRequest>, MagicLinkLookupResponse>(
+  "analyticsDashboard/investigationQueries:getMagicLinkLookup",
+);
 export const setFeatureRequestDeletedRef = makeFunctionReference<
   "mutation",
   { id: string; isDeleted: boolean },

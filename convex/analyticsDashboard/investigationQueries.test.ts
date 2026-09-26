@@ -1,12 +1,19 @@
 import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { api } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { seedStaff } from "../_test/scenarioBuilders";
 import { seedOrganizationMembership, seedShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { DAY_MS, MINUTE_MS } from "../constants";
-import { getNotificationSummaryRef, getNotificationsRef, getOrganizationEventsRef, getStaffTimelineRef } from "./refs";
+import {
+  getMagicLinkLookupRef,
+  getNotificationSummaryRef,
+  getNotificationsRef,
+  getOrganizationEventsRef,
+  getStaffTimelineRef,
+} from "./refs";
 
 const NOW = new Date("2026-09-09T12:00:00+09:00").getTime();
 const SECRET_EMAIL = "staff-secret@example.com";
@@ -133,6 +140,14 @@ describe("analyticsDashboardの通知検索", () => {
       deliveryStatus: "delivered",
       resendEmailId: "re_lookup_1",
       payloadRedacted: false,
+      ids: {
+        organizationId: expect.any(String),
+        shopId: ids.shopId,
+        staffId: ids.staffId,
+        userId: null,
+        recruitmentId: ids.recruitmentId,
+        invitationId: null,
+      },
     });
     expectNoSecrets(response);
 
@@ -379,7 +394,7 @@ describe("analyticsDashboardの行動履歴", () => {
         action: "organization.name_changed",
         occurredAt: NOW,
       });
-      return { shopId };
+      return { shopId, staffId, userId };
     });
     const response = await t.query(getOrganizationEventsRef, {
       shopId: ids.shopId,
@@ -419,8 +434,104 @@ describe("analyticsDashboardの行動履歴", () => {
         toState: null,
       },
     ]);
+    expect(response?.rows[2]).toMatchObject({ actorUserId: ids.userId, targetKind: "staff", targetId: ids.staffId });
     expect(
       await t.query(getOrganizationEventsRef, { shopId: "missing", cursor: null, limit: 50, asOf: NOW }),
     ).toBeNull();
+  });
+});
+
+describe("analyticsDashboardのマジックリンク検索", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("開いたときの判定をverifyTokenと一致させ、tokenとsession tokenを返さない", async () => {
+    const t = convexTest(schema, modules);
+    const cases = await t.run(async (ctx) => {
+      const shopId = await seedShop(ctx, "リンク店舗");
+      const staffId = await seedStaff(ctx, { shopId, name: "リンクスタッフ", email: SECRET_EMAIL });
+      const excludedId = await seedStaff(ctx, { shopId, name: "対象外スタッフ", excludedFromShift: true });
+      const open = await seedRecruitment(ctx, shopId);
+      const confirmed = await seedRecruitment(ctx, shopId);
+      await ctx.db.patch(confirmed, { status: "confirmed", confirmedAt: NOW - DAY_MS });
+      const deleted = await seedRecruitment(ctx, shopId);
+      await ctx.db.patch(deleted, { isDeleted: true });
+      const insert = async (
+        token: string,
+        accessKind: "submit" | "view",
+        recruitmentId: Id<"recruitments">,
+        extra: Partial<Doc<"magicLinks">> = {},
+      ) => {
+        await ctx.db.insert("magicLinks", {
+          token,
+          staffId,
+          shopId,
+          recruitmentId,
+          accessKind,
+          expiresAt: NOW + DAY_MS,
+          ...extra,
+        });
+        return { token, accessKind };
+      };
+      return {
+        ok: await insert("oksubmit-0000-0000", "submit", open),
+        revoked: await insert("revoked0-0000-0000", "submit", open, { revokedAt: NOW - MINUTE_MS }),
+        deleted: await insert("deleted0-0000-0000", "submit", deleted),
+        closed: await insert("closed00-0000-0000", "submit", confirmed),
+        viewOk: await insert("viewok00-0000-0000", "view", confirmed),
+        viewUsed: await insert("viewused-0000-0000", "view", confirmed, { usedAt: NOW - MINUTE_MS }),
+        viewExpired: await insert("viewexp0-0000-0000", "view", confirmed, { expiresAt: NOW - MINUTE_MS }),
+        excluded: await insert("excluded-0000-0000", "submit", open, { staffId: excludedId }),
+      };
+    });
+    const expected = {
+      ok: { result: "ok", reason: "ok" },
+      revoked: { result: "invalid_link", reason: "revoked" },
+      deleted: { result: "recruitment_deleted", reason: "recruitment_deleted" },
+      closed: { result: "submission_closed", reason: "recruitment_status" },
+      viewOk: { result: "ok", reason: "ok" },
+      viewUsed: { result: "invalid_link", reason: "used" },
+      viewExpired: { result: "invalid_link", reason: "expired" },
+      excluded: { result: "invalid_link", reason: "staff_unavailable" },
+    } as const;
+    for (const [name, link] of Object.entries(cases) as [keyof typeof cases, (typeof cases)[keyof typeof cases]][]) {
+      const lookup = await t.query(getMagicLinkLookupRef, { token: link.token, asOf: NOW });
+      expect(lookup.link?.diagnosis, name).toEqual(expected[name]);
+      expect(JSON.stringify(lookup), name).not.toContain(link.token);
+      const actual = await t.mutation(api.staffAuth.mutations.verifyToken, {
+        token: link.token,
+        accessKind: link.accessKind,
+      });
+      if (expected[name].result === "ok") expect(actual.status, name).toBe("ok");
+      else expect(actual, name).toMatchObject({ status: "expired", reason: expected[name].result });
+    }
+
+    const opened = await t.mutation(api.staffAuth.mutations.verifyToken, {
+      token: cases.ok.token,
+      accessKind: "submit",
+    });
+    const afterOpen = await t.query(getMagicLinkLookupRef, { token: cases.ok.token, asOf: NOW });
+    expect(afterOpen.link).toMatchObject({
+      accessKind: "submit",
+      shopName: "リンク店舗",
+      organizationName: "リンク店舗事業者",
+      staff: { name: "リンクスタッフ", isDeleted: false, excludedFromShift: false },
+      recruitment: { periodStart: "2026-09-10", status: "open", isDeleted: false },
+      submitCutoffAt: new Date("2026-09-10T00:00:00+09:00").getTime(),
+    });
+    expect(afterOpen.link?.sessions.length).toBeGreaterThan(0);
+    const serialized = JSON.stringify(afterOpen);
+    for (const secret of [cases.ok.token, SECRET_EMAIL, opened.status === "ok" ? opened.sessionToken : "unused"])
+      expect(serialized).not.toContain(secret);
+    expect(await t.query(getMagicLinkLookupRef, { token: "missing0-0000-0000", asOf: NOW })).toEqual({
+      kind: "magicLinkLookup",
+      asOf: NOW,
+      link: null,
+    });
   });
 });

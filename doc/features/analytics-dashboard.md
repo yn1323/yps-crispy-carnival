@@ -16,7 +16,7 @@
 | `/shops/:shopId` | 現在の店舗情報と契約、スタッフ一覧、募集一覧、計測開始後の活動、組織の操作履歴 |
 | `/shops/:shopId/staff/:staffId` | スタッフ情報、所属、行動の履歴、提出履歴、通知の状態 |
 | `/shops/:shopId/cycles/:recruitmentId` | 募集の現在状態と提出状況、観測済みの確定時刻 |
-| `/notifications` | 通知の状態、期間・店舗・状態・送信方法・種別またはIDによる通知の検索 |
+| `/notifications` | 通知の状態、期間・店舗・状態・送信方法・種別またはIDによる通知の検索、tokenによるマジックリンクの確認 |
 | `/requests` | 要望一覧、削除扱いのチェックと取り消し |
 
 日次の大きな3数値は前日分です。期間選択は推移と期間内の重複を除いた店舗数に適用します。  
@@ -48,6 +48,20 @@ URLは相対期間を持ち、翌日開くと対象日も進みます。前日�
 一覧には、店舗、組織、宛先の人物名、関連する募集、状態、安全なエラー分類、取消理由、送信・到達・失敗・取消の日時を表示します。  
 宛先のメールアドレス、LINE user ID、本文、capability URL、dedupeKey、lease、providerの生エラーは返しません。保存期間後に宛先・本文を削除した通知は、その旨を表示します。  
 メールアドレスでは検索しません。
+
+### マジックリンクの確認
+
+通知画面で、スタッフに届いたリンクのtokenを入力すると、そのマジックリンクを1件表示します。  
+tokenは同一originのPOST bodyだけで送り、URL、React Queryのcache、ログへ残しません。応答にもtokenとsession tokenを含めません。
+
+表示するのは、リンクの種類、発行日時、開ける期限、閲覧リンクの初回使用、無効化の日時、店舗・スタッフ・募集、同じ募集で有効期限内の画面の記録です。  
+開けるかどうかは、スタッフ用の`verifyToken`と同じ順序で判定し、理由を表示します。調べてもsessionの作成や使用済みへの更新はしません。
+
+## 内部ID
+
+店舗詳細は店舗IDと組織ID、スタッフ詳細はスタッフID・人物ID・ユーザーIDと所属店舗ごとのスタッフID、募集詳細は募集IDを表示します。  
+通知の検索結果は通知・組織・店舗・スタッフ・ユーザー・募集・招待のIDとResendのメールID、組織の操作履歴は操作者のユーザーIDと対象IDを表示します。  
+削除済みの対象でも、記録に残っているIDは表示します。IDは照合用であり、閲覧の認証と認可は変えません。
 
 ## 行動の履歴
 
@@ -97,9 +111,10 @@ Convex HTTP Actionはcredential、固定request schema、bodyとresponseの大�
 | `GET` | `/api/analytics/notifications` | 通知の検索 |
 | `GET` | `/api/analytics/notifications/summary` | 通知の状態 |
 | `GET` | `/api/requests` | 要望一覧 |
+| `POST` | `/api/analytics/magic-links/lookup` | tokenによるマジックリンクの確認。状態は変更しない |
 | `POST` | `/api/requests/update` | 指定した要望の`isDeleted`だけを更新 |
 
-更新は同一originとJSON bodyを必須にします。反転操作ではなく明示的なbooleanを送り、同じ要求を再送しても状態が反転しないようにします。  
+POSTの2つは同一originとJSON bodyを必須にします。反転操作ではなく明示的なbooleanを送り、同じ要求を再送しても状態が反転しないようにします。  
 店舗、スタッフ、募集などの業務データを変更するAPIは設けません。
 
 ブラウザに永続cacheを作らず、認証切れやCloudflareログインへの転送時は取得済みデータを破棄します。  

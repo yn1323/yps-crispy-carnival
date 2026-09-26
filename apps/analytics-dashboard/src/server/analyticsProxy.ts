@@ -3,6 +3,7 @@ import {
   ANALYTICS_DASHBOARD_MAX_RESPONSE_BYTES,
   type AnalyticsDashboardRequest,
   type FeatureRequestUpdateRequest,
+  parseAnalyticsDashboardRequest,
   parseFeatureRequestUpdate,
 } from "../../../../convex/analyticsDashboard/schemas";
 import { matchAnalyticsRoute } from "./analyticsRoutes";
@@ -16,6 +17,11 @@ export type AnalyticsProxyEnv = {
 };
 
 const robotsHeaderValue = "noindex, nofollow";
+/** tokenをURLへ載せないため、マジックリンク検索は同一originのPOST bodyだけで受け付ける。 */
+const POST_ROUTES = new Map<string, "featureRequestUpdate" | "magicLinkLookup">([
+  ["/api/requests/update", "featureRequestUpdate"],
+  ["/api/analytics/magic-links/lookup", "magicLinkLookup"],
+]);
 const UPSTREAM_RESPONSE_MAX_BYTES = ANALYTICS_DASHBOARD_MAX_RESPONSE_BYTES;
 const FETCH_ERROR_MESSAGE_MAX_LENGTH = 500;
 
@@ -149,8 +155,9 @@ function upstreamErrorResponse(response: Response) {
 
 export async function handleAnalyticsApi(request: Request, env: AnalyticsProxyEnv, fallbackEnvLabel: string) {
   const url = new URL(request.url);
-  const mutation = url.pathname === "/api/requests/update";
-  const allowedMethod = mutation ? "POST" : "GET";
+  const postRoute = POST_ROUTES.get(url.pathname) ?? null;
+  const mutation = postRoute === "featureRequestUpdate";
+  const allowedMethod = postRoute ? "POST" : "GET";
   if (request.method !== allowedMethod) {
     return jsonResponse(
       { error: { message: "この操作では利用できない送信方法です" } },
@@ -158,7 +165,7 @@ export async function handleAnalyticsApi(request: Request, env: AnalyticsProxyEn
     );
   }
   let payload: AnalyticsDashboardRequest | FeatureRequestUpdateRequest;
-  if (mutation) {
+  if (postRoute) {
     if (request.headers.get("origin") !== url.origin || request.headers.get("sec-fetch-site") === "cross-site") {
       return jsonResponse({ error: { message: "このページから操作し直してください" } }, { status: 403 });
     }
@@ -173,8 +180,10 @@ export async function handleAnalyticsApi(request: Request, env: AnalyticsProxyEn
     } catch {
       return jsonResponse({ error: { message: "指定内容が正しくありません" } }, { status: 400 });
     }
-    const parsed = parseFeatureRequestUpdate(input);
-    if (!parsed.ok) return jsonResponse({ error: { message: "指定内容が正しくありません" } }, { status: 400 });
+    const parsed =
+      postRoute === "featureRequestUpdate" ? parseFeatureRequestUpdate(input) : parseAnalyticsDashboardRequest(input);
+    if (!parsed.ok || (postRoute === "magicLinkLookup" && parsed.value.endpoint !== "magicLinkLookup"))
+      return jsonResponse({ error: { message: "指定内容が正しくありません" } }, { status: 400 });
     payload = parsed.value;
   } else {
     const route = matchAnalyticsRoute(url);

@@ -1,15 +1,33 @@
 import { Badge, Box, Button, Flex, Grid, Input, Link, NativeSelect, Skeleton, Stack, Text } from "@chakra-ui/react";
 import { addDays } from "@convex/_lib/dateFormat";
-import { isAnalyticsDate } from "@convex/analyticsDashboard/schemas";
+import { isAnalyticsDate, MAGIC_LINK_TOKEN_PATTERN } from "@convex/analyticsDashboard/schemas";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
-import { fetchNotificationSummary, fetchNotifications, type NotificationSearchParams } from "@/api/analyticsClient";
-import type { NotificationCategory, NotificationOutboxStatus, NotificationSearchRowDto } from "@/api/analyticsTypes";
+import {
+  fetchNotificationSummary,
+  fetchNotifications,
+  lookupMagicLink,
+  type NotificationSearchParams,
+} from "@/api/analyticsClient";
+import type {
+  MagicLinkLookupResponse,
+  NotificationCategory,
+  NotificationOutboxStatus,
+  NotificationSearchRowDto,
+} from "@/api/analyticsTypes";
 import { useReportAnalyticsEnvironment } from "@/app/analyticsEnvironment";
 import { DataTable } from "@/components/DataTable";
 import { PageHeading } from "@/components/PageHeading";
-import { cyclePath, formatCount, formatDate, formatDateTime, shopPath, staffPath } from "@/features/analytics/format";
-import { MoreButton, Panel, QueryError } from "@/features/analytics/PageState";
+import {
+  cyclePath,
+  formatCount,
+  formatDate,
+  formatDateTime,
+  formatDeadline,
+  shopPath,
+  staffPath,
+} from "@/features/analytics/format";
+import { Details, IdText, MoreButton, Panel, QueryError } from "@/features/analytics/PageState";
 import {
   cancelReasonLabel,
   channelLabel,
@@ -253,12 +271,268 @@ function TimesCell({ row }: { row: NotificationSearchRowDto }) {
   return (
     <Stack gap={1}>
       {times.length ? times.map((time) => <Text key={time}>{time}</Text>) : <Text color="gray.600">—</Text>}
-      {row.resendEmailId && (
-        <Text color="gray.500" fontFamily="mono" fontSize="2xs" overflowWrap="anywhere">
-          Resend：{row.resendEmailId}
+    </Stack>
+  );
+}
+
+function IdsCell({ row }: { row: NotificationSearchRowDto }) {
+  const items: [string, string | null][] = [
+    ["通知", row.id],
+    ["組織", row.ids.organizationId],
+    ["店舗", row.ids.shopId],
+    ["スタッフ", row.ids.staffId],
+    ["ユーザー", row.ids.userId],
+    ["募集", row.ids.recruitmentId],
+    ["招待", row.ids.invitationId],
+    ["Resend", row.resendEmailId],
+  ];
+  return (
+    <Stack gap={0.5}>
+      {items
+        .filter(([, value]) => value !== null)
+        .map(([label, value]) => (
+          <Text key={label} fontSize="xs">
+            <Text as="span" color="gray.600">
+              {label}：
+            </Text>
+            <IdText value={value} />
+          </Text>
+        ))}
+    </Stack>
+  );
+}
+
+const MAGIC_LINK_RESULT_LABELS: Record<MagicLinkDto["diagnosis"]["result"], string> = {
+  ok: "開けます",
+  invalid_link: "開けません（無効なリンク）",
+  recruitment_deleted: "開けません（募集が削除済み）",
+  submission_closed: "開けません（提出の受付終了）",
+};
+type MagicLinkDto = NonNullable<MagicLinkLookupResponse["link"]>;
+function magicLinkReason(link: MagicLinkDto) {
+  switch (link.diagnosis.reason) {
+    case "ok":
+      return "現在このリンクで画面を開けます。";
+    case "duplicate_token":
+      return "同じtokenのリンクが複数あるため、開けません。";
+    case "revoked":
+      return `${formatDateTime(link.revokedAt)}に無効化されています。再発行などで新しいリンクに置き換わった可能性があります。`;
+    case "recruitment_mismatch":
+      return "募集が見つからないか、リンクの店舗と一致しません。";
+    case "recruitment_deleted":
+      return "募集が削除されています。";
+    case "staff_unavailable":
+      return "スタッフが削除済みかシフト対象外、または店舗への所属を確認できません。";
+    case "shop_unavailable":
+      return "店舗または組織が削除されています。";
+    case "recruitment_status":
+      return link.accessKind === "submit"
+        ? "シフトが確定したため、提出リンクでは開けません。確定シフトの閲覧リンクで開きます。"
+        : "シフトがまだ確定していないため、閲覧リンクでは開けません。";
+    case "submit_cutoff":
+      return `シフト開始日の${formatDateTime(link.submitCutoffAt)}を過ぎたため、提出リンクでは開けません。`;
+    case "expired":
+      return `閲覧リンクの有効期限（${formatDateTime(link.expiresAt)}）を過ぎています。`;
+    case "used":
+      return `閲覧リンクは一度だけ使えます。${formatDateTime(link.usedAt)}に使用済みです。`;
+  }
+}
+
+function MagicLinkResult({ link }: { link: MagicLinkDto }) {
+  const shopActive = link.shopAvailable;
+  const staffName = link.staff?.name ?? "確認できません";
+  return (
+    <Stack gap={4}>
+      <Flex align="center" gap={3} wrap="wrap">
+        <Badge colorPalette={link.diagnosis.result === "ok" ? "green" : "red"} variant="subtle">
+          {MAGIC_LINK_RESULT_LABELS[link.diagnosis.result]}
+        </Badge>
+        <Text fontSize="sm">{magicLinkReason(link)}</Text>
+      </Flex>
+      <Details
+        items={[
+          {
+            label: "リンクの種類",
+            value: link.accessKind === "submit" ? "希望シフトの提出リンク" : "確定シフトの閲覧リンク",
+          },
+          { label: "発行日時", value: formatDateTime(link.createdAt) },
+          {
+            label: "開ける期限",
+            value:
+              link.accessKind === "submit"
+                ? `${formatDateTime(link.submitCutoffAt)}（シフト開始日まで）`
+                : formatDateTime(link.expiresAt),
+          },
+          {
+            label: "初回使用",
+            value: link.accessKind === "view" ? formatDateTime(link.usedAt) : "提出リンクは記録されません",
+          },
+          { label: "無効化", value: link.revokedAt === null ? "なし" : formatDateTime(link.revokedAt) },
+          {
+            label: "店舗",
+            value: shopActive ? (
+              <Link href={shopPath(link.ids.shopId)} color="blue.700">
+                {link.shopName}
+              </Link>
+            ) : (
+              "削除済み店舗"
+            ),
+          },
+          { label: "組織", value: link.organizationName ?? "確認できません" },
+          {
+            label: "スタッフ",
+            value:
+              link.staff && shopActive && !link.staff.isDeleted ? (
+                <Link href={staffPath(link.ids.shopId, link.ids.staffId)} color="blue.700">
+                  {staffName}
+                  {link.staff.excludedFromShift ? "（シフト対象外）" : ""}
+                </Link>
+              ) : (
+                `${staffName}${link.staff?.isDeleted ? "（削除済み）" : ""}`
+              ),
+          },
+          {
+            label: "募集",
+            value: link.recruitment ? (
+              <Stack gap={0.5}>
+                {shopActive && !link.recruitment.isDeleted ? (
+                  <Link href={cyclePath(link.ids.shopId, link.ids.recruitmentId)} color="blue.700">
+                    {formatDate(link.recruitment.periodStart)}〜{formatDate(link.recruitment.periodEnd)}
+                  </Link>
+                ) : (
+                  <Text>
+                    {formatDate(link.recruitment.periodStart)}〜{formatDate(link.recruitment.periodEnd)}
+                  </Text>
+                )}
+                <Text color="gray.600" fontSize="xs">
+                  締切 {formatDeadline(link.recruitment.deadline)}・
+                  {link.recruitment.status === "confirmed" ? "確定済み" : "未確定"}
+                  {link.recruitment.isDeleted ? "・削除済み" : ""}
+                </Text>
+              </Stack>
+            ) : (
+              "確認できません"
+            ),
+          },
+        ]}
+      />
+      <Details
+        items={[
+          { label: "リンクID", value: <IdText value={link.id} /> },
+          { label: "店舗ID", value: <IdText value={link.ids.shopId} /> },
+          { label: "組織ID", value: <IdText value={link.ids.organizationId} /> },
+          { label: "スタッフID", value: <IdText value={link.ids.staffId} /> },
+          { label: "人物ID", value: <IdText value={link.ids.personId} /> },
+          { label: "ユーザーID", value: <IdText value={link.ids.userId} emptyText="なし（アカウント未連携）" /> },
+          { label: "募集ID", value: <IdText value={link.ids.recruitmentId} /> },
+        ]}
+      />
+      <Stack gap={2}>
+        <Text fontSize="sm" fontWeight="bold">
+          同じ募集で開いた画面
+        </Text>
+        <Text color="gray.600" fontSize="xs">
+          このスタッフがこの募集の画面を開いた記録です。期限切れの記録は削除されるため、有効期限内のものだけが残ります。
+        </Text>
+        <DataTable
+          rows={link.sessions.map((session, index) => ({ ...session, index }))}
+          getRowKey={(session) => String(session.index)}
+          emptyText="有効期限内の画面の記録はありません。"
+          columns={[
+            { key: "createdAt", header: "開いた日時", render: (session) => formatDateTime(session.createdAt) },
+            {
+              key: "kind",
+              header: "画面",
+              render: (session) => (session.accessKind === "submit" ? "希望シフトの提出画面" : "確定シフトの画面"),
+            },
+            { key: "expiresAt", header: "有効期限", render: (session) => formatDateTime(session.expiresAt) },
+            {
+              key: "revokedAt",
+              header: "無効化",
+              render: (session) => (session.revokedAt === null ? "なし" : formatDateTime(session.revokedAt)),
+            },
+          ]}
+        />
+      </Stack>
+    </Stack>
+  );
+}
+
+function MagicLinkLookupPanel() {
+  const [token, setToken] = useState("");
+  const [inputError, setInputError] = useState<string | null>(null);
+  const [state, setState] = useState<
+    | { status: "idle" }
+    | { status: "loading" }
+    | { status: "error"; error: unknown }
+    | { status: "done"; data: MagicLinkLookupResponse }
+  >({ status: "idle" });
+  const submit = async () => {
+    const value = token.trim();
+    if (!MAGIC_LINK_TOKEN_PATTERN.test(value)) {
+      setInputError("tokenだけを入力してください。英数字とハイフンで8〜128文字です。");
+      return;
+    }
+    setInputError(null);
+    setState({ status: "loading" });
+    try {
+      setState({ status: "done", data: (await lookupMagicLink(value)).data });
+    } catch (error) {
+      setState({ status: "error", error });
+    }
+  };
+  return (
+    <Panel
+      title="マジックリンクを調べる"
+      description="スタッフに届いたリンクのURLから、token=の後ろの文字列を入力します。tokenはURLや履歴に残さず、結果にも表示しません。開けるかどうかは、実際にリンクを開いたときと同じ順序で判定します。"
+    >
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (state.status !== "loading") void submit();
+        }}
+      >
+        <Flex gap={2} maxW="xl" align="end">
+          <Text as="label" flex="1" fontSize="xs" color="gray.700" fontWeight="bold">
+            token
+            <Input
+              size="sm"
+              mt={1}
+              bg="white"
+              fontSize={{ base: "md", md: "sm" }}
+              maxLength={128}
+              autoComplete="off"
+              spellCheck={false}
+              value={token}
+              onChange={(event) => setToken(event.target.value)}
+            />
+          </Text>
+          <Button
+            type="submit"
+            size="sm"
+            variant="outline"
+            loading={state.status === "loading"}
+            disabled={!token.trim()}
+          >
+            調べる
+          </Button>
+        </Flex>
+      </form>
+      {inputError && (
+        <Text role="alert" color="red.700" fontSize="sm">
+          {inputError}
         </Text>
       )}
-    </Stack>
+      {state.status === "error" && <QueryError error={state.error} onRetry={() => void submit()} />}
+      {state.status === "done" &&
+        (state.data.link ? (
+          <MagicLinkResult link={state.data.link} />
+        ) : (
+          <Text color="gray.600" fontSize="sm">
+            このtokenのリンクは見つかりません。入力を確認してください。
+          </Text>
+        ))}
+    </Panel>
   );
 }
 
@@ -496,19 +770,13 @@ export function NotificationsPage({ navigate }: { navigate: (path: string) => vo
                     key: "createdAt",
                     header: "受付日時",
                     width: "170px",
-                    render: (row) => (
-                      <Stack gap={1}>
-                        <Text>{formatDateTime(row.createdAt)}</Text>
-                        <Text color="gray.500" fontFamily="mono" fontSize="2xs" overflowWrap="anywhere">
-                          {row.id}
-                        </Text>
-                      </Stack>
-                    ),
+                    render: (row) => <Text>{formatDateTime(row.createdAt)}</Text>,
                   },
                   { key: "kind", header: "種別", width: "200px", render: (row) => <KindCell row={row} /> },
                   { key: "target", header: "店舗・宛先", render: (row) => <TargetCell row={row} /> },
                   { key: "status", header: "状態", width: "220px", render: (row) => <StatusCell row={row} /> },
                   { key: "times", header: "日時", width: "220px", render: (row) => <TimesCell row={row} /> },
+                  { key: "ids", header: "ID", width: "300px", render: (row) => <IdsCell row={row} /> },
                 ]}
                 renderMobileRow={(row) => (
                   <Stack gap={3}>
@@ -523,9 +791,7 @@ export function NotificationsPage({ navigate }: { navigate: (path: string) => vo
                     <Box fontSize="xs">
                       <TimesCell row={row} />
                     </Box>
-                    <Text color="gray.500" fontFamily="mono" fontSize="2xs" overflowWrap="anywhere">
-                      {row.id}
-                    </Text>
+                    <IdsCell row={row} />
                   </Stack>
                 )}
               />
@@ -541,6 +807,7 @@ export function NotificationsPage({ navigate }: { navigate: (path: string) => vo
           )
         )}
       </Panel>
+      <MagicLinkLookupPanel />
     </Stack>
   );
 }

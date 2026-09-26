@@ -1,8 +1,10 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
-import { addDays, dateJST, jstDayRangeMs, monthJST } from "../_lib/dateFormat";
+import { addDays, dateJST, getSubmitLinkCutoff, jstDayRangeMs, monthJST } from "../_lib/dateFormat";
 import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
+import { isShopAvailable } from "../_lib/shopAvailability";
+import { recruitmentMatchesAccessKind } from "../_lib/staffAccess";
 import { DAY_MS, MINUTE_MS } from "../constants";
 import { resolveCanonicalStaffScope } from "../line/service";
 import { safeStoredNotificationError } from "../notificationOutbox/safeError";
@@ -11,7 +13,9 @@ import {
   notificationChannelValidator,
   notificationOutboxStatusValidator,
 } from "../notificationOutbox/schemas";
+import { isShiftTargetStaff } from "../staff/service";
 import type {
+  MagicLinkLookupResponse,
   NotificationSearchResponse,
   NotificationSearchRowDto,
   NotificationSummaryResponse,
@@ -33,11 +37,13 @@ import {
 import {
   ANALYTICS_DASHBOARD_MAX_SCAN_ROWS,
   isNotificationSearchRange,
+  MAGIC_LINK_TOKEN_PATTERN,
   NOTIFICATION_SEARCH_DEFAULT_DAYS,
   NOTIFICATION_SEARCH_MAX_PAGE_SIZE,
   ORGANIZATION_EVENTS_MAX_PAGE_SIZE,
 } from "./schemas";
 import {
+  magicLinkLookupResponseValidator,
   notificationCategoryValidator,
   notificationSearchResponseValidator,
   notificationSummaryResponseValidator,
@@ -146,6 +152,14 @@ function notificationRowResolver(ctx: QueryCtx) {
       organizationName: organization && !organization.isDeleted ? organization.name : null,
       recipient,
       recruitment: current ? recruitmentPeriod(recruitment, row.shopId) : null,
+      ids: {
+        organizationId: row.organizationId,
+        shopId: row.shopId ?? null,
+        staffId: row.staffId ?? null,
+        userId: row.userId ?? null,
+        recruitmentId: row.recruitmentId ?? null,
+        invitationId: row.organizationInvitationId ?? null,
+      },
       attemptCount: row.attemptCount,
       nextRunAt: row.status === "pending" ? row.nextRunAt : null,
       sentAt: row.sentAt ?? null,
@@ -587,7 +601,9 @@ export const getOrganizationEvents = internalQuery({
             : event.actorUserId
               ? await userName(event.actorUserId)
               : null,
+          actorUserId: event.actorUserId ?? null,
           targetKind: event.targetKind ?? null,
+          targetId: event.targetId ?? null,
           targetName: await targetName(event),
           fromState: withStates ? (event.fromState ?? null) : null,
           toState: withStates ? (event.toState ?? null) : null,
@@ -601,6 +617,115 @@ export const getOrganizationEvents = internalQuery({
       organizationName: organization.name,
       rows,
       pageInfo: pageInfo(args.cursor, options.numItems, page, rows.length),
+    };
+  },
+});
+
+type MagicLinkDiagnosis = NonNullable<MagicLinkLookupResponse["link"]>["diagnosis"];
+
+/**
+ * tokenの完全一致でマジックリンクを1件調べる。
+ * 判定は`staffAuth/mutations.ts`の`verifyToken`と同じ順序で行い、sessionの作成や使用済みへの更新はしない。
+ * tokenとsession tokenは返さない。
+ */
+export const getMagicLinkLookup = internalQuery({
+  args: { token: v.string(), asOf: v.number() },
+  returns: magicLinkLookupResponseValidator,
+  handler: async (ctx, args): Promise<MagicLinkLookupResponse> => {
+    if (!MAGIC_LINK_TOKEN_PATTERN.test(args.token)) throw new Error("invalid_request");
+    const links = await ctx.db
+      .query("magicLinks")
+      .withIndex("by_token", (q) => q.eq("token", args.token))
+      .take(2);
+    const link = links[0];
+    if (!link) return { kind: "magicLinkLookup", asOf: args.asOf, link: null };
+
+    const [recruitment, staff, shop, sessions] = await Promise.all([
+      ctx.db.get(link.recruitmentId),
+      ctx.db.get(link.staffId),
+      ctx.db.get(link.shopId),
+      ctx.db
+        .query("sessions")
+        .withIndex("by_staffId_recruitmentId", (q) =>
+          q.eq("staffId", link.staffId).eq("recruitmentId", link.recruitmentId),
+        )
+        .order("desc")
+        .take(10),
+    ]);
+    const [organization, person, scope, shopAvailable] = await Promise.all([
+      shop ? ctx.db.get(shop.organizationId) : null,
+      staff ? ctx.db.get(staff.organizationPersonId) : null,
+      staff ? resolveCanonicalStaffScope(ctx, { staffId: staff._id, shopId: link.shopId }) : null,
+      isShopAvailable(ctx, shop),
+    ]);
+
+    const diagnose = (): MagicLinkDiagnosis => {
+      if (links.length !== 1) return { result: "invalid_link", reason: "duplicate_token" };
+      if (link.revokedAt) return { result: "invalid_link", reason: "revoked" };
+      if (!recruitment || recruitment.shopId !== link.shopId)
+        return { result: "invalid_link", reason: "recruitment_mismatch" };
+      if (recruitment.isDeleted) return { result: "recruitment_deleted", reason: "recruitment_deleted" };
+      if (!staff || !isShiftTargetStaff(staff) || !scope)
+        return { result: "invalid_link", reason: "staff_unavailable" };
+      if (!shopAvailable) return { result: "invalid_link", reason: "shop_unavailable" };
+      if (!recruitmentMatchesAccessKind(recruitment.status, link.accessKind))
+        return {
+          result:
+            link.accessKind === "submit" && recruitment.status === "confirmed" ? "submission_closed" : "invalid_link",
+          reason: "recruitment_status",
+        };
+      if (link.accessKind === "submit" && args.asOf >= getSubmitLinkCutoff(recruitment.periodStart))
+        return { result: "submission_closed", reason: "submit_cutoff" };
+      if (link.accessKind === "view" && link.expiresAt < args.asOf)
+        return { result: "invalid_link", reason: "expired" };
+      if (link.accessKind === "view" && link.usedAt) return { result: "invalid_link", reason: "used" };
+      return { result: "ok", reason: "ok" };
+    };
+
+    return {
+      kind: "magicLinkLookup",
+      asOf: args.asOf,
+      link: {
+        id: link._id,
+        accessKind: link.accessKind,
+        createdAt: link._creationTime,
+        expiresAt: link.expiresAt,
+        usedAt: link.usedAt ?? null,
+        revokedAt: link.revokedAt ?? null,
+        ids: {
+          organizationId: shop?.organizationId ?? null,
+          shopId: link.shopId,
+          staffId: link.staffId,
+          personId: staff?.organizationPersonId ?? null,
+          userId: staff?.userId ?? null,
+          recruitmentId: link.recruitmentId,
+        },
+        shopName: shopAvailable && shop ? shop.name : null,
+        organizationName: shopAvailable && organization ? organization.name : null,
+        shopAvailable,
+        staff: staff
+          ? { name: person?.name ?? null, isDeleted: staff.isDeleted, excludedFromShift: staff.excludedFromShift }
+          : null,
+        recruitment:
+          recruitment && recruitment.shopId === link.shopId
+            ? {
+                periodStart: recruitment.periodStart,
+                periodEnd: recruitment.periodEnd,
+                deadline: recruitment.deadline,
+                status: recruitment.status,
+                isDeleted: recruitment.isDeleted,
+              }
+            : null,
+        submitCutoffAt:
+          recruitment && link.accessKind === "submit" ? getSubmitLinkCutoff(recruitment.periodStart) : null,
+        sessions: sessions.map((session) => ({
+          createdAt: session._creationTime,
+          expiresAt: session.expiresAt,
+          accessKind: session.accessKind,
+          revokedAt: session.revokedAt ?? null,
+        })),
+        diagnosis: diagnose(),
+      },
     };
   },
 });

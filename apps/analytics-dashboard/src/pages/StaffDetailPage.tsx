@@ -14,7 +14,7 @@ import {
   shopPath,
   staffPath,
 } from "@/features/analytics/format";
-import { AnalyticsPageLoading, Details, MoreButton, Panel, QueryError } from "@/features/analytics/PageState";
+import { AnalyticsPageLoading, Details, IdText, MoreButton, Panel, QueryError } from "@/features/analytics/PageState";
 import { notificationKindLabel as notificationLabel } from "@/features/notifications/labels";
 
 function StaffTimelinePanel({ shopId, staffId }: { shopId: string; staffId: string }) {
@@ -180,6 +180,9 @@ export function StaffDetailPage({
             },
             { label: "アカウント", value: data.staff.accountLinked ? "連携済み" : "未連携" },
             { label: "LINE", value: lineStatusLabel(data.staff.lineStatus) },
+            { label: "スタッフID", value: <IdText value={data.staff.staffId} /> },
+            { label: "人物ID", value: <IdText value={data.staff.personId} /> },
+            { label: "ユーザーID", value: <IdText value={data.staff.userId} emptyText="なし（アカウント未連携）" /> },
           ]}
         />
       </Panel>
@@ -187,9 +190,12 @@ export function StaffDetailPage({
         <Stack gap={2}>
           {data.memberships.map((row) => (
             <Flex key={row.staffId} gap={3} justify="space-between" align="center" bg="gray.50" borderRadius="md" p={3}>
-              <Link href={staffPath(row.shopId, row.staffId)} color="blue.700" fontWeight="medium">
-                {row.shopName}
-              </Link>
+              <Stack gap={0.5} minW={0}>
+                <Link href={staffPath(row.shopId, row.staffId)} color="blue.700" fontWeight="medium">
+                  {row.shopName}
+                </Link>
+                <IdText value={row.staffId} />
+              </Stack>
               <Badge>{row.excludedFromShift ? "シフト対象外" : "シフト対象"}</Badge>
             </Flex>
           ))}

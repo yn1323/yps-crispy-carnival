@@ -1,6 +1,6 @@
 # Analyticsの問い合わせ調査と利用状況の追加
 
-> 状態: 実装済み・CIと実環境への反映は未実施
+> 状態: 追加依頼を含めて実装済み・CIと実環境への反映は未実施
 >
 > 作成日: 2026-09-26
 
@@ -88,6 +88,31 @@ Stripeの識別子は返さない。
 店舗詳細に、所属組織の`organizationAuditEvents`を新しい順に表示する。  
 操作者、対象、状態の変化を表示し、同じ組織の全店舗で共通の履歴であることを明記する。
 
+### 内部IDの表示（追加依頼）
+
+調査で他の画面やConvex Dashboardと照合できるよう、内部IDを表示する。
+
+| 画面 | 表示するID |
+|---|---|
+| 店舗詳細 | 店舗ID、組織ID |
+| スタッフ詳細 | スタッフID、人物ID、ユーザーID、所属店舗ごとのスタッフID |
+| 募集詳細 | 募集ID |
+| 通知の検索結果 | 通知ID、組織ID、店舗ID、スタッフID、ユーザーID、募集ID、招待ID |
+| 組織の操作履歴 | 操作者のユーザーID、対象ID |
+
+削除済みの対象でも、記録に残っているIDは表示する。  
+IDは権限ではなく、閲覧経路の認証と認可は変えない。
+
+### マジックリンク検索（追加依頼）
+
+通知画面で、tokenの完全一致でマジックリンクを1件探す。  
+tokenはbearer capabilityのため、URLのqueryに載せず、BFFへの同一originのPOST bodyだけで送る。  
+応答にはtokenを含めず、リンクの種類、発行・期限・使用・無効化の日時、店舗・スタッフ・募集、同じ募集の画面の記録、開いたときの判定を返す。
+
+開いたときの判定は、`convex/staffAuth/mutations.ts`の`verifyToken`と同じ順序で、無効化、募集の不整合・削除、スタッフと店舗の利用可否、募集状態、提出期限、閲覧リンクの期限と使用済みを確認する。  
+BI側は読み取りだけで、sessionの作成や使用済みへの更新を行わない。  
+判定がずれないよう、Convex Function testで実際の`verifyToken`の結果と照合する。
+
 ## Security Lens
 
 - Actor: Cloudflare Accessで本人認証した運用者だけ。BFFがservice secretでConvex HTTP Actionを呼ぶ。
@@ -99,6 +124,16 @@ Stripeの識別子は返さない。
 - Lifecycle / recovery: 削除済みの店舗・スタッフ・募集は削除済みとして表示し、詳細へのリンクを出さない。redact済みの通知はredact済みと表示する。
 - Logs / PII: 新しいログは追加しない。メールアドレスは検索条件にせず、URLへ個人情報を載せない。
 - Regression test: Convex Function testで、通知DTOと行動履歴に宛先・本文・tokenが含まれないこと、入力検証、店舗境界を確認する。
+
+マジックリンク検索では次を追加する。
+
+- Actor / Trust boundary: 既存と同じ本人認証済みの運用者だけ。BFFのPOST routeで同一originとJSON bodyを必須にする。
+- Asset: 提出・閲覧用のtoken、staff session token。
+- Abuse case: tokenがURL、ブラウザ履歴、Cloudflareやアプリのログ、React Queryのcacheに残ること。
+- Server-side enforcement: GETの問い合わせ入力ではmagic link検索を受け付けない。tokenとsession tokenを応答へ含めない。
+- Rate limit: 既存のservice rate limitを使う。状態は変更しない。
+- Logs / PII: BFFとHTTP Actionはendpoint名だけを記録し、request bodyを記録しない。画面はtokenをURLとcacheへ保存しない。
+- Regression test: 応答にtokenとsession tokenが含まれないこと、GET経由の入力拒否、`verifyToken`との判定一致を確認する。
 
 ## 検証
 
