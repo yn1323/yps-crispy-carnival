@@ -95,3 +95,17 @@ export function MoreButton({
     </Flex>
   );
 }
+/** 他の画面やConvex Dashboardと照合するための内部ID。クリックで全体を選択できる。 */
+export function IdText({ value, emptyText = "なし" }: { value: string | null | undefined; emptyText?: string }) {
+  if (!value)
+    return (
+      <Text as="span" color="gray.600" fontSize="xs">
+        {emptyText}
+      </Text>
+    );
+  return (
+    <Text as="span" fontFamily="mono" fontSize="xs" overflowWrap="anywhere" userSelect="all">
+      {value}
+    </Text>
+  );
+}

@@ -20,17 +20,26 @@ export function matchAnalyticsRoute(url: URL): AnalyticsRouteMatch {
   const endpoint = new Map<string, AnalyticsDashboardEndpoint>([
     ["/api/analytics/overview", "overview"],
     ["/api/analytics/shops", "shops"],
+    ["/api/analytics/notifications", "notifications"],
+    ["/api/analytics/notifications/summary", "notificationSummary"],
     ["/api/requests", "requests"],
   ]).get(url.pathname);
   if (endpoint) return parseRoute(endpoint, url);
   try {
-    const detail = /^\/api\/analytics\/shops\/([^/]+)(?:\/(staff|cycles)\/([^/]+))?$/.exec(url.pathname);
+    const organizationEvents = /^\/api\/analytics\/shops\/([^/]+)\/organization-events$/.exec(url.pathname);
+    if (organizationEvents)
+      return parseRoute("organizationEvents", url, { shopId: decodeURIComponent(organizationEvents[1]) });
+    const detail = /^\/api\/analytics\/shops\/([^/]+)(?:\/(staff|cycles)\/([^/]+)(\/timeline)?)?$/.exec(url.pathname);
     if (detail) {
       const shopId = decodeURIComponent(detail[1]);
-      if (detail[2] === "staff") return parseRoute("staff", url, { shopId, staffId: decodeURIComponent(detail[3]) });
-      if (detail[2] === "cycles")
+      if (detail[2] === "staff")
+        return parseRoute(detail[4] ? "staffTimeline" : "staff", url, {
+          shopId,
+          staffId: decodeURIComponent(detail[3]),
+        });
+      if (detail[2] === "cycles" && !detail[4])
         return parseRoute("cycle", url, { shopId, recruitmentId: decodeURIComponent(detail[3]) });
-      return parseRoute("shop", url, { shopId });
+      if (!detail[2]) return parseRoute("shop", url, { shopId });
     }
   } catch {
     return { ok: false, status: 400, message: "IDが正しくありません" };

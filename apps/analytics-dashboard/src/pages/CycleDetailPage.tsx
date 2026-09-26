@@ -4,7 +4,7 @@ import { AnalyticsApiError, fetchCycle } from "@/api/analyticsClient";
 import { useReportAnalyticsEnvironment } from "@/app/analyticsEnvironment";
 import { PageHeading } from "@/components/PageHeading";
 import { formatDate, formatDateTime, formatDeadline, shopPath } from "@/features/analytics/format";
-import { AnalyticsPageLoading, Details, Panel, QueryError } from "@/features/analytics/PageState";
+import { AnalyticsPageLoading, Details, IdText, Panel, QueryError } from "@/features/analytics/PageState";
 
 export function CycleDetailPage({ shopId, recruitmentId }: { shopId: string; recruitmentId: string }) {
   const query = useQuery({
@@ -44,6 +44,7 @@ export function CycleDetailPage({ shopId, recruitmentId }: { shopId: string; rec
       <Panel title="募集情報">
         <Details
           items={[
+            { label: "募集ID", value: <IdText value={data.cycle.recruitmentId} /> },
             { label: "状態", value: data.cycle.status === "confirmed" ? "確定済み" : "未確定" },
             { label: "提出締切", value: formatDeadline(data.cycle.deadline) },
             { label: "確定日時", value: formatDateTime(data.cycle.confirmedAt) },

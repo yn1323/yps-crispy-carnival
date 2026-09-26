@@ -1,10 +1,13 @@
-import { Badge, Box, Flex, Link, Stack, Text } from "@chakra-ui/react";
+import { Badge, Box, Button, Flex, Link, Skeleton, Stack, Text } from "@chakra-ui/react";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { AnalyticsApiError, fetchShop } from "@/api/analyticsClient";
+import { AnalyticsApiError, fetchOrganizationEvents, fetchShop } from "@/api/analyticsClient";
+import type { OrganizationEventDto } from "@/api/analyticsTypes";
 import { useReportAnalyticsEnvironment } from "@/app/analyticsEnvironment";
 import { DataTable } from "@/components/DataTable";
 import { PageHeading } from "@/components/PageHeading";
+import { auditActionLabel, auditStateLabel } from "@/features/activity/labels";
 import {
+  billingLabel,
   cyclePath,
   formatDate,
   formatDateTime,
@@ -13,7 +16,110 @@ import {
   METRICS,
   staffPath,
 } from "@/features/analytics/format";
-import { AnalyticsPageLoading, Details, MoreButton, Panel, QueryError } from "@/features/analytics/PageState";
+import { AnalyticsPageLoading, Details, IdText, MoreButton, Panel, QueryError } from "@/features/analytics/PageState";
+
+function eventChange(row: OrganizationEventDto) {
+  if (row.fromState === null && row.toState === null) return null;
+  return `${row.fromState === null ? "—" : auditStateLabel(row.fromState)} → ${row.toState === null ? "—" : auditStateLabel(row.toState)}`;
+}
+
+function OrganizationEventsPanel({ shopId }: { shopId: string }) {
+  const query = useInfiniteQuery({
+    queryKey: ["analytics", "organizationEvents", shopId],
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam, signal }) => fetchOrganizationEvents(shopId, { cursor: pageParam, limit: 30 }, signal),
+    getNextPageParam: (last) => (last.data.pageInfo.isDone ? undefined : last.data.pageInfo.continueCursor),
+  });
+  const first = query.data?.pages[0]?.data;
+  const rows = query.data?.pages.flatMap((page) => page.data.rows) ?? [];
+  return (
+    <Panel
+      title="組織の操作履歴"
+      description={`${first?.organizationName ?? "所属組織"}で管理者が行った操作と契約の変化です。同じ組織の全店舗で共通です。`}
+    >
+      {query.isPending ? (
+        <Skeleton h="120px" borderRadius="md" aria-busy="true" aria-label="組織の操作履歴を読み込み中" />
+      ) : !query.data ? (
+        <QueryError error={query.error} onRetry={() => void query.refetch()} />
+      ) : (
+        <>
+          {query.error && <QueryError error={query.error} onRetry={() => void query.refetch()} />}
+          <DataTable
+            rows={rows}
+            getRowKey={(row) => row.id}
+            emptyText="記録された操作はありません。"
+            columns={[
+              { key: "at", header: "日時", width: "170px", render: (row) => formatDateTime(row.occurredAt) },
+              {
+                key: "action",
+                header: "操作",
+                render: (row) => (
+                  <Stack gap={1}>
+                    <Text>{auditActionLabel(row.action)}</Text>
+                    {eventChange(row) && (
+                      <Text color="gray.600" fontSize="xs">
+                        {eventChange(row)}
+                      </Text>
+                    )}
+                  </Stack>
+                ),
+              },
+              {
+                key: "actor",
+                header: "操作者",
+                render: (row) => (
+                  <Stack gap={1}>
+                    <Text>{row.actorName ?? "システム・確認できません"}</Text>
+                    {row.actorUserId && <IdText value={row.actorUserId} />}
+                  </Stack>
+                ),
+              },
+              {
+                key: "target",
+                header: "対象",
+                render: (row) => (
+                  <Stack gap={1}>
+                    <Text>{row.targetName ?? "—"}</Text>
+                    {row.targetId && <IdText value={row.targetId} />}
+                  </Stack>
+                ),
+              },
+            ]}
+            renderMobileRow={(row) => (
+              <Stack gap={1}>
+                <Text fontWeight="bold">{auditActionLabel(row.action)}</Text>
+                {eventChange(row) && <Text fontSize="sm">{eventChange(row)}</Text>}
+                <Text fontSize="sm">操作者：{row.actorName ?? "システム・確認できません"}</Text>
+                {row.targetName && <Text fontSize="sm">対象：{row.targetName}</Text>}
+                {row.actorUserId && (
+                  <Text fontSize="xs">
+                    操作者ID：
+                    <IdText value={row.actorUserId} />
+                  </Text>
+                )}
+                {row.targetId && (
+                  <Text fontSize="xs">
+                    対象ID：
+                    <IdText value={row.targetId} />
+                  </Text>
+                )}
+                <Text color="gray.600" fontSize="xs">
+                  {formatDateTime(row.occurredAt)}
+                </Text>
+              </Stack>
+            )}
+          />
+          <MoreButton
+            count={rows.length}
+            hasMore={query.hasNextPage}
+            loading={query.isFetchingNextPage}
+            onClick={() => void query.fetchNextPage()}
+          />
+        </>
+      )}
+    </Panel>
+  );
+}
 
 export function ShopDetailPage({ shopId, navigate }: { shopId: string; navigate: (path: string) => void }) {
   const query = useInfiniteQuery({
@@ -46,12 +152,24 @@ export function ShopDetailPage({ shopId, navigate }: { shopId: string; navigate:
         title={data.shop.name}
         description={`現在の情報・${formatDateTime(data.asOf)}時点`}
         breadcrumbs={[{ label: "店舗", href: "/shops" }, { label: data.shop.name }]}
+        action={
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => navigate(`/notifications?${new URLSearchParams({ shopId })}`)}
+          >
+            この店舗の通知を調べる
+          </Button>
+        }
       />
       {query.error && <QueryError error={query.error} onRetry={() => void query.refetch()} />}
       <Panel title="店舗情報">
         <Details
           items={[
+            { label: "店舗ID", value: <IdText value={data.shop.shopId} /> },
             { label: "組織", value: data.shop.organizationName ?? "確認できません" },
+            { label: "組織ID", value: <IdText value={data.shop.organizationId} /> },
+            { label: "契約", value: billingLabel(data.billing) },
             { label: "登録日", value: formatDate(data.shop.registeredAt) },
             {
               label: "定休日",
@@ -203,6 +321,7 @@ export function ShopDetailPage({ shopId, navigate }: { shopId: string; navigate:
           ]}
         />
       </Panel>
+      <OrganizationEventsPanel shopId={shopId} />
     </Stack>
   );
 }

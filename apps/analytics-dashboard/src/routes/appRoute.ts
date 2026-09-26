@@ -6,6 +6,7 @@ export type AppRoute =
   | { name: "shop"; shopId: string }
   | { name: "staff"; shopId: string; staffId: string }
   | { name: "cycle"; shopId: string; recruitmentId: string }
+  | { name: "notifications" }
   | { name: "requests" }
   | { name: "notFound" };
 
@@ -31,6 +32,7 @@ export function parseAppRoute(pathname: string): AppRoute {
   if (segments.length === 4 && segments[0] === "shops" && segments[1] && segments[2] === "staff" && segments[3]) {
     return { name: "staff", staffId: segments[3], shopId: segments[1] };
   }
+  if (segments.length === 1 && segments[0] === "notifications") return { name: "notifications" };
   if (segments.length === 1 && segments[0] === "requests") return { name: "requests" };
   return { name: "notFound" };
 }
@@ -47,6 +49,8 @@ export function routePath(route: Exclude<AppRoute, { name: "notFound" }>) {
       return `/shops/${encodeURIComponent(route.shopId)}/staff/${encodeURIComponent(route.staffId)}`;
     case "cycle":
       return `/shops/${encodeURIComponent(route.shopId)}/cycles/${encodeURIComponent(route.recruitmentId)}`;
+    case "notifications":
+      return "/notifications";
     case "requests":
       return "/requests";
   }

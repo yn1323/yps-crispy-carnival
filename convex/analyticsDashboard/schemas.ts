@@ -1,5 +1,6 @@
-import { dateToUtcMs, formatUtcDate } from "../_lib/dateFormat";
-import type { AnalyticsMetric, AnalyticsRangeDays } from "./dto";
+import { addDays, dateToUtcMs, formatUtcDate } from "../_lib/dateFormat";
+import type { AnalyticsMetric, AnalyticsRangeDays, NotificationCategory, NotificationOutboxStatus } from "./dto";
+import { NOTIFICATION_CATEGORIES } from "./notificationCategories";
 
 export const ANALYTICS_DASHBOARD_MAX_BODY_BYTES = 16 * 1024;
 export const ANALYTICS_DASHBOARD_MAX_RESPONSE_BYTES = 512 * 1024;
@@ -7,6 +8,10 @@ export const ANALYTICS_DASHBOARD_DEFAULT_PAGE_SIZE = 50;
 export const ANALYTICS_DASHBOARD_MAX_PAGE_SIZE = 100;
 export const ANALYTICS_DASHBOARD_MAX_SCAN_ROWS = 500;
 export const FEATURE_REQUEST_MAX_PAGE_SIZE = 50;
+export const NOTIFICATION_SEARCH_MAX_PAGE_SIZE = 50;
+export const NOTIFICATION_SEARCH_DEFAULT_DAYS = 7;
+export const NOTIFICATION_SEARCH_MAX_DAYS = 90;
+export const ORGANIZATION_EVENTS_MAX_PAGE_SIZE = 50;
 type Pagination = { cursor: string | null; limit: number };
 export type AnalyticsOverviewRequest = { endpoint: "overview"; rangeDays: AnalyticsRangeDays };
 export type AnalyticsShopsRequest = Pagination & {
@@ -19,6 +24,22 @@ export type AnalyticsShopRequest = Pagination & { endpoint: "shop"; shopId: stri
 export type AnalyticsStaffRequest = Pagination & { endpoint: "staff"; shopId: string; staffId: string };
 export type AnalyticsCycleRequest = { endpoint: "cycle"; shopId: string; recruitmentId: string };
 export type FeatureRequestsRequest = Pagination & { endpoint: "requests" };
+export type NotificationSearchRequest = Pagination & {
+  endpoint: "notifications";
+  from: string | null;
+  to: string | null;
+  shopId: string | null;
+  status: NotificationOutboxStatus | null;
+  channel: "email" | "line" | null;
+  category: NotificationCategory | null;
+  /** 通知IDまたはResendのメールID。指定時は他の条件を受け付けない。 */
+  lookup: string | null;
+};
+export type NotificationSummaryRequest = { endpoint: "notificationSummary" };
+export type StaffTimelineRequest = { endpoint: "staffTimeline"; shopId: string; staffId: string };
+export type OrganizationEventsRequest = Pagination & { endpoint: "organizationEvents"; shopId: string };
+/** tokenはbearer capabilityのため、BFFのPOST bodyだけで受け取りURLへ載せない。 */
+export type MagicLinkLookupRequest = { endpoint: "magicLinkLookup"; token: string };
 export type FeatureRequestUpdateRequest = { endpoint: "setFeatureRequestDeleted"; id: string; isDeleted: boolean };
 export type AnalyticsDashboardRequest =
   | AnalyticsOverviewRequest
@@ -26,12 +47,26 @@ export type AnalyticsDashboardRequest =
   | AnalyticsShopRequest
   | AnalyticsStaffRequest
   | AnalyticsCycleRequest
-  | FeatureRequestsRequest;
+  | FeatureRequestsRequest
+  | NotificationSearchRequest
+  | NotificationSummaryRequest
+  | StaffTimelineRequest
+  | OrganizationEventsRequest
+  | MagicLinkLookupRequest;
 export type AnalyticsDashboardEndpoint = AnalyticsDashboardRequest["endpoint"];
 type ParseResult<T> = { ok: true; value: T } | { ok: false };
 const invalid = { ok: false } as const;
 const idPattern = /^[A-Za-z0-9_-]{1,128}$/;
 const metrics: readonly AnalyticsMetric[] = ["registered", "submitted", "confirmed"];
+const notificationStatuses: readonly NotificationOutboxStatus[] = [
+  "pending",
+  "processing",
+  "sent",
+  "failed",
+  "cancelled",
+];
+const notificationCursorPattern = /^\d{1,16}(?:\.\d{1,8})?$/;
+export const MAGIC_LINK_TOKEN_PATTERN = /^[A-Za-z0-9-]{8,128}$/;
 export function isAnalyticsDate(value: unknown): value is string {
   return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) && formatUtcDate(dateToUtcMs(value)) === value;
 }
@@ -43,6 +78,55 @@ function validId(value: unknown): value is string {
 }
 function hasOnly(value: Record<string, unknown>, keys: string[]): boolean {
   return Object.keys(value).every((key) => keys.includes(key));
+}
+function oneOf<T extends string>(value: unknown, allowed: readonly T[]): value is T {
+  return typeof value === "string" && (allowed as readonly string[]).includes(value);
+}
+/** 期間は両方を指定するか両方を省略する。省略時の既定値は呼び出し時刻から決める。 */
+export function isNotificationSearchRange(from: string, to: string): boolean {
+  return (
+    isAnalyticsDate(from) && isAnalyticsDate(to) && from <= to && addDays(from, NOTIFICATION_SEARCH_MAX_DAYS - 1) >= to
+  );
+}
+function parseNotificationSearch(value: Record<string, unknown>): ParseResult<NotificationSearchRequest> {
+  const keys = ["endpoint", "cursor", "limit", "from", "to", "shopId", "status", "channel", "category", "lookup"];
+  const page = pagination(value, NOTIFICATION_SEARCH_MAX_PAGE_SIZE);
+  if (!hasOnly(value, keys) || !page) return invalid;
+  const from = value.from ?? null;
+  const to = value.to ?? null;
+  const shopId = value.shopId ?? null;
+  const status = value.status ?? null;
+  const channel = value.channel ?? null;
+  const category = value.category ?? null;
+  const lookup = value.lookup ?? null;
+  if (lookup !== null) {
+    const hasFilter = [from, to, shopId, status, channel, category, page.cursor].some((item) => item !== null);
+    if (!validId(lookup) || hasFilter) return invalid;
+  } else if (
+    (from === null) !== (to === null) ||
+    (from !== null && (typeof from !== "string" || typeof to !== "string" || !isNotificationSearchRange(from, to))) ||
+    (shopId !== null && !validId(shopId)) ||
+    (status !== null && !oneOf(status, notificationStatuses)) ||
+    (channel !== null && channel !== "email" && channel !== "line") ||
+    (category !== null && !oneOf(category, NOTIFICATION_CATEGORIES)) ||
+    (page.cursor !== null && !notificationCursorPattern.test(page.cursor))
+  ) {
+    return invalid;
+  }
+  return {
+    ok: true,
+    value: {
+      endpoint: "notifications",
+      ...page,
+      from: from as string | null,
+      to: to as string | null,
+      shopId: shopId as string | null,
+      status: status as NotificationOutboxStatus | null,
+      channel: channel as "email" | "line" | null,
+      category: category as NotificationCategory | null,
+      lookup: lookup as string | null,
+    },
+  };
 }
 function pagination(value: Record<string, unknown>, maximum = 100): Pagination | null {
   const cursor = value.cursor ?? null;
@@ -110,6 +194,26 @@ export function parseAnalyticsDashboardRequest(value: unknown): ParseResult<Anal
         ? { ok: true, value: { endpoint: "requests", ...page } }
         : invalid;
     }
+    case "notifications":
+      return parseNotificationSearch(value);
+    case "notificationSummary":
+      return hasOnly(value, ["endpoint"]) ? { ok: true, value: { endpoint: "notificationSummary" } } : invalid;
+    case "staffTimeline":
+      return hasOnly(value, ["endpoint", "shopId", "staffId"]) && validId(value.shopId) && validId(value.staffId)
+        ? { ok: true, value: { endpoint: "staffTimeline", shopId: value.shopId, staffId: value.staffId } }
+        : invalid;
+    case "magicLinkLookup":
+      return hasOnly(value, ["endpoint", "token"]) &&
+        typeof value.token === "string" &&
+        MAGIC_LINK_TOKEN_PATTERN.test(value.token)
+        ? { ok: true, value: { endpoint: "magicLinkLookup", token: value.token } }
+        : invalid;
+    case "organizationEvents": {
+      const page = pagination(value, ORGANIZATION_EVENTS_MAX_PAGE_SIZE);
+      return hasOnly(value, ["endpoint", "shopId", "cursor", "limit"]) && page && validId(value.shopId)
+        ? { ok: true, value: { endpoint: "organizationEvents", shopId: value.shopId, ...page } }
+        : invalid;
+    }
     default:
       return invalid;
   }
@@ -128,6 +232,8 @@ export function normalizeBrowserRequestInput(
   params: URLSearchParams,
   pathIds: { shopId?: string; staffId?: string; recruitmentId?: string } = {},
 ): ParseResult<AnalyticsDashboardRequest> {
+  // tokenをURLのqueryで受け取らないよう、ブラウザのGET入力からはマジックリンク検索を組み立てない。
+  if (endpoint === "magicLinkLookup") return invalid;
   const value: Record<string, unknown> = { endpoint, ...pathIds };
   for (const [key, input] of params) {
     if (key === "__proto__" || Object.hasOwn(value, key)) return invalid;

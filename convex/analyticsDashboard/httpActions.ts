@@ -5,10 +5,15 @@ import {
   consumeServiceRequestRef,
   getCycleRef,
   getFeatureRequestsRef,
+  getMagicLinkLookupRef,
+  getNotificationSummaryRef,
+  getNotificationsRef,
+  getOrganizationEventsRef,
   getOverviewRef,
   getShopRef,
   getShopsRef,
   getStaffRef,
+  getStaffTimelineRef,
   setFeatureRequestDeletedRef,
 } from "./refs";
 import {
@@ -106,6 +111,32 @@ async function dispatchQuery(
       return await ctx.runQuery(getCycleRef, { shopId: input.shopId, recruitmentId: input.recruitmentId, asOf });
     case "requests":
       return await ctx.runQuery(getFeatureRequestsRef, { cursor: input.cursor, limit: input.limit, asOf });
+    case "notifications":
+      return await ctx.runQuery(getNotificationsRef, {
+        cursor: input.cursor,
+        limit: input.limit,
+        from: input.from,
+        to: input.to,
+        shopId: input.shopId,
+        status: input.status,
+        channel: input.channel,
+        category: input.category,
+        lookup: input.lookup,
+        asOf,
+      });
+    case "notificationSummary":
+      return await ctx.runQuery(getNotificationSummaryRef, { asOf });
+    case "staffTimeline":
+      return await ctx.runQuery(getStaffTimelineRef, { shopId: input.shopId, staffId: input.staffId, asOf });
+    case "magicLinkLookup":
+      return await ctx.runQuery(getMagicLinkLookupRef, { token: input.token, asOf });
+    case "organizationEvents":
+      return await ctx.runQuery(getOrganizationEventsRef, {
+        shopId: input.shopId,
+        cursor: input.cursor,
+        limit: input.limit,
+        asOf,
+      });
   }
 }
 

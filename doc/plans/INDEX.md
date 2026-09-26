@@ -28,6 +28,7 @@
 
 | 計画 | 状態 | 未完了条件 | 現在の正本 |
 |---|---|---|---|
+| [Analyticsの問い合わせ調査と利用状況の追加](2026-09-26_Analytics問い合わせ調査と利用状況の追加_実装計画.md) | `repository implemented` | 要注意の店舗、契約状態、通知の状態と検索、スタッフの行動履歴、組織の操作履歴、内部IDの表示、tokenによるマジックリンクの確認を既存データだけで実装し、ローカルのlint・型検査・Convex/logic test・Analytics buildは成功。CI・自動レビュー、実環境への反映と実データでの表示確認が残る | [分析KPI可視化アプリ](../features/analytics-dashboard.md) |
 | [LP・機能ページ SPレビュー修正](2026-09-25_LP機能ページ_SPレビュー修正_計画.md) | `implementing` | Phase 1〜4と実装後レビューの追加修正（余白、途中の登録section、活用例の統合、機能ページの画面追加）はrepositoryで実装済み。VRTの差分承認と、変えていない文言の孤立・シフト表下部の折り返しを直すかの判断が残る。紹介動画のスマホ版は計測後に別計画で判断する | [公開サイト](../features/public-pages.md) |
 | [LP改善と機能ページ](2026-09-25_LP改善と機能ページ_計画.md) | `implementing` | TOPの再構成と機能ページはrepositoryで実装済み。VRTの差分承認、追加PNGのWebP変換、公開後のSearch Console確認が残る | [公開サイト](../features/public-pages.md) |
 | [LP紹介動画 絵コンテ](2026-09-25_LP紹介動画_絵コンテ.md) | `implementing` | 動画とLPへの埋め込みはrepositoryで実装済み。計測の設計とVRTの差分承認が残る | 企画・演出の判断基準は[LP埋め込み動画の参照](../../.agents/skills/remotion-best-practices/lp-product-video/REFERENCE.md) |
