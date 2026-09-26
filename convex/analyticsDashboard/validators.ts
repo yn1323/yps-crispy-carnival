@@ -28,6 +28,15 @@ export const billingSummaryValidator = v.object({
   dueAt: nullableNumber,
 });
 const nullableBillingSummary = v.union(billingSummaryValidator, v.null());
+export const shopBillingFilterValidator = v.union(
+  v.literal("trial"),
+  v.literal("paid"),
+  v.literal("free"),
+  v.literal("complimentary"),
+  v.literal("pending"),
+  v.literal("scheduledChange"),
+  v.literal("paymentTerminationPending"),
+);
 const recruitmentPeriodValidator = v.object({
   recruitmentId: v.string(),
   periodStart: v.string(),
@@ -116,7 +125,7 @@ export const shopsResponseValidator = v.object({
   asOf: v.number(),
   rows: v.array(shopListRowValidator),
   pageInfo: pageInfoValidator,
-  scope: v.union(v.object({ date: v.string(), metric: analyticsMetricValidator }), v.null()),
+  scope: v.union(v.object({ from: v.string(), to: v.string(), metric: analyticsMetricValidator }), v.null()),
   scopeStatus: v.union(
     v.literal("current"),
     v.literal("available"),

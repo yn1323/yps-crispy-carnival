@@ -13,6 +13,7 @@ import type {
   BillingOverviewDto,
   CycleRowDto,
   OrganizationBillingSummaryDto,
+  ShopBillingFilter,
   StaffRowDto,
 } from "./dto";
 import { ANALYTICS_DASHBOARD_MAX_SCAN_ROWS } from "./schemas";
@@ -100,6 +101,19 @@ export async function organizationBilling(
     .first();
   return row ? billingSummary(row.state) : null;
 }
+export function billingMatches(billing: OrganizationBillingSummaryDto | null, filter: ShopBillingFilter): boolean {
+  if (!billing) return false;
+  switch (filter) {
+    case "paid":
+      return billing.kind === "active" && (billing.plan === "standard" || billing.plan === "pro");
+    case "free":
+      return billing.kind === "active" && billing.plan === "free";
+    case "pending":
+      return billing.kind === "initialPaymentPending" || billing.kind === "pendingActivation";
+    default:
+      return billing.kind === filter;
+  }
+}
 /** 現在の契約状態ごとの組織数。削除済み組織は数えない。 */
 export async function billingOverview(ctx: QueryCtx, asOf: number): Promise<BillingOverviewDto> {
   const rows = await ctx.db.query("organizationBillingStates").take(ANALYTICS_DASHBOARD_MAX_SCAN_ROWS + 1);
@@ -133,17 +147,19 @@ export async function billingOverview(ctx: QueryCtx, asOf: number): Promise<Bill
   }
   return result;
 }
+/**
+ * 店舗一覧の1行。絞り込みに一致しない店舗は、重いスタッフ数の集計前にnullを返す。
+ */
 export async function shopListRow(
   ctx: QueryCtx,
   shop: Doc<"shops">,
   organization: Doc<"organizations">,
   today: string,
-): Promise<AnalyticsShopListRowDto> {
-  const [staffs, latestShift, lastActivity, billing] = await Promise.all([
-    ctx.db
-      .query("staffs")
-      .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
-      .take(SHOP_LIST_STAFF_SCAN_LIMIT + 1),
+  filter: { billing: ShopBillingFilter | null; attention: boolean } = { billing: null, attention: false },
+): Promise<AnalyticsShopListRowDto | null> {
+  const billing = await organizationBilling(ctx, organization._id);
+  if (filter.billing && !billingMatches(billing, filter.billing)) return null;
+  const [latestShift, lastActivity] = await Promise.all([
     ctx.db
       .query("recruitments")
       .withIndex("by_shopId_and_isDeleted_and_periodStart", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
@@ -156,8 +172,15 @@ export async function shopListRow(
       .order("desc")
       .filter((q) => q.or(q.eq(q.field("submitted"), true), q.eq(q.field("confirmed"), true)))
       .first(),
-    organizationBilling(ctx, organization._id),
   ]);
+  const attention: AnalyticsShopAttention[] = [];
+  if (latestShift && latestShift.periodEnd < today) attention.push("shift_ended");
+  if (lastActivity && lastActivity.date <= addDays(today, -SHOP_INACTIVE_DAYS)) attention.push("inactive");
+  if (filter.attention && attention.length === 0) return null;
+  const staffs = await ctx.db
+    .query("staffs")
+    .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
+    .take(SHOP_LIST_STAFF_SCAN_LIMIT + 1);
   let staffCount: number | null = null;
   if (staffs.length <= SHOP_LIST_STAFF_SCAN_LIMIT) {
     staffCount = 0;
@@ -169,9 +192,6 @@ export async function shopListRow(
       staffCount += 1;
     }
   }
-  const attention: AnalyticsShopAttention[] = [];
-  if (latestShift && latestShift.periodEnd < today) attention.push("shift_ended");
-  if (lastActivity && lastActivity.date <= addDays(today, -SHOP_INACTIVE_DAYS)) attention.push("inactive");
   return {
     ...shopRow(shop, organization),
     staffCount,

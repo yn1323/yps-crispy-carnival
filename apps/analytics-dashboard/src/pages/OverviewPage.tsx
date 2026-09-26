@@ -2,13 +2,22 @@ import { Badge, Box, Button, Flex, Grid, Link, Stack, Text } from "@chakra-ui/re
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { fetchOverview } from "@/api/analyticsClient";
-import type { AnalyticsDayDto, AnalyticsRangeDays, OverviewResponse } from "@/api/analyticsTypes";
+import type { AnalyticsDayDto, AnalyticsRangeDays, OverviewResponse, ShopBillingFilter } from "@/api/analyticsTypes";
 import { useReportAnalyticsEnvironment } from "@/app/analyticsEnvironment";
 import { ChartPanel } from "@/components/ChartPanel";
 import { DataTable } from "@/components/DataTable";
 import { PageHeading } from "@/components/PageHeading";
 import { TrendChart } from "@/components/TrendChart";
-import { dayShopsPath, formatCount, formatDate, formatDateTime, METRICS } from "@/features/analytics/format";
+import {
+  BILLING_FILTER_LABELS,
+  billingShopsPath,
+  dayShopsPath,
+  formatCount,
+  formatDate,
+  formatDateTime,
+  METRICS,
+  rangeShopsPath,
+} from "@/features/analytics/format";
 import { AnalyticsPageLoading, Panel, QueryError } from "@/features/analytics/PageState";
 
 const DAY_LABELS: Record<AnalyticsDayDto["status"], string> = {
@@ -36,35 +45,59 @@ function BillingPanel({
   billing: OverviewResponse["billing"];
   navigate: (path: string) => void;
 }) {
-  const items = [
-    { label: "組織数", value: billing.organizationCount },
+  const items: { label: string; value: number; filter: ShopBillingFilter | null; note?: string }[] = [
+    { label: "組織数", value: billing.organizationCount, filter: null },
     {
-      label: "トライアル中",
+      label: BILLING_FILTER_LABELS.trial,
       value: billing.counts.trial,
+      filter: "trial",
       note: `7日以内に終了：${formatCount(billing.trialEndingWithin7Days)}`,
     },
     {
-      label: "有料プラン",
+      label: BILLING_FILTER_LABELS.paid,
       value: billing.activeByPlan.standard + billing.activeByPlan.pro,
+      filter: "paid",
       note: `Standard ${formatCount(billing.activeByPlan.standard)}・Pro ${formatCount(billing.activeByPlan.pro)}`,
     },
-    { label: "Free", value: billing.activeByPlan.free },
-    { label: "無償", value: billing.counts.complimentary },
+    { label: BILLING_FILTER_LABELS.free, value: billing.activeByPlan.free, filter: "free" },
+    { label: BILLING_FILTER_LABELS.complimentary, value: billing.counts.complimentary, filter: "complimentary" },
     {
-      label: "支払い・切替の手続き中",
+      label: BILLING_FILTER_LABELS.pending,
       value: billing.counts.initialPaymentPending + billing.counts.pendingActivation,
+      filter: "pending",
     },
-    { label: "プラン変更の予定", value: billing.counts.scheduledChange },
-    { label: "支払い失敗・停止処理中", value: billing.counts.paymentTerminationPending },
+    { label: BILLING_FILTER_LABELS.scheduledChange, value: billing.counts.scheduledChange, filter: "scheduledChange" },
+    {
+      label: BILLING_FILTER_LABELS.paymentTerminationPending,
+      value: billing.counts.paymentTerminationPending,
+      filter: "paymentTerminationPending",
+    },
   ];
   return (
     <Panel
       title="契約状況"
-      description={`現在の契約状態ごとの組織数です。削除済みの組織は含みません。${billing.isPartial ? "組織が多いため一部だけを数えています。" : ""}`}
+      description={`現在の契約状態ごとの組織数です。削除済みの組織は含みません。カードを押すと、その組織の店舗を一覧で開きます。${billing.isPartial ? "組織が多いため一部だけを数えています。" : ""}`}
     >
       <Grid templateColumns={{ base: "repeat(2, 1fr)", md: "repeat(4, 1fr)" }} gap={3}>
         {items.map((item) => (
-          <Stack key={item.label} gap={1} bg="gray.50" borderRadius="md" p={3}>
+          <Link
+            key={item.label}
+            href={item.filter ? billingShopsPath(item.filter) : "/shops"}
+            aria-label={`${item.label} ${item.value}組織の店舗を見る`}
+            display="flex"
+            flexDirection="column"
+            alignItems="stretch"
+            gap={1}
+            bg="gray.50"
+            border="1px solid"
+            borderColor="gray.200"
+            borderRadius="md"
+            color="inherit"
+            p={3}
+            textDecoration="none"
+            _hover={{ bg: "gray.100", borderColor: "gray.300", textDecoration: "none" }}
+            _focusVisible={{ outline: "2px solid", outlineColor: "blue.500", outlineOffset: "2px" }}
+          >
             <Text color="gray.700" fontSize="xs" fontWeight="bold">
               {item.label}
             </Text>
@@ -76,7 +109,7 @@ function BillingPanel({
                 {item.note}
               </Text>
             )}
-          </Stack>
+          </Link>
         ))}
       </Grid>
       <Button alignSelf="start" size="sm" variant="outline" onClick={() => navigate("/shops?attention=1")}>
@@ -230,7 +263,10 @@ export function OverviewPage({ navigate }: { navigate: (path: string) => void })
         </Grid>
       </Stack>
       <BillingPanel billing={data.billing} navigate={navigate} />
-      <Panel title="日別推移" description="期間内の店舗数も重複を除きます。同じ店舗が毎日使っても期間内では1店舗です。">
+      <Panel
+        title="日別推移"
+        description="期間内の店舗数も重複を除きます。同じ店舗が毎日使っても期間内では1店舗です。店舗数を押すと、対象の店舗を一覧で開きます。"
+      >
         <Flex align="center" justify="space-between" gap={3} wrap="wrap">
           <Flex gap={2} role="group" aria-label="集計期間">
             {([7, 30, 90] as const).map((days) => (
@@ -257,7 +293,15 @@ export function OverviewPage({ navigate }: { navigate: (path: string) => void })
             <Flex gap={{ base: 4, md: 8 }} wrap="wrap">
               {METRICS.map((metric) => (
                 <Text key={metric.key} fontSize="sm">
-                  {metric.label} <Text as="strong">{formatCount(data.period.counts?.[metric.key])}店舗</Text>
+                  {metric.label}{" "}
+                  <Link
+                    href={rangeShopsPath(data.range.from, data.range.to, metric.key)}
+                    color="blue.700"
+                    fontWeight="bold"
+                    aria-label={`${metric.label} 期間内${data.period.counts?.[metric.key]}店舗の内訳`}
+                  >
+                    {formatCount(data.period.counts?.[metric.key])}店舗
+                  </Link>
                 </Text>
               ))}
             </Flex>
