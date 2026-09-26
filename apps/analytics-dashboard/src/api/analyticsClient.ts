@@ -5,10 +5,17 @@ import type {
   CycleDetailResponse,
   FeatureRequestsResponse,
   FeatureRequestUpdateResponse,
+  MagicLinkLookupResponse,
+  NotificationCategory,
+  NotificationOutboxStatus,
+  NotificationSearchResponse,
+  NotificationSummaryResponse,
+  OrganizationEventsResponse,
   OverviewResponse,
   ShopDetailResponse,
   ShopsResponse,
   StaffDetailResponse,
+  StaffTimelineResponse,
 } from "./analyticsTypes";
 
 type SearchValue = string | number | null | undefined;
@@ -126,5 +133,44 @@ export function setFeatureRequestDeleted(id: string, isDeleted: boolean) {
     "/api/requests/update",
     {},
     { endpoint: "setFeatureRequestDeleted", id, isDeleted },
+  );
+}
+export type NotificationSearchParams = PaginationParams & {
+  from?: string | null;
+  to?: string | null;
+  shopId?: string | null;
+  status?: NotificationOutboxStatus | null;
+  channel?: "email" | "line" | null;
+  category?: NotificationCategory | null;
+  lookup?: string | null;
+};
+export function fetchNotifications(params: NotificationSearchParams, signal?: AbortSignal) {
+  return fetchEndpoint<NotificationSearchResponse>("/api/analytics/notifications", params, undefined, signal);
+}
+export function fetchNotificationSummary(signal?: AbortSignal) {
+  return fetchEndpoint<NotificationSummaryResponse>("/api/analytics/notifications/summary", {}, undefined, signal);
+}
+export function fetchStaffTimeline(shopId: string, staffId: string, signal?: AbortSignal) {
+  return fetchEndpoint<StaffTimelineResponse>(
+    `/api/analytics/shops/${encodeURIComponent(shopId)}/staff/${encodeURIComponent(staffId)}/timeline`,
+    {},
+    undefined,
+    signal,
+  );
+}
+export function fetchOrganizationEvents(shopId: string, params: PaginationParams = {}, signal?: AbortSignal) {
+  return fetchEndpoint<OrganizationEventsResponse>(
+    `/api/analytics/shops/${encodeURIComponent(shopId)}/organization-events`,
+    params,
+    undefined,
+    signal,
+  );
+}
+/** tokenはURLやcacheへ残さないよう、POST bodyだけで送る。 */
+export function lookupMagicLink(token: string) {
+  return fetchEndpoint<MagicLinkLookupResponse>(
+    "/api/analytics/magic-links/lookup",
+    {},
+    { endpoint: "magicLinkLookup", token },
   );
 }

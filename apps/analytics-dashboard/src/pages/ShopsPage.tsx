@@ -1,4 +1,4 @@
-import { Alert, Button, Flex, Input, Link, Stack, Text } from "@chakra-ui/react";
+import { Alert, Badge, Button, Flex, Input, Link, Stack, Text } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { AnalyticsApiError, fetchShops } from "@/api/analyticsClient";
@@ -7,6 +7,8 @@ import { useReportAnalyticsEnvironment } from "@/app/analyticsEnvironment";
 import { DataTable, type DataTableSort } from "@/components/DataTable";
 import { PageHeading } from "@/components/PageHeading";
 import {
+  ATTENTION_LABELS,
+  billingLabel,
   formatCount,
   formatDate,
   formatDateTime,
@@ -15,6 +17,19 @@ import {
   shopPath,
 } from "@/features/analytics/format";
 import { AnalyticsPageLoading, MoreButton, Panel, QueryError } from "@/features/analytics/PageState";
+
+function AttentionBadges({ row }: { row: AnalyticsShopListRowDto }) {
+  if (row.attention.length === 0) return null;
+  return (
+    <Flex gap={1} wrap="wrap">
+      {row.attention.map((reason) => (
+        <Badge key={reason} colorPalette="orange" variant="subtle">
+          {ATTENTION_LABELS[reason]}
+        </Badge>
+      ))}
+    </Flex>
+  );
+}
 
 function sortValue(row: AnalyticsShopListRowDto, key: string) {
   switch (key) {
@@ -26,6 +41,10 @@ function sortValue(row: AnalyticsShopListRowDto, key: string) {
       return row.staffCount;
     case "registeredAt":
       return row.registeredAt;
+    case "billing":
+      return row.billing ? billingLabel(row.billing) : null;
+    case "lastActivity":
+      return row.lastActivityDate;
     default:
       return row.latestShift ? `${row.latestShift.periodStart}/${row.latestShift.periodEnd}` : null;
   }
@@ -35,6 +54,7 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
   const searchParams = new URLSearchParams(window.location.search);
   const date = searchParams.get("date");
   const metric = searchParams.get("metric") as AnalyticsMetric | null;
+  const attentionOnly = searchParams.get("attention") === "1";
   const [input, setInput] = useState("");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<DataTableSort>({ key: "latestShift", direction: "desc" });
@@ -85,6 +105,8 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
     [data?.rows, sort],
   );
   const scoped = date !== null || metric !== null;
+  const attentionCount = rows.filter((row) => row.attention.length > 0).length;
+  const visibleRows = !scoped && attentionOnly ? rows.filter((row) => row.attention.length > 0) : rows;
   return (
     <Stack gap={6}>
       <PageHeading
@@ -104,6 +126,37 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
             条件を解除して現在の店舗へ
           </Button>
         </Flex>
+      )}
+      {!scoped && (
+        <Flex gap={2} role="group" aria-label="表示する店舗" wrap="wrap">
+          <Button
+            size="sm"
+            variant={attentionOnly ? "outline" : "solid"}
+            aria-pressed={!attentionOnly}
+            onClick={() => {
+              navigate("/shops");
+              setVisibleCount(50);
+            }}
+          >
+            すべての店舗
+          </Button>
+          <Button
+            size="sm"
+            variant={attentionOnly ? "solid" : "outline"}
+            aria-pressed={attentionOnly}
+            onClick={() => {
+              navigate("/shops?attention=1");
+              setVisibleCount(50);
+            }}
+          >
+            要注意の店舗{data ? `（${formatCount(attentionCount)}）` : ""}
+          </Button>
+        </Flex>
+      )}
+      {!scoped && attentionOnly && (
+        <Text color="gray.600" fontSize="sm">
+          最新の募集期間が終わって次の募集がない店舗と、最後の提出・確定から14日以上たった店舗です。最終利用日は計測開始後の記録から求めます。
+        </Text>
       )}
       <form
         onSubmit={(event) => {
@@ -142,7 +195,7 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
             ) : (
               <>
                 <DataTable
-                  rows={rows.slice(0, visibleCount)}
+                  rows={visibleRows.slice(0, visibleCount)}
                   sort={sort}
                   onSortChange={(next) => {
                     setSort(next);
@@ -152,7 +205,7 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
                   getRowLabel={(row) => row.name}
                   getRowHref={(row) => (row.isDeleted ? "" : shopPath(row.shopId))}
                   onNavigate={navigate}
-                  emptyText="該当する店舗はありません。"
+                  emptyText={attentionOnly && !scoped ? "要注意の店舗はありません。" : "該当する店舗はありません。"}
                   columns={[
                     {
                       key: "name",
@@ -162,9 +215,12 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
                         row.isDeleted ? (
                           <Text color="gray.600">削除済み店舗</Text>
                         ) : (
-                          <Link href={shopPath(row.shopId)} fontWeight="bold" color="blue.700">
-                            {row.name}
-                          </Link>
+                          <Stack gap={1}>
+                            <Link href={shopPath(row.shopId)} fontWeight="bold" color="blue.700">
+                              {row.name}
+                            </Link>
+                            <AttentionBadges row={row} />
+                          </Stack>
                         ),
                     },
                     {
@@ -172,6 +228,12 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
                       header: "組織",
                       sortable: true,
                       render: (row) => row.organizationName ?? "確認できません",
+                    },
+                    {
+                      key: "billing",
+                      header: "契約",
+                      sortable: true,
+                      render: (row) => billingLabel(row.billing),
                     },
                     {
                       key: "staffCount",
@@ -187,6 +249,12 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
                       render: (row) => (row.isDeleted ? "確認できません" : formatShiftPeriod(row.latestShift)),
                     },
                     {
+                      key: "lastActivity",
+                      header: "最終利用",
+                      sortable: true,
+                      render: (row) => formatDate(row.lastActivityDate),
+                    },
+                    {
                       key: "registeredAt",
                       header: "登録日",
                       sortable: true,
@@ -196,13 +264,16 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
                   renderMobileRow={(row) => (
                     <Stack gap={2}>
                       <Text fontWeight="bold">{row.isDeleted ? "削除済み店舗" : row.name}</Text>
+                      <AttentionBadges row={row} />
                       <Text fontSize="sm">{row.organizationName ?? "組織を確認できません"}</Text>
+                      <Text fontSize="sm">契約：{billingLabel(row.billing)}</Text>
                       <Text fontSize="sm">
                         スタッフ数：{row.staffCount == null ? "確認できません" : `${formatCount(row.staffCount)}人`}
                       </Text>
                       <Text fontSize="sm">
                         直近のシフト：{row.isDeleted ? "確認できません" : formatShiftPeriod(row.latestShift)}
                       </Text>
+                      <Text fontSize="sm">最終利用：{formatDate(row.lastActivityDate)}</Text>
                       <Text fontSize="xs" color="gray.600">
                         登録：{formatDate(row.registeredAt)}
                       </Text>
@@ -210,8 +281,8 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
                   )}
                 />
                 <MoreButton
-                  count={Math.min(rows.length, visibleCount)}
-                  hasMore={rows.length > visibleCount}
+                  count={Math.min(visibleRows.length, visibleCount)}
+                  hasMore={visibleRows.length > visibleCount}
                   loading={false}
                   onClick={() => setVisibleCount((count) => count + 50)}
                 />

@@ -1,10 +1,11 @@
-import { Badge, Flex, Link, Stack, Text } from "@chakra-ui/react";
-import { useInfiniteQuery } from "@tanstack/react-query";
-import { AnalyticsApiError, fetchStaff } from "@/api/analyticsClient";
+import { Badge, Flex, Link, Skeleton, Stack, Text } from "@chakra-ui/react";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { AnalyticsApiError, fetchStaff, fetchStaffTimeline } from "@/api/analyticsClient";
 import type { StaffNotificationDto } from "@/api/analyticsTypes";
 import { useReportAnalyticsEnvironment } from "@/app/analyticsEnvironment";
 import { DataTable } from "@/components/DataTable";
 import { PageHeading } from "@/components/PageHeading";
+import { staffTimelineLabel, staffTimelineNote } from "@/features/activity/labels";
 import {
   cyclePath,
   formatDate,
@@ -13,20 +14,82 @@ import {
   shopPath,
   staffPath,
 } from "@/features/analytics/format";
-import { AnalyticsPageLoading, Details, MoreButton, Panel, QueryError } from "@/features/analytics/PageState";
+import { AnalyticsPageLoading, Details, IdText, MoreButton, Panel, QueryError } from "@/features/analytics/PageState";
+import { notificationKindLabel as notificationLabel } from "@/features/notifications/labels";
 
-function notificationLabel(kind: string) {
+function StaffTimelinePanel({ shopId, staffId }: { shopId: string; staffId: string }) {
+  const query = useQuery({
+    queryKey: ["analytics", "staffTimeline", shopId, staffId],
+    queryFn: ({ signal }) => fetchStaffTimeline(shopId, staffId, signal),
+  });
+  const data = query.data?.data;
   return (
-    (
-      {
-        "shift.recruitment": "シフト募集",
-        "shift.confirmation": "シフト確定",
-        "line.invite": "LINE連携案内",
-        "shift.reminder": "提出リマインダー",
-        "shift.reissue": "シフトURL再発行",
-        "legal.consent": "規約同意の案内",
-      } as Record<string, string>
-    )[kind] ?? "通知"
+    <Panel
+      title="行動の履歴"
+      description="記録が残っている出来事を新しい順に表示します。提出リンクを開いた記録、途中の再提出、LINEの既読は残っていません。期限切れの画面の記録は削除されています。"
+    >
+      {query.isPending ? (
+        <Skeleton h="160px" borderRadius="md" aria-busy="true" aria-label="行動の履歴を読み込み中" />
+      ) : !data ? (
+        <QueryError error={query.error} onRetry={() => void query.refetch()} />
+      ) : (
+        <>
+          <DataTable
+            rows={data.events.map((event, index) => ({ ...event, index }))}
+            getRowKey={(event) => String(event.index)}
+            emptyText="記録された出来事はありません。"
+            columns={[
+              { key: "at", header: "日時", width: "170px", render: (event) => formatDateTime(event.at) },
+              {
+                key: "type",
+                header: "出来事",
+                render: (event) => (
+                  <Stack gap={1}>
+                    <Text>{staffTimelineLabel(event.type)}</Text>
+                    {staffTimelineNote(event) && (
+                      <Text color="gray.600" fontSize="xs">
+                        {staffTimelineNote(event)}
+                      </Text>
+                    )}
+                  </Stack>
+                ),
+              },
+              {
+                key: "recruitment",
+                header: "募集",
+                render: (event) =>
+                  event.recruitment ? (
+                    <Link href={cyclePath(shopId, event.recruitment.recruitmentId)} color="blue.700">
+                      {formatDate(event.recruitment.periodStart)}〜{formatDate(event.recruitment.periodEnd)}
+                    </Link>
+                  ) : (
+                    "—"
+                  ),
+              },
+            ]}
+            renderMobileRow={(event) => (
+              <Stack gap={1}>
+                <Text fontWeight="bold">{staffTimelineLabel(event.type)}</Text>
+                {staffTimelineNote(event) && <Text fontSize="sm">{staffTimelineNote(event)}</Text>}
+                {event.recruitment && (
+                  <Text fontSize="sm">
+                    募集：{formatDate(event.recruitment.periodStart)}〜{formatDate(event.recruitment.periodEnd)}
+                  </Text>
+                )}
+                <Text color="gray.600" fontSize="xs">
+                  {formatDateTime(event.at)}
+                </Text>
+              </Stack>
+            )}
+          />
+          {data.isTruncated && (
+            <Text color="gray.600" fontSize="xs">
+              記録が多いため、古い出来事の一部を省いています。
+            </Text>
+          )}
+        </>
+      )}
+    </Panel>
   );
 }
 function NotificationStatus({ row }: { row: StaffNotificationDto }) {
@@ -117,6 +180,9 @@ export function StaffDetailPage({
             },
             { label: "アカウント", value: data.staff.accountLinked ? "連携済み" : "未連携" },
             { label: "LINE", value: lineStatusLabel(data.staff.lineStatus) },
+            { label: "スタッフID", value: <IdText value={data.staff.staffId} /> },
+            { label: "人物ID", value: <IdText value={data.staff.personId} /> },
+            { label: "ユーザーID", value: <IdText value={data.staff.userId} emptyText="なし（アカウント未連携）" /> },
           ]}
         />
       </Panel>
@@ -124,14 +190,18 @@ export function StaffDetailPage({
         <Stack gap={2}>
           {data.memberships.map((row) => (
             <Flex key={row.staffId} gap={3} justify="space-between" align="center" bg="gray.50" borderRadius="md" p={3}>
-              <Link href={staffPath(row.shopId, row.staffId)} color="blue.700" fontWeight="medium">
-                {row.shopName}
-              </Link>
+              <Stack gap={0.5} minW={0}>
+                <Link href={staffPath(row.shopId, row.staffId)} color="blue.700" fontWeight="medium">
+                  {row.shopName}
+                </Link>
+                <IdText value={row.staffId} />
+              </Stack>
               <Badge>{row.excludedFromShift ? "シフト対象外" : "シフト対象"}</Badge>
             </Flex>
           ))}
         </Stack>
       </Panel>
+      <StaffTimelinePanel shopId={shopId} staffId={staffId} />
       <Panel
         title="この店舗での提出履歴"
         description="開始日が新しい直近20募集に対する記録です。記録がない募集を、過去の未提出とは断定しません。"

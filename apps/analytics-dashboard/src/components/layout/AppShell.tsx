@@ -6,6 +6,7 @@ import { type AppRoute, routePath } from "@/routes/appRoute";
 const NAV_ITEMS = [
   { label: "日次分析", route: { name: "overview" } as const },
   { label: "店舗・スタッフ", route: { name: "shops" } as const },
+  { label: "通知", route: { name: "notifications" } as const },
 ];
 
 function activeNavigation(route: AppRoute) {

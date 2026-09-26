@@ -3,10 +3,15 @@ import type {
   CycleDetailResponse,
   FeatureRequestsResponse,
   FeatureRequestUpdateResponse,
+  MagicLinkLookupResponse,
+  NotificationSearchResponse,
+  NotificationSummaryResponse,
+  OrganizationEventsResponse,
   OverviewResponse,
   ShopDetailResponse,
   ShopsResponse,
   StaffDetailResponse,
+  StaffTimelineResponse,
 } from "./dto";
 import type {
   AnalyticsCycleRequest,
@@ -15,6 +20,11 @@ import type {
   AnalyticsShopsRequest,
   AnalyticsStaffRequest,
   FeatureRequestsRequest,
+  MagicLinkLookupRequest,
+  NotificationSearchRequest,
+  NotificationSummaryRequest,
+  OrganizationEventsRequest,
+  StaffTimelineRequest,
 } from "./schemas";
 
 type QueryArgs<T extends { endpoint: string }> = Omit<T, "endpoint"> & { asOf: number };
@@ -38,6 +48,22 @@ export const getCycleRef = queryRef<QueryArgs<AnalyticsCycleRequest>, CycleDetai
 );
 export const getFeatureRequestsRef = queryRef<QueryArgs<FeatureRequestsRequest>, FeatureRequestsResponse>(
   "analyticsDashboard/queries:getFeatureRequests",
+);
+export const getNotificationsRef = queryRef<QueryArgs<NotificationSearchRequest>, NotificationSearchResponse | null>(
+  "analyticsDashboard/investigationQueries:getNotifications",
+);
+export const getNotificationSummaryRef = queryRef<QueryArgs<NotificationSummaryRequest>, NotificationSummaryResponse>(
+  "analyticsDashboard/investigationQueries:getNotificationSummary",
+);
+export const getStaffTimelineRef = queryRef<QueryArgs<StaffTimelineRequest>, StaffTimelineResponse | null>(
+  "analyticsDashboard/investigationQueries:getStaffTimeline",
+);
+export const getOrganizationEventsRef = queryRef<
+  QueryArgs<OrganizationEventsRequest>,
+  OrganizationEventsResponse | null
+>("analyticsDashboard/investigationQueries:getOrganizationEvents");
+export const getMagicLinkLookupRef = queryRef<QueryArgs<MagicLinkLookupRequest>, MagicLinkLookupResponse>(
+  "analyticsDashboard/investigationQueries:getMagicLinkLookup",
 );
 export const setFeatureRequestDeletedRef = makeFunctionReference<
   "mutation",
