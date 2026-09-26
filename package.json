@@ -1,6 +1,6 @@
 {
   "name": "yps-crispy-carnival",
-  "version": "1.0.17",
+  "version": "1.0.18",
   "private": true,
   "license": "PolyForm-Strict-1.0.0",
   "packageManager": "pnpm@11.15.1",
