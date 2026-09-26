@@ -11,8 +11,16 @@ describe("Analytics BFFの入力契約", () => {
   it.each([
     { endpoint: "overview", rangeDays: 365 },
     { endpoint: "overview", asOf: 1 },
-    { endpoint: "shops", date: "2026-02-30", metric: "submitted" },
-    { endpoint: "shops", date: "2026-09-05" },
+    { endpoint: "shops", date: "2026-09-05", metric: "submitted" },
+    { endpoint: "shops", from: "2026-02-30", to: "2026-02-30", metric: "submitted" },
+    { endpoint: "shops", from: "2026-09-05", to: "2026-09-05" },
+    { endpoint: "shops", from: "2026-09-05", metric: "submitted" },
+    { endpoint: "shops", from: "2026-09-06", to: "2026-09-05", metric: "submitted" },
+    { endpoint: "shops", from: "2026-06-01", to: "2026-09-05", metric: "submitted" },
+    { endpoint: "shops", from: "2026-09-05", to: "2026-09-05", metric: "submitted", billing: "trial" },
+    { endpoint: "shops", from: "2026-09-05", to: "2026-09-05", metric: "submitted", attention: true },
+    { endpoint: "shops", billing: "active" },
+    { endpoint: "shops", attention: "1" },
     { endpoint: "shops", metric: "submitted" },
     { endpoint: "shops", limit: 101 },
     { endpoint: "requests", limit: 51 },
@@ -29,6 +37,8 @@ describe("Analytics BFFの入力契約", () => {
     { endpoint: "notifications", email: "staff@example.com" },
     { endpoint: "notifications", lookup: "outbox", shopId: "shop" },
     { endpoint: "notifications", lookup: "outbox", cursor: "1" },
+    { endpoint: "notifications", lookup: "outbox", search: "店舗" },
+    { endpoint: "notifications", search: "x".repeat(101) },
     { endpoint: "notifications", lookup: "staff@example.com" },
     { endpoint: "notificationSummary", rangeDays: 7 },
     { endpoint: "staffTimeline", shopId: "shop" },
@@ -59,6 +69,7 @@ describe("Analytics BFFの入力契約", () => {
           status: "failed",
           channel: "line",
           category: "confirmation",
+          search: " 渋谷 ",
           cursor: "1788900000000.25",
           limit: "40",
         }),
@@ -75,6 +86,7 @@ describe("Analytics BFFの入力契約", () => {
         status: "failed",
         channel: "line",
         category: "confirmation",
+        search: "渋谷",
         lookup: null,
       },
     });
@@ -85,6 +97,30 @@ describe("Analytics BFFの入力契約", () => {
     expect(
       normalizeBrowserRequestInput("staffTimeline", new URLSearchParams(), { shopId: "shop", staffId: "staff" }),
     ).toEqual({ ok: true, value: { endpoint: "staffTimeline", shopId: "shop", staffId: "staff" } });
+  });
+  it("店舗一覧は最大90日の実績の内訳か、契約・要注意の絞り込みのどちらかを受け付ける", () => {
+    expect(
+      normalizeBrowserRequestInput(
+        "shops",
+        new URLSearchParams({ from: "2026-06-12", to: "2026-09-09", metric: "confirmed", search: "店" }),
+      ),
+    ).toEqual({
+      ok: true,
+      value: {
+        endpoint: "shops",
+        cursor: null,
+        limit: 50,
+        search: "店",
+        from: "2026-06-12",
+        to: "2026-09-09",
+        metric: "confirmed",
+        billing: null,
+        attention: false,
+      },
+    });
+    expect(
+      normalizeBrowserRequestInput("shops", new URLSearchParams({ billing: "paid", attention: "true", limit: "20" })),
+    ).toMatchObject({ ok: true, value: { billing: "paid", attention: true, from: null, to: null, metric: null } });
   });
   it("マジックリンク検索はPOST bodyのtokenだけで受け付け、ブラウザのURL入力からは組み立てない", () => {
     expect(parseAnalyticsDashboardRequest({ endpoint: "magicLinkLookup", token: "abcdefgh-1234" })).toEqual({

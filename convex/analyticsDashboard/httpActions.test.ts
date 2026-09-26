@@ -203,7 +203,17 @@ describe("analyticsDashboard/httpActions", () => {
     });
     const cases: AnalyticsDashboardRequest[] = [
       { endpoint: "overview", rangeDays: 7 },
-      { endpoint: "shops", cursor: null, limit: 1, search: "", date: null, metric: null },
+      {
+        endpoint: "shops",
+        cursor: null,
+        limit: 1,
+        search: "",
+        from: null,
+        to: null,
+        metric: null,
+        billing: null,
+        attention: false,
+      },
       { endpoint: "shop", shopId: ids.shopId, cursor: null, limit: 1 },
       { endpoint: "staff", shopId: ids.shopId, staffId: ids.staffId, cursor: null, limit: 1 },
       { endpoint: "cycle", shopId: ids.shopId, recruitmentId: ids.recruitmentId },
@@ -218,6 +228,7 @@ describe("analyticsDashboard/httpActions", () => {
         status: null,
         channel: null,
         category: null,
+        search: null,
         lookup: null,
       },
       { endpoint: "notificationSummary" },

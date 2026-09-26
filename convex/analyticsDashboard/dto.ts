@@ -60,6 +60,18 @@ export type OrganizationBillingSummaryDto = {
   /** トライアル終了日時または変更予定日時。 */
   dueAt: number | null;
 };
+/**
+ * 店舗一覧の契約絞り込み。日次分析の契約状況カードと対応する。
+ * paidはStandard・Pro、freeはFreeの有効な契約、pendingは初回支払い待ちと有効化待ち。
+ */
+export type ShopBillingFilter =
+  | "trial"
+  | "paid"
+  | "free"
+  | "complimentary"
+  | "pending"
+  | "scheduledChange"
+  | "paymentTerminationPending";
 /** 店舗一覧で問い合わせ前に気づきたい状態。 */
 export type AnalyticsShopAttention = "shift_ended" | "inactive";
 export type AnalyticsShopListRowDto = AnalyticsShopRowDto & {
@@ -83,7 +95,8 @@ export type ShopsResponse = {
   asOf: number;
   rows: AnalyticsShopListRowDto[];
   pageInfo: AnalyticsPageInfoDto;
-  scope: { date: string; metric: AnalyticsMetric } | null;
+  /** 実績の内訳の対象期間。1日だけの内訳ではfromとtoが同じ日になる。 */
+  scope: { from: string; to: string; metric: AnalyticsMetric } | null;
   scopeStatus: "current" | "available" | "unavailable" | "outside_retention";
 };
 export type StaffRowDto = {

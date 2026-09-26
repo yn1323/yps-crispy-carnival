@@ -18,7 +18,8 @@ export const App = () => {
       page = <OverviewPage navigate={navigate} />;
       break;
     case "shops":
-      page = <ShopsPage navigate={navigate} />;
+      // 絞り込みはURLが正本。条件が変わったら入力中の値と読み込み済みのページも作り直す。
+      page = <ShopsPage key={window.location.search} navigate={navigate} />;
       break;
     case "shop":
       page = <ShopDetailPage navigate={navigate} shopId={route.shopId} />;

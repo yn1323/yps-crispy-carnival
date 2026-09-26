@@ -1,5 +1,11 @@
 import { addDays, dateToUtcMs, formatUtcDate } from "../_lib/dateFormat";
-import type { AnalyticsMetric, AnalyticsRangeDays, NotificationCategory, NotificationOutboxStatus } from "./dto";
+import type {
+  AnalyticsMetric,
+  AnalyticsRangeDays,
+  NotificationCategory,
+  NotificationOutboxStatus,
+  ShopBillingFilter,
+} from "./dto";
 import { NOTIFICATION_CATEGORIES } from "./notificationCategories";
 
 export const ANALYTICS_DASHBOARD_MAX_BODY_BYTES = 16 * 1024;
@@ -12,13 +18,31 @@ export const NOTIFICATION_SEARCH_MAX_PAGE_SIZE = 50;
 export const NOTIFICATION_SEARCH_DEFAULT_DAYS = 7;
 export const NOTIFICATION_SEARCH_MAX_DAYS = 90;
 export const ORGANIZATION_EVENTS_MAX_PAGE_SIZE = 50;
+/** 日次分析の期間（最大90日）から店舗内訳を開けるよう、日付範囲も同じ上限にする。 */
+export const SHOP_SCOPE_MAX_DAYS = 90;
+export const SEARCH_TEXT_MAX_LENGTH = 100;
+/** 日次分析の契約状況カードと同じ区分。 */
+export const SHOP_BILLING_FILTERS: readonly ShopBillingFilter[] = [
+  "trial",
+  "paid",
+  "free",
+  "complimentary",
+  "pending",
+  "scheduledChange",
+  "paymentTerminationPending",
+];
 type Pagination = { cursor: string | null; limit: number };
 export type AnalyticsOverviewRequest = { endpoint: "overview"; rangeDays: AnalyticsRangeDays };
 export type AnalyticsShopsRequest = Pagination & {
   endpoint: "shops";
   search: string;
-  date: string | null;
+  /** 実績の内訳。from・to・metricは3つとも指定するか、すべて省略する。 */
+  from: string | null;
+  to: string | null;
   metric: AnalyticsMetric | null;
+  /** 現在の店舗だけに使う絞り込み。実績の内訳とは併用しない。 */
+  billing: ShopBillingFilter | null;
+  attention: boolean;
 };
 export type AnalyticsShopRequest = Pagination & { endpoint: "shop"; shopId: string };
 export type AnalyticsStaffRequest = Pagination & { endpoint: "staff"; shopId: string; staffId: string };
@@ -32,6 +56,8 @@ export type NotificationSearchRequest = Pagination & {
   status: NotificationOutboxStatus | null;
   channel: "email" | "line" | null;
   category: NotificationCategory | null;
+  /** 組織名または店舗名の部分一致。現在の名称で照合する。 */
+  search: string | null;
   /** 通知IDまたはResendのメールID。指定時は他の条件を受け付けない。 */
   lookup: string | null;
 };
@@ -82,6 +108,15 @@ function hasOnly(value: Record<string, unknown>, keys: string[]): boolean {
 function oneOf<T extends string>(value: unknown, allowed: readonly T[]): value is T {
   return typeof value === "string" && (allowed as readonly string[]).includes(value);
 }
+export function isShopScopeRange(from: string, to: string): boolean {
+  return isAnalyticsDate(from) && isAnalyticsDate(to) && from <= to && addDays(from, SHOP_SCOPE_MAX_DAYS - 1) >= to;
+}
+/** 空白だけの検索語は条件なしとして扱う。 */
+function searchText(value: unknown): string | null | undefined {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "string" || value.length > SEARCH_TEXT_MAX_LENGTH) return undefined;
+  return value.trim() || null;
+}
 /** 期間は両方を指定するか両方を省略する。省略時の既定値は呼び出し時刻から決める。 */
 export function isNotificationSearchRange(from: string, to: string): boolean {
   return (
@@ -89,7 +124,19 @@ export function isNotificationSearchRange(from: string, to: string): boolean {
   );
 }
 function parseNotificationSearch(value: Record<string, unknown>): ParseResult<NotificationSearchRequest> {
-  const keys = ["endpoint", "cursor", "limit", "from", "to", "shopId", "status", "channel", "category", "lookup"];
+  const keys = [
+    "endpoint",
+    "cursor",
+    "limit",
+    "from",
+    "to",
+    "shopId",
+    "status",
+    "channel",
+    "category",
+    "search",
+    "lookup",
+  ];
   const page = pagination(value, NOTIFICATION_SEARCH_MAX_PAGE_SIZE);
   if (!hasOnly(value, keys) || !page) return invalid;
   const from = value.from ?? null;
@@ -98,9 +145,11 @@ function parseNotificationSearch(value: Record<string, unknown>): ParseResult<No
   const status = value.status ?? null;
   const channel = value.channel ?? null;
   const category = value.category ?? null;
+  const search = searchText(value.search);
   const lookup = value.lookup ?? null;
+  if (search === undefined) return invalid;
   if (lookup !== null) {
-    const hasFilter = [from, to, shopId, status, channel, category, page.cursor].some((item) => item !== null);
+    const hasFilter = [from, to, shopId, status, channel, category, search, page.cursor].some((item) => item !== null);
     if (!validId(lookup) || hasFilter) return invalid;
   } else if (
     (from === null) !== (to === null) ||
@@ -124,6 +173,7 @@ function parseNotificationSearch(value: Record<string, unknown>): ParseResult<No
       status: status as NotificationOutboxStatus | null,
       channel: channel as "email" | "line" | null,
       category: category as NotificationCategory | null,
+      search,
       lookup: lookup as string | null,
     },
   };
@@ -147,24 +197,43 @@ export function parseAnalyticsDashboardRequest(value: unknown): ParseResult<Anal
     case "shops": {
       const page = pagination(value);
       const search = value.search ?? "";
-      const date = value.date ?? null;
+      const from = value.from ?? null;
+      const to = value.to ?? null;
       const metric = value.metric ?? null;
+      const billing = value.billing ?? null;
+      const attention = value.attention ?? false;
       if (
-        !hasOnly(value, ["endpoint", "cursor", "limit", "search", "date", "metric"]) ||
+        !hasOnly(value, ["endpoint", "cursor", "limit", "search", "from", "to", "metric", "billing", "attention"]) ||
         !page ||
         typeof search !== "string" ||
-        search.length > 100
+        search.length > SEARCH_TEXT_MAX_LENGTH ||
+        typeof attention !== "boolean" ||
+        (billing !== null && !oneOf(billing, SHOP_BILLING_FILTERS))
       )
         return invalid;
+      const scoped = from !== null || to !== null || metric !== null;
       if (
-        (date === null) !== (metric === null) ||
-        (date !== null && !isAnalyticsDate(date)) ||
-        (metric !== null && !metrics.includes(metric as AnalyticsMetric))
+        scoped &&
+        (typeof from !== "string" ||
+          typeof to !== "string" ||
+          !isShopScopeRange(from, to) ||
+          !oneOf(metric, metrics) ||
+          billing !== null ||
+          attention)
       )
         return invalid;
       return {
         ok: true,
-        value: { endpoint: "shops", ...page, search: search.trim(), date, metric: metric as AnalyticsMetric | null },
+        value: {
+          endpoint: "shops",
+          ...page,
+          search: search.trim(),
+          from: from as string | null,
+          to: to as string | null,
+          metric: metric as AnalyticsMetric | null,
+          billing: billing as ShopBillingFilter | null,
+          attention,
+        },
       };
     }
     case "shop": {
@@ -237,7 +306,12 @@ export function normalizeBrowserRequestInput(
   const value: Record<string, unknown> = { endpoint, ...pathIds };
   for (const [key, input] of params) {
     if (key === "__proto__" || Object.hasOwn(value, key)) return invalid;
-    value[key] = key === "limit" || key === "rangeDays" ? Number(input) : input;
+    value[key] =
+      key === "limit" || key === "rangeDays"
+        ? Number(input)
+        : key === "attention" && (input === "true" || input === "false")
+          ? input === "true"
+          : input;
   }
   return parseAnalyticsDashboardRequest(value);
 }

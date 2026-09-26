@@ -1,13 +1,13 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
-import type { Id } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { addDays, jstDayRangeMs } from "../_lib/dateFormat";
 import { seedStaff } from "../_test/scenarioBuilders";
 import { seedOrganizationMembership, seedShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { ANALYTICS_DEFINITION_VERSION, emptyAnalyticsResultCounts } from "../analytics/model";
-import type { ShopsResponse } from "./dto";
+import type { ShopBillingFilter, ShopsResponse } from "./dto";
 import { SHOP_LIST_STAFF_SCAN_LIMIT } from "./queryHelpers";
 import {
   getCycleRef,
@@ -21,6 +21,10 @@ import {
 
 const AS_OF = jstDayRangeMs("2026-09-09").startMs + 12 * 60 * 60 * 1000;
 const PAGE = { cursor: null, limit: 50, asOf: AS_OF };
+const CURRENT = { from: null, to: null, metric: null, billing: null, attention: false };
+function dayScope(date: string, to = date) {
+  return { from: date, to, metric: "submitted" as const, billing: null, attention: false };
+}
 async function seedRecruitment(
   ctx: MutationCtx,
   args: { shopId: Id<"shops">; periodStart?: string; periodEnd?: string },
@@ -77,7 +81,7 @@ describe("analyticsDashboardの日次結果", () => {
     expect(overview.startedAt).toBeNull();
     expect(overview.series).toHaveLength(7);
     expect(overview.series.every((row) => row.status === "pending" && row.counts === null)).toBe(true);
-    const shops = await t.query(getShopsRef, { ...PAGE, search: "", date: null, metric: null });
+    const shops = await t.query(getShopsRef, { ...PAGE, search: "", ...CURRENT });
     expect(shops.rows.map((row) => row.shopId)).toEqual([ids.shopId]);
     expect(shops.rows[0]).toMatchObject({ staffCount: 1, latestShift: null });
     const detail = await t.query(getShopRef, { ...PAGE, shopId: ids.shopId });
@@ -195,7 +199,7 @@ describe("analyticsDashboardの日次結果", () => {
       });
       return { active, deleted };
     });
-    const response = await t.query(getShopsRef, { ...PAGE, search: "", date: "2026-09-08", metric: "submitted" });
+    const response = await t.query(getShopsRef, { ...PAGE, search: "", ...dayScope("2026-09-08") });
     expect(new Set(response.rows.map((row) => row.shopId))).toEqual(new Set([ids.active, ids.deleted]));
     expect(response.rows.find((row) => row.shopId === ids.deleted)).toEqual({
       shopId: ids.deleted,
@@ -215,7 +219,7 @@ describe("analyticsDashboardの日次結果", () => {
       latestShift: { periodStart: "2026-09-10", periodEnd: "2026-09-16" },
     });
     expect(JSON.stringify(response)).not.toContain("消去前店舗名");
-    const missing = await t.query(getShopsRef, { ...PAGE, search: "", date: "2026-09-07", metric: "submitted" });
+    const missing = await t.query(getShopsRef, { ...PAGE, search: "", ...dayScope("2026-09-07") });
     expect(missing).toMatchObject({ scopeStatus: "unavailable", rows: [] });
   });
 });
@@ -248,7 +252,7 @@ describe("analyticsDashboardの問い合わせ境界", () => {
       await seedStaff(ctx, { shopId: otherShopId, name: "別店舗スタッフ" });
       return shopId;
     });
-    const response = await t.query(getShopsRef, { ...PAGE, search: "集計店舗", date: null, metric: null });
+    const response = await t.query(getShopsRef, { ...PAGE, search: "集計店舗", ...CURRENT });
     expect(response.rows).toHaveLength(1);
     expect(response.rows[0]).toEqual({
       shopId,
@@ -280,7 +284,7 @@ describe("analyticsDashboardの問い合わせ境界", () => {
       const otherShopId = await seedShop(ctx, "別店舗");
       await seedRecruitment(ctx, { shopId: otherShopId, periodStart: "2026-12-01", periodEnd: "2026-12-15" });
     });
-    const response = await t.query(getShopsRef, { ...PAGE, search: "対象店舗", date: null, metric: null });
+    const response = await t.query(getShopsRef, { ...PAGE, search: "対象店舗", ...CURRENT });
     expect(response.rows).toHaveLength(1);
     expect(response.rows[0]).toMatchObject({
       staffCount: 0,
@@ -296,7 +300,7 @@ describe("analyticsDashboardの問い合わせ境界", () => {
         await seedStaff(ctx, { shopId, name: `スタッフ${index}` });
       return await seedStaff(ctx, { shopId, name: "上限超過スタッフ" });
     });
-    const args = { ...PAGE, search: "", date: null, metric: null };
+    const args = { ...PAGE, search: "", ...CURRENT };
     expect((await t.query(getShopsRef, args)).rows[0].staffCount).toBeNull();
     await t.run(async (ctx) => await ctx.db.patch(overflowStaffId, { isDeleted: true }));
     expect((await t.query(getShopsRef, args)).rows[0].staffCount).toBe(SHOP_LIST_STAFF_SCAN_LIMIT);
@@ -322,8 +326,7 @@ describe("analyticsDashboardの問い合わせ境界", () => {
         limit: 100,
         cursor,
         search: "",
-        date: null,
-        metric: null,
+        ...CURRENT,
       });
       expect(page.pageInfo.pageSize).toBe(20);
       expect(page.rows.length).toBeLessThanOrEqual(20);
@@ -356,8 +359,7 @@ describe("analyticsDashboardの問い合わせ境界", () => {
         limit: 1,
         cursor,
         search: "探している",
-        date: null,
-        metric: null,
+        ...CURRENT,
       });
       if (pages === 0) {
         expect(page.rows).toEqual([]);
@@ -626,7 +628,7 @@ describe("analyticsDashboardの要注意店舗と契約状態", () => {
       });
       return { ended, active };
     });
-    const response = await t.query(getShopsRef, { ...PAGE, search: "", date: null, metric: null });
+    const response = await t.query(getShopsRef, { ...PAGE, search: "", ...CURRENT });
     expect(response.rows.find((row) => row.shopId === ids.ended)).toMatchObject({
       lastActivityDate: "2026-08-26",
       attention: ["shift_ended", "inactive"],
@@ -655,5 +657,86 @@ describe("analyticsDashboardの要注意店舗と契約状態", () => {
       trialEndingWithin7Days: 1,
       isPartial: false,
     });
+  });
+
+  it("契約と要注意で店舗を絞り込み、契約状況カードの区分と一致させる", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const now = Date.now();
+      const seedBilling = async (name: string, state: Doc<"organizationBillingStates">["state"]) => {
+        const shopId = await seedShop(ctx, name);
+        const shop = await ctx.db.get(shopId);
+        if (!shop) throw new Error("missing fixture shop");
+        await ctx.db.insert("organizationBillingStates", {
+          organizationId: shop.organizationId,
+          state,
+          version: 1,
+          createdAt: now,
+          updatedAt: now,
+        });
+        return shopId;
+      };
+      const trial = await seedBilling("トライアル店舗", { kind: "trial", trialEndsAt: AS_OF + 1000 });
+      await seedRecruitment(ctx, { shopId: trial, periodStart: "2026-08-01", periodEnd: "2026-08-07" });
+      const pro = await seedBilling("Pro店舗", { kind: "active", plan: "pro" });
+      const free = await seedBilling("Free店舗", { kind: "active", plan: "free" });
+      const pending = await seedBilling("手続き中店舗", {
+        kind: "pendingActivation",
+        plan: "standard",
+        fallback: "free",
+        startedAt: now,
+      });
+      return { trial, pro, free, pending };
+    });
+    const list = async (filter: { billing?: ShopBillingFilter; attention?: boolean }) =>
+      (await t.query(getShopsRef, { ...PAGE, search: "", ...CURRENT, ...filter })).rows.map((row) => row.shopId);
+    expect(await list({ billing: "paid" })).toEqual([ids.pro]);
+    expect(await list({ billing: "free" })).toEqual([ids.free]);
+    expect(await list({ billing: "pending" })).toEqual([ids.pending]);
+    expect(await list({ billing: "trial" })).toEqual([ids.trial]);
+    expect(await list({ billing: "complimentary" })).toEqual([]);
+    expect(await list({ attention: true })).toEqual([ids.trial]);
+    expect(await list({ billing: "paid", attention: true })).toEqual([]);
+    await expect(
+      t.query(getShopsRef, { ...PAGE, search: "", ...dayScope("2026-09-08"), billing: "paid" }),
+    ).rejects.toThrow("invalid_request");
+  });
+
+  it("期間の内訳は期間内に実績がある店舗を削除済みも含めて1回だけ返し、未集計の日を含む期間は返さない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const repeated = await seedShop(ctx, "連日店舗");
+      const once = await seedShop(ctx, "一日店舗");
+      const other = await seedShop(ctx, "対象外店舗");
+      for (const date of ["2026-09-06", "2026-09-07", "2026-09-08"]) await daily(ctx, date);
+      const day = (shopId: Id<"shops">, date: string, submitted: boolean) =>
+        ctx.db.insert("analyticsShopDays", { shopId, date, registered: !submitted, submitted, confirmed: false });
+      for (const date of ["2026-09-06", "2026-09-07", "2026-09-08"]) await day(repeated, date, true);
+      await day(once, "2026-09-07", true);
+      await day(other, "2026-09-07", false);
+      const deleted = await seedShop(ctx, "消去前の期間店舗");
+      await day(deleted, "2026-09-08", true);
+      await ctx.db.patch(deleted, { isDeleted: true });
+      return { repeated, once, deleted };
+    });
+    let cursor: string | null = null;
+    const found: string[] = [];
+    let pages = 0;
+    do {
+      const page: ShopsResponse = await t.query(getShopsRef, {
+        ...PAGE,
+        limit: 1,
+        cursor,
+        search: "",
+        ...dayScope("2026-09-06", "2026-09-08"),
+      });
+      expect(page.scope).toEqual({ from: "2026-09-06", to: "2026-09-08", metric: "submitted" });
+      found.push(...page.rows.map((row) => row.shopId));
+      cursor = page.pageInfo.continueCursor;
+      pages += 1;
+    } while (cursor !== null && pages < 10);
+    expect(found.sort()).toEqual([ids.repeated, ids.once, ids.deleted].sort());
+    const withMissingDay = await t.query(getShopsRef, { ...PAGE, search: "", ...dayScope("2026-09-05", "2026-09-08") });
+    expect(withMissingDay).toMatchObject({ scopeStatus: "unavailable", rows: [] });
   });
 });

@@ -113,6 +113,18 @@ tokenはbearer capabilityのため、URLのqueryに載せず、BFFへの同一or
 BI側は読み取りだけで、sessionの作成や使用済みへの更新を行わない。  
 判定がずれないよう、Convex Function testで実際の`verifyToken`の結果と照合する。
 
+### 絞り込みの導線と店舗一覧の分割取得（追加依頼）
+
+実アプリのtableとindexは変更しない。
+
+- 通知検索に組織名・店舗名の部分一致を追加する。作成時刻のindexで読んだ候補を、要求内でcacheした現在の店舗名・組織名で照合する。削除済みの店舗・組織の名称では一致させない。
+- 日次分析の契約状況カードから、同じ区分の契約の組織に属する店舗だけを店舗一覧で開く。区分はトライアル中、有料プラン（Standard・Pro）、Free、無償、支払い・切替の手続き中、プラン変更の予定、支払い失敗・停止処理中とする。
+- 日別推移の期間内の店舗数から、期間内に実績がある店舗の内訳を開く。同じ店舗の行が日数分あるため、店舗tableを順に読み、`analyticsShopDays`の店舗×日付indexで期間内に実績がある店舗だけを1回返す。店舗は論理削除だけのため、削除済み店舗も匿名表示で含める。1日だけの内訳は従来どおり日付indexで読む。計測開始後の日がすべて現在の定義で集計済みの場合だけ返す。グラフの日付を押すと、その日の内訳を開く。
+- 店舗一覧は全ページの一括取得をやめ、20店舗ずつのページを「続きを見る」で読む。契約と要注意の絞り込みはサーバー側で行い、一致しない店舗ではスタッフ数を数えない。並べ替えは読み込んだ店舗の中だけで行う。
+
+入力は既存の固定request schemaに追加し、検索語は100文字まで、期間は最大90日、実績の内訳と契約・要注意の絞り込みは併用させない。  
+新しい個人情報の返却、ログ、状態変更はない。
+
 ## Security Lens
 
 - Actor: Cloudflare Accessで本人認証した運用者だけ。BFFがservice secretでConvex HTTP Actionを呼ぶ。
@@ -141,6 +153,7 @@ BI側は読み取りだけで、sessionの作成や使用済みへの更新を�
 - `pnpm analytics:lint`、`pnpm analytics:type-check`、`pnpm analytics:build`
 
 2026-09-26に、上記はすべてローカルで成功した。  
+絞り込みの導線と店舗一覧の分割取得の追加後も、`pnpm lint`、`pnpm type-check`、`convex/analyticsDashboard`と`convex/_scenario/analyticsNightly.test.ts`のテスト、`pnpm analytics:lint`、`pnpm analytics:type-check`、`pnpm analytics:build`が成功した。  
 本体UIは変更していないため、`ui` projectのテストは実行していない。  
 CI、自動レビュー、実環境への反映と実データでの表示確認は未実施である。
 
@@ -153,4 +166,5 @@ CI、自動レビュー、実環境への反映と実データでの表示確認
 - `convex/notificationOutbox/failureResend.ts`、`convex/notificationOutbox/shopManagerNotification.ts`
 - `convex/staffAuth/mutations.ts`、`convex/notification/actions.ts`
 - `apps/analytics-dashboard/src/`、`apps/analytics-dashboard/AGENTS.md`
+- `convex/_scenario/analyticsNightly.test.ts`、`convex/analyticsDashboard/investigationQueries.ts`
 - `doc/features/analytics-dashboard.md`、`doc/rules/security-strategy.md`

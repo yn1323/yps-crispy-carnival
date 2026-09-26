@@ -1,5 +1,7 @@
+import type { PaginationResult } from "convex/server";
 import { v } from "convex/values";
-import type { Doc } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
+import type { QueryCtx } from "../_generated/server";
 import { addDays, dateJST, jstDayRangeMs, subtractCalendarMonths } from "../_lib/dateFormat";
 import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
 import { isCurrentSubmission } from "../_lib/recruitmentEditing";
@@ -29,13 +31,19 @@ import {
   shopRow,
   staffRow,
 } from "./queryHelpers";
-import { ANALYTICS_DASHBOARD_MAX_SCAN_ROWS, isAnalyticsDate } from "./schemas";
+import {
+  ANALYTICS_DASHBOARD_MAX_SCAN_ROWS,
+  isShopScopeRange,
+  SEARCH_TEXT_MAX_LENGTH,
+  SHOP_SCOPE_MAX_DAYS,
+} from "./schemas";
 import {
   cycleDetailResponseValidator,
   featureRequestsResponseValidator,
   nullableString,
   overviewResponseValidator,
   pageArgs,
+  shopBillingFilterValidator,
   shopDetailResponseValidator,
   shopsResponseValidator,
   staffDetailResponseValidator,
@@ -125,40 +133,68 @@ export const getOverview = internalQuery({
   },
 });
 
+/**
+ * 実績の内訳を返せるかを判定する。計測開始後の日がすべて現在の定義で集計済みの場合だけ返す。
+ */
+async function shopScopeStatus(
+  ctx: QueryCtx,
+  scope: { from: string; to: string },
+  asOf: number,
+): Promise<ShopsResponse["scopeStatus"]> {
+  if (scope.from < subtractCalendarMonths(dateJST(asOf), 25)) return "outside_retention";
+  const [state, results] = await Promise.all([
+    ctx.db
+      .query("analyticsState")
+      .withIndex("by_key", (q) => q.eq("key", "usage"))
+      .unique(),
+    ctx.db
+      .query("analyticsDailyResults")
+      .withIndex("by_date", (q) => q.gte("date", scope.from).lte("date", scope.to))
+      .take(SHOP_SCOPE_MAX_DAYS),
+  ]);
+  const startDate = state ? dateJST(state.startedAt) : null;
+  const byDate = new Map(results.map((row) => [row.date, row]));
+  let observedDays = 0;
+  for (let date = scope.from; date <= scope.to; date = addDays(date, 1)) {
+    if (startDate !== null && date < startDate) continue;
+    const result = byDate.get(date);
+    if (result?.status !== "complete" || result.definitionVersion !== ANALYTICS_DEFINITION_VERSION)
+      return "unavailable";
+    observedDays += 1;
+  }
+  return observedDays > 0 ? "available" : "unavailable";
+}
+
 export const getShops = internalQuery({
   args: {
     ...pageArgs,
     asOf: v.number(),
     search: v.string(),
-    date: nullableString,
+    from: nullableString,
+    to: nullableString,
     metric: v.union(analyticsMetricValidator, v.null()),
+    billing: v.union(shopBillingFilterValidator, v.null()),
+    attention: v.boolean(),
   },
   returns: shopsResponseValidator,
   handler: async (ctx, args): Promise<ShopsResponse> => {
     const options = paginationOptions(args.cursor, args.limit);
     options.numItems = Math.min(options.numItems, SHOP_LIST_SCAN_LIMIT);
     options.maximumRowsRead = SHOP_LIST_SCAN_LIMIT;
+    const scope =
+      args.from !== null && args.to !== null && args.metric !== null
+        ? { from: args.from, to: args.to, metric: args.metric }
+        : null;
     if (
-      args.search.length > 100 ||
-      (args.date === null) !== (args.metric === null) ||
-      (args.date !== null && !isAnalyticsDate(args.date))
+      args.search.length > SEARCH_TEXT_MAX_LENGTH ||
+      (!scope && (args.from !== null || args.to !== null || args.metric !== null)) ||
+      (scope && (!isShopScopeRange(scope.from, scope.to) || args.billing !== null || args.attention))
     )
       throw new Error("invalid_request");
-    const scope = args.date && args.metric ? { date: args.date, metric: args.metric } : null;
     const search = args.search.trim().toLocaleLowerCase("ja");
     const today = dateJST(args.asOf);
     if (scope) {
-      const retentionDate = subtractCalendarMonths(dateJST(args.asOf), 25);
-      const result = await ctx.db
-        .query("analyticsDailyResults")
-        .withIndex("by_date", (q) => q.eq("date", scope.date))
-        .unique();
-      const scopeStatus =
-        scope.date < retentionDate
-          ? "outside_retention"
-          : result?.status === "complete" && result.definitionVersion === ANALYTICS_DEFINITION_VERSION
-            ? "available"
-            : "unavailable";
+      const scopeStatus = await shopScopeStatus(ctx, scope, args.asOf);
       if (scopeStatus !== "available")
         return {
           kind: "shops",
@@ -168,21 +204,52 @@ export const getShops = internalQuery({
           scope,
           scopeStatus,
         };
-      const page = await ctx.db
-        .query("analyticsShopDays")
-        .withIndex("by_date_and_shopId", (q) => q.eq("date", scope.date))
-        .filter((q) => q.eq(q.field(scope.metric), true))
-        .paginate(options);
-      const rows: AnalyticsShopListRowDto[] = [];
-      for (const day of page.page) {
-        const current = await currentShop(ctx, day.shopId);
-        const row = current ? shopRow(current.shop, current.organization) : deletedShopRow(day.shopId);
-        if (search && !row.name.toLocaleLowerCase("ja").includes(search)) continue;
-        rows.push(
-          current
-            ? await shopListRow(ctx, current.shop, current.organization, today)
-            : { ...row, staffCount: null, latestShift: null, lastActivityDate: null, billing: null, attention: [] },
+      const toListRow = async (shopId: Id<"shops">): Promise<AnalyticsShopListRowDto | null> => {
+        const current = await currentShop(ctx, shopId);
+        const row = current ? shopRow(current.shop, current.organization) : deletedShopRow(shopId);
+        if (search && !row.name.toLocaleLowerCase("ja").includes(search)) return null;
+        return (
+          (current && (await shopListRow(ctx, current.shop, current.organization, today))) || {
+            ...row,
+            staffCount: null,
+            latestShift: null,
+            lastActivityDate: null,
+            billing: null,
+            attention: [],
+          }
         );
+      };
+      const rows: AnalyticsShopListRowDto[] = [];
+      // 1日だけの内訳は日付indexで実績のある店舗だけを読む。
+      // 期間では同じ店舗の行が日数分あるため、店舗を順に読み、期間内に実績がある店舗だけを1回返す。
+      // 店舗は論理削除だけのため、削除済み店舗も店舗tableから辿れる。
+      let page: PaginationResult<unknown>;
+      if (scope.from === scope.to) {
+        const days = await ctx.db
+          .query("analyticsShopDays")
+          .withIndex("by_date_and_shopId", (q) => q.eq("date", scope.from))
+          .filter((q) => q.eq(q.field(scope.metric), true))
+          .paginate(options);
+        for (const day of days.page) {
+          const row = await toListRow(day.shopId);
+          if (row) rows.push(row);
+        }
+        page = days;
+      } else {
+        const shops = await ctx.db.query("shops").order("desc").paginate(options);
+        for (const shop of shops.page) {
+          const active = await ctx.db
+            .query("analyticsShopDays")
+            .withIndex("by_shopId_and_date", (q) =>
+              q.eq("shopId", shop._id).gte("date", scope.from).lte("date", scope.to),
+            )
+            .filter((q) => q.eq(q.field(scope.metric), true))
+            .first();
+          if (!active) continue;
+          const row = await toListRow(shop._id);
+          if (row) rows.push(row);
+        }
+        page = shops;
       }
       return {
         kind: "shops",
@@ -198,12 +265,14 @@ export const getShops = internalQuery({
       .filter((q) => q.eq(q.field("isDeleted"), false))
       .order("desc")
       .paginate(options);
+    const filter = { billing: args.billing, attention: args.attention };
     const rows: AnalyticsShopListRowDto[] = [];
     for (const shop of page.page) {
       if (search && !shop.name.toLocaleLowerCase("ja").includes(search)) continue;
       const organization = await ctx.db.get(shop.organizationId);
       if (!organization || organization.isDeleted) continue;
-      rows.push(await shopListRow(ctx, shop, organization, today));
+      const row = await shopListRow(ctx, shop, organization, today, filter);
+      if (row) rows.push(row);
     }
     return {
       kind: "shops",

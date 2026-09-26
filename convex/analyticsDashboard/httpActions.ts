@@ -93,8 +93,11 @@ async function dispatchQuery(
         cursor: input.cursor,
         limit: input.limit,
         search: input.search,
-        date: input.date,
+        from: input.from,
+        to: input.to,
         metric: input.metric,
+        billing: input.billing,
+        attention: input.attention,
         asOf,
       });
     case "shop":
@@ -121,6 +124,7 @@ async function dispatchQuery(
         status: input.status,
         channel: input.channel,
         category: input.category,
+        search: input.search,
         lookup: input.lookup,
         asOf,
       });

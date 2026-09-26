@@ -41,6 +41,7 @@ import {
   NOTIFICATION_SEARCH_DEFAULT_DAYS,
   NOTIFICATION_SEARCH_MAX_PAGE_SIZE,
   ORGANIZATION_EVENTS_MAX_PAGE_SIZE,
+  SEARCH_TEXT_MAX_LENGTH,
 } from "./schemas";
 import {
   magicLinkLookupResponseValidator,
@@ -123,7 +124,16 @@ async function notificationRecipient(
 function notificationRowResolver(ctx: QueryCtx) {
   const loadShop = cached((shopId: Id<"shops">) => currentShop(ctx, shopId));
   const loadOrganization = cached((organizationId: Id<"organizations">) => ctx.db.get(organizationId));
-  return async (row: Doc<"notificationOutbox">): Promise<NotificationSearchRowDto> => {
+  /** 現在の店舗名・組織名だけで照合し、削除済みの店舗・組織の旧名称では一致させない。 */
+  const matchesName = async (row: Doc<"notificationOutbox">, search: string) => {
+    const [current, organization] = await Promise.all([
+      row.shopId ? loadShop(row.shopId) : null,
+      loadOrganization(row.organizationId),
+    ]);
+    const names = [current?.shop.name, organization && !organization.isDeleted ? organization.name : undefined];
+    return names.some((name) => name?.toLocaleLowerCase("ja").includes(search));
+  };
+  const resolve = async (row: Doc<"notificationOutbox">): Promise<NotificationSearchRowDto> => {
     const [current, organization, recipient, recruitment, history] = await Promise.all([
       row.shopId ? loadShop(row.shopId) : null,
       loadOrganization(row.organizationId),
@@ -176,6 +186,7 @@ function notificationRowResolver(ctx: QueryCtx) {
       payloadRedacted: row.payloadRedactedAt !== undefined,
     };
   };
+  return { resolve, matchesName };
 }
 
 export const getNotifications = internalQuery({
@@ -188,13 +199,14 @@ export const getNotifications = internalQuery({
     status: v.union(notificationOutboxStatusValidator, v.null()),
     channel: v.union(notificationChannelValidator, v.null()),
     category: v.union(notificationCategoryValidator, v.null()),
+    search: nullableString,
     lookup: nullableString,
   },
   returns: notificationSearchResponseValidator,
   handler: async (ctx, args): Promise<NotificationSearchResponse | null> => {
     if (!Number.isInteger(args.limit) || args.limit < 1 || args.limit > NOTIFICATION_SEARCH_MAX_PAGE_SIZE)
       throw new Error("invalid_request");
-    const resolveRow = notificationRowResolver(ctx);
+    const { resolve: resolveRow, matchesName } = notificationRowResolver(ctx);
     const lookup = args.lookup;
     if (lookup !== null) {
       const outboxId = ctx.db.normalizeId("notificationOutbox", lookup);
@@ -221,7 +233,9 @@ export const getNotifications = internalQuery({
     const startMs = jstDayRangeMs(from).startMs;
     const endMs = jstDayRangeMs(to).endMs;
     const before = args.cursor === null ? endMs : Number(args.cursor);
+    const search = args.search?.trim().toLocaleLowerCase("ja") || null;
     if (
+      (args.search !== null && args.search.length > SEARCH_TEXT_MAX_LENGTH) ||
       (args.from === null) !== (args.to === null) ||
       !isNotificationSearchRange(from, to) ||
       !Number.isFinite(before) ||
@@ -274,12 +288,17 @@ export const getNotifications = internalQuery({
       const trimmed = scanned.filter((row) => row._creationTime !== boundary);
       if (candidates[args.limit]._creationTime === boundary && trimmed.length > 0) scanned = trimmed;
     }
-    const matched = scanned.filter(
+    const filtered = scanned.filter(
       (row) =>
         (args.status === null || row.status === args.status) &&
         (args.channel === null || row.channel === args.channel) &&
         (args.category === null || notificationCategory(row.notificationContext) === args.category),
     );
+    const matched = search
+      ? (await Promise.all(filtered.map(async (row) => ((await matchesName(row, search)) ? row : null)))).filter(
+          (row) => row !== null,
+        )
+      : filtered;
     const rows = await Promise.all(matched.map(resolveRow));
     return {
       kind: "notifications",
