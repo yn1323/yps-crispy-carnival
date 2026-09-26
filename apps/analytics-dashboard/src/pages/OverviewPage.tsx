@@ -265,7 +265,7 @@ export function OverviewPage({ navigate }: { navigate: (path: string) => void })
       <BillingPanel billing={data.billing} navigate={navigate} />
       <Panel
         title="日別推移"
-        description="期間内の店舗数も重複を除きます。同じ店舗が毎日使っても期間内では1店舗です。店舗数やグラフの日付を押すと、対象の店舗を一覧で開きます。"
+        description="期間内の店舗数も重複を除きます。同じ店舗が毎日使っても期間内では1店舗です。店舗数を押すと、対象の店舗を一覧で開きます。"
       >
         <Flex align="center" justify="space-between" gap={3} wrap="wrap">
           <Flex gap={2} role="group" aria-label="集計期間">
@@ -322,10 +322,6 @@ export function OverviewPage({ navigate }: { navigate: (path: string) => void })
               <TrendChart
                 keys={[metric.label]}
                 data={data.series.map((day) => ({ date: day.date, [metric.label]: day.counts?.[metric.key] ?? null }))}
-                onPointClick={(point) => {
-                  // 集計済みの日だけ内訳を開ける。未集計・失敗の日は日別の実績で状態を確認する。
-                  if (typeof point[metric.label] === "number") navigate(dayShopsPath(String(point.date), metric.key));
-                }}
               />
             </ChartPanel>
           ))}

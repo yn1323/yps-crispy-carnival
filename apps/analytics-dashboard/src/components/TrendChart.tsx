@@ -7,7 +7,6 @@ import {
   Legend,
   Line,
   LineChart,
-  type MouseHandlerDataParam,
   ResponsiveContainer,
   Tooltip,
   type TooltipContentProps,
@@ -24,8 +23,6 @@ type TrendChartProps = {
   keys: string[];
   kind?: "line" | "bar";
   valueKind?: "count" | "percent";
-  /** 押した位置の日のデータを受け取る。指定時だけグラフを押せる表示にする。 */
-  onPointClick?: (point: ChartDatum) => void;
 };
 
 function formatChartValue(value: unknown, kind: NonNullable<TrendChartProps["valueKind"]>) {
@@ -73,18 +70,12 @@ export function hasPlottableTrendData(data: ChartDatum[], keys: string[]) {
   );
 }
 
-export const TrendChart = ({ data, keys, kind = "line", valueKind = "count", onPointClick }: TrendChartProps) => {
+export const TrendChart = ({ data, keys, kind = "line", valueKind = "count" }: TrendChartProps) => {
   const chart = useChart<ChartDatum>({
     data,
     series: keys.map((key, index) => ({ color: COLORS[index % COLORS.length], name: key })),
   });
   const effectiveKind = data.length === 1 ? "bar" : kind;
-  const handleClick = onPointClick
-    ? (state: MouseHandlerDataParam) => {
-        const point = data[Number(state.activeTooltipIndex)];
-        if (point) onPointClick(point);
-      }
-    : undefined;
 
   if (data.length === 0) {
     return (
@@ -100,12 +91,7 @@ export const TrendChart = ({ data, keys, kind = "line", valueKind = "count", onP
     return (
       <Chart.Root aria-label={`${keys.join("、")}の推移グラフ`} chart={chart} h="full" role="img">
         <ResponsiveContainer height="100%" width="100%">
-          <BarChart
-            data={chart.data}
-            margin={{ bottom: 8, left: 0, right: 16, top: 8 }}
-            onClick={handleClick}
-            style={handleClick ? { cursor: "pointer" } : undefined}
-          >
+          <BarChart data={chart.data} margin={{ bottom: 8, left: 0, right: 16, top: 8 }}>
             <CartesianGrid stroke="#e5e7eb" strokeDasharray="3 3" vertical={false} />
             <XAxis dataKey="date" fontSize={12} minTickGap={24} tickLine={false} />
             <YAxis
@@ -138,12 +124,7 @@ export const TrendChart = ({ data, keys, kind = "line", valueKind = "count", onP
   return (
     <Chart.Root aria-label={`${keys.join("、")}の推移グラフ`} chart={chart} h="full" role="img">
       <ResponsiveContainer height="100%" width="100%">
-        <LineChart
-          data={chart.data}
-          margin={{ bottom: 8, left: 0, right: 16, top: 8 }}
-          onClick={handleClick}
-          style={handleClick ? { cursor: "pointer" } : undefined}
-        >
+        <LineChart data={chart.data} margin={{ bottom: 8, left: 0, right: 16, top: 8 }}>
           <CartesianGrid stroke="#e5e7eb" strokeDasharray="3 3" vertical={false} />
           <XAxis dataKey="date" fontSize={12} minTickGap={24} tickLine={false} />
           <YAxis
