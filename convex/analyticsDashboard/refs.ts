@@ -7,6 +7,7 @@ import type {
   NotificationSearchResponse,
   NotificationSummaryResponse,
   OrganizationEventsResponse,
+  OrganizationsResponse,
   OverviewResponse,
   ShopDetailResponse,
   ShopsResponse,
@@ -15,6 +16,7 @@ import type {
 } from "./dto";
 import type {
   AnalyticsCycleRequest,
+  AnalyticsOrganizationsRequest,
   AnalyticsOverviewRequest,
   AnalyticsShopRequest,
   AnalyticsShopsRequest,
@@ -36,6 +38,9 @@ export const getOverviewRef = queryRef<QueryArgs<AnalyticsOverviewRequest>, Over
 );
 export const getShopsRef = queryRef<QueryArgs<AnalyticsShopsRequest>, ShopsResponse>(
   "analyticsDashboard/queries:getShops",
+);
+export const getOrganizationsRef = queryRef<QueryArgs<AnalyticsOrganizationsRequest>, OrganizationsResponse>(
+  "analyticsDashboard/queries:getOrganizations",
 );
 export const getShopRef = queryRef<QueryArgs<AnalyticsShopRequest>, ShopDetailResponse | null>(
   "analyticsDashboard/queries:getShop",

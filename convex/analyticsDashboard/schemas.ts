@@ -44,6 +44,12 @@ export type AnalyticsShopsRequest = Pagination & {
   billing: ShopBillingFilter | null;
   attention: boolean;
 };
+/** 現在の組織一覧。名称は組織名または店舗名の部分一致で照合する。 */
+export type AnalyticsOrganizationsRequest = Pagination & {
+  endpoint: "organizations";
+  search: string;
+  billing: ShopBillingFilter | null;
+};
 export type AnalyticsShopRequest = Pagination & { endpoint: "shop"; shopId: string };
 export type AnalyticsStaffRequest = Pagination & { endpoint: "staff"; shopId: string; staffId: string };
 export type AnalyticsCycleRequest = { endpoint: "cycle"; shopId: string; recruitmentId: string };
@@ -70,6 +76,7 @@ export type FeatureRequestUpdateRequest = { endpoint: "setFeatureRequestDeleted"
 export type AnalyticsDashboardRequest =
   | AnalyticsOverviewRequest
   | AnalyticsShopsRequest
+  | AnalyticsOrganizationsRequest
   | AnalyticsShopRequest
   | AnalyticsStaffRequest
   | AnalyticsCycleRequest
@@ -91,7 +98,8 @@ const notificationStatuses: readonly NotificationOutboxStatus[] = [
   "failed",
   "cancelled",
 ];
-const notificationCursorPattern = /^\d{1,16}(?:\.\d{1,8})?$/;
+/** 作成時刻を境界に続きを読む一覧のcursor。 */
+export const CREATION_TIME_CURSOR_PATTERN = /^\d{1,16}(?:\.\d{1,8})?$/;
 export const MAGIC_LINK_TOKEN_PATTERN = /^[A-Za-z0-9-]{8,128}$/;
 export function isAnalyticsDate(value: unknown): value is string {
   return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) && formatUtcDate(dateToUtcMs(value)) === value;
@@ -158,7 +166,7 @@ function parseNotificationSearch(value: Record<string, unknown>): ParseResult<No
     (status !== null && !oneOf(status, notificationStatuses)) ||
     (channel !== null && channel !== "email" && channel !== "line") ||
     (category !== null && !oneOf(category, NOTIFICATION_CATEGORIES)) ||
-    (page.cursor !== null && !notificationCursorPattern.test(page.cursor))
+    (page.cursor !== null && !CREATION_TIME_CURSOR_PATTERN.test(page.cursor))
   ) {
     return invalid;
   }
@@ -205,6 +213,7 @@ export function parseAnalyticsDashboardRequest(value: unknown): ParseResult<Anal
       if (
         !hasOnly(value, ["endpoint", "cursor", "limit", "search", "from", "to", "metric", "billing", "attention"]) ||
         !page ||
+        (page.cursor !== null && !CREATION_TIME_CURSOR_PATTERN.test(page.cursor)) ||
         typeof search !== "string" ||
         search.length > SEARCH_TEXT_MAX_LENGTH ||
         typeof attention !== "boolean" ||
@@ -233,6 +242,29 @@ export function parseAnalyticsDashboardRequest(value: unknown): ParseResult<Anal
           metric: metric as AnalyticsMetric | null,
           billing: billing as ShopBillingFilter | null,
           attention,
+        },
+      };
+    }
+    case "organizations": {
+      const page = pagination(value);
+      const search = value.search ?? "";
+      const billing = value.billing ?? null;
+      if (
+        !hasOnly(value, ["endpoint", "cursor", "limit", "search", "billing"]) ||
+        !page ||
+        (page.cursor !== null && !CREATION_TIME_CURSOR_PATTERN.test(page.cursor)) ||
+        typeof search !== "string" ||
+        search.length > SEARCH_TEXT_MAX_LENGTH ||
+        (billing !== null && !oneOf(billing, SHOP_BILLING_FILTERS))
+      )
+        return invalid;
+      return {
+        ok: true,
+        value: {
+          endpoint: "organizations",
+          ...page,
+          search: search.trim(),
+          billing: billing as ShopBillingFilter | null,
         },
       };
     }

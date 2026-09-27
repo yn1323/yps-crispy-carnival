@@ -19,6 +19,7 @@ function parseRoute(
 export function matchAnalyticsRoute(url: URL): AnalyticsRouteMatch {
   const endpoint = new Map<string, AnalyticsDashboardEndpoint>([
     ["/api/analytics/overview", "overview"],
+    ["/api/analytics/organizations", "organizations"],
     ["/api/analytics/shops", "shops"],
     ["/api/analytics/notifications", "notifications"],
     ["/api/analytics/notifications/summary", "notificationSummary"],

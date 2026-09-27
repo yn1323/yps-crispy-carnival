@@ -99,6 +99,24 @@ export type ShopsResponse = {
   scope: { from: string; to: string; metric: AnalyticsMetric } | null;
   scopeStatus: "current" | "available" | "unavailable" | "outside_retention";
 };
+export type AnalyticsOrganizationListRowDto = {
+  organizationId: string;
+  name: string;
+  registeredAt: number;
+  billing: OrganizationBillingSummaryDto | null;
+  /** プラン上限と同じ数え方の利用人数。走査上限を超えて確定できない場合はnull。 */
+  peopleCount: number | null;
+  activeManagerCount: number | null;
+  shopCount: number | null;
+  /** 現在の店舗。登録の古い順に表示上限まで返す。 */
+  shops: Array<{ shopId: string; name: string }>;
+};
+export type OrganizationsResponse = {
+  kind: "organizations";
+  asOf: number;
+  rows: AnalyticsOrganizationListRowDto[];
+  pageInfo: AnalyticsPageInfoDto;
+};
 export type StaffRowDto = {
   staffId: string;
   name: string;
@@ -380,6 +398,7 @@ export type MagicLinkLookupResponse = {
 export type AnalyticsDashboardResponse =
   | OverviewResponse
   | ShopsResponse
+  | OrganizationsResponse
   | ShopDetailResponse
   | StaffDetailResponse
   | CycleDetailResponse

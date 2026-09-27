@@ -11,6 +11,7 @@ import type {
   NotificationSearchResponse,
   NotificationSummaryResponse,
   OrganizationEventsResponse,
+  OrganizationsResponse,
   OverviewResponse,
   ShopBillingFilter,
   ShopDetailResponse,
@@ -85,13 +86,13 @@ export type ShopSearchParams = PaginationParams & {
   billing?: ShopBillingFilter | null;
   attention?: boolean;
 };
-export async function fetchShops(params: ShopSearchParams, signal?: AbortSignal) {
+/** 続きを連続で読む途中でrate limitへ達しても、取得済みのページを捨てず同じcursorから再開する。 */
+async function fetchListEndpoint<T>(path: string, params: Record<string, SearchValue>, signal?: AbortSignal) {
   for (let attempt = 0; ; attempt += 1) {
     try {
-      return await fetchEndpoint<ShopsResponse>("/api/analytics/shops", params, undefined, signal);
+      return await fetchEndpoint<T>(path, params, undefined, signal);
     } catch (error) {
       if (!(error instanceof AnalyticsApiError) || error.status !== 429 || attempt >= 3) throw error;
-      // 続きを連続で読む途中でrate limitへ達しても、取得済みのページを捨てず同じcursorから再開する。
       await new Promise<void>((resolve, reject) => {
         signal?.throwIfAborted();
         const onAbort = () => {
@@ -106,6 +107,13 @@ export async function fetchShops(params: ShopSearchParams, signal?: AbortSignal)
       });
     }
   }
+}
+export function fetchShops(params: ShopSearchParams, signal?: AbortSignal) {
+  return fetchListEndpoint<ShopsResponse>("/api/analytics/shops", params, signal);
+}
+export type OrganizationSearchParams = PaginationParams & { search?: string; billing?: ShopBillingFilter | null };
+export function fetchOrganizations(params: OrganizationSearchParams, signal?: AbortSignal) {
+  return fetchListEndpoint<OrganizationsResponse>("/api/analytics/organizations", params, signal);
 }
 export function fetchShop(shopId: string, params: PaginationParams = {}, signal?: AbortSignal) {
   return fetchEndpoint<ShopDetailResponse>(

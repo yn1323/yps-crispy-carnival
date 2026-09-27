@@ -10,7 +10,7 @@ import { PageHeading } from "@/components/PageHeading";
 import { TrendChart } from "@/components/TrendChart";
 import {
   BILLING_FILTER_LABELS,
-  billingShopsPath,
+  billingOrganizationsPath,
   dayShopsPath,
   formatCount,
   formatDate,
@@ -76,14 +76,14 @@ function BillingPanel({
   return (
     <Panel
       title="契約状況"
-      description={`現在の契約状態ごとの組織数です。削除済みの組織は含みません。カードを押すと、その組織の店舗を一覧で開きます。${billing.isPartial ? "組織が多いため一部だけを数えています。" : ""}`}
+      description={`現在の契約状態ごとの組織数です。削除済みの組織は含みません。カードを押すと、その組織を一覧で開きます。${billing.isPartial ? "組織が多いため一部だけを数えています。" : ""}`}
     >
       <Grid templateColumns={{ base: "repeat(2, 1fr)", md: "repeat(4, 1fr)" }} gap={3}>
         {items.map((item) => (
           <Link
             key={item.label}
-            href={item.filter ? billingShopsPath(item.filter) : "/shops"}
-            aria-label={`${item.label} ${item.value}組織の店舗を見る`}
+            href={item.filter ? billingOrganizationsPath(item.filter) : "/organizations"}
+            aria-label={`${item.label} ${item.value}組織を見る`}
             display="flex"
             flexDirection="column"
             alignItems="stretch"
@@ -202,7 +202,7 @@ export function OverviewPage({ navigate }: { navigate: (path: string) => void })
           </Text>
           <Text fontSize="xs" color="gray.600">
             {data.startedAt === null
-              ? "店舗登録・提出・確定、または定期実行から自動で開始します。店舗・スタッフは今すぐ閲覧できます。"
+              ? "店舗登録・提出・確定、または定期実行から自動で開始します。組織・店舗は今すぐ閲覧できます。"
               : "開始前の実績は復元せず、開始後の操作を記録します。"}
           </Text>
         </Stack>

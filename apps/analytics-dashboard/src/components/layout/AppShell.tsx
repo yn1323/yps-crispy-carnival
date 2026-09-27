@@ -5,12 +5,13 @@ import { type AppRoute, routePath } from "@/routes/appRoute";
 
 const NAV_ITEMS = [
   { label: "日次分析", route: { name: "overview" } as const },
-  { label: "店舗・スタッフ", route: { name: "shops" } as const },
+  { label: "組織・店舗", route: { name: "organizations" } as const },
   { label: "通知", route: { name: "notifications" } as const },
 ];
 
 function activeNavigation(route: AppRoute) {
-  if (route.name === "shop" || route.name === "staff" || route.name === "cycle") return "shops";
+  if (route.name === "shops" || route.name === "shop" || route.name === "staff" || route.name === "cycle")
+    return "organizations";
   return route.name;
 }
 
