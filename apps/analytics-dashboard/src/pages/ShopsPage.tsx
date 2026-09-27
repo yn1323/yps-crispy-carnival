@@ -209,12 +209,12 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
       >
         <Flex gap={3} wrap="wrap" align="end">
           <Text as="label" flex="1" minW="240px" maxW="lg" fontSize="xs" color="gray.700" fontWeight="bold">
-            店舗名
+            店舗名・組織名
             <Input
               mt={1}
               bg="white"
               maxLength={100}
-              placeholder="店舗名の一部"
+              placeholder="店舗名・組織名の一部"
               value={input}
               onChange={(event) => setInput(event.target.value)}
             />

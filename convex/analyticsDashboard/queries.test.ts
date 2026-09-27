@@ -219,6 +219,10 @@ describe("analyticsDashboardの日次結果", () => {
       latestShift: { periodStart: "2026-09-10", periodEnd: "2026-09-16" },
     });
     expect(JSON.stringify(response)).not.toContain("消去前店舗名");
+    const byOrganization = await t.query(getShopsRef, { ...PAGE, search: "現在店舗事業", ...dayScope("2026-09-08") });
+    expect(byOrganization.rows.map((row) => row.shopId)).toEqual([ids.active]);
+    const byDeletedName = await t.query(getShopsRef, { ...PAGE, search: "消去前", ...dayScope("2026-09-08") });
+    expect(byDeletedName.rows).toEqual([]);
     const missing = await t.query(getShopsRef, { ...PAGE, search: "", ...dayScope("2026-09-07") });
     expect(missing).toMatchObject({ scopeStatus: "unavailable", rows: [] });
   });
@@ -371,6 +375,27 @@ describe("analyticsDashboardの問い合わせ境界", () => {
     } while (cursor !== null && pages < 10);
     expect(found).toEqual([target]);
     expect(cursor).toBeNull();
+  });
+
+  it("店舗名に加えて現在の組織名の一部でも店舗を検索できる", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const byOrganization = await seedShop(ctx, "駅前店");
+      const byShopName = await seedShop(ctx, "山田商店");
+      const deletedOrganization = await seedShop(ctx, "裏通り店");
+      const deletedShop = await ctx.db.get(deletedOrganization);
+      if (!deletedShop) throw new Error("missing fixture shop");
+      await ctx.db.patch(deletedShop.organizationId, { name: "山田ホールディングス", isDeleted: true });
+      const other = await seedShop(ctx, "別店舗");
+      const byOrganizationShop = await ctx.db.get(byOrganization);
+      if (!byOrganizationShop) throw new Error("missing fixture shop");
+      await ctx.db.patch(byOrganizationShop.organizationId, { name: "株式会社ヤマダ山田" });
+      return { byOrganization, byShopName, other };
+    });
+    const response = await t.query(getShopsRef, { ...PAGE, search: "山田", ...CURRENT });
+    expect(new Set(response.rows.map((row) => row.shopId))).toEqual(new Set([ids.byOrganization, ids.byShopName]));
+    const organizationOnly = await t.query(getShopsRef, { ...PAGE, search: "別店舗事業", ...CURRENT });
+    expect(organizationOnly.rows.map((row) => row.shopId)).toEqual([ids.other]);
   });
 
   it("別店舗スタッフ・募集、削除人物、canonical所属不整合を同じ取得不能へ揃える", async () => {
