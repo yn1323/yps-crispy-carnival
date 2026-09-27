@@ -192,6 +192,9 @@ export const getShops = internalQuery({
     )
       throw new Error("invalid_request");
     const search = args.search.trim().toLocaleLowerCase("ja");
+    // 店舗名と組織名の現在の名称を部分一致で照合する。削除済みの店舗・組織の旧名称では一致させない。
+    const matchesSearch = (row: Pick<AnalyticsShopListRowDto, "name" | "organizationName">) =>
+      !search || [row.name, row.organizationName].some((name) => name?.toLocaleLowerCase("ja").includes(search));
     const today = dateJST(args.asOf);
     if (scope) {
       const scopeStatus = await shopScopeStatus(ctx, scope, args.asOf);
@@ -207,7 +210,7 @@ export const getShops = internalQuery({
       const toListRow = async (shopId: Id<"shops">): Promise<AnalyticsShopListRowDto | null> => {
         const current = await currentShop(ctx, shopId);
         const row = current ? shopRow(current.shop, current.organization) : deletedShopRow(shopId);
-        if (search && !row.name.toLocaleLowerCase("ja").includes(search)) return null;
+        if (!matchesSearch(row)) return null;
         return (
           (current && (await shopListRow(ctx, current.shop, current.organization, today))) || {
             ...row,
@@ -268,9 +271,9 @@ export const getShops = internalQuery({
     const filter = { billing: args.billing, attention: args.attention };
     const rows: AnalyticsShopListRowDto[] = [];
     for (const shop of page.page) {
-      if (search && !shop.name.toLocaleLowerCase("ja").includes(search)) continue;
       const organization = await ctx.db.get(shop.organizationId);
       if (!organization || organization.isDeleted) continue;
+      if (!matchesSearch({ name: shop.name, organizationName: organization.name })) continue;
       const row = await shopListRow(ctx, shop, organization, today, filter);
       if (row) rows.push(row);
     }
