@@ -9,6 +9,7 @@ import {
   getNotificationSummaryRef,
   getNotificationsRef,
   getOrganizationEventsRef,
+  getOrganizationsRef,
   getOverviewRef,
   getShopRef,
   getShopsRef,
@@ -98,6 +99,14 @@ async function dispatchQuery(
         metric: input.metric,
         billing: input.billing,
         attention: input.attention,
+        asOf,
+      });
+    case "organizations":
+      return await ctx.runQuery(getOrganizationsRef, {
+        cursor: input.cursor,
+        limit: input.limit,
+        search: input.search,
+        billing: input.billing,
         asOf,
       });
     case "shop":

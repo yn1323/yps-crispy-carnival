@@ -51,8 +51,8 @@ export function dayShopsPath(date: string, metric: string) {
 export function rangeShopsPath(from: string, to: string, metric: string) {
   return `/shops?${new URLSearchParams({ from, to, metric })}`;
 }
-export function billingShopsPath(billing: ShopBillingFilter) {
-  return `/shops?${new URLSearchParams({ billing })}`;
+export function billingOrganizationsPath(billing: ShopBillingFilter) {
+  return `/organizations?${new URLSearchParams({ billing })}`;
 }
 export function lineStatusLabel(status: string) {
   return (
@@ -90,7 +90,7 @@ export function billingLabel(billing: OrganizationBillingSummaryDto | null) {
       return "支払い失敗・停止処理中";
   }
 }
-/** 日次分析の契約状況カードと店舗一覧の契約絞り込みで同じ名称を使う。 */
+/** 日次分析の契約状況カードと組織・店舗一覧の契約絞り込みで同じ名称を使う。 */
 export const BILLING_FILTER_LABELS: Record<ShopBillingFilter, string> = {
   trial: "トライアル中",
   paid: "有料プラン",

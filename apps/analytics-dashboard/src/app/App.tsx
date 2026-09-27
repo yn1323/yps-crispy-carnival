@@ -3,6 +3,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { CycleDetailPage } from "@/pages/CycleDetailPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 import { NotificationsPage } from "@/pages/NotificationsPage";
+import { OrganizationsPage } from "@/pages/OrganizationsPage";
 import { OverviewPage } from "@/pages/OverviewPage";
 import { RequestsPage } from "@/pages/RequestsPage";
 import { ShopDetailPage } from "@/pages/ShopDetailPage";
@@ -16,6 +17,10 @@ export const App = () => {
   switch (route.name) {
     case "overview":
       page = <OverviewPage navigate={navigate} />;
+      break;
+    case "organizations":
+      // 絞り込みはURLが正本。条件が変わったら入力中の値と読み込み済みのページも作り直す。
+      page = <OrganizationsPage key={window.location.search} navigate={navigate} />;
       break;
     case "shops":
       // 絞り込みはURLが正本。条件が変わったら入力中の値と読み込み済みのページも作り直す。

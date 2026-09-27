@@ -8,16 +8,18 @@ import { seedOrganizationMembership, seedShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { ANALYTICS_DEFINITION_VERSION, emptyAnalyticsResultCounts } from "../analytics/model";
 import type { ShopBillingFilter, ShopsResponse } from "./dto";
-import { SHOP_LIST_STAFF_SCAN_LIMIT } from "./queryHelpers";
+import { LIST_PAGE_LIMIT, SHOP_LIST_STAFF_SCAN_LIMIT } from "./queryHelpers";
 import {
   getCycleRef,
   getFeatureRequestsRef,
+  getOrganizationsRef,
   getOverviewRef,
   getShopRef,
   getShopsRef,
   getStaffRef,
   setFeatureRequestDeletedRef,
 } from "./refs";
+import { ANALYTICS_DASHBOARD_MAX_SCAN_ROWS } from "./schemas";
 
 const AS_OF = jstDayRangeMs("2026-09-09").startMs + 12 * 60 * 60 * 1000;
 const PAGE = { cursor: null, limit: 50, asOf: AS_OF };
@@ -347,34 +349,68 @@ describe("analyticsDashboardの問い合わせ境界", () => {
     expect(cursor).toBeNull();
   });
 
-  it("絞り込みに一致しないページでも続きを返し、一致店舗を欠落させない", async () => {
+  it("表示中のページに限らず、全店舗から名称で検索する", async () => {
     const t = convexTest(schema, modules);
     const target = await t.run(async (ctx) => {
       const target = await seedShop(ctx, "探している店舗");
-      for (let index = 0; index < 3; index += 1) await seedShop(ctx, `対象外${index}`);
+      for (let index = 0; index < LIST_PAGE_LIMIT + 5; index += 1) await seedShop(ctx, `対象外${index}`);
       return target;
     });
-    let cursor: string | null = null;
-    const found: string[] = [];
-    let pages = 0;
-    do {
-      const page: ShopsResponse = await t.query(getShopsRef, {
-        ...PAGE,
-        limit: 1,
-        cursor,
-        search: "探している",
-        ...CURRENT,
-      });
-      if (pages === 0) {
-        expect(page.rows).toEqual([]);
-        expect(page.pageInfo.isDone).toBe(false);
-      }
-      found.push(...page.rows.map((row) => row.shopId));
-      cursor = page.pageInfo.continueCursor;
-      pages += 1;
-    } while (cursor !== null && pages < 10);
-    expect(found).toEqual([target]);
-    expect(cursor).toBeNull();
+    const page = await t.query(getShopsRef, { ...PAGE, search: "探している", ...CURRENT });
+    expect(page.rows.map((row) => row.shopId)).toEqual([target]);
+    expect(page.pageInfo).toMatchObject({ isDone: true, continueCursor: null });
+  });
+
+  it("走査上限に達したら、作成時刻のcursorから続きの店舗を読む", async () => {
+    const t = convexTest(schema, modules);
+    const target = await t.run(async (ctx) => {
+      const target = await seedShop(ctx, "奥の店舗");
+      const shop = await ctx.db.get(await seedShop(ctx, "走査用店舗"));
+      if (!shop) throw new Error("missing fixture shop");
+      for (let index = 0; index < ANALYTICS_DASHBOARD_MAX_SCAN_ROWS; index += 1)
+        await ctx.db.insert("shops", {
+          organizationId: shop.organizationId,
+          name: `走査対象外${index}`,
+          submissionPattern: shop.submissionPattern,
+          regularClosedDays: [],
+          isDeleted: false,
+        });
+      return target;
+    });
+    const first = await t.query(getShopsRef, { ...PAGE, search: "奥の", ...CURRENT });
+    expect(first.rows).toEqual([]);
+    expect(first.pageInfo.isDone).toBe(false);
+    const second = await t.query(getShopsRef, {
+      ...PAGE,
+      cursor: first.pageInfo.continueCursor,
+      search: "奥の",
+      ...CURRENT,
+    });
+    expect(second.rows.map((row) => row.shopId)).toEqual([target]);
+    expect(second.pageInfo).toMatchObject({ isDone: true, continueCursor: null });
+  });
+
+  it("一致した店舗が指定件数に達したら、次の店舗から続きを読む", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => ({
+      older: await seedShop(ctx, "一致店舗A"),
+      newer: await seedShop(ctx, "一致店舗B"),
+    }));
+    const first = await t.query(getShopsRef, { ...PAGE, limit: 1, search: "一致店舗", ...CURRENT });
+    expect(first.rows.map((row) => row.shopId)).toEqual([ids.newer]);
+    expect(first.pageInfo.isDone).toBe(false);
+    const rest = await t.query(getShopsRef, {
+      ...PAGE,
+      limit: 1,
+      cursor: first.pageInfo.continueCursor,
+      search: "一致店舗",
+      ...CURRENT,
+    });
+    expect(rest.rows.map((row) => row.shopId)).toEqual([ids.older]);
+    expect(rest.pageInfo).toMatchObject({ isDone: true, continueCursor: null });
+    await expect(t.query(getShopsRef, { ...PAGE, cursor: "next-page", search: "", ...CURRENT })).rejects.toThrow(
+      "invalid_request",
+    );
   });
 
   it("店舗名に加えて現在の組織名の一部でも店舗を検索できる", async () => {
@@ -763,5 +799,69 @@ describe("analyticsDashboardの要注意店舗と契約状態", () => {
     expect(found.sort()).toEqual([ids.repeated, ids.once, ids.deleted].sort());
     const withMissingDay = await t.query(getShopsRef, { ...PAGE, search: "", ...dayScope("2026-09-05", "2026-09-08") });
     expect(withMissingDay).toMatchObject({ scopeStatus: "unavailable", rows: [] });
+  });
+});
+
+describe("analyticsDashboardの組織一覧", () => {
+  it("組織ごとに利用人数・店舗・契約を返し、複数店舗に所属する同じ人物を1人として数える", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const mainShopId = await seedShop(ctx, "本店");
+      const mainShop = await ctx.db.get(mainShopId);
+      if (!mainShop) throw new Error("missing fixture shop");
+      const organizationId = mainShop.organizationId;
+      const branchShopId = await ctx.db.insert("shops", {
+        organizationId,
+        name: "駅前店",
+        submissionPattern: mainShop.submissionPattern,
+        regularClosedDays: [],
+        isDeleted: false,
+      });
+      const managerId = await seedUser(ctx, "analytics_organization_manager");
+      await seedOrganizationMembership(ctx, { shopId: mainShopId, userId: managerId });
+      const sharedStaffUserId = await seedUser(ctx, "analytics_organization_shared_staff");
+      await seedStaff(ctx, { shopId: mainShopId, userId: sharedStaffUserId, name: "兼務スタッフ" });
+      await seedStaff(ctx, { shopId: branchShopId, userId: sharedStaffUserId, name: "兼務スタッフ" });
+      await seedStaff(ctx, { shopId: branchShopId, name: "駅前スタッフ" });
+      const now = Date.now();
+      await ctx.db.insert("organizationBillingStates", {
+        organizationId,
+        state: { kind: "active", plan: "pro" },
+        version: 1,
+        createdAt: now,
+        updatedAt: now,
+      });
+      const deletedShop = await ctx.db.get(await seedShop(ctx, "閉じた店"));
+      if (!deletedShop) throw new Error("missing fixture shop");
+      await ctx.db.patch(deletedShop.organizationId, { isDeleted: true });
+      const otherShop = await ctx.db.get(await seedShop(ctx, "別の店"));
+      if (!otherShop) throw new Error("missing fixture shop");
+      return { organizationId, mainShopId, branchShopId, otherOrganizationId: otherShop.organizationId };
+    });
+    const list = async (filter: { search?: string; billing?: ShopBillingFilter }) =>
+      await t.query(getOrganizationsRef, { ...PAGE, search: "", billing: null, ...filter });
+
+    const all = await list({});
+    expect(all.rows.map((row) => row.organizationId)).toEqual([ids.otherOrganizationId, ids.organizationId]);
+    expect(all.rows[1]).toEqual({
+      organizationId: ids.organizationId,
+      name: "本店事業者",
+      registeredAt: expect.any(Number),
+      billing: { kind: "active", plan: "pro", targetPlan: null, dueAt: null },
+      peopleCount: 3,
+      activeManagerCount: 1,
+      shopCount: 2,
+      shops: [
+        { shopId: ids.mainShopId, name: "本店" },
+        { shopId: ids.branchShopId, name: "駅前店" },
+      ],
+    });
+    expect((await list({ search: "駅前" })).rows.map((row) => row.organizationId)).toEqual([ids.organizationId]);
+    expect((await list({ search: "別の店事業" })).rows.map((row) => row.organizationId)).toEqual([
+      ids.otherOrganizationId,
+    ]);
+    expect((await list({ search: "閉じた" })).rows).toEqual([]);
+    expect((await list({ billing: "paid" })).rows.map((row) => row.organizationId)).toEqual([ids.organizationId]);
+    expect((await list({ billing: "free" })).rows).toEqual([]);
   });
 });
