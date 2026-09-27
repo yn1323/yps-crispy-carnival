@@ -4,8 +4,11 @@ import type { QueryCtx } from "../_generated/server";
 import { addDays } from "../_lib/dateFormat";
 import { DAY_MS } from "../constants";
 import { getOrganizationPersonLineState, resolveCanonicalStaffScope } from "../line/service";
+import { getOrganizationActualUsageProbe, type OrganizationUsageDimension } from "../organization/service";
+import { ORGANIZATION_PLAN_LIMITS } from "../organizationBilling/planLimits";
 import { hasValidCanonicalStaffUserLifecycle } from "../staff/service";
 import type {
+  AnalyticsOrganizationListRowDto,
   AnalyticsPageInfoDto,
   AnalyticsShopAttention,
   AnalyticsShopListRowDto,
@@ -16,11 +19,14 @@ import type {
   ShopBillingFilter,
   StaffRowDto,
 } from "./dto";
-import { ANALYTICS_DASHBOARD_MAX_SCAN_ROWS } from "./schemas";
+import { ANALYTICS_DASHBOARD_MAX_SCAN_ROWS, CREATION_TIME_CURSOR_PATTERN } from "./schemas";
 
-// 一店舗あたりstaff 201件、person/user各200件まで。店舗走査も20件に抑える。
-export const SHOP_LIST_SCAN_LIMIT = 20;
+// 一覧の1行は、一店舗あたりstaff 201件、person/user各200件まで読む。1回に返す行も20件に抑える。
+export const LIST_PAGE_LIMIT = 20;
 export const SHOP_LIST_STAFF_SCAN_LIMIT = 200;
+const ORGANIZATION_LIST_SHOP_LIMIT = 10;
+/** 条件に合う1行を最後まで組み立てられるよう、走査を止める前に残す読み取りの余力。 */
+const SCAN_RESERVE = { documentsRead: 2_000, bytesRead: 2 * 1024 * 1024, databaseQueries: 1_000 };
 /** 最後の提出・確定からこの日数以上たった店舗を要注意にする。 */
 export const SHOP_INACTIVE_DAYS = 14;
 const TRIAL_ENDING_SOON_MS = 7 * DAY_MS;
@@ -47,6 +53,61 @@ export function pageInfo(
     isDone: result.isDone,
     pageSize: limit,
     returnedCount,
+  };
+}
+async function scanBudgetLow(ctx: QueryCtx) {
+  const metrics = await ctx.meta.getTransactionMetrics();
+  return (
+    metrics.documentsRead.remaining < SCAN_RESERVE.documentsRead ||
+    metrics.bytesRead.remaining < SCAN_RESERVE.bytesRead ||
+    metrics.databaseQueries.remaining < SCAN_RESERVE.databaseQueries
+  );
+}
+/**
+ * 作成の新しい順に全件を読み、条件に合う行が上限に達するか、走査の上限・余力に達するまで続ける。
+ * cursorは最後に確認した行の作成時刻で、次の呼び出しはそれより前から読む。
+ */
+export async function scanNewestFirst<D extends { _creationTime: number }, R>(
+  ctx: QueryCtx,
+  source: (before: number | null) => AsyncIterable<D>,
+  page: { cursor: string | null; limit: number },
+  match: (doc: D) => Promise<R | null>,
+): Promise<{ rows: R[]; pageInfo: AnalyticsPageInfoDto }> {
+  if (
+    !Number.isInteger(page.limit) ||
+    page.limit < 1 ||
+    (page.cursor !== null && !CREATION_TIME_CURSOR_PATTERN.test(page.cursor))
+  )
+    throw new Error("invalid_request");
+  const limit = Math.min(page.limit, LIST_PAGE_LIMIT);
+  const rows: R[] = [];
+  let last: number | null = null;
+  let scanned = 0;
+  let isDone = true;
+  for await (const doc of source(page.cursor === null ? null : Number(page.cursor))) {
+    // 同じ作成時刻の行は次の呼び出しで読めないため、境界の時刻では止めない。
+    if (
+      last !== null &&
+      doc._creationTime !== last &&
+      (rows.length >= limit || scanned >= ANALYTICS_DASHBOARD_MAX_SCAN_ROWS || (await scanBudgetLow(ctx)))
+    ) {
+      isDone = false;
+      break;
+    }
+    last = doc._creationTime;
+    scanned += 1;
+    const row = await match(doc);
+    if (row !== null) rows.push(row);
+  }
+  return {
+    rows,
+    pageInfo: {
+      cursor: page.cursor,
+      continueCursor: isDone || last === null ? null : String(last),
+      isDone,
+      pageSize: limit,
+      returnedCount: rows.length,
+    },
   };
 }
 export function emptyPageInfo(cursor: string | null, limit: number): AnalyticsPageInfoDto {
@@ -199,6 +260,45 @@ export async function shopListRow(
     lastActivityDate: lastActivity?.date ?? null,
     billing,
     attention,
+  };
+}
+/**
+ * 組織一覧の1行。名称と契約の絞り込みに一致しない組織は、利用人数の集計前にnullを返す。
+ * searchは小文字化済みの検索語で、組織名または現在の店舗名の一部と照合する。
+ */
+export async function organizationListRow(
+  ctx: QueryCtx,
+  organization: Doc<"organizations">,
+  filter: { search: string; billing: ShopBillingFilter | null },
+): Promise<AnalyticsOrganizationListRowDto | null> {
+  if (organization.isDeleted) return null;
+  const shops = await ctx.db
+    .query("shops")
+    .withIndex("by_organizationId_and_isDeleted", (q) =>
+      q.eq("organizationId", organization._id).eq("isDeleted", false),
+    )
+    .take(ORGANIZATION_LIST_SHOP_LIMIT);
+  if (
+    filter.search &&
+    ![organization.name, ...shops.map((shop) => shop.name)].some((name) =>
+      name.toLocaleLowerCase("ja").includes(filter.search),
+    )
+  )
+    return null;
+  const billing = await organizationBilling(ctx, organization._id);
+  if (filter.billing && !billingMatches(billing, filter.billing)) return null;
+  const probe = await getOrganizationActualUsageProbe(ctx, organization._id, ORGANIZATION_PLAN_LIMITS.pro);
+  const exact = (dimension: OrganizationUsageDimension, value: number) =>
+    probe.unknownDimensions.includes(dimension) || probe.lowerBoundDimensions.includes(dimension) ? null : value;
+  return {
+    organizationId: organization._id,
+    name: organization.name,
+    registeredAt: organization._creationTime,
+    billing,
+    peopleCount: exact("people", probe.usage.peopleCount),
+    activeManagerCount: exact("activeManagers", probe.usage.activeManagerCount),
+    shopCount: exact("shops", probe.usage.shopCount),
+    shops: shops.map((shop) => ({ shopId: shop._id, name: shop.name })),
   };
 }
 export function deletedShopRow(shopId: string): AnalyticsShopRowDto {

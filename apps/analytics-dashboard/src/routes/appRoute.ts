@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 export type AppRoute =
   | { name: "overview" }
+  | { name: "organizations" }
   | { name: "shops" }
   | { name: "shop"; shopId: string }
   | { name: "staff"; shopId: string; staffId: string }
@@ -22,6 +23,7 @@ export function parseAppRoute(pathname: string): AppRoute {
   const segments = pathname.replace(/\/+$/, "").split("/").filter(Boolean).map(safeDecode);
 
   if (segments.length === 0) return { name: "overview" };
+  if (segments.length === 1 && segments[0] === "organizations") return { name: "organizations" };
   if (segments.length === 1 && segments[0] === "shops") return { name: "shops" };
   if (segments.length === 2 && segments[0] === "shops" && segments[1]) {
     return { name: "shop", shopId: segments[1] };
@@ -41,6 +43,8 @@ export function routePath(route: Exclude<AppRoute, { name: "notFound" }>) {
   switch (route.name) {
     case "overview":
       return "/";
+    case "organizations":
+      return "/organizations";
     case "shops":
       return "/shops";
     case "shop":

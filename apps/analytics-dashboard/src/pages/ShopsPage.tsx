@@ -7,6 +7,7 @@ import type { AnalyticsMetric, AnalyticsShopListRowDto, ShopBillingFilter } from
 import { useReportAnalyticsEnvironment } from "@/app/analyticsEnvironment";
 import { DataTable, type DataTableSort } from "@/components/DataTable";
 import { PageHeading } from "@/components/PageHeading";
+import { DirectoryTabs } from "@/features/analytics/DirectoryTabs";
 import {
   ATTENTION_LABELS,
   BILLING_FILTER_LABELS,
@@ -18,12 +19,8 @@ import {
   METRICS,
   shopPath,
 } from "@/features/analytics/format";
+import { compareSortValues, fetchListPages, LIST_PAGE_SIZE } from "@/features/analytics/listPages";
 import { AnalyticsPageLoading, MoreButton, Panel, QueryError } from "@/features/analytics/PageState";
-
-/** APIは1回で20店舗まで確認する。条件に合う店舗が少ないときは、続きを数回まで自動で読む。 */
-const PAGE_SIZE = 20;
-const AUTO_CONTINUE_REQUESTS = 5;
-const MIN_ROWS_PER_LOAD = 20;
 
 type ShopScope = { from: string; to: string; metric: AnalyticsMetric };
 type ShopFilters = {
@@ -119,49 +116,30 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
   const query = useInfiniteQuery({
     queryKey: ["analytics", "shops", filters],
     initialPageParam: null as string | null,
-    queryFn: async ({ pageParam, signal }) => {
-      let cursor = pageParam;
-      const rows: AnalyticsShopListRowDto[] = [];
-      for (let request = 0; ; request += 1) {
-        const page = await fetchShops({ ...requestParams(filters), cursor, limit: PAGE_SIZE }, signal);
-        rows.push(...page.data.rows);
-        const next = page.data.pageInfo.continueCursor;
-        const done = page.data.pageInfo.isDone || next === null || next === cursor;
-        cursor = next;
-        if (done || rows.length >= MIN_ROWS_PER_LOAD || request + 1 >= AUTO_CONTINUE_REQUESTS)
-          return { env: page.env, data: page.data, rows, nextCursor: done ? null : cursor };
-      }
-    },
+    queryFn: ({ pageParam, signal }) =>
+      fetchListPages(pageParam, (cursor) =>
+        fetchShops({ ...requestParams(filters), cursor, limit: LIST_PAGE_SIZE }, signal),
+      ),
     getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
   const first = query.data?.pages[0];
   useReportAnalyticsEnvironment(first?.env.label);
   const rows = useMemo(() => {
     const unique = new Map((query.data?.pages ?? []).flatMap((page) => page.rows).map((row) => [row.shopId, row]));
-    return [...unique.values()].sort((left, right) => {
-      const a = sortValue(left, sort.key);
-      const b = sortValue(right, sort.key);
-      if (a == null && b != null) return 1;
-      if (a != null && b == null) return -1;
-      const compared =
-        a == null || b == null
-          ? 0
-          : typeof a === "number" && typeof b === "number"
-            ? a - b
-            : String(a).localeCompare(String(b), "ja", { numeric: true });
-      return (
-        compared * (sort.direction === "asc" ? 1 : -1) ||
+    return [...unique.values()].sort(
+      (left, right) =>
+        compareSortValues(sortValue(left, sort.key), sortValue(right, sort.key)) *
+          (sort.direction === "asc" ? 1 : -1) ||
         left.name.localeCompare(right.name, "ja") ||
-        left.shopId.localeCompare(right.shopId)
-      );
-    });
+        left.shopId.localeCompare(right.shopId),
+    );
   }, [query.data?.pages, sort]);
   const scopeStatus = first?.data.scopeStatus;
   const setFilters = (next: Partial<ShopFilters>) => navigate(filtersPath({ ...filters, ...next }));
   return (
     <Stack gap={6}>
       <PageHeading
-        title={scoped ? "実績の店舗内訳" : "店舗・スタッフ"}
+        title={scoped ? "実績の店舗内訳" : "組織・店舗"}
         description={
           scoped
             ? "実績があった店舗を表示します。期間内に何日実績があっても1店舗です。名称・組織は現在の情報です。"
@@ -176,6 +154,7 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
           </Button>
         </Flex>
       )}
+      {!scoped && <DirectoryTabs active="shops" />}
       {!scoped && (
         <Flex gap={2} role="group" aria-label="表示する店舗" wrap="wrap">
           <Button
@@ -260,7 +239,7 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
                   ? `契約が「${BILLING_FILTER_LABELS[filters.billing]}」の店舗`
                   : "現在の店舗一覧"
             }
-            description={`${formatDateTime(first.data.asOf)}時点。${scoped ? "" : "登録の新しい順に読み込みます。"}並べ替えは読み込んだ店舗の中で行います。`}
+            description={`${formatDateTime(first.data.asOf)}時点。絞り込みは全店舗が対象です。${scoped ? "" : "登録の新しい順に読み込みます。"}並べ替えは読み込んだ店舗の中で行います。`}
           >
             {scopeStatus === "outside_retention" || scopeStatus === "unavailable" ? (
               <Alert.Root status="warning">

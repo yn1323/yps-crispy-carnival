@@ -133,6 +133,22 @@ export const shopsResponseValidator = v.object({
     v.literal("outside_retention"),
   ),
 });
+const organizationListRowValidator = v.object({
+  organizationId: v.string(),
+  name: v.string(),
+  registeredAt: v.number(),
+  billing: nullableBillingSummary,
+  peopleCount: nullableNumber,
+  activeManagerCount: nullableNumber,
+  shopCount: nullableNumber,
+  shops: v.array(v.object({ shopId: v.string(), name: v.string() })),
+});
+export const organizationsResponseValidator = v.object({
+  kind: v.literal("organizations"),
+  asOf: v.number(),
+  rows: v.array(organizationListRowValidator),
+  pageInfo: pageInfoValidator,
+});
 export const staffRowValidator = v.object({
   staffId: v.string(),
   name: v.string(),

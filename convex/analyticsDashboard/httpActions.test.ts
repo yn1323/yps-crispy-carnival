@@ -214,6 +214,7 @@ describe("analyticsDashboard/httpActions", () => {
         billing: null,
         attention: false,
       },
+      { endpoint: "organizations", cursor: null, limit: 1, search: "", billing: null },
       { endpoint: "shop", shopId: ids.shopId, cursor: null, limit: 1 },
       { endpoint: "staff", shopId: ids.shopId, staffId: ids.staffId, cursor: null, limit: 1 },
       { endpoint: "cycle", shopId: ids.shopId, recruitmentId: ids.recruitmentId },

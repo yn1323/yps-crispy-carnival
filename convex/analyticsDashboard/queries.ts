@@ -1,4 +1,3 @@
-import type { PaginationResult } from "convex/server";
 import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
@@ -11,6 +10,7 @@ import type {
   AnalyticsDayDto,
   AnalyticsShopListRowDto,
   CycleDetailResponse,
+  OrganizationsResponse,
   OverviewResponse,
   ShopDetailResponse,
   ShopsResponse,
@@ -22,11 +22,13 @@ import {
   cycleRow,
   deletedShopRow,
   emptyPageInfo,
+  LIST_PAGE_LIMIT,
   organizationBilling,
+  organizationListRow,
   pageInfo,
   paginationOptions,
   recentCycles,
-  SHOP_LIST_SCAN_LIMIT,
+  scanNewestFirst,
   shopListRow,
   shopRow,
   staffRow,
@@ -41,6 +43,7 @@ import {
   cycleDetailResponseValidator,
   featureRequestsResponseValidator,
   nullableString,
+  organizationsResponseValidator,
   overviewResponseValidator,
   pageArgs,
   shopBillingFilterValidator,
@@ -178,9 +181,6 @@ export const getShops = internalQuery({
   },
   returns: shopsResponseValidator,
   handler: async (ctx, args): Promise<ShopsResponse> => {
-    const options = paginationOptions(args.cursor, args.limit);
-    options.numItems = Math.min(options.numItems, SHOP_LIST_SCAN_LIMIT);
-    options.maximumRowsRead = SHOP_LIST_SCAN_LIMIT;
     const scope =
       args.from !== null && args.to !== null && args.metric !== null
         ? { from: args.from, to: args.to, metric: args.metric }
@@ -196,23 +196,54 @@ export const getShops = internalQuery({
     const matchesSearch = (row: Pick<AnalyticsShopListRowDto, "name" | "organizationName">) =>
       !search || [row.name, row.organizationName].some((name) => name?.toLocaleLowerCase("ja").includes(search));
     const today = dateJST(args.asOf);
-    if (scope) {
-      const scopeStatus = await shopScopeStatus(ctx, scope, args.asOf);
-      if (scopeStatus !== "available")
-        return {
-          kind: "shops",
-          asOf: args.asOf,
-          rows: [],
-          pageInfo: emptyPageInfo(args.cursor, options.numItems),
-          scope,
-          scopeStatus,
-        };
-      const toListRow = async (shopId: Id<"shops">): Promise<AnalyticsShopListRowDto | null> => {
-        const current = await currentShop(ctx, shopId);
-        const row = current ? shopRow(current.shop, current.organization) : deletedShopRow(shopId);
+    const scopeStatus = scope ? await shopScopeStatus(ctx, scope, args.asOf) : "current";
+    if (scope && scopeStatus !== "available")
+      return {
+        kind: "shops",
+        asOf: args.asOf,
+        rows: [],
+        pageInfo: emptyPageInfo(args.cursor, Math.min(args.limit, LIST_PAGE_LIMIT)),
+        scope,
+        scopeStatus,
+      };
+    const organizations = new Map<Id<"organizations">, Doc<"organizations"> | null>();
+    const currentOrganization = async (shop: Doc<"shops">) => {
+      if (shop.isDeleted) return null;
+      if (!organizations.has(shop.organizationId)) {
+        const organization = await ctx.db.get(shop.organizationId);
+        organizations.set(shop.organizationId, organization && !organization.isDeleted ? organization : null);
+      }
+      return organizations.get(shop.organizationId) ?? null;
+    };
+    const filter = { billing: args.billing, attention: args.attention };
+    // 名称・契約・要注意・実績の条件は、表示中のページでなく全店舗に対して照合する。
+    // 店舗は論理削除だけのため、実績の内訳では削除済み店舗も店舗tableから辿れる。
+    const { rows, pageInfo } = await scanNewestFirst(
+      ctx,
+      (before) =>
+        ctx.db
+          .query("shops")
+          .withIndex("by_creation_time", (q) => (before === null ? q : q.lt("_creationTime", before)))
+          .order("desc"),
+      args,
+      async (shop): Promise<AnalyticsShopListRowDto | null> => {
+        const organization = await currentOrganization(shop);
+        if (!scope) {
+          if (!organization || !matchesSearch({ name: shop.name, organizationName: organization.name })) return null;
+          return await shopListRow(ctx, shop, organization, today, filter);
+        }
+        const row = organization ? shopRow(shop, organization) : deletedShopRow(shop._id);
         if (!matchesSearch(row)) return null;
+        const active = await ctx.db
+          .query("analyticsShopDays")
+          .withIndex("by_shopId_and_date", (q) =>
+            q.eq("shopId", shop._id).gte("date", scope.from).lte("date", scope.to),
+          )
+          .filter((q) => q.eq(q.field(scope.metric), true))
+          .first();
+        if (!active) return null;
         return (
-          (current && (await shopListRow(ctx, current.shop, current.organization, today))) || {
+          (organization && (await shopListRow(ctx, shop, organization, today))) || {
             ...row,
             staffCount: null,
             latestShift: null,
@@ -221,70 +252,34 @@ export const getShops = internalQuery({
             attention: [],
           }
         );
-      };
-      const rows: AnalyticsShopListRowDto[] = [];
-      // 1日だけの内訳は日付indexで実績のある店舗だけを読む。
-      // 期間では同じ店舗の行が日数分あるため、店舗を順に読み、期間内に実績がある店舗だけを1回返す。
-      // 店舗は論理削除だけのため、削除済み店舗も店舗tableから辿れる。
-      let page: PaginationResult<unknown>;
-      if (scope.from === scope.to) {
-        const days = await ctx.db
-          .query("analyticsShopDays")
-          .withIndex("by_date_and_shopId", (q) => q.eq("date", scope.from))
-          .filter((q) => q.eq(q.field(scope.metric), true))
-          .paginate(options);
-        for (const day of days.page) {
-          const row = await toListRow(day.shopId);
-          if (row) rows.push(row);
-        }
-        page = days;
-      } else {
-        const shops = await ctx.db.query("shops").order("desc").paginate(options);
-        for (const shop of shops.page) {
-          const active = await ctx.db
-            .query("analyticsShopDays")
-            .withIndex("by_shopId_and_date", (q) =>
-              q.eq("shopId", shop._id).gte("date", scope.from).lte("date", scope.to),
-            )
-            .filter((q) => q.eq(q.field(scope.metric), true))
-            .first();
-          if (!active) continue;
-          const row = await toListRow(shop._id);
-          if (row) rows.push(row);
-        }
-        page = shops;
-      }
-      return {
-        kind: "shops",
-        asOf: args.asOf,
-        rows,
-        pageInfo: pageInfo(args.cursor, options.numItems, page, rows.length),
-        scope,
-        scopeStatus,
-      };
-    }
-    const page = await ctx.db
-      .query("shops")
-      .filter((q) => q.eq(q.field("isDeleted"), false))
-      .order("desc")
-      .paginate(options);
-    const filter = { billing: args.billing, attention: args.attention };
-    const rows: AnalyticsShopListRowDto[] = [];
-    for (const shop of page.page) {
-      const organization = await ctx.db.get(shop.organizationId);
-      if (!organization || organization.isDeleted) continue;
-      if (!matchesSearch({ name: shop.name, organizationName: organization.name })) continue;
-      const row = await shopListRow(ctx, shop, organization, today, filter);
-      if (row) rows.push(row);
-    }
-    return {
-      kind: "shops",
-      asOf: args.asOf,
-      rows,
-      pageInfo: pageInfo(args.cursor, options.numItems, page, rows.length),
-      scope: null,
-      scopeStatus: "current",
-    };
+      },
+    );
+    return { kind: "shops", asOf: args.asOf, rows, pageInfo, scope, scopeStatus };
+  },
+});
+
+export const getOrganizations = internalQuery({
+  args: {
+    ...pageArgs,
+    asOf: v.number(),
+    search: v.string(),
+    billing: v.union(shopBillingFilterValidator, v.null()),
+  },
+  returns: organizationsResponseValidator,
+  handler: async (ctx, args): Promise<OrganizationsResponse> => {
+    if (args.search.length > SEARCH_TEXT_MAX_LENGTH) throw new Error("invalid_request");
+    const filter = { search: args.search.trim().toLocaleLowerCase("ja"), billing: args.billing };
+    const { rows, pageInfo } = await scanNewestFirst(
+      ctx,
+      (before) =>
+        ctx.db
+          .query("organizations")
+          .withIndex("by_creation_time", (q) => (before === null ? q : q.lt("_creationTime", before)))
+          .order("desc"),
+      args,
+      async (organization) => await organizationListRow(ctx, organization, filter),
+    );
+    return { kind: "organizations", asOf: args.asOf, rows, pageInfo };
   },
 });
 
