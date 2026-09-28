@@ -143,3 +143,4 @@
 - [カテゴリ: Excel・ツールを見直す](https://shiftori.app/articles/categories/tool-review): Excel運用の限界サインと乗り換えの判断基準
 - [エクセルでシフト表を作る方法](https://shiftori.app/articles/excel-shift-management-limits): 関数入りのExcelシフト表の無料テンプレート、式を入れるセル、見直しを考える目安
 - [無料のシフト管理アプリの選び方](https://shiftori.app/articles/free-shift-tool-selection): 3タイプの違いと、店舗で使う前に確かめる5つの条件
+- [シフト管理ツールの料金比較](https://shiftori.app/articles/shift-management-pricing-comparison): Airシフト、らくしふ、シフオプ、シフトリの料金を店長を含む10〜25名の1店舗で試算し、料金の数え方、スタッフ側のアプリ、シフト以外の機能の違いを比較
