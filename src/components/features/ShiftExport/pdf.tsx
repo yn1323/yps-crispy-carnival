@@ -1,5 +1,5 @@
-import { fitExportText, getExportPages } from "./layout";
-import { getExportTitle } from "./script";
+import { fitExportText, getExportNotePages, getExportPages } from "./layout";
+import { getExportNotesTitle, getExportTitle } from "./script";
 import type { ExportSchedule } from "./types";
 
 const FONT_FAMILY = "Noto Sans JP";
@@ -30,6 +30,8 @@ export const createShiftPdf = async (schedule: ExportSchedule): Promise<Blob> =>
   await loadJapaneseFont(renderer);
   const { Document, Page, View, Text, pdf } = renderer;
   const pages = getExportPages(schedule);
+  const notePages = getExportNotePages(schedule);
+  const totalPageCount = pages.length + notePages.length;
 
   return pdf(
     <Document title={getExportTitle(schedule)} author="シフトリ" language="ja">
@@ -142,7 +144,89 @@ export const createShiftPdf = async (schedule: ExportSchedule): Promise<Blob> =>
                 textAlign: "center",
               }}
             >
-              {pageIndex + 1} / {pages.length}
+              {pageIndex + 1} / {totalPageCount}
+            </Text>
+          </Page>
+        );
+      })}
+      {notePages.map(({ layout, rows, isFirstPage }, notePageIndex) => {
+        const cellStyle = {
+          borderRightWidth: 0.5,
+          borderBottomWidth: 0.5,
+          borderColor: "#000000",
+          justifyContent: "center" as const,
+          paddingHorizontal: layout.cellPaddingPt - 0.25,
+          overflow: "hidden" as const,
+          flexShrink: 0,
+        };
+        const title = fitExportText(getExportNotesTitle(schedule), layout.pageWidthPt - layout.marginPt * 2, 16);
+        const columns = [
+          { key: "date", label: "日付", width: layout.dateColumnWidthPt },
+          { key: "staff", label: "名前", width: layout.staffColumnWidthPt },
+          { key: "note", label: "メモ", width: layout.noteColumnWidthPt },
+        ];
+        return (
+          <Page
+            key={`notes:${rows[0]?.key ?? "empty"}`}
+            size="A4"
+            orientation="landscape"
+            wrap={false}
+            style={{
+              padding: layout.marginPt,
+              minHeight: layout.pageHeightPt,
+              maxHeight: layout.pageHeightPt,
+              fontFamily: FONT_FAMILY,
+              fontSize: layout.fontSizePt,
+              color: "#000000",
+            }}
+          >
+            {isFirstPage && (
+              <View style={{ height: layout.titleHeightPt, flexShrink: 0 }}>
+                <Text style={{ fontSize: title.fontSizePt, maxLines: 1, marginBottom: 5 }}>{title.text}</Text>
+              </View>
+            )}
+            <View style={{ borderLeftWidth: 0.5, borderTopWidth: 0.5, borderColor: "#000000" }}>
+              <View style={{ flexDirection: "row", height: layout.headerHeightPt }} wrap={false}>
+                {columns.map((column) => (
+                  <View key={column.key} style={{ ...cellStyle, width: column.width }}>
+                    <Text style={{ maxLines: 1 }}>{column.label}</Text>
+                  </View>
+                ))}
+              </View>
+              {rows.map((row) => {
+                const name = fitExportText(
+                  row.staffName,
+                  layout.staffColumnWidthPt - layout.cellPaddingPt * 2,
+                  layout.fontSizePt,
+                );
+                return (
+                  <View key={row.key} style={{ flexDirection: "row", height: layout.rowHeightPt }} wrap={false}>
+                    <View style={{ ...cellStyle, width: layout.dateColumnWidthPt }}>
+                      <Text style={{ maxLines: 1 }}>{row.dateLabel}</Text>
+                    </View>
+                    <View style={{ ...cellStyle, width: layout.staffColumnWidthPt }}>
+                      <Text style={{ maxLines: 1 }}>{name.text}</Text>
+                    </View>
+                    <View style={{ ...cellStyle, width: layout.noteColumnWidthPt }}>
+                      <Text style={{ maxLines: 2, lineHeight: layout.lineHeightPt / layout.fontSizePt }}>
+                        {row.note}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+            <Text
+              style={{
+                position: "absolute",
+                bottom: layout.marginPt,
+                left: layout.marginPt,
+                right: layout.marginPt,
+                fontSize: 8,
+                textAlign: "center",
+              }}
+            >
+              {pages.length + notePageIndex + 1} / {totalPageCount}
             </Text>
           </Page>
         );

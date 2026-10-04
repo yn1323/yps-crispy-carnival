@@ -179,4 +179,41 @@ describe("Excelの実ファイル", () => {
     expect(widths[0]).toBeGreaterThan(fullWidth);
     expect(widths[1]).toBeGreaterThan(widths[0]);
   });
+
+  it("メモ一覧を選ぶとシフト表の後ろへ「メモ一覧」シートを追加し、数式に見える本文も文字列のまま書く", async () => {
+    const formulaLikeNote = '=HYPERLINK("https://example.invalid","メモ")';
+    const fixture = createExportFixture({
+      dateNotes: [
+        { staffId: "staff-2", date: "2026-08-01", note: "17時以降なら入れます" },
+        { staffId: "staff-1", date: "2026-08-03", note: formulaLikeNote },
+      ],
+    });
+
+    const withoutNotes = unzipSync(
+      new Uint8Array(await (await createShiftExcel(buildExportSchedule(fixture))).arrayBuffer()),
+    );
+    expect(parseXml(withoutNotes["xl/workbook.xml"]).querySelectorAll("sheet")).toHaveLength(1);
+
+    const files = unzipSync(
+      new Uint8Array(await (await createShiftExcel(buildExportSchedule(fixture, false, true))).arrayBuffer()),
+    );
+    const workbook = parseXml(files["xl/workbook.xml"]);
+    expect(Array.from(workbook.querySelectorAll("sheet"), (sheet) => sheet.getAttribute("name"))).toEqual([
+      "シフト表",
+      "メモ一覧",
+    ]);
+    const sheet = parseXml(files["xl/worksheets/sheet2.xml"]);
+    const sharedStrings = Array.from(
+      parseXml(files["xl/sharedStrings.xml"]).querySelectorAll("si"),
+      (item) => item.textContent,
+    );
+    const cell = (address: string) => sheet.querySelector(`c[r="${address}"]`);
+    const value = (address: string) => sharedStrings[Number(cell(address)?.querySelector("v")?.textContent)];
+    expect(value("A1")).toBe("2026/08/01~08/31 シフトリ駅前店 メモ一覧");
+    expect([value("A2"), value("B2"), value("C2")]).toEqual(["日付", "名前", "メモ"]);
+    expect([value("A3"), value("B3"), value("C3")]).toEqual(["8/1(土)", "田中 花子", "17時以降なら入れます"]);
+    expect(cell("C4")?.getAttribute("t")).toBe("s");
+    expect(cell("C4")?.querySelector("f")).toBeNull();
+    expect(value("C4")).toBe(formulaLikeNote);
+  });
 });

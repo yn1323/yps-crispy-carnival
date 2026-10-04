@@ -1,4 +1,6 @@
+import { SHIFT_BOARD_DATE_NOTE_LIMIT, SHIFT_DATE_NOTE_MAX_LENGTH } from "@/convex/constants";
 import {
+  formatDateWithWeekday,
   getDateRange,
   getDayOfWeek,
   getInclusiveDateCount,
@@ -6,9 +8,9 @@ import {
   isValidIsoDateString,
 } from "@/src/domains/shift/date";
 import { isSupportedShiftTime, minutesToTime, timeToMinutes } from "@/src/domains/shift/time";
-import type { ExportSchedule, ShiftExportData } from "./types";
+import type { ExportNoteRow, ExportSchedule, ShiftExportData } from "./types";
 
-export function buildExportSchedule(data: ShiftExportData, splitPeriod = false): ExportSchedule {
+export function buildExportSchedule(data: ShiftExportData, splitPeriod = false, includeNotes = false): ExportSchedule {
   const { recruitment } = data;
   const count = getInclusiveDateCount(recruitment.periodStart, recruitment.periodEnd);
   if (
@@ -86,6 +88,7 @@ export function buildExportSchedule(data: ShiftExportData, splitPeriod = false):
     }),
   }));
   if (bodyLineCount > 36) throw new Error("1日の勤務区間が多すぎるため、帳票へ収まりません。");
+  const noteRows = buildExportNoteRows(data, dateSet);
   return {
     shopName: data.shopName,
     periodStart: recruitment.periodStart,
@@ -95,7 +98,47 @@ export function buildExportSchedule(data: ShiftExportData, splitPeriod = false):
     bodyLineCount,
     dates,
     rows,
+    hasDateNotes: noteRows.length > 0,
+    noteRows: includeNotes ? noteRows : [],
   };
+}
+
+/** メモ一覧の行。日付順、同じ日の中は出力のスタッフ順に並べる。部分的な一覧は作らない。 */
+function buildExportNoteRows(data: ShiftExportData, dateSet: ReadonlySet<string>): ExportNoteRow[] {
+  if (data.dateNotes.length > SHIFT_BOARD_DATE_NOTE_LIMIT) throw new Error("メモが多すぎるため、出力できません。");
+  const staffIndexById = new Map(data.staffs.map((staff, index) => [staff.id, index]));
+  const noteKeys = new Set<string>();
+  for (const entry of data.dateNotes) {
+    const key = `${entry.staffId}:${entry.date}`;
+    if (
+      !staffIndexById.has(entry.staffId) ||
+      !dateSet.has(entry.date) ||
+      entry.note.length === 0 ||
+      entry.note.length > SHIFT_DATE_NOTE_MAX_LENGTH ||
+      noteKeys.has(key)
+    )
+      throw new Error("メモを確認できませんでした。");
+    noteKeys.add(key);
+  }
+  return [...data.dateNotes]
+    .sort(
+      (left, right) =>
+        left.date.localeCompare(right.date) ||
+        (staffIndexById.get(left.staffId) ?? 0) - (staffIndexById.get(right.staffId) ?? 0),
+    )
+    .map((entry) => {
+      const staff = data.staffs[staffIndexById.get(entry.staffId) ?? 0];
+      return {
+        key: `${entry.staffId}:${entry.date}`,
+        dateLabel: formatDateWithWeekday(entry.date),
+        staffName: staff.isRemoved ? `${staff.name}（削除済み）` : staff.name,
+        note: entry.note,
+      };
+    });
+}
+
+export function getExportNotesTitle(schedule: ExportSchedule): string {
+  return `${getExportTitle(schedule)} メモ一覧`;
 }
 
 export function getExportFileName(schedule: ExportSchedule, format: "pdf" | "xlsx"): string {

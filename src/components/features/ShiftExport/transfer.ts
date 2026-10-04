@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SHIFT_BOARD_DATE_NOTE_LIMIT, SHIFT_DATE_NOTE_MAX_LENGTH } from "@/convex/constants";
 import { shiftSubmissionPatternSchema } from "@/convex/shop/schemas";
 import { buildExportSchedule } from "./script";
 import type { ShiftExportData } from "./types";
@@ -31,6 +32,17 @@ const dataSchema = z.object({
       }),
     )
     .max(2000),
+  // デプロイ前に保存した一時データにはないため、空の一覧として読む。
+  dateNotes: z
+    .array(
+      z.object({
+        staffId: idSchema,
+        date: dateSchema,
+        note: z.string().min(1).max(SHIFT_DATE_NOTE_MAX_LENGTH),
+      }),
+    )
+    .max(SHIFT_BOARD_DATE_NOTE_LIMIT)
+    .default([]),
 });
 export const snapshotSchema = z.object({
   version: z.literal(1),
