@@ -3,6 +3,7 @@ import { expect, userEvent, within } from "storybook/test";
 import { ShiftForm } from "..";
 import {
   dateOnlyArgs,
+  dateOnlyDateNotesArgs,
   dateOnlyValidationWarningArgs,
   fullscreenParameters,
   mobileGlobals,
@@ -82,5 +83,14 @@ export const Interactive: Story = {
     await userEvent.click(await canvas.findByLabelText("6/2(火)の日別を表示"));
     await expect(await canvas.findByRole("tab", { name: "日別" })).toHaveAttribute("aria-selected", "true");
     await expect(await findVisibleByLabelText("田中 太郎 6/2(火) 勤務なし")).toBeInTheDocument();
+  },
+};
+
+export const DailyWithDateNotes: Story = {
+  args: dateOnlyDateNotesArgs,
+  globals: mobileGlobals,
+  play: async ({ canvasElement }) => {
+    const note = await within(canvasElement).findByText("家の用事で18時まで入れません");
+    await expect(note).toHaveAttribute("data-clarity-mask", "true");
   },
 };

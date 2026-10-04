@@ -66,3 +66,16 @@ export const buildDateOnlyRows = ({
     };
   });
 };
+
+export type DateOnlySortDateNote = { staffId: string; staffName: string; note: string };
+
+/** 並べ替え中の日のメモを、表の並び順のまま抜き出す。 */
+export const buildSortDateNotes = (
+  rows: readonly DateOnlyRowViewModel[],
+  sortDate: string,
+  getNote: (staffId: string, date: string) => string | undefined,
+): DateOnlySortDateNote[] =>
+  rows.flatMap((row) => {
+    const note = getNote(row.staff.id, sortDate);
+    return note ? [{ staffId: row.staff.id, staffName: row.staff.name, note }] : [];
+  });

@@ -1,4 +1,5 @@
-import { Box, Flex, Text } from "@chakra-ui/react";
+import { Box, Flex, Icon, Text } from "@chakra-ui/react";
+import { LuMessageSquare } from "react-icons/lu";
 import { formatDateShort, formatDateWithWeekday } from "@/src/domains/shift/date";
 import type { DateInfo } from "./types";
 
@@ -6,9 +7,10 @@ type Props = {
   dates: DateInfo[];
   selectedDate: string;
   onSelect: (date: string) => void;
+  noteCountByDate?: ReadonlyMap<string, number>;
 };
 
-export const DateSortToolbar = ({ dates, selectedDate, onSelect }: Props) => {
+export const DateSortToolbar = ({ dates, selectedDate, onSelect, noteCountByDate }: Props) => {
   if (dates.length === 0) return null;
 
   return (
@@ -19,11 +21,12 @@ export const DateSortToolbar = ({ dates, selectedDate, onSelect }: Props) => {
       <Flex gap={2} overflowX="auto" minW={0}>
         {dates.map((date) => {
           const selected = date.iso === selectedDate;
+          const noteCount = noteCountByDate?.get(date.iso) ?? 0;
           return (
             <Box
               as="button"
               key={date.iso}
-              aria-label={`${formatDateWithWeekday(date.iso)}で並べ替える`}
+              aria-label={`${formatDateWithWeekday(date.iso)}で並べ替える${noteCount > 0 ? `、メモ${noteCount}件` : ""}`}
               aria-pressed={selected}
               onClick={() => onSelect(date.iso)}
               flexShrink={0}
@@ -44,7 +47,17 @@ export const DateSortToolbar = ({ dates, selectedDate, onSelect }: Props) => {
               _active={{ bg: selected ? "teal.600" : "gray.100", transitionDuration: "0ms" }}
               _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "1px" }}
             >
-              {formatDateShort(date.iso)}
+              <Flex as="span" align="center" gap={1}>
+                {formatDateShort(date.iso)}
+                {noteCount > 0 && (
+                  <Flex as="span" align="center" gap="2px" fontWeight={600} color={selected ? "white" : "gray.600"}>
+                    <Icon boxSize={3}>
+                      <LuMessageSquare aria-hidden />
+                    </Icon>
+                    {noteCount}
+                  </Flex>
+                )}
+              </Flex>
             </Box>
           );
         })}

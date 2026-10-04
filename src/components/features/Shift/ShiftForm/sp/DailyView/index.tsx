@@ -3,6 +3,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { type TouchEvent, useCallback, useMemo, useRef, useState } from "react";
 import { useDialog } from "@/src/components/ui/Dialog";
 import type { ShiftData } from "@/src/domains/shift/types";
+import { useShiftDateNotes } from "../../dateNotes";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
 import {
@@ -38,6 +39,7 @@ export const SPDailyView = () => {
   const issueStaffIds = useAtomValue(issueStaffIdSetForSelectedDateAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
   const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
+  const dateNotes = useShiftDateNotes();
 
   const { positions, dates, timeRange, isReadOnly, holidays } = config;
   const isShopClosedDate = holidays.includes(selectedDate);
@@ -151,6 +153,7 @@ export const SPDailyView = () => {
                       onTap={() => handleCardTap(staff.id)}
                       hasError={issueStaffIds.has(staff.id)}
                       warningMessages={warningMessagesByStaffId.get(staff.id) ?? []}
+                      note={dateNotes.getNote(staff.id, selectedDate)}
                     />
                   ))}
                 </Stack>
@@ -171,6 +174,7 @@ export const SPDailyView = () => {
                       isReadOnly={isReadOnly}
                       hasError={issueStaffIds.has(staff.id)}
                       warningMessages={warningMessagesByStaffId.get(staff.id) ?? []}
+                      note={dateNotes.getNote(staff.id, selectedDate)}
                     />
                   ))}
                 </Stack>
@@ -195,6 +199,7 @@ export const SPDailyView = () => {
                       isReadOnly={isReadOnly}
                       hasError={issueStaffIds.has(staff.id)}
                       warningMessages={warningMessagesByStaffId.get(staff.id) ?? []}
+                      note={dateNotes.getNote(staff.id, selectedDate)}
                     />
                   ))}
                 </Stack>

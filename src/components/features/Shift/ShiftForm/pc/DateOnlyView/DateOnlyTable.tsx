@@ -9,7 +9,10 @@ import {
 } from "@/src/domains/shift/date";
 import type { StaffType } from "@/src/domains/shift/types";
 import { Avatar, StaffWarningIcon } from "../../components";
+import { ShiftDateNoteCornerMark, ShiftDateNoteTooltip, type useShiftDateNotes } from "../../dateNotes";
+import { DateNotesPanel } from "./DateNotesPanel";
 import { DateSortToolbar } from "./DateSortToolbar";
+import { buildSortDateNotes } from "./script";
 import type { DateInfo, DateOnlyColumn, DateOnlyRequestBadgeViewModel, DateOnlyRowViewModel } from "./types";
 
 const STAFF_COL_WIDTH = 220;
@@ -25,6 +28,7 @@ type Props = {
   isReadOnly: boolean;
   onSortDateSelect: (date: string) => void;
   onToggle: (staff: StaffType, date: string) => void;
+  dateNotes: ReturnType<typeof useShiftDateNotes>;
 };
 
 export const DateOnlyTable = ({
@@ -36,9 +40,18 @@ export const DateOnlyTable = ({
   isReadOnly,
   onSortDateSelect,
   onToggle,
+  dateNotes,
 }: Props) => (
   <Box minW={`${STAFF_COL_WIDTH + REQUEST_COL_WIDTH + columns.length * DATE_COL_WIDTH}px`} bg="white" overflow="hidden">
-    <DateSortToolbar dates={sortableDates} selectedDate={sortDate} onSelect={onSortDateSelect} />
+    <DateSortToolbar
+      dates={sortableDates}
+      selectedDate={sortDate}
+      onSelect={onSortDateSelect}
+      noteCountByDate={dateNotes.countByDate}
+    />
+    {dateNotes.hasNotes && sortDate && (
+      <DateNotesPanel sortDate={sortDate} notes={buildSortDateNotes(rows, sortDate, dateNotes.getNote)} />
+    )}
     <Box as="table" w="100%" style={{ borderCollapse: "separate", borderSpacing: 0, tableLayout: "fixed" }}>
       <Box as="colgroup">
         <Box as="col" style={{ width: STAFF_COL_WIDTH }} />
@@ -77,6 +90,7 @@ export const DateOnlyTable = ({
             {row.cells.map((cell) => (
               <DateOnlyCell
                 key={cell.date.iso}
+                note={dateNotes.getNote(row.staff.id, cell.date.iso)}
                 staffName={row.staff.name}
                 date={cell.date}
                 assigned={cell.assigned}
@@ -257,6 +271,7 @@ const RequestBadge = ({ bg, color, children }: { bg: string; color: string; chil
 );
 
 const DateOnlyCell = ({
+  note,
   staffName,
   date,
   assigned,
@@ -266,6 +281,7 @@ const DateOnlyCell = ({
   isReadOnly,
   onToggle,
 }: {
+  note?: string;
   staffName: string;
   date: DateInfo;
   assigned: boolean;
@@ -274,20 +290,14 @@ const DateOnlyCell = ({
   isSortDate: boolean;
   isReadOnly: boolean;
   onToggle: () => void;
-}) => (
-  <Box
-    as="td"
-    p={0}
-    borderRightWidth="1px"
-    borderBottomWidth="1px"
-    borderColor="gray.100"
-    bg={isClosed ? "gray.50" : isSortDate ? "teal.50" : "white"}
-  >
+}) => {
+  const button = (
     <Box
       as="button"
       aria-label={`${staffName} ${formatDateWithWeekday(date.iso)} ${
         !date.inRange ? "期間外" : assigned ? "勤務あり" : "勤務なし"
-      }`}
+      }${note ? "、メモあり" : ""}`}
+      position="relative"
       aria-disabled={isReadOnly || isClosed || !date.inRange}
       onClick={isReadOnly || isClosed || !date.inRange ? undefined : onToggle}
       w="calc(100% - 8px)"
@@ -323,6 +333,25 @@ const DateOnlyCell = ({
       _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "1px" }}
     >
       {!date.inRange || isClosed ? "-" : assigned ? "○" : "×"}
+      {note && <ShiftDateNoteCornerMark onFilled={assigned && date.inRange && !isClosed} />}
     </Box>
-  </Box>
-);
+  );
+  return (
+    <Box
+      as="td"
+      p={0}
+      borderRightWidth="1px"
+      borderBottomWidth="1px"
+      borderColor="gray.100"
+      bg={isClosed ? "gray.50" : isSortDate ? "teal.50" : "white"}
+    >
+      {note ? (
+        <ShiftDateNoteTooltip staffName={staffName} date={date.iso} note={note}>
+          {button}
+        </ShiftDateNoteTooltip>
+      ) : (
+        button
+      )}
+    </Box>
+  );
+};

@@ -66,6 +66,16 @@ function AppShiftBoardQuery({ organizationId, recruitmentId }: Required<Props>) 
         }
       : "skip",
   );
+  const queriedDateNotes = useQuery(
+    api.shiftBoard.queries.getShiftBoardDateNotes,
+    shopScope
+      ? {
+          shopId: shopScope.shopId,
+          expectedOrganizationId: organizationDocumentId,
+          recruitmentId: recruitmentDocumentId,
+        }
+      : "skip",
+  );
   const data = useRetainedShiftBoardData(
     `${organizationId}:${shopScope?.shopId ?? "none"}:${recruitmentId}`,
     queriedData,
@@ -102,6 +112,7 @@ function AppShiftBoardQuery({ organizationId, recruitmentId }: Required<Props>) 
           key={recruitmentId}
           data={data}
           onExport={onExport}
+          dateNotes={queriedDateNotes === undefined ? "loading" : (queriedDateNotes ?? [])}
           recruitmentId={recruitmentDocumentId}
           layout="app"
           header={{

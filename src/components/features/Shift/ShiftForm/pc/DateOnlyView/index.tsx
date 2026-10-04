@@ -5,6 +5,7 @@ import { getAssignmentWarningSettingText } from "@/src/components/shared/ShiftAs
 import { formatDateShort } from "@/src/domains/shift/date";
 import { countDateOnlyAssignmentsByDate } from "@/src/domains/shift/dateOnlyAssignments";
 import type { StaffType } from "@/src/domains/shift/types";
+import { useShiftDateNotes } from "../../dateNotes";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import {
   dailySortedStaffsAtom,
@@ -31,6 +32,7 @@ export const DateOnlyView = () => {
   const toggleAssignment = useSetAtom(toggleDateOnlyAssignmentAtom);
   const sortedStaffs = useAtomValue(dailySortedStaffsAtom);
   const lockDailyStaffOrder = useSetAtom(lockDailyStaffOrderAtom);
+  const dateNotes = useShiftDateNotes();
 
   const { dates, holidays, isReadOnly } = config;
   const isConfirmedDisplay = config.displayMode === "confirmed";
@@ -145,6 +147,7 @@ export const DateOnlyView = () => {
           isReadOnly={isReadOnly}
           onSortDateSelect={handleSortDateSelect}
           onToggle={handleToggle}
+          dateNotes={dateNotes}
         />
       </Box>
     </Flex>

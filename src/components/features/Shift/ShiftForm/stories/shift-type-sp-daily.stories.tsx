@@ -5,6 +5,7 @@ import {
   mobileGlobals,
   shiftFormDecorators,
   shiftTypeArgs,
+  shiftTypeDateNotesArgs,
   shiftTypeValidationWarningArgs,
 } from "./shared";
 
@@ -27,5 +28,10 @@ export const Basic: Story = {
 export const WithValidationWarnings: Story = {
   name: "With Validation Warnings",
   args: shiftTypeValidationWarningArgs,
+  globals: mobileGlobals,
+};
+
+export const WithDateNotes: Story = {
+  args: shiftTypeDateNotesArgs,
   globals: mobileGlobals,
 };

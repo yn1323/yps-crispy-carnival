@@ -8,7 +8,8 @@ const mocks = vi.hoisted(() => ({
   useQuery: vi.fn(),
   scopeQueryRef: Symbol("getShiftBoardShopScopeForOrganization"),
   dataQueryRef: Symbol("getShiftBoardData"),
-  queryResults: { scope: undefined as unknown, data: undefined as unknown },
+  dateNotesQueryRef: Symbol("getShiftBoardDateNotes"),
+  queryResults: { scope: undefined as unknown, data: undefined as unknown, dateNotes: undefined as unknown },
 }));
 
 vi.mock("@/src/components/features/ShiftExport", () => ({ useOpenShiftExport: () => vi.fn() }));
@@ -24,6 +25,7 @@ vi.mock("@/convex/_generated/api", () => ({
       queries: {
         getShiftBoardShopScopeForOrganization: mocks.scopeQueryRef,
         getShiftBoardData: mocks.dataQueryRef,
+        getShiftBoardDateNotes: mocks.dateNotesQueryRef,
       },
     },
   },
@@ -33,13 +35,15 @@ vi.mock("@/src/components/features/ShiftBoard", () => ({
     data,
     layout,
     header,
+    dateNotes,
   }: {
     data: { shopId: string };
     layout?: string;
     header?: { desktopTitle: string };
+    dateNotes?: unknown;
   }) => (
     <>
-      <output data-testid="shop-id" data-layout={layout}>
+      <output data-testid="shop-id" data-layout={layout} data-date-notes={JSON.stringify(dateNotes)}>
         {data.shopId}
       </output>
       {header && <h1>{header.desktopTitle}</h1>}
@@ -98,9 +102,11 @@ beforeEach(() => {
   mocks.useQuery.mockReset();
   mocks.queryResults.scope = undefined;
   mocks.queryResults.data = undefined;
+  mocks.queryResults.dateNotes = undefined;
   mocks.useQuery.mockImplementation((reference) => {
     if (reference === mocks.scopeQueryRef) return mocks.queryResults.scope;
     if (reference === mocks.dataQueryRef) return mocks.queryResults.data;
+    if (reference === mocks.dateNotesQueryRef) return mocks.queryResults.dateNotes;
     throw new Error("unexpected query reference");
   });
 });
@@ -131,8 +137,14 @@ describe("AppShiftBoardRoutePage", () => {
       recruitmentId: "recruitment-1",
       refreshDayKey: "2026-08-14:test",
     });
+    expect(mocks.useQuery).toHaveBeenCalledWith(mocks.dateNotesQueryRef, {
+      shopId: "shop-1",
+      expectedOrganizationId: "organization-1",
+      recruitmentId: "recruitment-1",
+    });
     expect(screen.getByTestId("shop-id").textContent).toBe("shop-1");
     expect(screen.getByTestId("shop-id").getAttribute("data-layout")).toBe("app");
+    expect(screen.getByTestId("shop-id").getAttribute("data-date-notes")).toBe(JSON.stringify("loading"));
     await waitFor(() => expect(screen.getByRole("heading", { name: "yn1323店舗：8/17 〜 8/24" })).not.toBeNull());
     const managerShopScope = screen.getByTestId("manager-shop-scope");
     expect(managerShopScope.getAttribute("data-shop-id")).toBe("shop-1");
@@ -146,5 +158,26 @@ describe("AppShiftBoardRoutePage", () => {
 
     expect(screen.getByRole("heading", { name: "シフト表が見つかりません" })).not.toBeNull();
     expect(screen.getByText(/この組織から閲覧できない可能性/)).not.toBeNull();
+  });
+
+  it("日付メモを取得できたらシフト表へ渡し、対象外ならメモなしとして扱う", () => {
+    mocks.queryResults.scope = { shopId: "shop-1", shopName: "メモ店舗" };
+    mocks.queryResults.data = {
+      shopId: "shop-1",
+      recruitment: { deadline: "2026-08-12", periodStart: "2026-08-17", periodEnd: "2026-08-24", status: "open" },
+      staffs: [],
+    };
+    mocks.queryResults.dateNotes = [{ staffId: "staff-1", date: "2026-08-17", note: "17時以降なら入れます" }];
+
+    const { rerender } = render(
+      <AppShiftBoardRoutePage organizationId="organization-1" recruitmentId="recruitment-1" />,
+    );
+    expect(screen.getByTestId("shop-id").getAttribute("data-date-notes")).toBe(
+      JSON.stringify([{ staffId: "staff-1", date: "2026-08-17", note: "17時以降なら入れます" }]),
+    );
+
+    mocks.queryResults.dateNotes = null;
+    rerender(<AppShiftBoardRoutePage organizationId="organization-1" recruitmentId="recruitment-1" />);
+    expect(screen.getByTestId("shop-id").getAttribute("data-date-notes")).toBe(JSON.stringify([]));
   });
 });

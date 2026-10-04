@@ -7,6 +7,7 @@ import { getWeekdayLabel } from "@/src/domains/shift/date";
 import type { ShiftTypeOptionLike } from "@/src/domains/shift/shiftTypeAssignments";
 import type { StaffType } from "@/src/domains/shift/types";
 import { Avatar, DateIssueBadge, dateIssueBorderColor, StaffWarningIcon } from "../../components";
+import { ShiftDateNoteBlock, useShiftDateNotes } from "../../dateNotes";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
 import {
@@ -38,6 +39,7 @@ export const SPShiftTypeDailyView = () => {
   const issueCounts = useAtomValue(issueCountByDateAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
   const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
+  const dateNotes = useShiftDateNotes();
 
   const { dates, holidays, isReadOnly, submissionPattern } = config;
   const isConfirmedDisplay = config.displayMode === "confirmed";
@@ -163,6 +165,7 @@ export const SPShiftTypeDailyView = () => {
                 card={card}
                 isReadOnly={isReadOnly}
                 warningMessages={warningMessagesByStaffId.get(card.staff.id) ?? []}
+                note={dateNotes.getNote(card.staff.id, selectedDate)}
                 onToggle={(option) => handleToggle(card.staff, option)}
               />
             ))}
@@ -206,11 +209,13 @@ const StaffShiftTypeCard = ({
   card,
   isReadOnly,
   warningMessages,
+  note,
   onToggle,
 }: {
   card: SPShiftTypeStaffCardViewModel;
   isReadOnly: boolean;
   warningMessages: string[];
+  note?: string;
   onToggle: (option: ShiftTypeOptionLike) => void;
 }) => (
   <Box bg="white" borderWidth="1px" borderColor="gray.200" borderRadius="md" px={3} py={3}>
@@ -242,6 +247,7 @@ const StaffShiftTypeCard = ({
         />
       ))}
     </SimpleGrid>
+    {note && <ShiftDateNoteBlock note={note} />}
   </Box>
 );
 

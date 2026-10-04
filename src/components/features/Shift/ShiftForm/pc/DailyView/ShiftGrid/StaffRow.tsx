@@ -2,6 +2,7 @@ import { Box, Flex, Text } from "@chakra-ui/react";
 import { type MutableRefObject, memo } from "react";
 import type { DragMode, LinkedResizeTarget, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
 import { Avatar, IssueDot, issueToneEmphasis, resolveIssueTone, StaffWarningIcon } from "../../../components";
+import { ShiftDateNoteText } from "../../../dateNotes";
 import { DragPreview } from "./DragPreview";
 import { GridLines } from "./GridLines";
 import { NonEditableTimeOverlay } from "./NonEditableTimeOverlay";
@@ -35,6 +36,10 @@ type StaffRowProps = {
   dataTour?: string;
   hasError?: boolean;
   warningMessages?: string[];
+  /** 募集にメモがあるときだけ渡す。メモがない人も列を空けて行をそろえる。 */
+  noteColumnWidth?: number;
+  note?: string;
+  noteDate?: string;
 };
 
 const noopHover = () => {};
@@ -60,6 +65,9 @@ export const StaffRow = memo(function StaffRow({
   dataTour,
   hasError = false,
   warningMessages = [],
+  noteColumnWidth,
+  note,
+  noteDate,
 }: StaffRowProps) {
   const tone = resolveIssueTone(hasError, false);
   const emphasis = issueToneEmphasis(tone);
@@ -127,6 +135,20 @@ export const StaffRow = memo(function StaffRow({
           </Flex>
         </Flex>
       </Flex>
+      {noteColumnWidth !== undefined && (
+        <Flex
+          w={`${noteColumnWidth}px`}
+          flexShrink={0}
+          align="center"
+          px={3}
+          py="4px"
+          bg={bg}
+          borderRightWidth="1px"
+          borderColor="gray.100"
+        >
+          {note && noteDate && <ShiftDateNoteText staffName={staff.name} date={noteDate} note={note} lineClamp={2} />}
+        </Flex>
+      )}
       <Box
         position="relative"
         height="40px"

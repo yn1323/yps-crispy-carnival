@@ -6,6 +6,7 @@ import {
   fullscreenParameters,
   shiftFormDecorators,
   shiftTypeArgs,
+  shiftTypeDateNotesArgs,
   shiftTypeValidationWarningArgs,
 } from "./shared";
 
@@ -62,5 +63,25 @@ export const Interactive: Story = {
     await expect((await canvas.findAllByText("2人")).length).toBeGreaterThan(0);
     await userEvent.click(await findVisibleByLabelText(canvas, "田中 太郎 早番 勤務あり"));
     await expect(await findVisibleByLabelText(canvas, "田中 太郎 早番 勤務なし")).toBeInTheDocument();
+  },
+};
+
+export const WithDateNotes: Story = {
+  args: shiftTypeDateNotesArgs,
+  globals: desktopGlobals,
+};
+
+export const DateNotesInteractive: Story = {
+  args: shiftTypeDateNotesArgs,
+  globals: desktopGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByText("希望・メモ")).toBeInTheDocument();
+    await expect(await canvas.findByText("17時以降なら入れます")).toHaveAttribute("data-clarity-mask", "true");
+
+    const rows = Array.from(canvasElement.querySelectorAll<HTMLElement>("tbody tr"));
+    const heights = new Set(rows.map((row) => Math.round(row.getBoundingClientRect().height)));
+    await expect(heights.size).toBe(1);
   },
 };
