@@ -15,6 +15,8 @@ const workingDaySchema = dayEntrySchema.refine(
 
 export const submitFormSchema = z.object({
   entries: z.array(workingDaySchema),
+  // 日付をキーにした未送信のメモ。出勤・休みの切替や前回パターンの適用では変えない。
+  dateNotes: z.record(z.string(), z.string()).optional(),
   acceptedLegal: z.boolean().optional(),
 });
 

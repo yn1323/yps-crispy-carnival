@@ -1,13 +1,13 @@
 import { type ReactNode, useRef } from "react";
 import { RecruitmentChangedNotice } from "@/src/components/shared/RecruitmentChangedNotice";
 import { ReadOnlySubmitView } from "../ReadOnlySubmitView";
-import { SubmitForm, type SubmitShiftSelectionInput } from "../SubmitForm";
+import { SubmitForm, type SubmitShiftPayload } from "../SubmitForm";
 import { SubmitPageHeader, SubmitPageLayout } from "../SubmitPageLayout";
 import type { SubmissionData } from "../types";
 
 type Props = {
   data: SubmissionData;
-  onSubmit: (submission: SubmitShiftSelectionInput, acceptedLegal?: boolean) => Promise<void>;
+  onSubmit: (payload: SubmitShiftPayload, acceptedLegal?: boolean) => Promise<void>;
   headerAction?: ReactNode;
   hasStaleError?: boolean;
 };

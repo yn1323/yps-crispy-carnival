@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
+import { normalizeShiftDateNote } from "@/convex/shiftSubmission/schemas";
 import { useDialog } from "@/src/components/ui/Dialog";
 import { getDateRange } from "@/src/domains/shift/date";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
@@ -8,22 +9,32 @@ import { buildRestEntry, buildWorkingEntry, getSelectedShiftTypeOptionIds, type 
 import { buildInitialEntries } from "../script";
 import { generateTimeOptions } from "../timeOptions";
 import type { DayEntry, SubmissionData } from "../types";
-import { buildSubmissionInput, type SubmitShiftSelectionInput } from "./buildSubmissionInput";
+import { buildDateNotesInput, buildSubmissionInput, type SubmitShiftPayload } from "./buildSubmissionInput";
 import { type SubmitFormData, submitFormSchema } from "./schema";
 import { buildPreviousPatternEntries } from "./script";
 
 type UseSubmitFormControllerParams = {
   data: SubmissionData;
-  onSubmit: (submission: SubmitShiftSelectionInput, acceptedLegal?: boolean) => Promise<void>;
+  onSubmit: (payload: SubmitShiftPayload, acceptedLegal?: boolean) => Promise<void>;
 };
+
+const buildPayload = (
+  data: SubmissionData,
+  entries: DayEntry[],
+  dateNotes: Readonly<Record<string, string>>,
+): SubmitShiftPayload => ({
+  submission: buildSubmissionInput(data.submissionPattern, entries),
+  dateNotes: buildDateNotesInput(dateNotes, data.shopClosedDates),
+});
 
 export function useSubmitFormController({ data, onSubmit }: UseSubmitFormControllerParams) {
   const latestWorkingTimeRef = useRef<WorkingTime | undefined>(undefined);
   const latestShiftTypeOptionIdsRef = useRef<string[] | undefined>(undefined);
   const pendingLateSubmissionRef = useRef<{
-    submission: SubmitShiftSelectionInput;
+    payload: SubmitShiftPayload;
     acceptedLegal?: boolean;
   } | null>(null);
+  const [editingNoteDate, setEditingNoteDate] = useState<string | null>(null);
   const lateSubmitDialog = useDialog();
   const isLateInitialSubmission = !data.isBeforeDeadline && !data.hasSubmitted;
   const dates = useMemo(() => getDateRange(data.periodStart, data.periodEnd), [data.periodStart, data.periodEnd]);
@@ -33,6 +44,11 @@ export function useSubmitFormController({ data, onSubmit }: UseSubmitFormControl
     [data.timeRange.startTime, data.timeRange.endTime],
   );
 
+  const initialEntries = useMemo(() => buildInitialEntries(dates, data), [dates, data]);
+  const initialDateNotes = useMemo(
+    () => Object.fromEntries((data.existingDateNotes ?? []).map(({ date, note }) => [date, note])),
+    [data.existingDateNotes],
+  );
   const {
     watch,
     setValue,
@@ -42,12 +58,14 @@ export function useSubmitFormController({ data, onSubmit }: UseSubmitFormControl
   } = useForm<SubmitFormData>({
     resolver: zodResolver(submitFormSchema),
     defaultValues: {
-      entries: buildInitialEntries(dates, data),
+      entries: initialEntries,
+      dateNotes: initialDateNotes,
       acceptedLegal: false,
     },
   });
 
   const entries = watch("entries");
+  const dateNotes = watch("dateNotes") ?? {};
   const acceptedLegal = watch("acceptedLegal");
   const previousPatternEntries = useMemo(() => buildPreviousPatternEntries(dates, data), [dates, data]);
   const canApplyPreviousPattern = previousPatternEntries?.some((entry) => entry.isWorking) ?? false;
@@ -183,33 +201,51 @@ export function useSubmitFormController({ data, onSubmit }: UseSubmitFormControl
       return;
     }
 
-    const submission = buildSubmissionInput(data.submissionPattern, formData.entries);
+    const payload = buildPayload(data, formData.entries, formData.dateNotes ?? {});
     if (isLateInitialSubmission) {
-      pendingLateSubmissionRef.current = { submission, acceptedLegal: formData.acceptedLegal };
+      pendingLateSubmissionRef.current = { payload, acceptedLegal: formData.acceptedLegal };
       lateSubmitDialog.open();
       return;
     }
 
-    await onSubmit(submission, formData.acceptedLegal);
+    await onSubmit(payload, formData.acceptedLegal);
   });
 
   const { run: submitLate, isRunning: isLateSubmitting } = useSingleFlight(async () => {
     const pending = pendingLateSubmissionRef.current;
     if (!pending) return;
 
-    await onSubmit(pending.submission, pending.acceptedLegal);
+    await onSubmit(pending.payload, pending.acceptedLegal);
     pendingLateSubmissionRef.current = null;
     lateSubmitDialog.close();
   });
+
+  const handleSaveNote = (date: string, note: string) => {
+    const nextDateNotes = { ...dateNotes };
+    const normalizedNote = normalizeShiftDateNote(note);
+    if (normalizedNote) nextDateNotes[date] = normalizedNote;
+    else delete nextDateNotes[date];
+    setValue("dateNotes", nextDateNotes, { shouldDirty: true });
+    setEditingNoteDate(null);
+  };
 
   const handleAcceptedLegalChange = (checked: boolean) => {
     setValue("acceptedLegal", checked, { shouldDirty: true, shouldValidate: true });
   };
 
+  // 送信する内容が保存済みの内容と変わったかで判定し、変更後に元へ戻した場合は表示しない。
+  const savedPayloadKey = useMemo(
+    () => JSON.stringify(buildPayload(data, initialEntries, initialDateNotes)),
+    [data, initialEntries, initialDateNotes],
+  );
+  const hasUnsentChanges =
+    data.hasSubmitted && JSON.stringify(buildPayload(data, entries, dateNotes)) !== savedPayloadKey;
+
   const days = entries.map((entry: DayEntry, index) => ({
     entry,
     index,
     isShopClosed: shopClosedDateSet.has(entry.date),
+    note: dateNotes[entry.date],
     error: errors.entries?.[index]?.endTime?.message,
   }));
 
@@ -218,6 +254,16 @@ export function useSubmitFormController({ data, onSubmit }: UseSubmitFormControl
     acceptedLegal: acceptedLegal === true,
     acceptedLegalError: errors.acceptedLegal?.message,
     canApplyPreviousPattern,
+    hasUnsentChanges,
+    noteEditor: {
+      date: editingNoteDate,
+      note: editingNoteDate ? (dateNotes[editingNoteDate] ?? "") : "",
+      open: (date: string) => {
+        if (!shopClosedDateSet.has(date)) setEditingNoteDate(date);
+      },
+      close: () => setEditingNoteDate(null),
+      save: handleSaveNote,
+    },
     timeOptions,
     isSubmitting: isSubmitting || isLateSubmitting,
     isLateSubmitting,

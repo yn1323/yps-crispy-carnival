@@ -49,6 +49,7 @@ export type SubmissionData = {
   isBeforeDeadline: boolean;
   hasSubmitted: boolean;
   existingRequests: { date: string; startTime: string; endTime: string }[];
+  existingDateNotes?: { date: string; note: string }[];
   existingSelection: ExistingSelection;
   legalConsentRequired: boolean;
   legalDocuments: LegalDocumentLinks;
