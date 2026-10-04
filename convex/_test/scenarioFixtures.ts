@@ -334,6 +334,12 @@ export function createScenario(t: ScenarioTest) {
             refreshDayKey,
           });
         },
+        async getShiftBoardDateNotes(recruitmentId: Id<"recruitments">) {
+          return asManager.query(api.shiftBoard.queries.getShiftBoardDateNotes, {
+            recruitmentId,
+            ...(await getSelectedManagerScope()),
+          });
+        },
       };
     },
     staff() {
@@ -352,6 +358,7 @@ export function createScenario(t: ScenarioTest) {
           recruitmentId: Id<"recruitments">;
           acceptedLegal?: boolean;
           submission: SubmitShiftSelectionInput;
+          dateNotes?: Array<{ date: string; note: string }>;
         }) {
           return t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
             ...args,

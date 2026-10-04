@@ -6,7 +6,7 @@ import type { Id } from "../_generated/dataModel";
 import { seedStaff } from "../_test/scenarioBuilders";
 import { seedManagerShop, seedOrganizationManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
-import { SHIFT_ASSIGNMENT_LIMIT } from "../constants";
+import { SHIFT_ASSIGNMENT_LIMIT, SHIFT_BOARD_DATE_NOTE_LIMIT } from "../constants";
 
 const QUERY_REFRESH_DAY_KEY = "2026-07-22";
 
@@ -826,5 +826,127 @@ describe("shiftBoard/queries", () => {
 
     expect(result?.timeRange.editableStartMinutes).toBe(330);
     expect(result?.timeRange.editableEndMinutes).toBe(1350);
+  });
+
+  describe("getShiftBoardDateNotes", () => {
+    async function seedDateNoteBoard(t: TestConvex<typeof schema>) {
+      return await t.run(async (ctx) => {
+        const actor = await seedManagerShop(ctx, { subject: "manager_date_notes", shopName: "メモ店舗" });
+        await seedOrganizationManagerShop(ctx, { subject: "manager_date_notes_other", shopName: "別組織店舗" });
+        const includedStaffId = await seedStaff(ctx, {
+          shopId: actor.shopId,
+          name: "通常スタッフ",
+          email: "note-normal@example.com",
+        });
+        const excludedStaffId = await seedStaff(ctx, {
+          shopId: actor.shopId,
+          name: "対象外スタッフ",
+          email: "note-excluded@example.com",
+          excludedFromShift: true,
+        });
+        const deletedStaffId = await seedStaff(ctx, {
+          shopId: actor.shopId,
+          name: "削除済みスタッフ",
+          email: "note-deleted@example.com",
+        });
+        await ctx.db.patch(deletedStaffId, { isDeleted: true });
+        const recruitmentId = await ctx.db.insert("recruitments", {
+          shopId: actor.shopId,
+          periodStart: "2026-04-01",
+          periodEnd: "2026-04-07",
+          deadline: "2026-03-28",
+          shopClosedDates: [],
+          status: "open",
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+        const insertNote = async (staffId: Id<"staffs">, date: string, note: string) => {
+          const submissionId = await ctx.db.insert("shiftSubmissions", {
+            recruitmentId,
+            staffId,
+            firstSubmittedAt: 1000,
+            submittedAt: 1000,
+          });
+          await ctx.db.insert("shiftSubmissionDateNotes", { submissionId, recruitmentId, staffId, date, note });
+        };
+        await insertNote(includedStaffId, "2026-04-02", "17時以降なら入れます");
+        await insertNote(includedStaffId, "2026-04-10", "期間外に残ったメモ");
+        await insertNote(excludedStaffId, "2026-04-02", "対象外スタッフのメモ");
+        await insertNote(deletedStaffId, "2026-04-03", "削除済みスタッフのメモ");
+        return { shopId: actor.shopId, organizationId: actor.organizationId, recruitmentId, includedStaffId };
+      });
+    }
+
+    it("同じ店舗の管理者に、シフト表の有効スタッフの募集期間内のメモだけを最小DTOで返す", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedDateNoteBoard(t);
+
+      const result = await t
+        .withIdentity({ subject: "manager_date_notes" })
+        .query(api.shiftBoard.queries.getShiftBoardDateNotes, {
+          shopId: ids.shopId,
+          expectedOrganizationId: ids.organizationId,
+          recruitmentId: ids.recruitmentId,
+        });
+
+      expect(result).toEqual([{ staffId: ids.includedStaffId, date: "2026-04-02", note: "17時以降なら入れます" }]);
+    });
+
+    it("別組織の管理者にはメモを返さない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedDateNoteBoard(t);
+
+      await expect(
+        t.withIdentity({ subject: "manager_date_notes_other" }).query(api.shiftBoard.queries.getShiftBoardDateNotes, {
+          shopId: ids.shopId,
+          expectedOrganizationId: ids.organizationId,
+          recruitmentId: ids.recruitmentId,
+        }),
+      ).resolves.toBeNull();
+    });
+
+    it("削除済み募集は null を返す", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedDateNoteBoard(t);
+      await t.run(async (ctx) => await ctx.db.patch(ids.recruitmentId, { isDeleted: true }));
+
+      await expect(
+        t.withIdentity({ subject: "manager_date_notes" }).query(api.shiftBoard.queries.getShiftBoardDateNotes, {
+          shopId: ids.shopId,
+          expectedOrganizationId: ids.organizationId,
+          recruitmentId: ids.recruitmentId,
+        }),
+      ).resolves.toBeNull();
+    });
+
+    it("メモが上限を超える場合は一部だけを返さない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedDateNoteBoard(t);
+      await t.run(async (ctx) => {
+        const submissionId = await ctx.db.insert("shiftSubmissions", {
+          recruitmentId: ids.recruitmentId,
+          staffId: ids.includedStaffId,
+          firstSubmittedAt: 1000,
+          submittedAt: 1000,
+        });
+        for (let index = 0; index < SHIFT_BOARD_DATE_NOTE_LIMIT; index += 1) {
+          await ctx.db.insert("shiftSubmissionDateNotes", {
+            submissionId,
+            recruitmentId: ids.recruitmentId,
+            staffId: ids.includedStaffId,
+            date: "2026-04-01",
+            note: "上限確認",
+          });
+        }
+      });
+
+      await expect(
+        t.withIdentity({ subject: "manager_date_notes" }).query(api.shiftBoard.queries.getShiftBoardDateNotes, {
+          shopId: ids.shopId,
+          expectedOrganizationId: ids.organizationId,
+          recruitmentId: ids.recruitmentId,
+        }),
+      ).rejects.toThrow("Shift date note scope exceeds the supported limit");
+    });
   });
 });

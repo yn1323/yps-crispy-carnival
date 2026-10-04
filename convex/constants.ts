@@ -100,6 +100,8 @@ export const OPEN_RECRUITMENT_NOTIFICATION_LIMIT = 50;
 // スタッフ個別の確定シフト再送で、一度の操作に固定できる募集数。
 export const CURRENT_SHIFT_NOTIFICATION_LIMIT = 40;
 export const SHIFT_REQUESTS_PER_SUBMISSION_LIMIT = 31;
+// 希望シフトに添える日付ごとのメモ。管理画面の2行表示とSPの折り返しで読める長さに収める。
+export const SHIFT_DATE_NOTE_MAX_LENGTH = 100;
 export const SHIFT_BOARD_TIME_UNIT_MINUTES = 30;
 // 未認証のLINE OAuth callback全体で、無効stateによるDB lookupを抑止する上限。
 export const LINE_LINK_REDEEM_GLOBAL_LIMIT = 100;
@@ -117,6 +119,8 @@ export const SHIFT_TYPE_NAME_MAX_LENGTH = 30;
 export const EMAIL_MAX_LENGTH = 254;
 export const STAFF_ADD_ENTRIES_MAX = 50;
 export const RECRUITMENT_PERIOD_DAYS_MAX = 31;
+// 提出時の検証で1スタッフ1日1件に限るため、募集あたりのメモは「スタッフ数×募集日数」を超えない。
+export const SHIFT_BOARD_DATE_NOTE_LIMIT = SHIFT_BOARD_STAFF_LIMIT * RECRUITMENT_PERIOD_DAYS_MAX;
 export const FEATURE_REQUEST_COMMENT_MAX_LENGTH = 200;
 export const FEATURE_REQUEST_REQUEST_ID_MAX_LENGTH = 64;
 export const FEATURE_REQUEST_LIST_LIMIT = 50;

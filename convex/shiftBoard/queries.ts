@@ -9,6 +9,7 @@ import { getSubmissionPatternTimeRange, submissionPatternValidator } from "../_l
 import { timeToMinutes } from "../_lib/time";
 import {
   SHIFT_ASSIGNMENT_LIMIT,
+  SHIFT_BOARD_DATE_NOTE_LIMIT,
   SHIFT_BOARD_SHIFT_REQUEST_LIMIT,
   SHIFT_BOARD_STAFF_LIMIT,
   SHIFT_BOARD_TIME_UNIT_MINUTES,
@@ -280,6 +281,51 @@ export const getShiftBoardData = managerQuery({
         editableEndMinutes,
       },
     };
+  },
+});
+
+/**
+ * シフト表に表示する有効スタッフの日付メモだけを返す。
+ * 割当の下書き保存で再送しないよう、getShiftBoardDataとは別に購読する。
+ */
+export const getShiftBoardDateNotes = managerQuery({
+  args: { recruitmentId: v.id("recruitments") },
+  returns: v.union(v.array(v.object({ staffId: v.id("staffs"), date: v.string(), note: v.string() })), v.null()),
+  handler: async (ctx, args) => {
+    const { shop } = ctx;
+    if (!shop) return null;
+
+    const recruitment = await getActiveRecruitmentInShop(ctx, shop._id, args.recruitmentId);
+    if (!recruitment) return null;
+
+    const [notes, staffs] = await Promise.all([
+      ctx.db
+        .query("shiftSubmissionDateNotes")
+        .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", args.recruitmentId))
+        .take(SHIFT_BOARD_DATE_NOTE_LIMIT + 1),
+      ctx.db
+        .query("staffs")
+        .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
+        .take(SHIFT_BOARD_STAFF_LIMIT + 1),
+    ]);
+    // 提出時の検証で超えない件数なので、超えた場合は一部だけを返さず失敗させる。
+    if (notes.length > SHIFT_BOARD_DATE_NOTE_LIMIT)
+      throw new Error("Shift date note scope exceeds the supported limit");
+    if (staffs.length > SHIFT_BOARD_STAFF_LIMIT) throw new ConvexError("シフト表のスタッフ数が上限を超えています。");
+
+    const visibleStaffIds = new Set(
+      staffs
+        .filter((staff) => staff.organizationId === shop.organizationId && isShiftTargetStaff(staff))
+        .map((staff) => staff._id),
+    );
+    return notes
+      .filter(
+        (entry) =>
+          visibleStaffIds.has(entry.staffId) &&
+          entry.date >= recruitment.periodStart &&
+          entry.date <= recruitment.periodEnd,
+      )
+      .map(({ staffId, date, note }) => ({ staffId, date, note }));
   },
 });
 

@@ -17,8 +17,8 @@ export const DEVELOPMENT_SEED_SCENARIO_KEYS = [
   "trial-daily",
 ] as const;
 
-export const DEVELOPMENT_SEED_CONTRACT_VERSION = "development-seed-v5";
-export const DEVELOPMENT_SEED_EXPECTED_TABLE_COUNT = 57;
+export const DEVELOPMENT_SEED_CONTRACT_VERSION = "development-seed-v6";
+export const DEVELOPMENT_SEED_EXPECTED_TABLE_COUNT = 58;
 
 export type DevelopmentSeedScenarioKey = (typeof DEVELOPMENT_SEED_SCENARIO_KEYS)[number];
 
@@ -343,6 +343,7 @@ export const DEVELOPMENT_SEED_TABLE_COVERAGE = {
   recruitments: seeded(OPERATIONS),
   shiftSubmissionSlots: seeded(["trial-ending", "standard-operations", "pro-notifications", "trial-daily"]),
   shiftSubmissionDates: seeded(["free-capacity", "standard-operations"]),
+  shiftSubmissionDateNotes: seeded(OPERATIONS),
   shiftAssignments: seeded(OPERATIONS),
   shiftConfirmationSnapshots: seeded(PRO_NOTIFICATIONS),
   shiftSubmissions: seeded(OPERATIONS),

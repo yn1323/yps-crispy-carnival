@@ -258,7 +258,7 @@ Mobile VRTはviewport指定だけでなく`vrt-mobile1`または`vrt-mobile2` ta
 
 ## Public Convex surface inventory
 
-2026-09-08時点のpublic query、mutation、actionは116個である。
+2026-10-04時点のpublic query、mutation、actionは117個である。
 同じ業務境界のAPIは一行へまとめるが、公開export名は省略しない。
 
 | Module | Public exports | 対応契約 / 状態 |
@@ -293,7 +293,7 @@ Mobile VRTはviewport指定だけでなく`vrt-mobile1`または`vrt-mobile2` ta
 | `recruitment/mutations` | `createRecruitment`、`updateRecruitment`、`deleteRecruitment` | `RECRUITMENT-01`、`RECRUITMENT-EDIT-01` |
 | `setup/mutations` | `createOrganizationForApp`、`setupShopAndManager`、`verifyPromotionCode` | `ORG-CREATE-01`、`SETUP-ORGANIZATION-01`。初回Setupと追加組織で開始条件、作成プラン、上限を分け、プロモーションコードは作成前と最終Setupで照合する |
 | `shiftBoard/mutations` | `confirmRecruitment`、`saveShiftAssignments` | `SHIFT-BOARD-DRAFT-01`、`SHIFT-CONFIRM-01` |
-| `shiftBoard/queries` | `getShiftBoardData`、`getShiftBoardShopScopeForOrganization` | `SHIFT-BOARD-DRAFT-01`。新appはcanonical組織で店舗scopeを検証する |
+| `shiftBoard/queries` | `getShiftBoardData`、`getShiftBoardShopScopeForOrganization`、`getShiftBoardDateNotes` | `SHIFT-BOARD-DRAFT-01`。新appはcanonical組織で店舗scopeを検証する。日付メモは同じ店舗scopeで有効スタッフ分だけを最小DTOで返す |
 | `shiftSubmission/mutations` | `submitShiftRequests` | `SHIFT-SUBMISSION-01` |
 | `shiftSubmission/queries` | `getSubmissionPageData`、`getSubmissionResult` | `SHIFT-SUBMISSION-01`、`SHIFT-SUBMISSION-RESULT-01` |
 | `shiftView/queries` | `getShiftViewData` | `SHIFT-VIEW-REISSUE-01` |

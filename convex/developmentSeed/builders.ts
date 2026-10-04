@@ -275,6 +275,14 @@ async function insertSubmissionGraph(
       firstSubmittedAt: now - 60 * 60 * 1000,
       submittedAt: now - 30 * 60 * 1000,
     });
+    // 日付メモはシフト表の表示確認用に、出勤希望と休み提出の両方へ1件ずつ付ける。
+    await writer.insert("shiftSubmissionDateNotes", {
+      submissionId,
+      recruitmentId,
+      staffId: staff.staffId,
+      date,
+      note: index === 0 ? "17時以降なら入れます" : "テスト期間のため休みたいです",
+    });
     if (index === 1) continue;
     if (pattern.kind === "dateOnly") {
       await writer.insert("shiftSubmissionDates", {

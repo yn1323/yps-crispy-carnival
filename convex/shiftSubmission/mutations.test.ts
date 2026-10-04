@@ -7,7 +7,7 @@ import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import { seedStaff } from "../_test/scenarioBuilders";
 import { seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
-import { SHIFT_REQUESTS_PER_SUBMISSION_LIMIT } from "../constants";
+import { SHIFT_DATE_NOTE_MAX_LENGTH, SHIFT_REQUESTS_PER_SUBMISSION_LIMIT } from "../constants";
 
 /** テスト用にshop + staff + recruitment + sessionをセットアップ */
 async function setupTestData(
@@ -910,6 +910,163 @@ describe("shiftSubmission/mutations", () => {
           },
         }),
       ).rejects.toThrow("同じ日に登録できる希望シフトは1件だけです。");
+    });
+  });
+
+  describe("submitShiftRequests の日付メモ", () => {
+    const readDateNotes = async (t: TestConvex<typeof schema>) =>
+      await t.run(async (ctx) =>
+        (await ctx.db.query("shiftSubmissionDateNotes").collect())
+          .map(({ date, note }) => ({ date, note }))
+          .sort((a, b) => a.date.localeCompare(b.date)),
+      );
+
+    it("希望と同じ提出でメモを正規化して保存し、再提出で全置換する。省略した再提出ではメモを変えない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await setupTestData(t);
+      const base = {
+        sessionToken: ids.sessionToken,
+        accessKind: "submit" as const,
+        recruitmentId: ids.recruitmentId,
+        submission: { kind: "time" as const, requests: validRequests },
+      };
+
+      await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+        ...base,
+        dateNotes: [
+          { date: "2026-04-07", note: "  17時以降なら\n入れます\u202E " },
+          // 2026-04-08は希望なし（休み）の日。休みの理由も残せる。
+          { date: "2026-04-08", note: "テスト期間のため休みたいです" },
+          { date: "2026-04-09", note: " \t " },
+        ],
+      });
+      expect(await readDateNotes(t)).toEqual([
+        { date: "2026-04-07", note: "17時以降なら 入れます" },
+        { date: "2026-04-08", note: "テスト期間のため休みたいです" },
+      ]);
+
+      await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, base);
+      expect(await readDateNotes(t)).toHaveLength(2);
+
+      await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+        ...base,
+        dateNotes: [{ date: "2026-04-09", note: "午前だけ入れます" }],
+      });
+      expect(await readDateNotes(t)).toEqual([{ date: "2026-04-09", note: "午前だけ入れます" }]);
+
+      await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, { ...base, dateNotes: [] });
+      expect(await readDateNotes(t)).toEqual([]);
+    });
+
+    it("期間外・定休日・重複日付・文字数超過のメモを拒否し、メモも希望も変更しない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await setupTestData(t, { shopClosedDates: ["2026-04-10"] });
+      const base = {
+        sessionToken: ids.sessionToken,
+        accessKind: "submit" as const,
+        recruitmentId: ids.recruitmentId,
+        submission: { kind: "time" as const, requests: validRequests },
+      };
+      await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+        ...base,
+        dateNotes: [{ date: "2026-04-07", note: "保存済みのメモ" }],
+      });
+      const readState = async () =>
+        await t.run(async (ctx) => ({
+          submissions: await ctx.db.query("shiftSubmissions").collect(),
+          slots: await ctx.db.query("shiftSubmissionSlots").collect(),
+          notes: await ctx.db.query("shiftSubmissionDateNotes").collect(),
+        }));
+      const before = await readState();
+
+      const rejectedCases = [
+        [{ date: "2026-04-14", note: "期間外" }],
+        [{ date: "2026-04-10", note: "定休日" }],
+        [
+          { date: "2026-04-07", note: "1件目" },
+          { date: "2026-04-07", note: "2件目" },
+        ],
+        [{ date: "2026-04-07", note: "あ".repeat(SHIFT_DATE_NOTE_MAX_LENGTH + 1) }],
+        [{ date: "2026/04/07", note: "形式違い" }],
+      ];
+      for (const dateNotes of rejectedCases) {
+        await expect(
+          t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+            ...base,
+            submission: { kind: "time", requests: [] },
+            dateNotes,
+          }),
+        ).rejects.toThrow(ConvexError);
+      }
+      expect(await readState()).toEqual(before);
+    });
+
+    it("100文字ちょうどのメモは保存できる", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await setupTestData(t);
+      const note = "あ".repeat(SHIFT_DATE_NOTE_MAX_LENGTH);
+
+      await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+        sessionToken: ids.sessionToken,
+        accessKind: "submit",
+        recruitmentId: ids.recruitmentId,
+        submission: { kind: "time", requests: [] },
+        dateNotes: [{ date: "2026-04-07", note }],
+      });
+
+      expect(await readDateNotes(t)).toEqual([{ date: "2026-04-07", note }]);
+    });
+
+    it("提出期限後の再提出ではメモも変更できない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await setupTestData(t, { deadlinePassed: true });
+      const base = {
+        sessionToken: ids.sessionToken,
+        accessKind: "submit" as const,
+        recruitmentId: ids.recruitmentId,
+        submission: { kind: "time" as const, requests: [] },
+      };
+      await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+        ...base,
+        dateNotes: [{ date: "2026-04-07", note: "初回のメモ" }],
+      });
+
+      await expect(
+        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+          ...base,
+          dateNotes: [{ date: "2026-04-07", note: "期限後の変更" }],
+        }),
+      ).rejects.toThrow("Deadline passed");
+      expect(await readDateNotes(t)).toEqual([{ date: "2026-04-07", note: "初回のメモ" }]);
+    });
+
+    it("閲覧用sessionでは希望もメモも提出できない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await setupTestData(t);
+      await t.run(async (ctx) => {
+        const session = await ctx.db
+          .query("sessions")
+          .withIndex("by_sessionToken", (q) => q.eq("sessionToken", ids.sessionToken))
+          .unique();
+        if (!session) throw new Error("テスト用sessionが見つかりません");
+        await ctx.db.patch(session._id, { accessKind: "view" });
+      });
+
+      await expect(
+        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+          sessionToken: ids.sessionToken,
+          accessKind: "view",
+          recruitmentId: ids.recruitmentId,
+          submission: { kind: "time", requests: validRequests },
+          dateNotes: [{ date: "2026-04-07", note: "閲覧リンクからのメモ" }],
+        }),
+      ).rejects.toThrow("Not found");
+      expect(
+        await t.run(async (ctx) => ({
+          submissions: await ctx.db.query("shiftSubmissions").collect(),
+          notes: await ctx.db.query("shiftSubmissionDateNotes").collect(),
+        })),
+      ).toEqual({ submissions: [], notes: [] });
     });
   });
 });
