@@ -35,6 +35,17 @@ export class ShiftBoardPage {
     await expect(this.page.getByRole("button", { name: "保存・再送・出力", exact: true })).toBeVisible();
   }
 
+  /** 日付選択の週表で並べ替える日を選び、その日のメモ欄に提出されたメモが並ぶことを確認する。 */
+  async expectDateOnlyNotesForDate(dateText: string, notes: Array<{ staffName: string; note: string }>) {
+    await this.page.getByRole("button", { name: new RegExp(`^${escapeRegExp(dateText)}で並べ替える`) }).click();
+    await expect(this.page.getByText(`${dateText}のメモ ${notes.length}件`, { exact: true })).toBeVisible();
+    for (const { staffName, note } of notes) {
+      await expect(
+        this.page.getByRole("listitem").filter({ hasText: staffName }).filter({ hasText: note }),
+      ).toBeVisible();
+    }
+  }
+
   async saveDraft() {
     await this.page.getByRole("button", { name: "下書き保存", exact: true }).click();
     await expect(this.page.getByText("下書きを保存しました", { exact: true })).toBeVisible();
@@ -48,4 +59,8 @@ export class ShiftBoardPage {
     await dialog.getByRole("button", { name: "変更があるスタッフに通知", exact: true }).click();
     await expect(this.page.getByText("変更があるスタッフに通知を送りました", { exact: true })).toBeVisible();
   }
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
