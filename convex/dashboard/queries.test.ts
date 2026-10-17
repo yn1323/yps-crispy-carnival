@@ -378,6 +378,81 @@ describe("dashboard/queries", () => {
     });
   });
 
+  describe("getDashboardShop のトライアル終了案内", () => {
+    const TRIAL_ENDS_AT = Date.UTC(2026, 10, 1) - 9 * 60 * 60 * 1000;
+
+    async function seedTrialShop(
+      t: TestConvex<typeof schema>,
+      subject: string,
+      options: { extraStaffCount: number; selectedPaidPlan?: "standard" | "pro" },
+    ) {
+      return await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, { subject, plan: "pro" });
+        const billingState = await ctx.db
+          .query("organizationBillingStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+          .unique();
+        if (!billingState) throw new Error("billing state not found");
+        await ctx.db.patch(billingState._id, {
+          state: {
+            kind: "trial",
+            trialEndsAt: TRIAL_ENDS_AT,
+            ...(options.selectedPaidPlan ? { selectedPaidPlan: options.selectedPaidPlan } : {}),
+          },
+        });
+        for (let index = 0; index < options.extraStaffCount; index += 1) {
+          await seedStaff(ctx, {
+            shopId: seeded.shopId,
+            name: `トライアルスタッフ${index + 1}`,
+            email: `${subject}-${index + 1}@example.com`,
+          });
+        }
+        return seeded;
+      });
+    }
+
+    const queryShop = async (t: TestConvex<typeof schema>, subject: string, shopId: Id<"shops">) =>
+      await t.withIdentity({ subject }).query(api.dashboard.queries.getDashboardShop, {
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
+        shopId,
+      });
+
+    it("未契約のTrialにはFree上限内かどうかを終了日と一緒に返す", async () => {
+      const t = convexTest(schema, modules);
+      const subject = "dashboard_trial_within_free";
+      const { shopId } = await seedTrialShop(t, subject, { extraStaffCount: 4 });
+
+      const result = await queryShop(t, subject, shopId);
+
+      expect(result?.trialEnding).toEqual({ trialEndsAt: TRIAL_ENDS_AT, freeLimitStatus: { kind: "withinLimits" } });
+      expect(result).toMatchObject({ canWriteBusinessData: true });
+    });
+
+    it("終了後にFree上限を超える利用数なら、超える項目と現在数を返す", async () => {
+      const t = convexTest(schema, modules);
+      const subject = "dashboard_trial_over_free";
+      const { shopId } = await seedTrialShop(t, subject, { extraStaffCount: 6 });
+
+      const result = await queryShop(t, subject, shopId);
+
+      expect(result?.trialEnding).toEqual({
+        trialEndsAt: TRIAL_ENDS_AT,
+        freeLimitStatus: { kind: "overLimit", violations: [{ kind: "people", current: 7, max: 5, excess: 2 }] },
+      });
+      expect(result).toMatchObject({ canWriteBusinessData: true });
+    });
+
+    it("有料プランの継続を登録済みのTrialには案内を返さない", async () => {
+      const t = convexTest(schema, modules);
+      const subject = "dashboard_trial_selected_paid";
+      const { shopId } = await seedTrialShop(t, subject, { extraStaffCount: 6, selectedPaidPlan: "standard" });
+
+      const result = await queryShop(t, subject, shopId);
+
+      expect(result).not.toHaveProperty("trialEnding");
+    });
+  });
+
   describe("getMyShops", () => {
     it("未認証またはユーザー未登録の場合は空配列を返す", async () => {
       const unauthenticated = convexTest(schema, modules);

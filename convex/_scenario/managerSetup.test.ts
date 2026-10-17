@@ -9,6 +9,7 @@ import {
 } from "../_test/scenarioBuilders";
 import { createScenario } from "../_test/scenarioFixtures";
 import { modules, schema } from "../_test/setup.test-helper";
+import { calculateTrialEndsAt } from "../organizationBilling/policy";
 
 const SETUP_MANAGER_SUBJECT = "scenario_setup_manager";
 
@@ -62,6 +63,8 @@ describe("管理者セットアップシナリオ", () => {
       name: "初回セットアップ店舗",
       regularClosedDays: [],
       submissionPattern: { kind: "dateOnly" },
+      // 初回Setupは管理者1名の2か月Trialなので、終了後もFree上限内として案内を返す。
+      trialEnding: { trialEndsAt: calculateTrialEndsAt(Date.now()), freeLimitStatus: { kind: "withinLimits" } },
     });
     expect(staffPage.page).toMatchObject([{ name: "山田 太郎", email: "manager@example.com", isManager: true }]);
     expect(consentStatus.required).toBe(false);

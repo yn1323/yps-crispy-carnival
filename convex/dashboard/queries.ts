@@ -16,7 +16,11 @@ import {
 import { resolveStaffLineRecipient } from "../line/service";
 import { getOrganizationStaffOrderScope } from "../organization/staffOrder";
 import { organizationMemberStatusValidator } from "../organization/validators";
-import { getOrganizationAccessPolicy, getOrganizationBillingPolicy } from "../organizationBilling/service";
+import {
+  evaluateTrialEndFreeLimitStatus,
+  getOrganizationAccessPolicy,
+  getOrganizationBillingPolicy,
+} from "../organizationBilling/service";
 import { getStripeBillingConfiguration } from "../organizationStripe/config";
 
 const myShopValidator = v.object({
@@ -103,6 +107,16 @@ const dashboardUsageLimitStatusValidator = v.union(
   }),
 );
 
+// 有料プランの継続を登録していないTrialだけに返す。表示時期はfrontendがtrialEndsAtから決める。
+const dashboardTrialEndingValidator = v.object({
+  trialEndsAt: v.number(),
+  freeLimitStatus: v.union(
+    v.object({ kind: v.literal("withinLimits") }),
+    v.object({ kind: v.literal("overLimit"), violations: v.array(dashboardUsageLimitViolationValidator) }),
+    v.object({ kind: v.literal("unknown") }),
+  ),
+});
+
 const dashboardShopValidator = v.object({
   name: v.string(),
   regularClosedDays: v.array(
@@ -131,6 +145,7 @@ const dashboardShopValidator = v.object({
       canStartPaidPlan: v.boolean(),
     }),
   ),
+  trialEnding: v.optional(dashboardTrialEndingValidator),
 });
 
 // shop未登録のsetup中や、ログアウト直後に購読中queryが未認証で再実行された場合でも
@@ -343,6 +358,13 @@ export const getDashboardShop = managerQuery({
           ),
         }
       : undefined;
+    const trialEnding =
+      billingState.state.kind === "trial" && !billingState.state.selectedPaidPlan
+        ? {
+            trialEndsAt: billingState.state.trialEndsAt,
+            freeLimitStatus: evaluateTrialEndFreeLimitStatus(accessPolicy.usageProbe),
+          }
+        : undefined;
 
     return {
       name: shop.name,
@@ -370,6 +392,7 @@ export const getDashboardShop = managerQuery({
             }
           : {}),
       ...(paymentFailure ? { paymentFailure } : {}),
+      ...(trialEnding ? { trialEnding } : {}),
     };
   },
 });
