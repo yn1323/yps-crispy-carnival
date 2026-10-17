@@ -1,6 +1,6 @@
 # 希望シフト提出
 
-スタッフがメール/LINEのリンクから希望シフトを提出する機能。店舗設定に応じて、時間指定・日付選択・パターン選択のいずれかで入力できる。過去にシフトあり週を提出している場合は、直近の曜日・時間パターンを今回の募集期間へワンクリックで反映できる。
+スタッフがメール/LINEのリンクから希望シフトを提出する機能。店舗設定に応じて、時間指定・日付選択・パターン選択のいずれかで入力できる。過去にシフトあり週を提出している場合は、直近の曜日・時間パターンを今回の募集期間へワンクリックで反映できる。日付ごとに短いメモを添えられる。
 
 ## 関連ファイル
 
@@ -16,6 +16,7 @@
 | API | `convex/shiftSubmission/queries.ts`, `convex/shiftSubmission/mutations.ts`, `convex/shiftView/queries.ts` |
 | 通知 | `convex/notification/queries.ts`, `convex/notification/templates.ts` |
 | 提出方法 | `convex/_lib/submissionPattern.ts`, `convex/shop/schemas.ts` |
+| 日付メモ | `convex/shiftSubmission/schemas.ts`, `src/components/features/StaffSubmit/DateNote/`, `src/components/features/StaffSubmit/DateNoteDialog/` |
 | 履歴パターン | `convex/_lib/previousWeeklyPattern.ts`, `src/components/features/StaffSubmit/previousWeeklyPattern.ts` |
 
 ## 画面一覧
@@ -34,10 +35,26 @@
 | `api.staffAuth.mutations.verifyToken` | mutation | 提出/閲覧リンクを検証し、利用できない場合は失効理由を返す |
 | `api.staffAuth.queries.getRecruitmentInfo` | query | 再発行可能な確定済み募集に、canonicalな募集ID、店舗名、募集期間の最小情報を返す |
 | `api.staffAuth.mutations.requestReissue` | mutation | 登録メールと確定済み募集の対象スタッフが一致する場合に、新しい閲覧リンクの通知を予約する |
-| `api.shiftSubmission.queries.getSubmissionPageData` | query | 提出画面データ、提出方法、既存提出、前回シフトあり週パターンを取得 |
+| `api.shiftSubmission.queries.getSubmissionPageData` | query | 提出画面データ、提出方法、既存提出、本人の日付メモ、前回シフトあり週パターンを取得 |
 | `api.shiftSubmission.queries.getSubmissionResult` | query | 保存済みsubmit session、募集、店舗、スタッフ、提出recordを照合し、提出完了画面用の最小結果を返す |
-| `api.shiftSubmission.mutations.submitShiftRequests` | mutation | 提出方法別の入力を保存形式へ変換し、希望シフトを提出・再提出する |
+| `api.shiftSubmission.mutations.submitShiftRequests` | mutation | 提出方法別の入力を保存形式へ変換し、希望シフトと日付メモを提出・再提出する |
 | `api.shiftView.queries.getShiftViewData` | query | 確定シフト閲覧用に提出方法スナップショット、確定割当、定休日を取得 |
+
+## 日付メモ
+
+スタッフは、募集期間内かつ定休日以外の各日に、出勤希望・休みを問わず1件ずつメモを添えられる。  
+メモはシフト作成担当者のシフト表と、管理者が選んだ場合のPDF・Excelのメモ一覧にだけ表示する。確定シフト閲覧、通知、Dashboardには表示しない。
+
+- 本文は1行100文字までとし、改行とタブは空白へ置き換え、制御文字と双方向制御文字を除く。空のメモは保存せず、その日のメモを削除したものとして扱う。
+- メモは`shiftSubmissionDateNotes`に保存し、提出headerや提出明細へは持たせない。
+- 保存は`submitShiftRequests`の希望シフトと同じトランザクションで全置換する。提出期限、募集条件の版、回数制限、法務同意の確認を通過した場合だけ書き込む。メモだけを変えた提出も再提出として扱う。
+- `dateNotes`を省略した古い画面からの提出では、既存のメモを変更しない。
+- 提出と提出画面のデータ取得は、提出用sessionに限る。
+- 募集編集で勤務対象日から外れた日のメモは削除し、期間を戻しても復活させない。
+- 「前回と同じシフトを適用」ではメモを複写しない。出勤・休みの切替と前回パターンの適用では、入力したメモを消さない。
+- メモボタンは日付の右に置き、休みに戻すボタンや行の切替操作と分ける。入力はDialogで行い、「完了」はフォームへの反映だけで、送信は提出ボタンで行う。
+- 提出済みのスタッフが送信内容を変えたときだけ、更新ボタンの上に「変更はまだ送られていません」を表示する。
+- 入力欄とメモ本文にはClarityのマスク属性を付ける。
 
 ## 仕様メモ
 

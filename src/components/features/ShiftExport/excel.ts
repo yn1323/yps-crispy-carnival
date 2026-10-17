@@ -1,6 +1,6 @@
-import type { Cell, Worksheet } from "exceljs";
-import { fitExportText, getExportLayout, getExportPeriods } from "./layout";
-import { getExportTitle } from "./script";
+import type { Cell, Workbook, Worksheet } from "exceljs";
+import { fitExportText, getExportLayout, getExportNoteLayout, getExportPeriods } from "./layout";
+import { getExportNotesTitle, getExportTitle } from "./script";
 import type { ExportSchedule } from "./types";
 
 const BLACK = "FF000000";
@@ -90,6 +90,51 @@ const addScheduleRows = (worksheet: Worksheet, schedule: ExportSchedule) => {
   });
 };
 
+/** シフト表の後ろに、日付・名前・メモの一覧シートを置く。メモは文字列セルとして書き、数式として評価させない。 */
+const addNotesWorksheet = (workbook: Workbook, schedule: ExportSchedule) => {
+  if (schedule.noteRows.length === 0) return;
+  const layout = getExportNoteLayout(schedule);
+  const worksheet = workbook.addWorksheet("メモ一覧", {
+    views: [{ state: "frozen", ySplit: 2, topLeftCell: "A3", showGridLines: false }],
+    pageSetup: {
+      paperSize: 9,
+      orientation: "landscape",
+      fitToPage: true,
+      fitToWidth: 1,
+      fitToHeight: 0,
+      horizontalCentered: true,
+      margins: { left: 1 / 3, right: 1 / 3, top: 1 / 3, bottom: 1 / 3, header: 0, footer: 1 / 6 },
+    },
+    headerFooter: { oddFooter: "&C&P / &N" },
+  });
+  [layout.dateColumnWidthPt, layout.staffColumnWidthPt, layout.noteColumnWidthPt].forEach((widthPt, index) => {
+    worksheet.getColumn(index + 1).width = ((widthPt * 4) / 3 - 5) / 7;
+  });
+  worksheet.mergeCells(1, 1, 1, 3);
+  worksheet.getRow(1).height = 26;
+  worksheet.getCell("A1").value = getExportNotesTitle(schedule);
+  worksheet.getCell("A1").font = { name: "Noto Sans JP", size: 16, bold: true, color: { argb: BLACK } };
+  const header = worksheet.getRow(2);
+  header.height = layout.headerHeightPt;
+  ["日付", "名前", "メモ"].forEach((label, index) => {
+    const cell = header.getCell(index + 1);
+    cell.value = label;
+    styleTableCell(cell, layout.fontSizePt);
+  });
+  schedule.noteRows.forEach((noteRow, index) => {
+    const row = worksheet.getRow(index + 3);
+    row.height = layout.rowHeightPt;
+    [noteRow.dateLabel, noteRow.staffName, noteRow.note].forEach((value, columnIndex) => {
+      const cell = row.getCell(columnIndex + 1);
+      cell.value = value;
+      styleTableCell(cell, layout.fontSizePt);
+      cell.alignment = { vertical: "middle", horizontal: columnIndex === 2 ? "left" : "center", wrapText: true };
+    });
+  });
+  worksheet.pageSetup.printArea = `A1:C${schedule.noteRows.length + 2}`;
+  worksheet.pageSetup.printTitlesRow = "2:2";
+};
+
 export const createShiftExcel = async (schedule: ExportSchedule): Promise<Blob> => {
   const { default: ExcelJS } = await import("exceljs");
   const workbook = new ExcelJS.Workbook();
@@ -127,6 +172,7 @@ export const createShiftExcel = async (schedule: ExportSchedule): Promise<Blob> 
     worksheet.pageSetup.printArea = `A1:${worksheet.getColumn(lastColumn).letter}${period.rows.length + 2}`;
     worksheet.pageSetup.printTitlesRow = "2:2";
   });
+  addNotesWorksheet(workbook, schedule);
   const bytes = await workbook.xlsx.writeBuffer();
   return new Blob([new Uint8Array(bytes)], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

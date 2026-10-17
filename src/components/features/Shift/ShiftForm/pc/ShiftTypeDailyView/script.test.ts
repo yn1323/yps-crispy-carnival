@@ -120,4 +120,23 @@ describe("buildShiftTypeDailyViewModel", () => {
       },
     ]);
   });
+
+  it("メモがある募集では希望列を「希望・メモ」として広げ、表の最小幅も広げる", () => {
+    const base = {
+      submissionPattern,
+      shifts: [],
+      staffs,
+      selectedDate: "2026-06-01",
+      holidays: [],
+      isConfirmedDisplay: false,
+      warningMessagesByStaffId: new Map(),
+    };
+    const withoutNotes = buildShiftTypeDailyViewModel(base);
+    const withNotes = buildShiftTypeDailyViewModel({ ...base, hasDateNotes: true });
+
+    expect(withoutNotes.requestHeaderLabel).toBe("希望");
+    expect(withNotes.requestHeaderLabel).toBe("希望・メモ");
+    expect(withNotes.columnWidths.request).toBe(300);
+    expect(withNotes.minimumTableWidth - withoutNotes.minimumTableWidth).toBe(150);
+  });
 });

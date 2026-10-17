@@ -3,6 +3,7 @@ import { expect, userEvent, waitFor, within } from "storybook/test";
 import { ShiftForm } from "..";
 import {
   dateOnlyArgs,
+  dateOnlyDateNotesArgs,
   dateOnlyValidationWarningArgs,
   desktopGlobals,
   fullscreenParameters,
@@ -78,5 +79,34 @@ export const Interactive: Story = {
     await expect(await findVisibleByLabelText("田中 太郎 6/8(月) 勤務あり")).toBeInTheDocument();
     await expect(await findVisibleByLabelText("田中 太郎 6/9(火) 期間外")).toBeInTheDocument();
     await expect((await canvas.findAllByText("希望なし")).length).toBeGreaterThan(1);
+  },
+};
+
+export const WithDateNotes: Story = {
+  args: dateOnlyDateNotesArgs,
+  globals: desktopGlobals,
+};
+
+/** 並べ替え中の日のメモを表の上にまとめ、ほかの日はセル角の印で示す。 */
+export const DateNotesInteractive: Story = {
+  args: dateOnlyDateNotesArgs,
+  globals: desktopGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByText("6/2(火)のメモ 2件")).toBeInTheDocument();
+    await expect(await canvas.findByText("家の用事で18時まで入れません")).toHaveAttribute("data-clarity-mask", "true");
+    await expect(await canvas.findByRole("button", { name: "6/4(木)で並べ替える、メモ1件" })).toBeInTheDocument();
+    await expect((await canvas.findAllByLabelText("田中 太郎 6/2(火) 勤務あり、メモあり")).length).toBeGreaterThan(0);
+
+    await userEvent.click(await canvas.findByRole("button", { name: "6/3(水)で並べ替える" }));
+    await expect(await canvas.findByText("6/3(水)のメモはありません")).toBeInTheDocument();
+
+    await userEvent.click(await canvas.findByRole("button", { name: "6/4(木)で並べ替える、メモ1件" }));
+    await expect(await canvas.findByText("6/4(木)のメモ 1件")).toBeInTheDocument();
+    await userEvent.click(await canvas.findByRole("button", { name: "たたむ" }));
+    await expect(canvas.queryByText(/火曜は授業が/)).not.toBeInTheDocument();
+    await userEvent.click(await canvas.findByRole("button", { name: "開く" }));
+    await expect(await canvas.findByText(/火曜は授業が/)).toBeInTheDocument();
   },
 };

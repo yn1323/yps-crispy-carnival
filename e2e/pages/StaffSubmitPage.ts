@@ -66,6 +66,25 @@ export class StaffSubmitPage {
     await this.page.getByRole("button", { name: "希望シフトを提出", exact: true }).click();
   }
 
+  /** 日付の右のメモボタンからDialogを開いてメモを書く。送信は提出ボタンで行う。 */
+  async writeDateNote(dateText: string, note: string) {
+    await this.page.getByRole("button", { name: `${dateText}のメモを書く`, exact: true }).click();
+    const dialog = this.page.getByRole("dialog", { name: `${dateText}のメモ` });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("textbox").fill(note);
+    await dialog.getByRole("button", { name: "完了", exact: true }).click();
+    await expect(dialog).toBeHidden();
+    await this.expectDateNote(dateText, note);
+  }
+
+  async expectDateNote(dateText: string, note: string) {
+    await expect(
+      this.page.getByRole("button", {
+        name: new RegExp(`^${escapeRegExp(dateText)}のメモ：\\s*${escapeRegExp(note)}$`),
+      }),
+    ).toBeVisible({ timeout: STAFF_SUBMIT_DATA_TIMEOUT });
+  }
+
   async resubmit() {
     await expect(this.page.getByText("提出済み", { exact: true })).toBeVisible();
     await this.page.getByRole("button", { name: "希望シフトを更新", exact: true }).click();
@@ -116,4 +135,8 @@ export class StaffSubmitPage {
       exact: true,
     });
   }
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

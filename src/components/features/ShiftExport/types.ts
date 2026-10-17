@@ -16,6 +16,8 @@ export type ShiftExportData = {
     endTime: string;
     optionId: string | null;
   }[];
+  /** 出力ボタンを押した時点の日付メモ。シフト表本体には入れず、別ページ・別シートの一覧にだけ使う。 */
+  dateNotes: { staffId: string; date: string; note: string }[];
 };
 
 export type ExportDate = {
@@ -31,6 +33,13 @@ export type ExportStaffRow = {
   cells: { lines: string[] }[];
 };
 
+export type ExportNoteRow = {
+  key: string;
+  dateLabel: string;
+  staffName: string;
+  note: string;
+};
+
 /** The full text is retained here; only the preview and PDF may abbreviate it. */
 export type ExportSchedule = {
   shopName: string;
@@ -41,4 +50,8 @@ export type ExportSchedule = {
   bodyLineCount: number;
   dates: ExportDate[];
   rows: ExportStaffRow[];
+  /** 募集にメモがあるか。出力画面で「メモ一覧を付ける」を出すかに使う。 */
+  hasDateNotes: boolean;
+  /** 「メモ一覧を付ける」を選んだときだけ、日付順・スタッフ順のメモを持つ。 */
+  noteRows: ExportNoteRow[];
 };

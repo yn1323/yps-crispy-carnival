@@ -16,12 +16,12 @@ vi.mock("./ShiftSubmitPage", () => ({
     onSubmit,
     headerAction,
   }: {
-    onSubmit: (input: { kind: "time"; requests: [] }) => void;
+    onSubmit: (payload: { submission: { kind: "time"; requests: [] }; dateNotes: [] }) => void;
     headerAction?: ReactNode;
   }) => (
     <div>
       {headerAction}
-      <button type="button" onClick={() => onSubmit({ kind: "time", requests: [] })}>
+      <button type="button" onClick={() => onSubmit({ submission: { kind: "time", requests: [] }, dateNotes: [] })}>
         提出する
       </button>
     </div>
@@ -53,6 +53,9 @@ describe("StaffSubmit", () => {
         search: { recruitmentId: "recruitment-id" },
       });
     });
-    expect(mocks.submitShiftRequests).toHaveBeenCalledWith({ kind: "time", requests: [] }, undefined);
+    expect(mocks.submitShiftRequests).toHaveBeenCalledWith(
+      { submission: { kind: "time", requests: [] }, dateNotes: [] },
+      undefined,
+    );
   });
 });

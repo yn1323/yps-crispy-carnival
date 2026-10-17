@@ -1,12 +1,14 @@
-import { Box, Flex } from "@chakra-ui/react";
+import { Box, Flex, Text } from "@chakra-ui/react";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { TIME_AXIS_PADDING_PX } from "../../../constants";
+import { useShiftDateNotes } from "../../../dateNotes";
 import {
   dailySortedStaffsAtom,
   hourWidthAtom,
   issueStaffIdSetForSelectedDateAtom,
+  selectedDateAtom,
   shiftByStaffIdForSelectedDateAtom,
   shiftConfigAtom,
   shiftsForSelectedDateAtom,
@@ -17,6 +19,7 @@ import { TimeHeader } from "../TimeHeader";
 import { StaffRow } from "./StaffRow";
 
 const STAFF_COL_WIDTH = 200;
+const NOTE_COL_WIDTH = 200;
 const EMPTY_WARNING_MESSAGES: string[] = [];
 
 type ShiftGridProps = {
@@ -33,6 +36,8 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
   const issueStaffIds = useAtomValue(issueStaffIdSetForSelectedDateAtom);
   const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
   const setHourWidth = useSetAtom(hourWidthAtom);
+  const selectedDate = useAtomValue(selectedDateAtom);
+  const dateNotes = useShiftDateNotes();
   const { timeRange, isReadOnly, currentStaffId } = config;
 
   const { dragState, isDragging, handleMouseDown, handleMouseMove, handleMouseUp, getCursor } = useDrag();
@@ -151,6 +156,21 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
             boxShadow="0 2px 4px rgba(0,0,0,0.04)"
           >
             <Box w={`${STAFF_COL_WIDTH}px`} flexShrink={0} bg="white" />
+            {dateNotes.hasNotes && (
+              <Flex
+                w={`${NOTE_COL_WIDTH}px`}
+                flexShrink={0}
+                align="center"
+                px={3}
+                bg="white"
+                borderRightWidth="1px"
+                borderColor="gray.100"
+              >
+                <Text textStyle="xs" fontWeight={600} color="gray.600">
+                  メモ
+                </Text>
+              </Flex>
+            )}
             <Box flex={1} minW={0} ref={timelineMeasureRef}>
               <TimeHeader timeRange={timeRange} />
             </Box>
@@ -194,6 +214,9 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
                 linkedTarget={isTargetShift ? dragState.linkedTarget : null}
                 paintClickAnchorRef={paintClickAnchorRef}
                 onMouseUpOnRow={handleMouseUpOnRow}
+                noteColumnWidth={dateNotes.hasNotes ? NOTE_COL_WIDTH : undefined}
+                note={dateNotes.getNote(staff.id, selectedDate)}
+                noteDate={selectedDate}
               />
             );
           })}

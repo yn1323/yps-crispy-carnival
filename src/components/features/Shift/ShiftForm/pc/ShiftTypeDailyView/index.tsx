@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import type { ShiftTypeOptionLike } from "@/src/domains/shift/shiftTypeAssignments";
 import type { StaffType } from "@/src/domains/shift/types";
 import { Avatar, StaffWarningIcon } from "../../components";
+import { ShiftDateNoteText, useShiftDateNotes } from "../../dateNotes";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import type { ShiftTypeOptionColor } from "../../shiftTypeOptionStyles";
 import {
@@ -37,6 +38,7 @@ export const ShiftTypeDailyView = () => {
   const issueCounts = useAtomValue(issueCountByDateAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
   const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
+  const dateNotes = useShiftDateNotes();
 
   const { dates, holidays, isReadOnly, submissionPattern } = config;
   const isConfirmedDisplay = config.displayMode === "confirmed";
@@ -50,8 +52,10 @@ export const ShiftTypeDailyView = () => {
         holidays,
         isConfirmedDisplay,
         warningMessagesByStaffId,
+        hasDateNotes: dateNotes.hasNotes,
       }),
     [
+      dateNotes.hasNotes,
       holidays,
       isConfirmedDisplay,
       selectedDate,
@@ -130,7 +134,13 @@ export const ShiftTypeDailyView = () => {
                   {viewModel.rows.map((row) => (
                     <Box as="tr" key={row.key} borderTopWidth="1px" borderColor="gray.100">
                       <StaffCell row={row} />
-                      <RequestCell badges={row.requestBadges} />
+                      <RequestCell
+                        badges={row.requestBadges}
+                        hasDateNotes={dateNotes.hasNotes}
+                        note={dateNotes.getNote(row.staff.id, selectedDate)}
+                        staffName={row.staffName}
+                        date={selectedDate}
+                      />
                       {row.cells.map((cell) => (
                         <ShiftTypeCell
                           key={cell.key}
@@ -193,8 +203,21 @@ const StaffCell = ({ row }: { row: ShiftTypeDailyRowViewModel }) => (
   </Box>
 );
 
-const RequestCell = ({ badges }: { badges: ShiftTypeDailyRequestBadgeViewModel[] }) => (
-  <Box as="td" px={4} py={2} borderRightWidth="1px" borderColor="gray.100">
+const RequestCell = ({
+  badges,
+  hasDateNotes,
+  note,
+  staffName,
+  date,
+}: {
+  badges: ShiftTypeDailyRequestBadgeViewModel[];
+  hasDateNotes: boolean;
+  note?: string;
+  staffName: string;
+  date: string;
+}) => (
+  // メモ列を兼ねるときも上下の余白を詰め、既存の40pxの行に2行を収める。
+  <Box as="td" px={4} py={hasDateNotes ? "4px" : 2} borderRightWidth="1px" borderColor="gray.100">
     <Flex align="center" gap={1} minW={0} wrap="wrap">
       {badges.map((badge) => (
         <RequestBadge key={badge.key} bg={badge.bg} color={badge.color}>
@@ -202,6 +225,7 @@ const RequestCell = ({ badges }: { badges: ShiftTypeDailyRequestBadgeViewModel[]
         </RequestBadge>
       ))}
     </Flex>
+    {note && <ShiftDateNoteText staffName={staffName} date={date} note={note} lineClamp={1} />}
   </Box>
 );
 

@@ -11,7 +11,7 @@ const meta = {
   title: "features/ShiftExport",
   component: ShiftExportView,
   parameters: { layout: "fullscreen" },
-  args: { schedule, download, onSplitPeriodChange: () => {} },
+  args: { schedule, download, onSplitPeriodChange: () => {}, includeNotes: false, onIncludeNotesChange: () => {} },
 } satisfies Meta<typeof ShiftExportView>;
 export default meta;
 type Story = StoryObj<typeof meta>;
@@ -220,5 +220,58 @@ export const SaveLink: Story = {
   },
   play: async ({ canvasElement }) => {
     await expect(within(canvasElement).getByRole("link", { name: "ここ" })).toHaveAttribute("download", "シフト表.pdf");
+  },
+};
+
+const withNotes = createExportFixture({
+  dateNotes: [
+    { staffId: "staff-1", date: "2026-08-03", note: "17時以降なら入れます" },
+    {
+      staffId: "staff-2",
+      date: "2026-08-03",
+      note: "火曜は授業が16時半に終わるので17時以降なら入れます。ゼミの発表準備があるため、できれば遅番だけにしてもらえると助かります。",
+    },
+    { staffId: "staff-2", date: "2026-08-01", note: "テスト期間のため休みたいです" },
+  ],
+});
+export const NotesList: Story = {
+  args: { schedule: buildExportSchedule(withNotes, false, true), includeNotes: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("checkbox", { name: "メモ一覧を付ける" })).toBeChecked();
+    await expect(canvas.getByRole("heading", { name: "2026/08/01~08/31 シフトリ駅前店 メモ一覧" })).toBeVisible();
+    const notesTable = canvas.getByRole("table", { name: "メモ一覧" });
+    await expect(
+      within(notesTable)
+        .getAllByRole("rowheader")
+        .map((header) => header.textContent),
+    ).toEqual(["田中 花子", "田中 花子", "鈴木 太郎"]);
+    await expect(within(notesTable).getByText("17時以降なら入れます")).toHaveAttribute("data-clarity-mask", "true");
+    await expect(canvas.getByText("2 / 2")).toBeInTheDocument();
+  },
+};
+
+export const ToggleNotesList: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <ShiftExportPage data={withNotes} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const checkbox = canvas.getByRole("checkbox", { name: "メモ一覧を付ける" });
+    await expect(checkbox).not.toBeChecked();
+    await expect(canvas.queryByRole("table", { name: "メモ一覧" })).not.toBeInTheDocument();
+
+    await userEvent.click(checkbox);
+    await waitFor(() => expect(canvas.getByRole("table", { name: "メモ一覧" })).toBeVisible());
+
+    await userEvent.click(checkbox);
+    await waitFor(() => expect(canvas.queryByRole("table", { name: "メモ一覧" })).not.toBeInTheDocument());
+  },
+};
+
+export const WithoutNotesHidesNotesOption: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <ShiftExportPage data={createExportFixture()} />,
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).queryByRole("checkbox", { name: "メモ一覧を付ける" })).not.toBeInTheDocument();
   },
 };

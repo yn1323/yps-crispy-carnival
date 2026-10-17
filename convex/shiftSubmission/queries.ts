@@ -41,6 +41,7 @@ const submissionPageDataValidator = v.object({
   isBeforeDeadline: v.boolean(),
   hasSubmitted: v.boolean(),
   existingRequests: v.array(existingRequestValidator),
+  existingDateNotes: v.array(v.object({ date: v.string(), note: v.string() })),
   existingSelection: v.union(
     v.object({ kind: v.literal("time"), requests: v.array(existingRequestValidator) }),
     v.object({
@@ -126,6 +127,8 @@ export const getSubmissionPageData = staffSessionQuery({
   ),
   handler: async (ctx, { recruitmentId }) => {
     if (!ctx.staff || !ctx.shop || !ctx.session) return unavailable("invalid_link");
+    // staffSessionQueryのaccessKindはcaller入力なので、提出画面は提出用sessionだけに固定する。
+    if (!sessionMatchesAccessKind(ctx.session, "submit")) return unavailable("invalid_link");
     if (ctx.session.recruitmentId !== recruitmentId) return unavailable("invalid_link");
 
     const recruitment = await ctx.db.get(recruitmentId);
@@ -171,6 +174,10 @@ export const getSubmissionPageData = staffSessionQuery({
       .query("shiftSubmissionDates")
       .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId))
       .collect();
+    const dateNotes = await ctx.db
+      .query("shiftSubmissionDateNotes")
+      .withIndex("by_recruitmentId_and_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId))
+      .collect();
 
     const existingRequests = slots.map((r) => ({
       date: r.date,
@@ -195,6 +202,7 @@ export const getSubmissionPageData = staffSessionQuery({
         isBeforeDeadline,
         hasSubmitted: isCurrentSubmission(submission),
         existingRequests,
+        existingDateNotes: dateNotes.map(({ date, note }) => ({ date, note })),
         existingSelection: buildExistingSelection(submissionPattern, existingRequests, existingDates),
         legalConsentRequired: !(await hasCurrentStaffLegalConsent(ctx, ctx.staff._id)),
         legalDocuments: getLegalDocumentsForAudience("staff"),

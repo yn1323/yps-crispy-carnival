@@ -67,16 +67,16 @@ describe("legal/mutations", () => {
     });
 
     expect(state?.termsConsentVersion).toBe("staff-terms-consent-2026-05-09");
-    expect(state?.privacyConsentVersion).toBe("staff-privacy-consent-2026-08-26");
+    expect(state?.privacyConsentVersion).toBe("staff-privacy-consent-2026-10-04");
     expect(state?.termsDocumentVersion).toBe("staff-terms-doc-2026-08-26");
-    expect(state?.privacyDocumentVersion).toBe("staff-privacy-doc-2026-08-26-2");
+    expect(state?.privacyDocumentVersion).toBe("staff-privacy-doc-2026-10-04");
     expect(state?.method).toBe("staff_email_link");
     expect(events).toHaveLength(1);
     expect(events[0].method).toBe("staff_email_link");
     expect(events[0].termsConsentVersion).toBe("staff-terms-consent-2026-05-09");
-    expect(events[0].privacyConsentVersion).toBe("staff-privacy-consent-2026-08-26");
+    expect(events[0].privacyConsentVersion).toBe("staff-privacy-consent-2026-10-04");
     expect(events[0].termsDocumentVersion).toBe("staff-terms-doc-2026-08-26");
-    expect(events[0].privacyDocumentVersion).toBe("staff-privacy-doc-2026-08-26-2");
+    expect(events[0].privacyDocumentVersion).toBe("staff-privacy-doc-2026-10-04");
   });
 
   it("期限切れトークンでは同意できない", async () => {
@@ -221,7 +221,7 @@ describe("legal/mutations", () => {
     expect(state?.termsConsentVersion).toBe("manager-terms-consent-2026-08-27-2");
     expect(state?.privacyConsentVersion).toBe("manager-privacy-consent-2026-08-26");
     expect(state?.termsDocumentVersion).toBe("manager-terms-doc-2026-08-27-2");
-    expect(state?.privacyDocumentVersion).toBe("manager-privacy-doc-2026-08-26");
+    expect(state?.privacyDocumentVersion).toBe("manager-privacy-doc-2026-10-04");
     expect(state?.method).toBe("manager_reconsent");
     expect(events).toHaveLength(1);
     expect(events[0].shopId).toBe(shopId);
@@ -229,7 +229,7 @@ describe("legal/mutations", () => {
     expect(events[0].termsConsentVersion).toBe("manager-terms-consent-2026-08-27-2");
     expect(events[0].privacyConsentVersion).toBe("manager-privacy-consent-2026-08-26");
     expect(events[0].termsDocumentVersion).toBe("manager-terms-doc-2026-08-27-2");
-    expect(events[0].privacyDocumentVersion).toBe("manager-privacy-doc-2026-08-26");
+    expect(events[0].privacyDocumentVersion).toBe("manager-privacy-doc-2026-10-04");
   });
 
   it("管理ユーザーの再同意要否は同意要求版で判定する", async () => {

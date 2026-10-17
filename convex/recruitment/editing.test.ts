@@ -112,6 +112,7 @@ async function state(t: Awaited<ReturnType<typeof setup>>["t"]) {
     submissions: await ctx.db.query("shiftSubmissions").collect(),
     slots: await ctx.db.query("shiftSubmissionSlots").collect(),
     dates: await ctx.db.query("shiftSubmissionDates").collect(),
+    dateNotes: await ctx.db.query("shiftSubmissionDateNotes").collect(),
     assignments: await ctx.db.query("shiftAssignments").collect(),
     stats: await ctx.db.query("recruitmentStats").collect(),
     operations: await ctx.db.query("notificationFanoutOperations").collect(),
@@ -175,6 +176,27 @@ describe("recruitment/updateRecruitment", () => {
         startTime: "startTime" in entry ? entry.startTime : null,
       })),
     ).toEqual([{ date: "2026-09-10", startTime: "10:00" }]);
+  });
+
+  it("対象外の日のメモを削除し、期間を戻しても復活させない", async () => {
+    const { t, ids, asManager, args } = await setup();
+    await t.run(async (ctx) => {
+      for (const date of ["2026-09-10", "2026-09-16"]) {
+        await ctx.db.insert("shiftSubmissionDateNotes", {
+          recruitmentId: ids.recruitmentId,
+          staffId: ids.staffId,
+          submissionId: ids.submissionId,
+          date,
+          note: `${date}のメモ`,
+        });
+      }
+    });
+
+    await asManager.mutation(api.recruitment.mutations.updateRecruitment, { ...args, periodEnd: "2026-09-15" });
+    expect((await state(t)).dateNotes.map((entry) => entry.date)).toEqual(["2026-09-10"]);
+
+    await asManager.mutation(api.recruitment.mutations.updateRecruitment, { ...args, expectedEditVersion: 1 });
+    expect((await state(t)).dateNotes.map((entry) => entry.date)).toEqual(["2026-09-10"]);
   });
 
   it("日付選択の希望と割当も定休日に変えた日は削除する", async () => {

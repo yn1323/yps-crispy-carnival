@@ -1,12 +1,13 @@
 import { Box, Checkbox, Flex, Icon, Text, VStack } from "@chakra-ui/react";
 import type { ReactNode } from "react";
-import { LuCircleCheck, LuPointer, LuRefreshCw } from "react-icons/lu";
+import { LuCircleCheck, LuInfo, LuPointer, LuRefreshCw } from "react-icons/lu";
 import { LegalDocumentLink } from "@/src/components/shared/LegalDocumentLink";
 import { STAFF_CONTENT_MAX_W } from "@/src/components/templates/Header";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
 import type { SelectItemType } from "@/src/components/ui/Select";
 import { formatDatePeriodWithWeekday, formatDateWithWeekday } from "@/src/domains/shift/date";
+import { DateNoteDialog } from "../DateNoteDialog";
 import { DateOnlySubmissionDayCard } from "../DateOnlySubmissionDayCard";
 import { DayCard } from "../DayCard";
 import { ShiftTypeSubmissionDayCard } from "../ShiftTypeSubmissionDayCard";
@@ -18,7 +19,16 @@ type SubmitDay = {
   entry: DayEntry;
   index: number;
   isShopClosed: boolean;
+  note?: string;
   error?: string;
+};
+
+type NoteEditor = {
+  date: string | null;
+  note: string;
+  open: (date: string) => void;
+  close: () => void;
+  save: (date: string, note: string) => void;
 };
 
 type Props = {
@@ -28,6 +38,8 @@ type Props = {
   acceptedLegal: boolean;
   acceptedLegalError?: string;
   canApplyPreviousPattern: boolean;
+  hasUnsentChanges: boolean;
+  noteEditor: NoteEditor;
   timeOptions: SelectItemType[];
   isSubmitting: boolean;
   isLateSubmitting: boolean;
@@ -53,6 +65,8 @@ export function SubmitFormView({
   acceptedLegal,
   acceptedLegalError,
   canApplyPreviousPattern,
+  hasUnsentChanges,
+  noteEditor,
   timeOptions,
   isSubmitting,
   isLateSubmitting,
@@ -125,7 +139,8 @@ export function SubmitFormView({
         )}
 
         <VStack px={4} py={3} gap={2}>
-          {days.map(({ entry, index, isShopClosed, error }) => {
+          {days.map(({ entry, index, isShopClosed, note, error }) => {
+            const onEditNote = () => noteEditor.open(entry.date);
             if (data.submissionPattern.kind === "dateOnly") {
               return (
                 <DateOnlySubmissionDayCard
@@ -133,6 +148,8 @@ export function SubmitFormView({
                   entry={entry}
                   onToggleWorking={() => (entry.isWorking ? onClear(index) : onSetWorking(index))}
                   isShopClosed={isShopClosed}
+                  note={note}
+                  onEditNote={onEditNote}
                 />
               );
             }
@@ -147,6 +164,8 @@ export function SubmitFormView({
                   onSelect={(optionId) => onShiftTypeSelect(index, optionId)}
                   onClear={() => onClear(index)}
                   isShopClosed={isShopClosed}
+                  note={note}
+                  onEditNote={onEditNote}
                 />
               );
             }
@@ -161,6 +180,8 @@ export function SubmitFormView({
                 onClear={() => onClear(index)}
                 isShopClosed={isShopClosed}
                 error={error}
+                note={note}
+                onEditNote={onEditNote}
               />
             );
           })}
@@ -192,6 +213,28 @@ export function SubmitFormView({
                 </Text>
               )}
             </Box>
+          )}
+          {hasUnsentChanges && (
+            <Flex
+              role="status"
+              mb={3}
+              px={3}
+              py={2}
+              gap={1.5}
+              align="center"
+              bg="orange.50"
+              borderWidth={1}
+              borderColor="orange.200"
+              borderRadius="md"
+              color="orange.700"
+            >
+              <Icon boxSize={3.5} flexShrink={0}>
+                <LuInfo aria-hidden />
+              </Icon>
+              <Text fontSize="xs" fontWeight="semibold">
+                変更はまだ送られていません
+              </Text>
+            </Flex>
           )}
           <Button
             w="full"
@@ -225,6 +268,12 @@ export function SubmitFormView({
           変更が必要な場合は、シフト作成担当者に連絡してください。
         </Text>
       </Dialog>
+      <DateNoteDialog
+        date={noteEditor.date}
+        note={noteEditor.note}
+        onClose={noteEditor.close}
+        onSave={noteEditor.save}
+      />
     </SubmitPageLayout>
   );
 }

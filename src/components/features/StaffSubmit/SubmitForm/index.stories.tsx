@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 import { previousWeeklyPattern, submitStoryBaseData } from "../fixtures";
 import { SubmitForm } from "./index";
 
@@ -149,5 +149,121 @@ export const ShiftTypeInteractive: Story = {
     await userEvent.click(await canvas.findByLabelText("4/8(水)を出勤希望にする"));
     await expect(await canvas.findByLabelText("4/8(水)の早番 選択済み")).toBeInTheDocument();
     await expect(await canvas.findByLabelText("4/8(水)の遅番 選択済み")).toBeInTheDocument();
+  },
+};
+
+const dateNoteYearEndData = {
+  ...submitStoryBaseData,
+  periodStart: "2026-12-25",
+  periodEnd: "2026-12-31",
+  deadline: "2026-12-20",
+  hasSubmitted: true,
+  existingRequests: [
+    { date: "2026-12-28", startTime: "17:00", endTime: "22:00" },
+    { date: "2026-12-29", startTime: "09:00", endTime: "18:00" },
+  ],
+  existingSelection: {
+    kind: "time" as const,
+    requests: [
+      { date: "2026-12-28", startTime: "17:00", endTime: "22:00" },
+      { date: "2026-12-29", startTime: "09:00", endTime: "18:00" },
+    ],
+  },
+  existingDateNotes: [{ date: "2026-12-30", note: "テスト期間のため休みたいです" }],
+};
+
+/** 幅360pxで日付が最も長い年末の募集。時間指定の出勤行にメモボタンが収まることを確認する。 */
+export const DateNoteInteractive: Story = {
+  args: { data: dateNoteYearEndData, onSubmit: noop },
+  decorators: [
+    (Story) => (
+      <div style={{ width: 360 }}>
+        <Story />
+      </div>
+    ),
+  ],
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    for (const card of canvasElement.querySelectorAll<HTMLElement>("[data-day-card]")) {
+      await expect(card.scrollWidth).toBeLessThanOrEqual(card.clientWidth);
+    }
+    await expect(canvas.queryByText("変更はまだ送られていません")).not.toBeInTheDocument();
+
+    await userEvent.click(await canvas.findByRole("button", { name: "12/28(月)のメモを書く" }));
+    const input = await screen.findByPlaceholderText("17時以降なら入れます");
+    await expect(input).toHaveAttribute("data-clarity-mask", "true");
+    await expect(input).toHaveAttribute("maxLength", "100");
+    await userEvent.type(input, "17時以降なら入れます");
+    await expect(await screen.findByText("11/100")).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole("button", { name: "完了" }));
+
+    const noteText = await canvas.findByText("17時以降なら入れます");
+    await expect(noteText).toHaveAttribute("data-clarity-mask", "true");
+    await expect(await canvas.findByRole("button", { name: "12/28(月)のメモを編集" })).toBeInTheDocument();
+    await expect(await canvas.findByText("変更はまだ送られていません")).toBeInTheDocument();
+
+    await userEvent.click(await canvas.findByRole("button", { name: /^12\/28\(月\)のメモ：\s*17時以降なら入れます$/ }));
+    await userEvent.click(await screen.findByRole("button", { name: "メモを消す" }));
+    await userEvent.click(await screen.findByRole("button", { name: "完了" }));
+    await waitFor(() => expect(canvas.queryByText("17時以降なら入れます")).not.toBeInTheDocument());
+    await expect(canvas.queryByText("変更はまだ送られていません")).not.toBeInTheDocument();
+
+    await userEvent.click(await canvas.findByRole("button", { name: "12/30(水)を出勤希望にする" }));
+    await expect(await canvas.findByText("テスト期間のため休みたいです")).toBeInTheDocument();
+  },
+};
+
+/** 3つの提出方法で、メモがある日とない日の見た目を確認する。 */
+export const DateNotesTime: Story = {
+  args: {
+    data: {
+      ...submitStoryBaseData,
+      existingRequests: [{ date: "2026-04-07", startTime: "17:00", endTime: "22:00" }],
+      existingSelection: { kind: "time", requests: [{ date: "2026-04-07", startTime: "17:00", endTime: "22:00" }] },
+      existingDateNotes: [
+        { date: "2026-04-07", note: "17時以降なら入れます" },
+        {
+          date: "2026-04-08",
+          note: "火曜は授業が16時半に終わるので17時以降なら入れます。ゼミの発表準備があるため、できれば遅番だけにしてもらえると助かります。",
+        },
+      ],
+    },
+    onSubmit: noop,
+  },
+};
+
+export const DateNotesDateOnly: Story = {
+  args: {
+    data: {
+      ...submitStoryBaseData,
+      submissionPattern: { kind: "dateOnly" },
+      existingSelection: { kind: "dateOnly", workingDates: ["2026-04-07"], unmatchedRequests: [] },
+      existingDateNotes: [
+        { date: "2026-04-07", note: "17時以降なら入れます" },
+        { date: "2026-04-09", note: "家の用事で18時まで入れません" },
+      ],
+    },
+    onSubmit: noop,
+  },
+};
+
+export const DateNotesShiftType: Story = {
+  args: {
+    data: {
+      ...submitStoryBaseData,
+      submissionPattern: shiftTypePattern,
+      existingSelection: {
+        kind: "shiftType",
+        selections: [{ date: "2026-04-07", optionId: "late" }],
+        unmatchedRequests: [],
+      },
+      existingDateNotes: [
+        { date: "2026-04-07", note: "17時以降なら入れます" },
+        { date: "2026-04-08", note: "テスト期間のため休みたいです" },
+      ],
+    },
+    onSubmit: noop,
   },
 };

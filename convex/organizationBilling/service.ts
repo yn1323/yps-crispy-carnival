@@ -6,6 +6,7 @@ import {
   getOrganizationBillingState,
   getOrganizationUsageSnapshot,
   isValidOrganizationActiveManager,
+  type OrganizationActualUsageProbe,
 } from "../organization/service";
 import { organizationPaidPlanLabel } from "./planPresentation";
 import {
@@ -15,6 +16,7 @@ import {
   evaluatePlanLimits,
   ORGANIZATION_PLAN_LIMITS,
   type OrganizationAccessPolicy,
+  type OrganizationUsageLimitViolation,
   resolveUsageLimitPlan,
 } from "./policy";
 
@@ -64,6 +66,33 @@ export async function getOrganizationAccessPolicy(ctx: DbCtx, organizationId: Id
   }
   const accessPolicy = deriveOrganizationAccessPolicy({ billingPolicy, usageLimitStatus });
   return { billingState, usageProbe, ...accessPolicy };
+}
+
+export type TrialEndFreeLimitStatus =
+  | { kind: "withinLimits" }
+  | { kind: "overLimit"; violations: Array<OrganizationUsageLimitViolation & { isLowerBound?: true }> }
+  | { kind: "unknown" };
+
+/**
+ * Trial終了後に移るFreeの上限を、現在の利用実数で先に評価する。
+ * 上限超過は保存せず、終了前の案内で影響を伝えるためだけに使う。
+ */
+export function evaluateTrialEndFreeLimitStatus(
+  usageProbe: OrganizationActualUsageProbe | null,
+): TrialEndFreeLimitStatus {
+  if (!usageProbe) return { kind: "unknown" };
+  const evaluation = evaluateOrganizationUsageLimits({ plan: "free", usage: usageProbe.usage });
+  if (evaluation.kind === "overLimit") {
+    return {
+      kind: "overLimit",
+      violations: evaluation.violations.map((violation) =>
+        usageProbe.lowerBoundDimensions.includes(violation.kind)
+          ? { ...violation, isLowerBound: true as const }
+          : violation,
+      ),
+    };
+  }
+  return usageProbe.unknownDimensions.length > 0 ? { kind: "unknown" } : { kind: "withinLimits" };
 }
 
 export const LIMIT_RECOVERY_CAPABILITIES = [

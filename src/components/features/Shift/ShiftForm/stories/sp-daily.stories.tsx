@@ -8,6 +8,7 @@ import {
   mobileGlobals,
   overnightArgs,
   shiftFormDecorators,
+  timeDateNotesArgs,
   validationWarningArgs,
 } from "./shared";
 
@@ -62,5 +63,10 @@ export const TimeConfirmed: Story = {
 export const TimeWithValidationWarnings: Story = {
   name: "With Validation Warnings",
   args: validationWarningArgs,
+  globals: mobileGlobals,
+};
+
+export const WithDateNotes: Story = {
+  args: timeDateNotesArgs,
   globals: mobileGlobals,
 };

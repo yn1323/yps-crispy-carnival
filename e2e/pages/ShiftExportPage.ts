@@ -34,6 +34,22 @@ export class ShiftExportPage {
     }
   }
 
+  /** 初期状態ではメモ一覧を付けず、選んだときだけ日付・名前・メモの一覧を帳票へ加える。 */
+  async includeDateNotes(notes: Array<{ dateText: string; staffName: string; note: string }>) {
+    const checkbox = this.page.getByRole("checkbox", { name: "メモ一覧を付ける" });
+    await expect(checkbox).not.toBeChecked();
+    await expect(this.page.getByRole("table", { name: "メモ一覧" })).toHaveCount(0);
+    await this.page.getByText("メモ一覧を付ける", { exact: true }).click();
+    await expect(checkbox).toBeChecked();
+    const table = this.page.getByRole("table", { name: "メモ一覧" });
+    await expect(table).toBeVisible();
+    for (const { dateText, staffName, note } of notes) {
+      const row = table.getByRole("row").filter({ hasText: note });
+      await expect(row).toContainText(dateText);
+      await expect(row).toContainText(staffName);
+    }
+  }
+
   async expectHidden() {
     await expect(this.page.getByRole("region", { name: "シフト表プレビュー" })).not.toBeVisible();
     await expect(this.page.getByRole("button", { name: "PDF", exact: true })).not.toBeVisible();

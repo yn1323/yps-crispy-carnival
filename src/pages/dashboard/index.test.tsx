@@ -355,6 +355,25 @@ describe("DashboardRoutePage", () => {
     });
   });
 
+  it("未契約のTrialが残り14日以内なら終了案内を表示し、プランと支払いへ進める", () => {
+    mocks.useShopQuery.mockReturnValue({
+      ...shop,
+      trialEnding: {
+        trialEndsAt: Date.now() + 5 * 24 * 60 * 60 * 1000,
+        freeLimitStatus: { kind: "overLimit", violations: [{ kind: "people", current: 12, max: 5, excess: 7 }] },
+      },
+    });
+
+    renderPage();
+
+    expect(screen.getByRole("region", { name: "無料トライアル終了の案内" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "プランを選ぶ" }));
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: "/manage/billing",
+      search: { org: "organization-a" },
+    });
+  });
+
   it("支払い終了処理中は同じAlertを表示し、再契約操作を無効にする", () => {
     mocks.useShopQuery.mockReturnValue({
       ...shop,

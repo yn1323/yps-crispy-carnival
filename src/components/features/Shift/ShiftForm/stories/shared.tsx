@@ -214,3 +214,32 @@ const hasVisibleText = (root: HTMLElement, expected: string): boolean =>
 export const expectVisibleText = async (root: HTMLElement, expected: string): Promise<void> => {
   await waitFor(() => expect(hasVisibleText(root, expected)).toBe(true));
 };
+
+const LONG_DATE_NOTE =
+  "火曜は授業が16時半に終わるので17時以降なら入れます。ゼミの発表準備があるため、できれば遅番だけにしてもらえると助かります。";
+
+// 日付メモ: 1行に収まるメモ、省略される長いメモ、休み希望のメモを含める。
+export const timeDateNotesArgs = {
+  ...allPatternsArgs,
+  dateNotes: [
+    { staffId: "staff1", date: "2026-01-23", note: "17時以降なら入れます" },
+    { staffId: "staff2", date: "2026-01-23", note: LONG_DATE_NOTE },
+  ],
+} satisfies ShiftFormArgs;
+
+export const shiftTypeDateNotesArgs = {
+  ...shiftTypeArgs,
+  dateNotes: [
+    { staffId: "staff1", date: "2026-05-21", note: "17時以降なら入れます" },
+    { staffId: "staff2", date: "2026-05-21", note: LONG_DATE_NOTE },
+  ],
+} satisfies ShiftFormArgs;
+
+export const dateOnlyDateNotesArgs = {
+  ...dateOnlyArgs,
+  dateNotes: [
+    { staffId: "staff1", date: "2026-06-02", note: "17時以降なら入れます" },
+    { staffId: "staff4", date: "2026-06-02", note: "家の用事で18時まで入れません" },
+    { staffId: "staff1", date: "2026-06-04", note: LONG_DATE_NOTE },
+  ],
+} satisfies ShiftFormArgs;

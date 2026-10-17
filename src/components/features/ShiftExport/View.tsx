@@ -1,8 +1,8 @@
 import { Box, Checkbox, Flex, Text } from "@chakra-ui/react";
 import { LuDownload } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
-import { fitExportText, getExportPages } from "./layout";
-import { getExportTitle } from "./script";
+import { fitExportText, getExportNotePages, getExportPages } from "./layout";
+import { getExportNotesTitle, getExportTitle } from "./script";
 import type { ExportSchedule } from "./types";
 import type { useExportDownload } from "./useExportDownload";
 import "./styles.css";
@@ -11,10 +11,20 @@ type Props = {
   schedule: ExportSchedule;
   download: ReturnType<typeof useExportDownload>;
   onSplitPeriodChange: (checked: boolean) => void;
+  includeNotes: boolean;
+  onIncludeNotesChange: (checked: boolean) => void;
 };
 
-export function ShiftExportView({ schedule, download, onSplitPeriodChange }: Props) {
+export function ShiftExportView({
+  schedule,
+  download,
+  onSplitPeriodChange,
+  includeNotes,
+  onIncludeNotesChange,
+}: Props) {
   const pages = getExportPages(schedule);
+  const notePages = getExportNotePages(schedule);
+  const totalPageCount = pages.length + notePages.length;
   return (
     <Box minH="100dvh" bg="gray.100">
       <Box as="header" p={4} bg="white" borderBottomWidth="1px">
@@ -34,6 +44,24 @@ export function ShiftExportView({ schedule, download, onSplitPeriodChange }: Pro
                   <Checkbox.Indicator />
                 </Checkbox.Control>
                 <Checkbox.Label>期間を前半・後半に分ける</Checkbox.Label>
+              </Checkbox.Root>
+            </Box>
+          )}
+          {schedule.hasDateNotes && (
+            <Box>
+              <Checkbox.Root
+                checked={includeNotes}
+                onCheckedChange={({ checked }) => onIncludeNotesChange(checked === true)}
+                disabled={download.isGenerating}
+                colorPalette="teal"
+                minH="44px"
+                cursor={download.isGenerating ? "not-allowed" : "pointer"}
+              >
+                <Checkbox.HiddenInput />
+                <Checkbox.Control>
+                  <Checkbox.Indicator />
+                </Checkbox.Control>
+                <Checkbox.Label>メモ一覧を付ける</Checkbox.Label>
               </Checkbox.Root>
             </Box>
           )}
@@ -163,7 +191,62 @@ export function ShiftExportView({ schedule, download, onSplitPeriodChange }: Pro
               </tbody>
             </table>
             <p className="shift-export-page-number">
-              {pageIndex + 1} / {pages.length}
+              {pageIndex + 1} / {totalPageCount}
+            </p>
+          </section>
+        ))}
+        {notePages.map(({ layout, rows, isFirstPage }, notePageIndex) => (
+          <section
+            className="shift-export-page"
+            aria-label={`${pages.length + notePageIndex + 1}ページ目`}
+            key={`notes:${rows[0]?.key ?? "empty"}`}
+            style={{
+              width: `${layout.pageWidthPt}pt`,
+              height: `${layout.pageHeightPt}pt`,
+              padding: `${layout.marginPt}pt`,
+              fontSize: `${layout.fontSizePt}pt`,
+            }}
+          >
+            {isFirstPage && (
+              <div style={{ height: `${layout.titleHeightPt}pt` }}>
+                <h1 className="shift-export-title">{getExportNotesTitle(schedule)}</h1>
+              </div>
+            )}
+            <table className="shift-export-table shift-export-notes" aria-label="メモ一覧">
+              <colgroup>
+                <col style={{ width: `${layout.dateColumnWidthPt}pt` }} />
+                <col style={{ width: `${layout.staffColumnWidthPt}pt` }} />
+                <col style={{ width: `${layout.noteColumnWidthPt}pt` }} />
+              </colgroup>
+              <thead>
+                <tr style={{ height: `${layout.headerHeightPt}pt` }}>
+                  <th scope="col">日付</th>
+                  <th scope="col">名前</th>
+                  <th scope="col">メモ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.key} style={{ height: `${layout.rowHeightPt}pt` }}>
+                    <td>{row.dateLabel}</td>
+                    <th scope="row" title={row.staffName}>
+                      {
+                        fitExportText(
+                          row.staffName,
+                          layout.staffColumnWidthPt - layout.cellPaddingPt * 2,
+                          layout.fontSizePt,
+                        ).text
+                      }
+                    </th>
+                    <td className="shift-export-note" data-clarity-mask="true">
+                      {row.note}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="shift-export-page-number">
+              {pages.length + notePageIndex + 1} / {totalPageCount}
             </p>
           </section>
         ))}

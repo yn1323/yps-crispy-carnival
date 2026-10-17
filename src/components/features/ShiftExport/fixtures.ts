@@ -15,5 +15,6 @@ export function createExportFixture(overrides: Partial<ShiftExportData> = {}): S
     ],
     assignments: [{ staffId: "staff-2", date: "2026-08-01", startTime: "09:00", endTime: "17:00", optionId: null }],
     ...overrides,
+    dateNotes: overrides.dateNotes ?? [],
   };
 }

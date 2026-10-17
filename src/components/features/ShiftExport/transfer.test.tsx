@@ -171,6 +171,31 @@ describe("出力データの受け渡し", () => {
       ),
     ).toThrow();
   });
+  it("日付メモを件数・長さ・形式で検証し、メモのない旧形式の一時データは空の一覧として読む", () => {
+    const snapshot = createSnapshot(
+      createExportFixture({ dateNotes: [{ staffId: "staff-1", date: "2026-08-03", note: "17時以降なら入れます" }] }),
+      scope,
+    );
+    expect(snapshot.data.dateNotes).toEqual([{ staffId: "staff-1", date: "2026-08-03", note: "17時以降なら入れます" }]);
+
+    const { dateNotes: _omitted, ...legacyData } = snapshot.data;
+    expect(validateSnapshot({ ...snapshot, data: legacyData }, scope).data.dateNotes).toEqual([]);
+    expect(() =>
+      validateSnapshot(
+        {
+          ...snapshot,
+          data: { ...snapshot.data, dateNotes: [{ ...snapshot.data.dateNotes[0], note: "あ".repeat(101) }] },
+        },
+        scope,
+      ),
+    ).toThrow();
+    expect(() =>
+      validateSnapshot(
+        { ...snapshot, data: { ...snapshot.data, dateNotes: [{ ...snapshot.data.dateNotes[0], date: "2026/08/03" }] } },
+        scope,
+      ),
+    ).toThrow();
+  });
   it("storageを使えなくても受信済み内容はその場で出力できる", async () => {
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
       throw new Error("unavailable");

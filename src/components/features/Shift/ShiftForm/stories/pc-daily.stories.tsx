@@ -8,6 +8,7 @@ import {
   halfHourBusinessHoursArgs,
   overnightArgs,
   shiftFormDecorators,
+  timeDateNotesArgs,
   validationErrorAndWarningArgs,
   validationErrorArgs,
   validationWarningArgs,
@@ -83,4 +84,36 @@ export const TimeWithValidationWarnings: Story = {
 export const TimeWithErrorsAndWarnings: Story = {
   name: "With Errors And Warnings",
   args: validationErrorAndWarningArgs,
+};
+
+export const WithDateNotes: Story = {
+  args: timeDateNotesArgs,
+};
+
+/** メモ列は2行まで表示し、メモの有無で行の高さを変えない。メモがない募集では列を出さない。 */
+export const DateNotesInteractive: Story = {
+  args: timeDateNotesArgs,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByText("メモ")).toBeInTheDocument();
+    const note = await canvas.findByText("17時以降なら入れます");
+    await expect(note).toHaveAttribute("data-clarity-mask", "true");
+
+    const rowHeight = (staffId: string) =>
+      canvasElement.querySelector<HTMLElement>(`[data-tour="shift-row-${staffId}"]`)?.getBoundingClientRect().height;
+    await expect(rowHeight("staff2")).toBe(rowHeight("staff3"));
+    await expect(rowHeight("staff1")).toBe(rowHeight("staff3"));
+
+    await userEvent.hover(note);
+    await expect(await within(document.body).findByText("Aさんさんのメモ・1/23(金)")).toBeInTheDocument();
+  },
+};
+
+export const WithoutDateNotesHidesNoteColumn: Story = {
+  args: allPatternsArgs,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).queryByText("メモ", { exact: true })).not.toBeInTheDocument();
+  },
 };

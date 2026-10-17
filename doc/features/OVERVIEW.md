@@ -87,7 +87,7 @@ repository artifactでは、複数組織、複数店舗、複数管理者（招�
 
 | 機能 | 概要 | 主な画面 |
 |---|---|---|
-| [Dashboardの課金案内](trial-ending-dashboard-callout.md) | 課金情報と契約操作は「プランと支払い」へ集約し、Dashboardには支払い失敗後の再契約案内だけを表示する | Dashboard、プランと支払い |
+| [Dashboardの課金案内](trial-ending-dashboard-callout.md) | 課金情報と契約操作は「プランと支払い」へ集約し、Dashboardには未契約Trialの終了前案内（終了14日前から）と支払い失敗後の再契約案内だけを表示する | Dashboard、プランと支払い |
 | [店舗・組織削除](data-deletion.md) | 店舗・組織の論理削除と、session・token・LINE連携・未送信通知を止める永続cleanup。業務識別情報（氏名・店舗名など）は保持し、個人情報の完全消去とは扱わない | 店舗詳細、組織設定 |
 | [アカウント削除](account-deletion.md) | strict再認証を経たアカウント削除依頼。所属構成に応じて本人所属の終了または組織全体の終了を行い、cleanup完了後にClerkユーザーを削除する | アカウント設定、`/account-deletion-accepted` |
 

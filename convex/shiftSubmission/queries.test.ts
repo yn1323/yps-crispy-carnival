@@ -36,9 +36,9 @@ async function setupSubmissionPageData(
       staffId,
       shopId,
       termsConsentVersion: "staff-terms-consent-2026-05-09",
-      privacyConsentVersion: "staff-privacy-consent-2026-08-26",
+      privacyConsentVersion: "staff-privacy-consent-2026-10-04",
       termsDocumentVersion: "staff-terms-doc-2026-08-26",
-      privacyDocumentVersion: "staff-privacy-doc-2026-08-26-2",
+      privacyDocumentVersion: "staff-privacy-doc-2026-10-04",
       consentedAt: Date.now(),
       method: "staff_email_link",
     });
@@ -219,6 +219,70 @@ describe("shiftSubmission/queries", () => {
       expect(await t.query(api.shiftSubmission.queries.getSubmissionResult, args)).toEqual({ status: "unavailable" });
     });
 
+    it("本人のこの募集の日付メモだけを返す", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await setupSubmissionPageData(t);
+      const otherRecruitmentId = await seedRecruitment(t, ids.shopId, {
+        periodStart: "2026-04-28",
+        periodEnd: "2026-05-04",
+      });
+      await t.run(async (ctx) => {
+        const otherStaffId = await seedStaff(ctx, {
+          shopId: ids.shopId,
+          name: "別スタッフ",
+          email: "other-note@example.com",
+        });
+        const insertNote = async (
+          recruitmentId: Id<"recruitments">,
+          staffId: Id<"staffs">,
+          date: string,
+          note: string,
+        ) => {
+          const submissionId = await ctx.db.insert("shiftSubmissions", {
+            recruitmentId,
+            staffId,
+            firstSubmittedAt: 1000,
+            submittedAt: 1000,
+          });
+          await ctx.db.insert("shiftSubmissionDateNotes", { submissionId, recruitmentId, staffId, date, note });
+        };
+        await insertNote(ids.recruitmentId, ids.staffId, "2026-04-22", "17時以降なら入れます");
+        await insertNote(ids.recruitmentId, otherStaffId, "2026-04-22", "別スタッフのメモ");
+        await insertNote(otherRecruitmentId, ids.staffId, "2026-04-28", "別募集のメモ");
+      });
+
+      const result = await t.query(api.shiftSubmission.queries.getSubmissionPageData, {
+        sessionToken: ids.sessionToken,
+        accessKind: "submit",
+        recruitmentId: ids.recruitmentId,
+      });
+
+      expect(result.status).toBe("ok");
+      if (result.status !== "ok") throw new Error("submission page unavailable");
+      expect(result.data.existingDateNotes).toEqual([{ date: "2026-04-22", note: "17時以降なら入れます" }]);
+    });
+
+    it("callerがviewを指定したview sessionでは提出画面のデータを返さない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await setupSubmissionPageData(t);
+      await t.run(async (ctx) => {
+        const session = await ctx.db
+          .query("sessions")
+          .withIndex("by_sessionToken", (q) => q.eq("sessionToken", ids.sessionToken))
+          .unique();
+        if (!session) throw new Error("テスト用sessionが見つかりません");
+        await ctx.db.patch(session._id, { accessKind: "view" });
+      });
+
+      expect(
+        await t.query(api.shiftSubmission.queries.getSubmissionPageData, {
+          sessionToken: ids.sessionToken,
+          accessKind: "view",
+          recruitmentId: ids.recruitmentId,
+        }),
+      ).toEqual({ status: "unavailable", reason: "invalid_link" });
+    });
+
     it("billing stateが欠損する場合は利用上限を判定できない", async () => {
       const t = convexTest(schema, modules);
       const { sessionToken, recruitmentId } = await setupSubmissionPageData(t, { billingState: "missing" });
@@ -256,8 +320,8 @@ describe("shiftSubmission/queries", () => {
       if (result.status !== "ok") throw new Error("expected submission page data");
       expect(result.data.legalConsentRequired).toBe(true);
       expect(result.data.legalDocuments.privacy).toMatchObject({
-        documentVersion: "staff-privacy-doc-2026-08-26-2",
-        requiredConsentVersion: "staff-privacy-consent-2026-08-26",
+        documentVersion: "staff-privacy-doc-2026-10-04",
+        requiredConsentVersion: "staff-privacy-consent-2026-10-04",
       });
     });
 

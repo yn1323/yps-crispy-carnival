@@ -39,7 +39,7 @@ export type ShiftTypeDailyRowViewModel = {
 
 export type ShiftTypeDailyViewModel = {
   isShopClosedDate: boolean;
-  requestHeaderLabel: "確定" | "希望";
+  requestHeaderLabel: "確定" | "希望" | "確定・メモ" | "希望・メモ";
   minimumTableWidth: number;
   columnWidths: {
     staff: number;
@@ -52,6 +52,8 @@ export type ShiftTypeDailyViewModel = {
 
 const STAFF_COLUMN_WIDTH = 220;
 const REQUEST_COLUMN_WIDTH = 150;
+// メモがある募集では、希望バッジの下にメモを1行で置くため希望列を広げる。
+const REQUEST_WITH_NOTE_COLUMN_WIDTH = 300;
 const OPTION_COLUMN_WIDTH = 150;
 
 export const buildShiftTypeDailyViewModel = ({
@@ -62,6 +64,7 @@ export const buildShiftTypeDailyViewModel = ({
   holidays,
   isConfirmedDisplay,
   warningMessagesByStaffId,
+  hasDateNotes = false,
 }: {
   submissionPattern: ShiftSubmissionPattern;
   shifts: ShiftData[];
@@ -70,6 +73,7 @@ export const buildShiftTypeDailyViewModel = ({
   holidays: string[];
   isConfirmedDisplay: boolean;
   warningMessagesByStaffId: ReadonlyMap<string, string[]>;
+  hasDateNotes?: boolean;
 }): ShiftTypeDailyViewModel => {
   const presentation = buildShiftTypeDailyPresentation({
     submissionPattern,
@@ -79,13 +83,16 @@ export const buildShiftTypeDailyViewModel = ({
     isConfirmedDisplay,
   });
 
+  const requestColumnWidth = hasDateNotes ? REQUEST_WITH_NOTE_COLUMN_WIDTH : REQUEST_COLUMN_WIDTH;
+  const requestLabel = isConfirmedDisplay ? "確定" : "希望";
+
   return {
     isShopClosedDate: holidays.includes(selectedDate),
-    requestHeaderLabel: isConfirmedDisplay ? "確定" : "希望",
-    minimumTableWidth: STAFF_COLUMN_WIDTH + REQUEST_COLUMN_WIDTH + presentation.options.length * OPTION_COLUMN_WIDTH,
+    requestHeaderLabel: hasDateNotes ? `${requestLabel}・メモ` : requestLabel,
+    minimumTableWidth: STAFF_COLUMN_WIDTH + requestColumnWidth + presentation.options.length * OPTION_COLUMN_WIDTH,
     columnWidths: {
       staff: STAFF_COLUMN_WIDTH,
-      request: REQUEST_COLUMN_WIDTH,
+      request: requestColumnWidth,
       option: OPTION_COLUMN_WIDTH,
     },
     optionColumns: presentation.options.map(({ key, name, timeLabel, countLabel, color }) => ({

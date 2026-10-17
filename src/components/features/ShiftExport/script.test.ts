@@ -84,4 +84,44 @@ describe("buildExportSchedule", () => {
 
     expect(getExportTitle(buildExportSchedule(data))).toBe(expected);
   });
+
+  it("メモ一覧は選んだときだけ日付順・保存したスタッフ順に作り、メモの有無は常に返す", () => {
+    const fixture = createExportFixture({
+      dateNotes: [
+        { staffId: "staff-1", date: "2026-08-03", note: "鈴木のメモ" },
+        { staffId: "staff-2", date: "2026-08-03", note: "田中のメモ" },
+        { staffId: "staff-2", date: "2026-08-01", note: "初日のメモ" },
+      ],
+    });
+
+    const withoutNotes = buildExportSchedule(fixture);
+    expect(withoutNotes.hasDateNotes).toBe(true);
+    expect(withoutNotes.noteRows).toEqual([]);
+
+    expect(
+      buildExportSchedule(fixture, false, true).noteRows.map(({ dateLabel, staffName, note }) => [
+        dateLabel,
+        staffName,
+        note,
+      ]),
+    ).toEqual([
+      ["8/1(土)", "田中 花子", "初日のメモ"],
+      ["8/3(月)", "田中 花子", "田中のメモ"],
+      ["8/3(月)", "鈴木 太郎", "鈴木のメモ"],
+    ]);
+    expect(buildExportSchedule(createExportFixture()).hasDateNotes).toBe(false);
+  });
+
+  it("出力対象外のスタッフ・期間外・重複・空や長すぎるメモでは部分的な帳票を作らない", () => {
+    const valid = { staffId: "staff-1", date: "2026-08-03", note: "メモ" };
+    for (const dateNotes of [
+      [{ ...valid, staffId: "missing" }],
+      [{ ...valid, date: "2026-09-01" }],
+      [valid, { ...valid, note: "重複" }],
+      [{ ...valid, note: "" }],
+      [{ ...valid, note: "あ".repeat(101) }],
+    ]) {
+      expect(() => buildExportSchedule(createExportFixture({ dateNotes }), false, true)).toThrow();
+    }
+  });
 });

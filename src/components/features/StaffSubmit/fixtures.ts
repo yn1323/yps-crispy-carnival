@@ -22,8 +22,8 @@ export const submitStoryBaseData: SubmissionData = {
     },
     privacy: {
       title: "スタッフ向けプライバシーポリシー",
-      documentVersion: "staff-privacy-doc-2026-08-26-2",
-      requiredConsentVersion: "staff-privacy-consent-2026-08-26",
+      documentVersion: "staff-privacy-doc-2026-10-04",
+      requiredConsentVersion: "staff-privacy-consent-2026-10-04",
       path: "/privacy/staff",
     },
   },

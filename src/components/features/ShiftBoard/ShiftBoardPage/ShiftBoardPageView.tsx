@@ -137,6 +137,7 @@ export const ShiftBoardPageView = ({ viewModel, intents, layout = "legacy", head
           onOpenUnsubmittedDetails={intents.onOpenUnsubmittedDetails}
           validationIssues={shiftForm.validationIssues}
           validationWarnings={shiftForm.validationWarnings}
+          dateNotes={shiftForm.dateNotes}
           onDismissValidationIssues={intents.onDismissValidationIssues}
           header={layout === "app" ? header : undefined}
           exportAction={

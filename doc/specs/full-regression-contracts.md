@@ -229,6 +229,7 @@ E2Eは代表CTAとのbrowser接続だけを守り、対象集合、channel、件
 | `E2E-LINE-01` | スタッフ詳細で発行した連携tokenで連携が確定し、明示解除で未連携へ戻る | Desktop Chrome / core E2E。LINE Loginとcode交換だけをprovider代替seedで置き換え、保証に含めない | 2026-09-24にローカルで成功。Preview実行未確認 | `e2e/scenarios/line-link.test.ts`、`convex/testing.test.ts` |
 | `E2E-REISSUE-01` | 再発行画面で申し込んだ閲覧linkから確定シフトを開ける | Desktop Chrome / core E2E。応答の同一性と連続要求の制限はFunction Testが主担当 | 2026-09-24にローカルで成功。Preview実行未確認 | `e2e/scenarios/shift-view-reissue.test.ts` |
 | `E2E-ONBOARDING-01` | 体験ガイドの4ステップが募集作成、自分宛て提出、シフト表確認、スタッフ追加で進み、閉じると再読込後も表示しない | Desktop Chrome / core E2E | 2026-09-24にローカルで成功。Preview実行未確認 | `e2e/scenarios/dashboard-onboarding.test.ts` |
+| `E2E-NOTE-01` | 匿名スタッフが出勤希望の日と休みの日に添えた日付メモを提出・再表示し、管理者の日付選択シフト表のメモ欄と、別タブの出力でメモ一覧を付けたプレビューまで受け渡す | Desktop Chrome / core E2E、trace・screenshot・video off。正規化・上限・権限・削除はFunction Test、PDF・Excelの実ファイルはLogic Testが主担当 | 実装済み。ローカル実行未確認（開発サーバー未起動） | `e2e/scenarios/shift-date-notes.test.ts`、`e2e/pages/StaffSubmitPage.ts`、`e2e/pages/ShiftBoardPage.ts`、`e2e/pages/ShiftExportPage.ts` |
 | `E2E-MOBILE-02` | Mobile Chromeの日別シフト表で割り当てて確定し、再読込後も保持される | Mobile Chrome / core E2E | 2026-09-24にローカルで成功。Preview実行未確認 | `e2e/scenarios/shift-board.mobile.test.ts` |
 | `DEPLOY-SMOKE-HTTP-01` | Previewで代表公開route、slash URL、CSR shell、未知URL 404が実配信される | Deployed Smoke / Preview URL | 実装済み。実Preview未実行 | `e2e/scenarios/deployed-smoke.test.ts`、`scripts/assertDeployedSmokeResults.mjs` |
 | `DEPLOY-SMOKE-BROWSER-01` | Previewの代表公開pageがhydrateし、固有landmark・CTAを表示し、`pageerror`を出さない | Deployed Smoke / Preview URL | 実装済み。実Preview未実行 | `e2e/scenarios/deployed-smoke.test.ts`、`scripts/assertDeployedSmokeResults.mjs` |
@@ -258,7 +259,7 @@ Mobile VRTはviewport指定だけでなく`vrt-mobile1`または`vrt-mobile2` ta
 
 ## Public Convex surface inventory
 
-2026-09-08時点のpublic query、mutation、actionは116個である。
+2026-10-04時点のpublic query、mutation、actionは117個である。
 同じ業務境界のAPIは一行へまとめるが、公開export名は省略しない。
 
 | Module | Public exports | 対応契約 / 状態 |
@@ -293,7 +294,7 @@ Mobile VRTはviewport指定だけでなく`vrt-mobile1`または`vrt-mobile2` ta
 | `recruitment/mutations` | `createRecruitment`、`updateRecruitment`、`deleteRecruitment` | `RECRUITMENT-01`、`RECRUITMENT-EDIT-01` |
 | `setup/mutations` | `createOrganizationForApp`、`setupShopAndManager`、`verifyPromotionCode` | `ORG-CREATE-01`、`SETUP-ORGANIZATION-01`。初回Setupと追加組織で開始条件、作成プラン、上限を分け、プロモーションコードは作成前と最終Setupで照合する |
 | `shiftBoard/mutations` | `confirmRecruitment`、`saveShiftAssignments` | `SHIFT-BOARD-DRAFT-01`、`SHIFT-CONFIRM-01` |
-| `shiftBoard/queries` | `getShiftBoardData`、`getShiftBoardShopScopeForOrganization` | `SHIFT-BOARD-DRAFT-01`。新appはcanonical組織で店舗scopeを検証する |
+| `shiftBoard/queries` | `getShiftBoardData`、`getShiftBoardShopScopeForOrganization`、`getShiftBoardDateNotes` | `SHIFT-BOARD-DRAFT-01`。新appはcanonical組織で店舗scopeを検証する。日付メモは同じ店舗scopeで有効スタッフ分だけを最小DTOで返す |
 | `shiftSubmission/mutations` | `submitShiftRequests` | `SHIFT-SUBMISSION-01` |
 | `shiftSubmission/queries` | `getSubmissionPageData`、`getSubmissionResult` | `SHIFT-SUBMISSION-01`、`SHIFT-SUBMISSION-RESULT-01` |
 | `shiftView/queries` | `getShiftViewData` | `SHIFT-VIEW-REISSUE-01` |

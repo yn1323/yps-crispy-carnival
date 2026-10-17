@@ -7,7 +7,7 @@ import {
   parseShiftAssignmentValidationError,
   validateShiftAssignments,
 } from "@/convex/shiftBoard/validation";
-import type { ReminderStatus } from "@/src/components/features/Shift/ShiftForm";
+import type { ReminderStatus, ShiftDateNote } from "@/src/components/features/Shift/ShiftForm";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useDialog } from "@/src/components/ui/Dialog";
 import { toaster } from "@/src/components/ui/toaster";
@@ -96,13 +96,21 @@ export type ShiftBoardExportData = {
   };
   staffs: { id: string; name: string; isRemoved: boolean }[];
   assignments: { staffId: string; date: string; startTime: string; endTime: string; optionId: string | null }[];
+  dateNotes: ShiftDateNote[];
 };
+
+/** 取得中の日付メモ。出力ボタンを押した時点のメモを出力へ渡すため、取得中は出力を止める。 */
+export type ShiftBoardDateNotes = readonly ShiftDateNote[] | "loading";
+const EMPTY_DATE_NOTES: readonly ShiftDateNote[] = [];
 
 export const useShiftBoardPageController = (
   data: ShiftBoardData,
   recruitmentId: Id<"recruitments">,
   onExport?: (data: ShiftBoardExportData) => void,
+  dateNotes: ShiftBoardDateNotes = EMPTY_DATE_NOTES,
 ): ShiftBoardPageViewProps => {
+  const isDateNotesLoading = dateNotes === "loading";
+  const loadedDateNotes = isDateNotesLoading ? EMPTY_DATE_NOTES : dateNotes;
   const managerShopScope = useManagerShopScope();
   const expectedEditVersion = useRef(data.recruitment.editVersion ?? 0).current;
   const [hasStaleError, setHasStaleError] = useState(false);
@@ -464,7 +472,7 @@ export const useShiftBoardPageController = (
 
   const handleOpenExport = useCallback(() => {
     if (!exportOrganizationId) return;
-    if (!isFormInitializedRef.current) {
+    if (!isFormInitializedRef.current || isDateNotesLoading) {
       toaster.create({ title: "シフト表の読み込みが完了してから出力してください", type: "info" });
       return;
     }
@@ -505,8 +513,19 @@ export const useShiftBoardPageController = (
         endTime,
         optionId: optionId ?? null,
       })),
+      dateNotes: loadedDateNotes.map(({ staffId, date, note }) => ({ staffId, date, note })),
     });
-  }, [exportOrganizationId, isConfirming, isSavingAndLeaving, isSavingDraft, onExport, data, buildSaveAssignments]);
+  }, [
+    exportOrganizationId,
+    isConfirming,
+    isSavingAndLeaving,
+    isSavingDraft,
+    isDateNotesLoading,
+    loadedDateNotes,
+    onExport,
+    data,
+    buildSaveAssignments,
+  ]);
 
   return {
     viewModel: {
@@ -517,7 +536,9 @@ export const useShiftBoardPageController = (
       isReadOnly,
       readOnlyReason,
       exportAction:
-        exportOrganizationId && onExport ? { isDisabled: isSavingDraft || isConfirming || isSavingAndLeaving } : null,
+        exportOrganizationId && onExport
+          ? { isDisabled: isSavingDraft || isConfirming || isSavingAndLeaving || isDateNotesLoading }
+          : null,
       showTimeInputGuide: data.submissionPattern.kind === "time",
       shiftForm: {
         shopId: data.shopId,
@@ -533,6 +554,7 @@ export const useShiftBoardPageController = (
         reminderStatus,
         validationIssues,
         validationWarnings,
+        dateNotes: loadedDateNotes,
       },
       confirmDialog: {
         isOpen: confirmModal.isOpen,

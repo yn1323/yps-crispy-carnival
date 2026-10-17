@@ -1,4 +1,4 @@
-import type { ExportSchedule, ExportStaffRow } from "./types";
+import type { ExportNoteRow, ExportSchedule, ExportStaffRow } from "./types";
 
 export const getExportPeriods = (schedule: ExportSchedule): ExportSchedule[] => {
   if (!schedule.splitPeriod || schedule.dates.length < 15) return [schedule];
@@ -61,6 +61,32 @@ export const getExportPages = (schedule: ExportSchedule) =>
     const layout = getExportLayout(period);
     return layout.pages.map((rows, index) => ({ period, layout, rows, isFirstPage: index === 0 }));
   });
+
+/**
+ * メモ一覧のページ割り。メモは最大100文字なので、メモ列の幅では2行に収まる。
+ * 行の高さを2行分に固定し、1件のメモをページの間で分けない。
+ */
+export const getExportNoteLayout = (schedule: ExportSchedule) => {
+  const base = getExportLayout(schedule);
+  const dateColumnWidthPt = 72;
+  const staffColumnWidthPt = 130;
+  const noteColumnWidthPt = base.pageWidthPt - base.marginPt * 2 - dateColumnWidthPt - staffColumnWidthPt;
+  const rowHeightPt = base.lineHeightPt * 2 + 8;
+  const bodyHeightPt = base.pageHeightPt - base.marginPt * 2 - base.headerHeightPt - base.footerHeightPt;
+  const firstPageCapacity = Math.max(1, Math.floor((bodyHeightPt - base.titleHeightPt) / rowHeightPt));
+  const subsequentPageCapacity = Math.max(1, Math.floor(bodyHeightPt / rowHeightPt));
+  const pages: ExportNoteRow[][] = [];
+  if (schedule.noteRows.length > 0) pages.push(schedule.noteRows.slice(0, firstPageCapacity));
+  for (let offset = firstPageCapacity; offset < schedule.noteRows.length; offset += subsequentPageCapacity) {
+    pages.push(schedule.noteRows.slice(offset, offset + subsequentPageCapacity));
+  }
+  return { ...base, dateColumnWidthPt, staffColumnWidthPt, noteColumnWidthPt, rowHeightPt, pages };
+};
+
+export const getExportNotePages = (schedule: ExportSchedule) => {
+  const layout = getExportNoteLayout(schedule);
+  return layout.pages.map((rows, index) => ({ layout, rows, isFirstPage: index === 0 }));
+};
 
 // These estimates keep the Japanese font and time labels on one line without loading the PDF font in the preview.
 const characterWidth = (character: string) => {
