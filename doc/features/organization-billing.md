@@ -333,8 +333,8 @@ Dashboardは現在の組織に属する店舗だけを作業対象として表�
 両者が一致しない場合は店舗情報を返さず、上限超過または利用上限評価不能ではDashboardを閲覧専用にする。
 frontendの閲覧専用表示だけを認可根拠にせず、mutationも実行時の組織所属と課金policyを再検証する。
 
-Dashboard内には組織切替、現在プラン、利用数、通常時の課金Callout、「プランと支払い」への常設導線を表示しない。
-検証済みの支払い失敗がある場合だけ、Freeへ変更された事実と再契約導線をAlertで表示する。
+Dashboard内には組織切替、現在プラン、利用数、「プランと支払い」への常設導線を表示しない。
+有料プランの継続を登録していないTrialには終了14日前から終了前案内を、検証済みの支払い失敗がある場合はFreeへ変更された事実と再契約導線を、それぞれAlertで表示する。  詳細は[Dashboardの課金案内](trial-ending-dashboard-callout.md)を参照する。
 現在プラン、料金、利用状況、販売中プランの比較は`/manage/billing?org=<organizationId>`で扱い、CheckoutやPortalのActionは認証、組織境界、管理者状態、契約状態、Stripe設定をserver-sideで確認する。
 表示する金額と`day`、`week`、`month`、`year`の請求周期はStripe Priceから取得し、開発用の短縮周期も同じ経路で表示する。
 「プランと支払い」で表示する税区分はActionが明示した場合だけ表示し、不明な場合は税込・税抜を推測しない。
