@@ -38,7 +38,7 @@ describe("LineCallback", () => {
     expect(mocks.redeemLineToken).not.toHaveBeenCalled();
   });
 
-  it.each(["ok", "needs_follow", "expired", "rate_limited"] as const)(
+  it.each(["ok", "needs_follow", "expired", "rate_limited", "linked_to_other_staff"] as const)(
     "actionの%s結果を画面状態へ反映する",
     async (status) => {
       mocks.redeemLineToken.mockResolvedValue({ status });

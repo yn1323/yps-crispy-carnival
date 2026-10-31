@@ -15,6 +15,7 @@ import {
 import { createScenario } from "../_test/scenarioFixtures";
 import { seedCanonicalStaffLineRecipient, seedManagerShop, seedShop, seedStaffLineAccount } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { LINE_LINKED_TO_OTHER_PERSON_ERROR_CODE } from "../line/service";
 
 describe("セキュリティ境界シナリオ", () => {
   beforeEach(() => {
@@ -871,7 +872,7 @@ describe("セキュリティ境界シナリオ", () => {
         lineUserId: "U_relink_shared",
         lineFollowing: true,
       }),
-    ).rejects.toThrow("LINE連携を完了できませんでした。");
+    ).rejects.toMatchObject({ data: { code: LINE_LINKED_TO_OTHER_PERSON_ERROR_CODE } });
 
     const accounts = await t.run(async (ctx) => {
       const oldAccount = await ctx.db

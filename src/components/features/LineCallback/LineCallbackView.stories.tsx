@@ -53,6 +53,16 @@ export const RateLimited: Story = {
   args: { status: "rate_limited" },
 };
 
+export const LinkedToOtherStaff: Story = {
+  args: { status: "linked_to_other_staff" },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("LINE連携を完了できませんでした")).toBeInTheDocument();
+    await expect(canvas.getByText(/すでにほかのスタッフに連携されています/)).toBeInTheDocument();
+    await expect(canvas.queryByText(/ネットワークエラー/)).not.toBeInTheDocument();
+  },
+};
+
 export const ErrorState: Story = {
   args: { status: "error" },
 };
