@@ -8,6 +8,8 @@ export const MAGIC_LINK_DEFAULT_TTL_MS = DAY_MS;
 export const STAFF_SESSION_TTL_MS = 14 * DAY_MS;
 export const STAFF_SESSION_EXPIRY_RECOVERY_BATCH_SIZE = 50;
 export const LINE_LINK_TOKEN_TTL_MS = 72 * HOUR_MS;
+// メール経由の発行で既存tokenを使い回すのに必要な残り有効期間。同時に届くメールのリンクをそろえつつ、短命なリンクは送らない。
+export const LINE_LINK_TOKEN_REUSE_MIN_REMAINING_MS = 48 * HOUR_MS;
 export const LINE_WEBHOOK_MESSAGE_RECEIPT_RETENTION_MS = 30 * DAY_MS;
 export const LINE_WEBHOOK_MESSAGE_RECEIPT_PRUNE_BATCH_SIZE = 100;
 export const LINE_FRIENDSHIP_FANOUT_RETENTION_MS = 30 * DAY_MS;

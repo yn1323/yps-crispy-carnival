@@ -19,7 +19,10 @@ describe("スタッフ管理シナリオ", () => {
     vi.useFakeTimers();
     vi.setSystemTime(SCENARIO_NOW);
   });
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.useRealTimers();
+  });
 
   it("募集中の店舗でスタッフ追加すると一覧・提出依頼・法務/LINE案内に反映され、削除で関連トークンを無効化する", async () => {
     const t = convexTest(schema, modules);
@@ -120,6 +123,56 @@ describe("スタッフ管理シナリオ", () => {
     expect(staffPageAfterDelete.page.find((staff) => staff._id === staffId)).toBeUndefined();
   });
 
+  it("募集中の店舗でスタッフを追加すると、LINE登録メールと募集メールのLINE連携リンクが同じtokenになる", async () => {
+    vi.stubEnv("LINE_LOGIN_CHANNEL_ID", "test-line-channel");
+    const t = convexTest(schema, modules);
+    const scenario = createScenario(t);
+    const asManager = scenario.manager(MANAGER_SUBJECT);
+
+    // Arrange: 募集中のシフトがある店舗を用意する。
+    await t.run(async (ctx) => {
+      await seedManagerShop(ctx, {
+        subject: MANAGER_SUBJECT,
+        email: "staff-manager@example.com",
+        shopName: "LINE連携リンク店舗",
+      });
+    });
+    const recruitmentId = await asManager.createRecruitment({
+      periodStart: scenarioDate(7),
+      periodEnd: scenarioDate(13),
+      deadline: scenarioDate(3),
+    });
+
+    // Act: スタッフを追加し、並列に予約されたLINE登録メールと募集メールの準備を実行する。
+    const [staffId] = await asManager.addStaffs([{ name: "追加スタッフ", email: "new-staff@example.com" }]);
+    vi.advanceTimersByTime(0);
+    await t.finishInProgressScheduledFunctions();
+
+    // Assert: 2通のLINE連携リンクが同じ有効tokenを指し、そのtokenで連携を始められる。
+    const state = await t.run(async (ctx) => {
+      const outbox = await ctx.db.query("notificationOutbox").collect();
+      const tokens = await ctx.db
+        .query("lineLinkTokens")
+        .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+        .collect();
+      return { outbox, tokens };
+    });
+    const lineLinkStateOf = (dedupeKey: string) => {
+      const payload = state.outbox.find((job) => job.dedupeKey === dedupeKey)?.payload;
+      return JSON.stringify(payload ?? null).match(/state=([0-9a-f-]{36})/)?.[1];
+    };
+    const inviteState = lineLinkStateOf(`email:lineInvite:${staffId}`);
+    const recruitmentState = lineLinkStateOf(`email:recruitment:${recruitmentId}:${staffId}`);
+    if (!inviteState) throw new Error("LINE登録メールに連携リンクがありません");
+    expect(recruitmentState).toBe(inviteState);
+    expect(state.tokens.map((token) => ({ token: token.token, revokedAt: token.revokedAt }))).toEqual([
+      { token: inviteState, revokedAt: undefined },
+    ]);
+    await expect(t.mutation(internal.line.mutations.validateLinkToken, { state: inviteState })).resolves.toMatchObject({
+      status: "ok",
+    });
+  });
+
   it("スタッフのメールアドレス変更後、提出可能なopen募集リンクを変更後メールへ追送する", async () => {
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
@@ -185,6 +238,60 @@ describe("スタッフ管理シナリオ", () => {
         (link) => link.shopId === shopId && link.recruitmentId === recruitmentId && link.accessKind === "submit",
       ),
     ).toHaveLength(1);
+  });
+
+  it("メールアドレスを変更すると変更前の宛先へ送ったLINE連携リンクを失効させ、変更後のメールには新しいtokenを載せる", async () => {
+    vi.stubEnv("LINE_LOGIN_CHANNEL_ID", "test-line-channel");
+    const t = convexTest(schema, modules);
+    const scenario = createScenario(t);
+    const asManager = scenario.manager(MANAGER_SUBJECT);
+
+    const { staffId } = await t.run(async (ctx) => {
+      const seeded = await seedManagerShop(ctx, {
+        subject: MANAGER_SUBJECT,
+        email: "staff-manager@example.com",
+        shopName: "LINE連携リンク宛先変更店舗",
+      });
+      const seededStaffId = await seedStaff(ctx, {
+        shopId: seeded.shopId,
+        name: "宛先変更スタッフ",
+        email: "wrong-staff@example.com",
+      });
+      return { staffId: seededStaffId };
+    });
+    const recruitmentId = await asManager.createRecruitment({
+      periodStart: scenarioDate(7),
+      periodEnd: scenarioDate(13),
+      deadline: scenarioDate(3),
+    });
+
+    // Arrange: 誤った宛先へ、LINE連携リンク付きの募集メールを送る。
+    await t.action(internal.notification.actions.sendRecruitmentNotificationEmails, { recruitmentId });
+
+    // Act: 宛先を直し、変更後の宛先へ募集メールを追送する。
+    await asManager.editStaff({ staffId, name: "宛先変更スタッフ", email: "staff@example.com" });
+    await t.action(internal.notification.actions.sendOpenRecruitmentNotificationEmailsForStaffEmailChange, {
+      staffId,
+      expectedEmailNormalized: "staff@example.com",
+      emailChangedAt: SCENARIO_NOW,
+    });
+
+    // Assert: 変更前の宛先のリンクは使えず、変更後の宛先のリンクだけが使える。
+    const outbox = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
+    const lineLinkStateTo = (to: string) => {
+      const payload = outbox.find((job) => job.payload.kind === "email" && job.payload.to === to)?.payload;
+      return JSON.stringify(payload ?? null).match(/state=([0-9a-f-]{36})/)?.[1];
+    };
+    const previousState = lineLinkStateTo("wrong-staff@example.com");
+    const currentState = lineLinkStateTo("staff@example.com");
+    if (!previousState || !currentState) throw new Error("募集メールに連携リンクがありません");
+    expect(currentState).not.toBe(previousState);
+    await expect(t.mutation(internal.line.mutations.validateLinkToken, { state: previousState })).resolves.toEqual({
+      status: "expired",
+    });
+    await expect(t.mutation(internal.line.mutations.validateLinkToken, { state: currentState })).resolves.toMatchObject(
+      { status: "ok" },
+    );
   });
 
   it("メール変更後の追送はLINE受信可能なら送らず、未連携・unfollowならメールで送る", async () => {

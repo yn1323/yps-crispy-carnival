@@ -9,6 +9,8 @@ import { seedManagerShop, seedOrganizationManagerShop, seedShop, seedStaffLineAc
 import { modules, schema } from "../_test/setup.test-helper";
 import {
   LINE_LINK_REDEEM_GLOBAL_LIMIT,
+  LINE_LINK_TOKEN_REUSE_MIN_REMAINING_MS,
+  LINE_LINK_TOKEN_TTL_MS,
   LINE_WEBHOOK_MESSAGE_REQUEST_LIMIT,
   NOTIFICATION_RESEND_COOLDOWN_MS,
 } from "../constants";
@@ -627,7 +629,7 @@ describe("line/mutations", () => {
       expect(link?.expiresAt).toBeGreaterThan(Date.now());
     });
 
-    it("managerとinternalの両発行入口で旧tokenを失効し、最新tokenだけを一度利用できる", async () => {
+    it("managerの発行は旧tokenを失効させ、internalの発行は有効な最新tokenを使い回し、最新tokenだけを一度利用できる", async () => {
       const t = convexTest(schema, modules);
       const { organizationId, staffId, shopId } = await setupShop(t);
       const manager = t.withIdentity({ subject: "user_mgr" });
@@ -654,19 +656,29 @@ describe("line/mutations", () => {
       ).toHaveLength(1);
       expect(afterManagerIssue.find((token) => token.token === second.token)?.revokedAt).toBeUndefined();
 
+      const reused = await t.mutation(internal.line.mutations.createLinkTokenInternal, { staffId, shopId });
+      expect(reused.token).toBe(second.token);
+
+      const third = await manager.mutation(api.line.mutations.generateLinkToken, {
+        shopId,
+        expectedOrganizationId: organizationId,
+        staffId,
+      });
       const latest = await t.mutation(internal.line.mutations.createLinkTokenInternal, { staffId, shopId });
-      const afterInternalIssue = await t.run(async (ctx) =>
+      expect(third.token).not.toBe(second.token);
+      expect(latest.token).toBe(third.token);
+      const afterRotation = await t.run(async (ctx) =>
         ctx.db
           .query("lineLinkTokens")
           .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
           .collect(),
       );
-      expect(afterInternalIssue.find((token) => token.token === second.token)?.revokedAt).toEqual(expect.any(Number));
-      const activeUnused = afterInternalIssue.filter(
+      expect(afterRotation).toHaveLength(3);
+      expect(afterRotation.find((token) => token.token === second.token)?.revokedAt).toEqual(expect.any(Number));
+      const activeUnused = afterRotation.filter(
         (token) => !token.revokedAt && !token.usedAt && token.expiresAt >= Date.now(),
       );
-      expect(activeUnused).toHaveLength(1);
-      expect(activeUnused[0]?.token).toBe(latest.token);
+      expect(activeUnused.map((token) => token.token)).toEqual([latest.token]);
 
       for (const revokedToken of [first.token, second.token]) {
         await expect(t.mutation(internal.line.mutations.validateLinkToken, { state: revokedToken })).resolves.toEqual({
@@ -695,6 +707,133 @@ describe("line/mutations", () => {
           lineFollowing: false,
         }),
       ).resolves.toEqual({ status: "expired" });
+    });
+  });
+
+  describe("createLinkTokenInternalの使い回し", () => {
+    // 発行からこの時間までは残り期限が閾値以上なので使い回す。
+    const REUSE_WINDOW_MS = LINE_LINK_TOKEN_TTL_MS - LINE_LINK_TOKEN_REUSE_MIN_REMAINING_MS;
+
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    async function listPersonLineTokens(t: TestConvex<typeof schema>, staffId: Id<"staffs">) {
+      return await t.run(async (ctx) => {
+        const staff = await ctx.db.get(staffId);
+        if (!staff) throw new Error("staff fixture was not created");
+        return await ctx.db
+          .query("lineLinkTokens")
+          .withIndex("by_organizationPersonId_and_expiresAt", (q) =>
+            q.eq("organizationPersonId", staff.organizationPersonId),
+          )
+          .collect();
+      });
+    }
+
+    it("連続して発行すると同じtokenを返し、有効な未使用tokenを1件に保つ", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId, shopId } = await setupShop(t);
+
+      const first = await t.mutation(internal.line.mutations.createLinkTokenInternal, { staffId, shopId });
+      const second = await t.mutation(internal.line.mutations.createLinkTokenInternal, { staffId, shopId });
+
+      expect(second.token).toBe(first.token);
+      const tokens = await listPersonLineTokens(t, staffId);
+      expect(tokens).toHaveLength(1);
+      expect(tokens[0]?.token).toBe(first.token);
+      expect(tokens[0]?.revokedAt).toBeUndefined();
+      expect(tokens[0]?.usedAt).toBeUndefined();
+    });
+
+    it("残り期限が閾値以上なら期限を延ばさず使い回し、閾値を切ると新しく発行して旧tokenを失効させる", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId, shopId } = await setupShop(t);
+
+      const first = await t.mutation(internal.line.mutations.createLinkTokenInternal, { staffId, shopId });
+      const [issued] = await listPersonLineTokens(t, staffId);
+      if (!issued) throw new Error("LINE token was not persisted");
+
+      vi.advanceTimersByTime(REUSE_WINDOW_MS);
+      const atBoundary = await t.mutation(internal.line.mutations.createLinkTokenInternal, { staffId, shopId });
+      expect(atBoundary.token).toBe(first.token);
+      const afterReuse = await listPersonLineTokens(t, staffId);
+      expect(afterReuse.map((token) => token.expiresAt)).toEqual([issued.expiresAt]);
+
+      vi.advanceTimersByTime(1);
+      const rotated = await t.mutation(internal.line.mutations.createLinkTokenInternal, { staffId, shopId });
+      expect(rotated.token).not.toBe(first.token);
+      const afterRotation = await listPersonLineTokens(t, staffId);
+      expect(afterRotation).toHaveLength(2);
+      expect(afterRotation.find((token) => token.token === first.token)?.revokedAt).toEqual(expect.any(Number));
+      expect(afterRotation.find((token) => token.token === rotated.token)?.revokedAt).toBeUndefined();
+      await expect(t.mutation(internal.line.mutations.validateLinkToken, { state: first.token })).resolves.toEqual({
+        status: "expired",
+      });
+      await expect(
+        t.mutation(internal.line.mutations.validateLinkToken, { state: rotated.token }),
+      ).resolves.toMatchObject({ status: "ok" });
+    });
+
+    it("同じ組織人物でも別店舗のstaffのtokenは使い回さず、旧tokenを失効させる", async () => {
+      const t = convexTest(schema, modules);
+      const target = await setupOrganizationPersonTwoShops(t, "reuse_other_shop");
+
+      const shopAToken = await t.mutation(internal.line.mutations.createLinkTokenInternal, {
+        staffId: target.staffAId,
+        shopId: target.shopId,
+      });
+      const shopBToken = await t.mutation(internal.line.mutations.createLinkTokenInternal, {
+        staffId: target.staffBId,
+        shopId: target.shopBId,
+      });
+
+      expect(shopBToken.token).not.toBe(shopAToken.token);
+      const tokens = await listPersonLineTokens(t, target.staffAId);
+      expect(tokens).toHaveLength(2);
+      expect(tokens.find((token) => token.token === shopAToken.token)?.revokedAt).toEqual(expect.any(Number));
+      expect(tokens.find((token) => token.token === shopBToken.token)).toMatchObject({
+        staffId: target.staffBId,
+        shopId: target.shopBId,
+      });
+      expect(tokens.find((token) => token.token === shopBToken.token)?.revokedAt).toBeUndefined();
+    });
+
+    it("連携世代が変わったtokenは使い回さず、旧tokenを失効させる", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId, shopId } = await setupShop(t);
+
+      const first = await t.mutation(internal.line.mutations.createLinkTokenInternal, { staffId, shopId });
+      await t.run(async (ctx) => {
+        const staff = await ctx.db.get(staffId);
+        if (!staff) throw new Error("staff fixture was not created");
+        await ctx.db.patch(staff.organizationPersonId, { lineLinkGeneration: 1 });
+      });
+      const next = await t.mutation(internal.line.mutations.createLinkTokenInternal, { staffId, shopId });
+
+      expect(next.token).not.toBe(first.token);
+      const tokens = await listPersonLineTokens(t, staffId);
+      expect(tokens).toHaveLength(2);
+      expect(tokens.find((token) => token.token === first.token)?.revokedAt).toEqual(expect.any(Number));
+      expect(tokens.find((token) => token.token === next.token)).toMatchObject({ lineLinkGenerationAtIssue: 1 });
+      expect(tokens.find((token) => token.token === next.token)?.revokedAt).toBeUndefined();
+    });
+
+    it.each(["usedAt", "revokedAt"] as const)("%sが記録されたtokenは使い回さない", async (field) => {
+      const t = convexTest(schema, modules);
+      const { staffId, shopId } = await setupShop(t);
+      const closed = await seedLineLinkToken(t, { staffId, shopId, token: "line-link-token-closed" });
+      await t.run(async (ctx) => {
+        const now = Date.now();
+        await ctx.db.patch(closed.tokenDocId, field === "usedAt" ? { usedAt: now } : { revokedAt: now });
+      });
+
+      const issued = await t.mutation(internal.line.mutations.createLinkTokenInternal, { staffId, shopId });
+
+      expect(issued.token).not.toBe(closed.token);
+      const tokens = await listPersonLineTokens(t, staffId);
+      expect(tokens.filter((token) => !token.revokedAt && !token.usedAt).map((token) => token.token)).toEqual([
+        issued.token,
+      ]);
     });
   });
 
