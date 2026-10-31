@@ -1988,7 +1988,7 @@ async function requestLineInviteResend(
   if (!ok) return { scheduled: false, reason: "rateLimited" as const };
   const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
 
-  // sendInviteEmail は呼ぶたびに新しい連携トークン（マジックリンク）を発行して送り直す。
+  // sendInviteEmail は送信時に連携トークンを用意して送り直す。残り期限が十分な有効トークンがあれば使い回し、なければ新しく発行する。
   await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
     staffId: failure.staffId,
     organizationPersonId: canonicalScope.person._id,

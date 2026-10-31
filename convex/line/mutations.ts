@@ -18,6 +18,7 @@ import {
   LINE_FRIENDSHIP_FANOUT_RECOVERY_BATCH_SIZE,
   LINE_LEGACY_ACTIVE_ACCOUNT_SCAN_MAX,
   LINE_LINK_ACTIVE_TOKEN_SCAN_LIMIT,
+  LINE_LINK_TOKEN_REUSE_MIN_REMAINING_MS,
   LINE_LINK_TOKEN_TTL_MS,
   LINE_WEBHOOK_MESSAGE_RECEIPT_PRUNE_BATCH_SIZE,
   LINE_WEBHOOK_MESSAGE_RECEIPT_RETENTION_MS,
@@ -66,7 +67,16 @@ async function canRedeemLineLinkTokenForShop(ctx: Pick<MutationCtx, "db">, shop:
   return access?.accessMode === "normal";
 }
 
-async function issueLinkToken(ctx: MutationCtx, args: { staffId: Id<"staffs">; shopId: Id<"shops"> }) {
+/**
+ * 連携tokenを発行する。有効な未使用tokenは同じ組織人物につき常に一件だけにする。
+ * - rotate: 旧tokenをすべて失効させて新しく発行する（管理者のQR・URL発行）
+ * - reuse: 同じscopeで残り期限が十分な最新tokenがあれば使い回す（メール経由の発行）。
+ *   並列に送るメール同士でリンクをそろえるためで、期限は延長しない。
+ */
+async function issueLinkToken(
+  ctx: MutationCtx,
+  args: { staffId: Id<"staffs">; shopId: Id<"shops">; mode: "rotate" | "reuse" },
+) {
   const now = Date.now();
   const canonicalScope = await resolveCanonicalStaffScope(ctx, args);
   if (!canonicalScope) {
@@ -79,11 +89,31 @@ async function issueLinkToken(ctx: MutationCtx, args: { staffId: Id<"staffs">; s
   if (activeCandidates.length > LINE_LINK_ACTIVE_TOKEN_SCAN_LIMIT) {
     throw new ConvexError("LINE連携に必要な情報を発行できませんでした。");
   }
+  const lineLinkGeneration = canonicalScope.person.lineLinkGeneration ?? 0;
+  const reusable =
+    args.mode === "reuse"
+      ? activeCandidates
+          .filter(
+            (token) =>
+              !token.revokedAt &&
+              !token.usedAt &&
+              token.staffId === args.staffId &&
+              token.shopId === args.shopId &&
+              token.organizationId === canonicalScope.organization._id &&
+              token.lineLinkGenerationAtIssue === lineLinkGeneration &&
+              token.expiresAt - now >= LINE_LINK_TOKEN_REUSE_MIN_REMAINING_MS,
+          )
+          .reduce<Doc<"lineLinkTokens"> | undefined>(
+            (latest, token) => (latest && latest.expiresAt >= token.expiresAt ? latest : token),
+            undefined,
+          )
+      : undefined;
   for (const token of activeCandidates) {
-    if (!token.revokedAt && !token.usedAt) {
+    if (token._id !== reusable?._id && !token.revokedAt && !token.usedAt) {
       await ctx.db.patch(token._id, { revokedAt: now });
     }
   }
+  if (reusable) return reusable.token;
 
   const token = generateUUID();
   await ctx.db.insert("lineLinkTokens", {
@@ -91,7 +121,7 @@ async function issueLinkToken(ctx: MutationCtx, args: { staffId: Id<"staffs">; s
     shopId: args.shopId,
     organizationId: canonicalScope.organization._id,
     organizationPersonId: canonicalScope.person._id,
-    lineLinkGenerationAtIssue: canonicalScope.person.lineLinkGeneration ?? 0,
+    lineLinkGenerationAtIssue: lineLinkGeneration,
     token,
     expiresAt: now + LINE_LINK_TOKEN_TTL_MS,
   });
@@ -116,7 +146,7 @@ export const generateLinkToken = managerMutation({
       throw new ConvexError("Not found");
     }
 
-    const token = await issueLinkToken(ctx, { staffId: staff._id, shopId: staff.shopId });
+    const token = await issueLinkToken(ctx, { staffId: staff._id, shopId: staff.shopId, mode: "rotate" });
 
     const channelId = process.env.LINE_LOGIN_CHANNEL_ID;
     const authorizeUrl = channelId
@@ -132,7 +162,8 @@ export const generateLinkToken = managerMutation({
 
 /**
  * 内部用: lineLinkTokens を発行する（actions / mutations から呼ぶ）
- * 連携依頼メールの送信時に使う
+ * 連携依頼メールと通知メール末尾のCTAで使う。並列に送るメールのリンクをそろえるため、
+ * 同じscopeで残り期限が十分な有効tokenがあれば使い回す。
  */
 export const createLinkTokenInternal = internalMutation({
   args: { staffId: v.id("staffs"), shopId: v.id("shops") },
@@ -141,7 +172,7 @@ export const createLinkTokenInternal = internalMutation({
     if (!staff || staff.isDeleted || staff.shopId !== shopId || !(await isShopAvailable(ctx, shop))) {
       throw new ConvexError("Not found");
     }
-    const token = await issueLinkToken(ctx, { staffId, shopId });
+    const token = await issueLinkToken(ctx, { staffId, shopId, mode: "reuse" });
     return { token };
   },
 });
