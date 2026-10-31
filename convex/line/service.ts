@@ -15,6 +15,20 @@ import { hasValidCanonicalStaffUserLifecycle, hasValidOrganizationPersonUserLife
 type DbCtx = Pick<QueryCtx | MutationCtx, "db">;
 
 const LINE_LINK_ERROR = "LINE連携を完了できませんでした。";
+export const LINE_LINKED_TO_OTHER_PERSON_ERROR_CODE = "LINE_LINKED_TO_OTHER_PERSON";
+
+/** 同じorganizationの別人物が使用中のLINE ID。mutationはrollbackし、OAuth actionで専用statusへ変換する。 */
+export function lineLinkedToOtherPersonError() {
+  return new ConvexError({ code: LINE_LINKED_TO_OTHER_PERSON_ERROR_CODE });
+}
+
+export function isLineLinkedToOtherPersonError(error: unknown) {
+  if (!(error instanceof ConvexError)) return false;
+  const data: unknown = error.data;
+  return (
+    typeof data === "object" && data !== null && "code" in data && data.code === LINE_LINKED_TO_OTHER_PERSON_ERROR_CODE
+  );
+}
 
 type CanonicalStaffScope = {
   staff: Doc<"staffs">;
@@ -470,9 +484,8 @@ export async function upsertOrganizationPersonLineLink(
         .eq("isDeleted", false),
     )
     .take(2);
-  if (owners.length > 1 || (owners[0] && owners[0].organizationPersonId !== person._id)) {
-    throw new ConvexError(LINE_LINK_ERROR);
-  }
+  if (owners.length > 1) throw new ConvexError(LINE_LINK_ERROR);
+  if (owners[0] && owners[0].organizationPersonId !== person._id) throw lineLinkedToOtherPersonError();
   const providerLinks = await ctx.db
     .query("organizationPersonLineLinks")
     .withIndex("by_lineProviderUserId_and_isDeleted", (q) =>

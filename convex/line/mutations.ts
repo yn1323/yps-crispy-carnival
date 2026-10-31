@@ -39,6 +39,7 @@ import {
   findStaffLineAccountsByLineUserId,
   getOrganizationPersonLineRecipient,
   getStaffLineAccount,
+  lineLinkedToOtherPersonError,
   listActiveStaffsForOrganizationPerson,
   listOrganizationPersonStaffHistory,
   resolveCanonicalStaffScope,
@@ -295,7 +296,7 @@ async function finalizeCanonicalLinking(
     }
     if (accountStaff.organizationPersonId !== args.scope.person._id) {
       // 同じorganizationの別人物からLINE IDを自動で奪わない。
-      throw new ConvexError("LINE連携を完了できませんでした。");
+      throw lineLinkedToOtherPersonError();
     }
   }
 

@@ -16,7 +16,7 @@ import {
 } from "../constants";
 import { LINE_INVITE_NOTIFICATION_KIND } from "../notificationOutbox/historyKinds";
 import { ORGANIZATION_USAGE_ACCESS_ACTIVE_PEOPLE_SCAN_LIMIT } from "../organization/service";
-import { resolveStaffLineRecipient } from "./service";
+import { LINE_LINKED_TO_OTHER_PERSON_ERROR_CODE, resolveStaffLineRecipient } from "./service";
 
 async function seedLineInviteNotificationHistory(
   ctx: Pick<MutationCtx, "db">,
@@ -1273,7 +1273,7 @@ describe("line/mutations", () => {
           lineUserId: "U_dup",
           lineFollowing: true,
         }),
-      ).rejects.toThrow("LINE連携を完了できませんでした");
+      ).rejects.toMatchObject({ data: { code: LINE_LINKED_TO_OTHER_PERSON_ERROR_CODE } });
 
       const state = await t.run(async (ctx) => ({
         accounts: await ctx.db
@@ -1750,7 +1750,7 @@ describe("line/mutations", () => {
           staffId: other.staffId,
           lineUserId: "U_owned_in_organization",
         }),
-      ).rejects.toThrowError("LINE連携を完了できませんでした。");
+      ).rejects.toMatchObject({ data: { code: LINE_LINKED_TO_OTHER_PERSON_ERROR_CODE } });
       const links = await t.run(async (ctx) =>
         ctx.db
           .query("organizationPersonLineLinks")
