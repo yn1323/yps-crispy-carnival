@@ -24,7 +24,7 @@ overrides:
 
 catalog:
   "@biomejs/biome": "2.5.5"
-  "@chakra-ui/react": "3.36.1"
+  "@chakra-ui/react": "3.37.0"
   "@emotion/react": "11.14.0"
   "@types/node": "26.1.1"
   "@types/react": "19.2.17"
