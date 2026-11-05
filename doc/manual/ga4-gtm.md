@@ -26,7 +26,7 @@ containerの構成は[ga4-gtm-container.json](ga4-gtm-container.json)を正本�
 | 種類 | 内容 |
 |---|---|
 | Google tag | `GA4 - Google tag`。`send_page_view`を`false`、`page_location`をアプリが送る集計用URLにする。アプリの最初の`page_view`で、1ページにつき1回だけ発火する |
-| GA4 イベントタグ | `page_view`、`select_content`、`setup_complete`、`section_view`、`shift_export`、`help_search`、`plan_checkout_start`、`web_vital`の8つ。同名のカスタムイベントで発火する |
+| GA4 イベントタグ | `page_view`、`select_content`、`setup_complete`、`section_view`、`shift_export`、`help_search`、`plan_checkout_start`、`security_check_issue`、`web_vital`の9つ。同名のカスタムイベントで発火する |
 | トリガー | すべて`Page Hostname`が`shiftori.app`のときだけ発火する。developとpreviewの計測を本番のpropertyへ混ぜないためである |
 | 変数 | 測定IDの定数、dataLayerの各パラメータ、`page_location`を決めるJavaScript変数 |
 | Clarity | インポート対象外。既存のMicrosoft Clarityタグをそのまま残す |
@@ -82,6 +82,8 @@ Google tagと各イベントタグの`page_location`は、アプリが直前の`
 | `format` | シフト出力の形式 |
 | `has_results` | ヘルプ検索の結果の有無 |
 | `plan` | 申込みを始めたプラン |
+| `reason` | セキュリティ確認が終わらなかった、または失敗した理由 |
+| `error_code` | セキュリティ確認のTurnstile error code |
 | `release_id` | リリースごとの比較 |
 | `document_route_family` | Web Vitalsを測った画面 |
 | `metric_name` | Web Vitalsの指標 |
