@@ -1,8 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useRef, useState } from "react";
 import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
+import { VERIFICATION_REQUIRED_MESSAGE } from "@/src/components/shared/TurnstileWidget";
 import { StaffLayout } from "@/src/components/templates/StaffLayout";
 import { createDeferred } from "@/src/devtools/createDeferred";
+import { installTurnstileMock, type TurnstileMock } from "@/src/devtools/turnstileMock";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { StaffRegistrationFlow } from "./StaffRegistrationFlow";
 
@@ -46,6 +48,44 @@ export const Confirm: Story = {
       email: "hanako@example.com",
       acceptedLegal: true,
     },
+  },
+};
+
+const confirmTurnstile = {
+  widgetKey: 0,
+  siteKey: "test-site-key",
+  onError: () => {},
+  onVerify: () => {},
+};
+let turnstileMock: TurnstileMock;
+const withTurnstileMock = () => {
+  turnstileMock = installTurnstileMock();
+  return turnstileMock.restore;
+};
+
+/** 申請内容の確認中に、裏でセキュリティ確認が進んでいる状態。 */
+export const ConfirmVerifying: Story = {
+  tags: ["vrt-mobile1"],
+  args: { ...Confirm.args, turnstile: confirmTurnstile },
+  beforeEach: withTurnstileMock,
+};
+
+/** セキュリティ確認が終わる前に、申請するを押した状態。 */
+export const ConfirmVerificationRequired: Story = {
+  tags: ["vrt-mobile1"],
+  args: { ...ConfirmVerifying.args, verificationError: VERIFICATION_REQUIRED_MESSAGE },
+  beforeEach: withTurnstileMock,
+};
+
+/** セキュリティ確認が失敗し、再試行と別の手段を案内している状態。 */
+export const ConfirmVerificationFailed: Story = {
+  tags: ["vrt-mobile1"],
+  args: ConfirmVerifying.args,
+  beforeEach: withTurnstileMock,
+  play: async ({ canvasElement }) => {
+    await waitFor(() => expect(turnstileMock.renders).toHaveLength(1));
+    turnstileMock.latestRender()["error-callback"]("300030");
+    await within(canvasElement).findByRole("alert");
   },
 };
 

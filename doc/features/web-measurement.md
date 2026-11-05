@@ -51,6 +51,7 @@ ApplicationがdataLayerへ追加するイベントは次に限定する。  `web
 | `shift_export` | シフト表のPDFまたはExcelを生成して保存を始めたとき | `format`（`pdf`、`xlsx`） |
 | `help_search` | ヘルプ検索の入力が1.5秒止まったとき | `has_results`（`true`、`false`） |
 | `plan_checkout_start` | 有料プランの申込みでStripeへ移動する直前 | `plan`（`standard`、`pro`） |
+| `security_check_issue` | スタッフ登録・問い合わせのセキュリティ確認が15秒以内に終わらない、または失敗したとき（確認のやり直しごとに理由ごと1回） | `reason`（`stalled`、`error`、`unsupported`、`interactive_timeout`、`script_load_failed`）、`error_code`（数字のTurnstile error code、なしは`none`、数字以外は`unknown`） |
 | `web_vital` | sampling対象documentでcallbackを受けたとき | metric、rating、navigation type、viewport、初回documentのroute family |
 
 Event unionとserializerは`src/domains/webMeasurement/`を正本とする。  任意のevent名やparameterをGTMへ渡すAPIは公開しない。  画面操作のイベントは処理の成功後に一回だけ送り、失敗、古いリクエストの完了、再描画では送らない。  Web Vitalsはdocument lifecycleに属し、callback時点で別routeへSPA遷移していても初回documentのroute familyを保持する。

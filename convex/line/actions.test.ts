@@ -4,7 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { seedStaff } from "../_test/scenarioBuilders";
-import { seedManagerShop, seedOrganizationManagerShop, seedOrganizationPersonLineLink } from "../_test/seed";
+import {
+  seedCanonicalStaffLineRecipient,
+  seedManagerShop,
+  seedOrganizationManagerShop,
+  seedOrganizationPersonLineLink,
+  seedStaffLineAccount,
+} from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { LINE_LINK_REDEEM_GLOBAL_LIMIT } from "../constants";
 import { ORGANIZATION_USAGE_ACCESS_ACTIVE_PEOPLE_SCAN_LIMIT } from "../organization/service";
@@ -317,6 +323,33 @@ describe("line/actions", () => {
       ).resolves.toEqual({ status: "needs_follow" });
       expect(fetchMock).toHaveBeenCalledTimes(3);
     });
+
+    it.each(["legacy", "canonical"] as const)(
+      "同じorganizationの別スタッフが%sで使用中のLINE IDならlinked_to_other_staffを返し、業務副作用を残さない",
+      async (ownership) => {
+        const t = convexTest(schema, modules);
+        const token = `redeem-linked-other-${ownership}`;
+        const { shopId, tokenDocId } = await seedRedeemableToken(t, token);
+        await t.run(async (ctx) => {
+          const otherStaffId = await seedStaff(ctx, { shopId, name: "別スタッフ", email: `${token}@example.com` });
+          if (ownership === "legacy") {
+            await seedStaffLineAccount(ctx, { staffId: otherStaffId, shopId, lineUserId: "U_redeemed" });
+          } else {
+            await seedCanonicalStaffLineRecipient(ctx, { staffId: otherStaffId, lineUserId: "U_redeemed" });
+          }
+        });
+        const before = await readLineLinkingBusinessState(t, tokenDocId);
+        mockLineOAuth(true);
+
+        await expect(
+          t.action(api.line.actions.redeemLineToken, { state: token, code: "authorization-code" }),
+        ).resolves.toEqual({ status: "linked_to_other_staff" });
+
+        const after = await readLineLinkingBusinessState(t, tokenDocId);
+        expect(after).toEqual(before);
+        expect(after.token?.usedAt).toBeUndefined();
+      },
+    );
   });
 
   it("LINE reply失敗のprovider bodyとreply tokenをconsoleへ出さない", async () => {

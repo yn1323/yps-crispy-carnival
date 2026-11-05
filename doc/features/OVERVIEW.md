@@ -153,7 +153,7 @@ repository artifactでは、複数組織、複数店舗、複数管理者（招�
 |---|---|
 | スタッフ提出・閲覧magic link | 24時間（既定） |
 | スタッフsession | 14日 |
-| LINE連携URL | 72時間。同一人物への再発行で旧tokenを失効 |
+| LINE連携URL | 72時間（延長しない）。管理者の再発行とシフト連絡先メールの変更で旧tokenを失効。メール経由の発行は48時間以上有効な同一scopeのtokenを使い回す |
 | 法務同意token | 30日 |
 | 管理者招待 | 7日・一回限り。再送で旧URLを失効 |
 | Stripe Customer Portal URL | 都度発行の一時URL（恒久保存しない） |

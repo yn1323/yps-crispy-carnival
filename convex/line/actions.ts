@@ -18,6 +18,7 @@ import { buildLineDefaultReplyText, buildLineInviteEmailHtml } from "../notifica
 import { emailPayload, enqueueEmail } from "../notificationOutbox/enqueue";
 import { LINE_INVITE_NOTIFICATION_KIND } from "../notificationOutbox/historyKinds";
 import { businessNotificationOriginArgs, businessNotificationOriginFrom } from "../notificationOutbox/origin";
+import { isLineLinkedToOtherPersonError } from "./service";
 
 function getLoginChannelId(): string {
   const v = process.env.LINE_LOGIN_CHANNEL_ID;
@@ -42,17 +43,25 @@ const PLAN_BY_QUOTA: Record<number, "communication" | "light" | "standard"> = {
  * - code を access_token に交換、profile.userId 取得
  * - 内部 mutation で staffs と lineLinkTokens を更新
  *
- * 戻り値ステータス: "ok" / "expired" / "rate_limited"
+ * 戻り値ステータス: "ok" / "needs_follow" / "expired" / "rate_limited" / "linked_to_other_staff"
  */
 export const redeemLineToken = action({
   args: { state: v.string(), code: v.string() },
   returns: v.object({
-    status: v.union(v.literal("ok"), v.literal("needs_follow"), v.literal("expired"), v.literal("rate_limited")),
+    status: v.union(
+      v.literal("ok"),
+      v.literal("needs_follow"),
+      v.literal("expired"),
+      v.literal("rate_limited"),
+      v.literal("linked_to_other_staff"),
+    ),
   }),
   handler: async (
     ctx,
     args,
-  ): Promise<{ status: "ok" } | { status: "needs_follow" } | { status: "expired" } | { status: "rate_limited" }> => {
+  ): Promise<{
+    status: "ok" | "needs_follow" | "expired" | "rate_limited" | "linked_to_other_staff";
+  }> => {
     const validation = await ctx.runMutation(internal.line.mutations.validateLinkToken, {
       state: args.state,
     });
@@ -74,13 +83,19 @@ export const redeemLineToken = action({
       })),
     ]);
 
-    const finalized = await ctx.runMutation(internal.line.mutations.finalizeLinking, {
-      staffId: validation.staffId,
-      tokenDocId: validation.tokenDocId,
-      lineUserId: profile.userId,
-      lineFollowing: friendshipObservation.friendship.friendFlag,
-      lineFriendshipObservedAt: friendshipObservation.observedAt,
-    });
+    const finalized = await ctx
+      .runMutation(internal.line.mutations.finalizeLinking, {
+        staffId: validation.staffId,
+        tokenDocId: validation.tokenDocId,
+        lineUserId: profile.userId,
+        lineFollowing: friendshipObservation.friendship.friendFlag,
+        lineFriendshipObservedAt: friendshipObservation.observedAt,
+      })
+      .catch((error: unknown) => {
+        // mutationはrollback済み。tokenは未使用のまま残り、連携解除後に同じリンクで再試行できる。
+        if (isLineLinkedToOtherPersonError(error)) return { status: "linked_to_other_staff" as const };
+        throw error;
+      });
     if (finalized.status !== "ok") return { status: finalized.status };
     if (!("following" in finalized)) throw new Error("LINE friendship result was unavailable");
     return { status: finalized.following ? "ok" : "needs_follow" };

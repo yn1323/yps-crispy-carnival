@@ -10,6 +10,9 @@ import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { Button } from "@/src/components/ui/Button";
 import { Input } from "@/src/components/ui/FormControls";
 
+const STAFF_REGISTRATION_TROUBLE_GUIDANCE =
+  "解決しない場合は、シフトの管理者に名前とメールアドレスを伝え、スタッフ登録を依頼してください。";
+
 type Props = {
   state:
     | { kind: "expired" }
@@ -100,6 +103,7 @@ export function StaffRegistrationView({ state }: Props) {
                 onError={state.turnstile.onError}
                 onVerify={state.turnstile.onVerify}
                 siteKey={state.turnstile.siteKey}
+                troubleGuidance={STAFF_REGISTRATION_TROUBLE_GUIDANCE}
               />
             ) : null}
             {state.verificationError ? (
