@@ -11,7 +11,7 @@ import { Button } from "@/src/components/ui/Button";
 import { Input } from "@/src/components/ui/FormControls";
 
 const STAFF_REGISTRATION_TROUBLE_GUIDANCE =
-  "それでも申請できない場合は、店舗の管理者に名前とメールアドレスを伝えて、登録してもらってください。";
+  "解決しない場合は、シフトの管理者に名前とメールアドレスを伝え、スタッフ登録を依頼してください。";
 
 type Props = {
   state:
