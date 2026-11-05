@@ -6,7 +6,6 @@ import { LuRefreshCw, LuStore, LuTriangleAlert } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Dashboard, type DashboardNavigation, DashboardSkeleton } from "@/src/components/features/Dashboard";
-import { TrialEndingNotice } from "@/src/components/features/Dashboard/TrialEndingNotice";
 import { OrganizationPaymentFailureAlert } from "@/src/components/shared/OrganizationPaymentFailureAlert";
 import { Animation } from "@/src/components/templates/Animation";
 import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
@@ -171,11 +170,6 @@ function ConnectedDashboard({
           onStartPaidPlan={navigation.onOpenBillingSettings}
         />
       )}
-      <TrialEndingNotice
-        notice={shop.trialEnding ?? null}
-        organizationId={organizationId}
-        onOpenBillingSettings={navigation.onOpenBillingSettings}
-      />
       {isReadOnly && (
         <DashboardReadOnlyNotice
           organizationId={organizationId}
