@@ -56,37 +56,12 @@ export function getBoundaryTimerDelay(boundary: number, now: number): number {
   return Math.min(Math.max(boundary - now, 0), MAX_BOUNDARY_TIMER_DELAY_MS);
 }
 
-const freeLimitLabel = () => {
+// 本文はFree上限の評価結果によらず共通にし、評価結果は表示の強さだけに使う。
+function buildDescriptions(): string[] {
   const limits = ORGANIZATION_PLAN_LIMITS.free;
-  return `Freeプラン（${limits.maxPeople}名・${limits.maxShops}店舗・管理者${limits.maxActiveManagers}名まで）`;
-};
-
-const formatViolation = ({ kind, current, isLowerBound }: UsageViolation) => {
-  const suffix = isLowerBound ? "以上" : "";
-  if (kind === "people") return `利用人数${current}名${suffix}`;
-  if (kind === "shops") return `${current}店舗${suffix}`;
-  return `管理者${current}名${suffix}`;
-};
-
-const STOPPED_OPERATIONS = "シフト募集やスタッフの希望シフト提出、通知が止まります";
-const CONTINUE_WITH_PAID_PLAN = "続けて使うには、有料プランを選んでください。データは消えません。";
-
-function buildDescriptions(freeLimitStatus: TrialEndingNoticeData["freeLimitStatus"]): string[] {
-  if (freeLimitStatus.kind === "withinLimits") {
-    return [`終了後は${freeLimitLabel()}で続けて使えます。`, "人数や店舗を増やすときは、有料プランを選んでください。"];
-  }
-  if (freeLimitStatus.kind === "overLimit") {
-    const usage = freeLimitStatus.violations.map(formatViolation).join("、");
-    return [
-      `終了後は${freeLimitLabel()}になります。`,
-      `今は${usage}で上限を超えるため、${STOPPED_OPERATIONS}。`,
-      CONTINUE_WITH_PAID_PLAN,
-    ];
-  }
   return [
-    `終了後は${freeLimitLabel()}になります。`,
-    `上限を超えている場合は、${STOPPED_OPERATIONS}。`,
-    CONTINUE_WITH_PAID_PLAN,
+    `終了後はFreeプラン（スタッフ${limits.maxPeople}名 / ${limits.maxShops}店舗 / 管理者${limits.maxActiveManagers}名まで）になります。`,
+    "上限を超えると、シフト募集や希望シフトの提出、通知機能がストップします。",
   ];
 }
 
@@ -98,7 +73,6 @@ export function buildTrialEndingNoticeViewModel(
   const stage = getTrialEndingStage(notice.trialEndsAt, now);
   if (!stage) return null;
 
-  const remainingDays = Math.ceil((notice.trialEndsAt - now) / DAY_MS);
   const finalDateLabel = finalDateFormatter.format(new Date(notice.trialEndsAt - 1));
   // Free上限内なら終了後も業務は止まらないため、どの段階でも要対応の色にしない。
   const affectsBusiness = notice.freeLimitStatus.kind !== "withinLimits";
@@ -106,11 +80,8 @@ export function buildTrialEndingNoticeViewModel(
   return {
     stage,
     tone: affectsBusiness && stage !== "early" ? "warning" : "neutral",
-    title:
-      stage === "lastDay"
-        ? "無料トライアルは今日で終わります"
-        : `${finalDateLabel}で無料トライアルが終わります（あと${remainingDays}日）`,
-    descriptions: buildDescriptions(notice.freeLimitStatus),
+    title: stage === "lastDay" ? "無料トライアルが本日で終了します" : `${finalDateLabel}で無料トライアルが終了します`,
+    descriptions: buildDescriptions(),
     dismissible: stage !== "lastDay",
   };
 }

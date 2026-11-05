@@ -136,7 +136,7 @@ export const LastDayCannotBeDismissed: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const notice = await canvas.findByRole("region", { name: "無料トライアル終了の案内" });
-    await expect(within(notice).getByText("無料トライアルは今日で終わります")).toBeVisible();
+    await expect(within(notice).getByText("無料トライアルが本日で終了します")).toBeVisible();
     await expect(within(notice).queryByRole("button", { name: "後で確認する" })).not.toBeInTheDocument();
     await expect(within(notice).getByRole("button", { name: "プランを選ぶ" })).toBeVisible();
   },

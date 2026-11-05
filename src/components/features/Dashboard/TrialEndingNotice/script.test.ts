@@ -43,7 +43,12 @@ describe("getTrialEndingNextBoundary", () => {
 });
 
 describe("buildTrialEndingNoticeViewModel", () => {
-  it("Free上限を超える組織には、超える利用数と止まる業務を示し、残り7日から要対応にする", () => {
+  const descriptions = [
+    "終了後はFreeプラン（スタッフ5名 / 1店舗 / 管理者2名まで）になります。",
+    "上限を超えると、シフト募集や希望シフトの提出、通知機能がストップします。",
+  ];
+
+  it("Free上限を超える組織には、残り7日から要対応にし、最終日は閉じられなくする", () => {
     const data = notice({
       kind: "overLimit",
       violations: [
@@ -55,58 +60,40 @@ describe("buildTrialEndingNoticeViewModel", () => {
     expect(buildTrialEndingNoticeViewModel(data, TRIAL_ENDS_AT - 10 * DAY_MS)).toEqual({
       stage: "early",
       tone: "neutral",
-      title: "10月31日で無料トライアルが終わります（あと10日）",
-      descriptions: [
-        "終了後はFreeプラン（5名・1店舗・管理者2名まで）になります。",
-        "今は利用人数12名、2店舗で上限を超えるため、シフト募集やスタッフの希望シフト提出、通知が止まります。",
-        "続けて使うには、有料プランを選んでください。データは消えません。",
-      ],
+      title: "10月31日で無料トライアルが終了します",
+      descriptions,
       dismissible: true,
     });
     expect(buildTrialEndingNoticeViewModel(data, TRIAL_ENDS_AT - 7 * DAY_MS)).toMatchObject({
       stage: "soon",
       tone: "warning",
-      title: "10月31日で無料トライアルが終わります（あと7日）",
+      title: "10月31日で無料トライアルが終了します",
       dismissible: true,
     });
     expect(buildTrialEndingNoticeViewModel(data, TRIAL_ENDS_AT - 1)).toMatchObject({
       stage: "lastDay",
       tone: "warning",
-      title: "無料トライアルは今日で終わります",
+      title: "無料トライアルが本日で終了します",
       dismissible: false,
     });
   });
 
-  it("下限値として数えた利用数は「以上」を付けて示す", () => {
-    const data = notice({ kind: "overLimit", violations: [{ kind: "people", current: 1000, isLowerBound: true }] });
-
-    expect(buildTrialEndingNoticeViewModel(data, TRIAL_ENDS_AT - DAY_MS)?.descriptions[1]).toBe(
-      "今は利用人数1000名以上で上限を超えるため、シフト募集やスタッフの希望シフト提出、通知が止まります。",
-    );
-  });
-
-  it("Free上限内の組織には、どの段階でも要対応の色を使わず、続けて使えることを示す", () => {
+  it("Free上限内の組織には、同じ本文を示し、どの段階でも要対応の色を使わない", () => {
     const data = notice({ kind: "withinLimits" });
 
     expect(buildTrialEndingNoticeViewModel(data, TRIAL_ENDS_AT - 3 * DAY_MS)).toMatchObject({
       stage: "soon",
       tone: "neutral",
-      descriptions: [
-        "終了後はFreeプラン（5名・1店舗・管理者2名まで）で続けて使えます。",
-        "人数や店舗を増やすときは、有料プランを選んでください。",
-      ],
+      descriptions,
     });
     expect(buildTrialEndingNoticeViewModel(data, TRIAL_ENDS_AT - 1)?.tone).toBe("neutral");
   });
 
-  it("利用数を確認できない組織には、上限を超えている場合の影響を条件付きで示す", () => {
-    expect(
-      buildTrialEndingNoticeViewModel(notice({ kind: "unknown" }), TRIAL_ENDS_AT - 2 * DAY_MS)?.descriptions,
-    ).toEqual([
-      "終了後はFreeプラン（5名・1店舗・管理者2名まで）になります。",
-      "上限を超えている場合は、シフト募集やスタッフの希望シフト提出、通知が止まります。",
-      "続けて使うには、有料プランを選んでください。データは消えません。",
-    ]);
+  it("利用数を確認できない組織には、同じ本文を示し、残り7日から要対応にする", () => {
+    expect(buildTrialEndingNoticeViewModel(notice({ kind: "unknown" }), TRIAL_ENDS_AT - 2 * DAY_MS)).toMatchObject({
+      tone: "warning",
+      descriptions,
+    });
   });
 
   it("表示期間の外と案内がない組織にはnullを返す", () => {
