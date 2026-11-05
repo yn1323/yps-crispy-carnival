@@ -30,6 +30,14 @@ export type SubmissionPatternKind = "time" | "dateOnly" | "shiftType";
 export type MeasuredPageSection = "pricing";
 export type ShiftExportFormat = "pdf" | "xlsx";
 export type CheckoutPlan = "standard" | "pro";
+export const securityCheckIssueReasons = [
+  "stalled",
+  "error",
+  "unsupported",
+  "interactive_timeout",
+  "script_load_failed",
+] as const;
+export type SecurityCheckIssueReason = (typeof securityCheckIssueReasons)[number];
 
 export type WebMeasurementContext = {
   environment: WebMeasurementEnvironment;
@@ -42,7 +50,8 @@ export type ProductMeasurementInput =
   | { kind: "section_view"; section: MeasuredPageSection }
   | { kind: "shift_export"; format: ShiftExportFormat }
   | { kind: "help_search"; hasResults: boolean }
-  | { kind: "plan_checkout_start"; plan: CheckoutPlan };
+  | { kind: "plan_checkout_start"; plan: CheckoutPlan }
+  | { kind: "security_check_issue"; reason: SecurityCheckIssueReason; errorCode?: string };
 
 export type WebMeasurementEvent =
   | {
@@ -89,6 +98,11 @@ export type SerializedWebMeasurementEvent =
   | (SerializedRouteContext & { event: "shift_export"; format: ShiftExportFormat })
   | (SerializedRouteContext & { event: "help_search"; has_results: "true" | "false" })
   | (SerializedRouteContext & { event: "plan_checkout_start"; plan: CheckoutPlan })
+  | (SerializedRouteContext & {
+      event: "security_check_issue";
+      reason: SecurityCheckIssueReason;
+      error_code: string;
+    })
   | (SerializedBase & {
       event: "web_vital";
       document_route_family: WebMeasurementRouteFamily;
@@ -110,6 +124,12 @@ const navigationTypes = new Set([
   "prerender",
   "restore",
 ] as const);
+
+/** Turnstileのerror codeは数字だけを送り、それ以外の値は外部へ渡さない。 */
+export function normalizeSecurityCheckErrorCode(value: string | undefined): string {
+  if (value === undefined || value === "") return "none";
+  return /^\d{1,8}$/.test(value) ? value : "unknown";
+}
 
 export function normalizeWebMeasurementEnvironment(value: string): WebMeasurementEnvironment {
   return environmentSet.has(value) ? (value as WebMeasurementEnvironment) : "local";
@@ -201,5 +221,12 @@ export function serializeWebMeasurementEvent(
       return { event: "help_search", ...route, has_results: event.hasResults ? "true" : "false" };
     case "plan_checkout_start":
       return { event: "plan_checkout_start", ...route, plan: event.plan };
+    case "security_check_issue":
+      return {
+        event: "security_check_issue",
+        ...route,
+        reason: event.reason,
+        error_code: normalizeSecurityCheckErrorCode(event.errorCode),
+      };
   }
 }

@@ -83,6 +83,11 @@ describe("Web計測event serializer", () => {
       event: { kind: "plan_checkout_start", plan: "pro", routeFamily: "billing" },
       expected: { plan: "pro", route_area: "manager" },
     },
+    {
+      name: "security_check_issue",
+      event: { kind: "security_check_issue", reason: "error", errorCode: "300030", routeFamily: "staff_register" },
+      expected: { reason: "error", error_code: "300030", route_area: "staff" },
+    },
   ] as const)("$nameを有限値だけのexact payloadにする", ({ name, event, expected }) => {
     expect(serializeWebMeasurementEvent(event, context)).toEqual({
       event: name,
@@ -91,6 +96,20 @@ describe("Web計測event serializer", () => {
       route_family: event.routeFamily,
       ...expected,
     });
+  });
+
+  it.each([
+    { errorCode: undefined, expected: "none" },
+    { errorCode: "", expected: "none" },
+    { errorCode: "110200", expected: "110200" },
+    { errorCode: "token=abc", expected: "unknown" },
+  ])("セキュリティ確認のerror code $errorCode を数字だけに正規化する", ({ errorCode, expected }) => {
+    expect(
+      serializeWebMeasurementEvent(
+        { kind: "security_check_issue", reason: "stalled", errorCode, routeFamily: "contact" },
+        context,
+      ),
+    ).toMatchObject({ event: "security_check_issue", error_code: expected });
   });
 
   it("Web Vitalsはdocument routeと低cardinality値だけを送る", () => {

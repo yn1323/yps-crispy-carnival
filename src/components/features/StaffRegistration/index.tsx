@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import type { StaffRegistrationFormData } from "@/convex/staffRegistration/schemas";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
-import { VERIFICATION_FAILED_MESSAGE, VERIFICATION_PENDING_MESSAGE } from "@/src/components/shared/TurnstileWidget";
+import { VERIFICATION_REQUIRED_MESSAGE } from "@/src/components/shared/TurnstileWidget";
 import { TURNSTILE_SITE_KEY } from "@/src/configs/publicEnv";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { StaffRegistrationFlow } from "./StaffRegistrationFlow";
@@ -24,18 +24,17 @@ export function StaffRegistration({ token, data }: Props) {
     setVerificationError(null);
   }, []);
 
-  const handleVerificationError = useCallback((errorCode?: string) => {
-    if (import.meta.env.DEV && errorCode) console.warn("Turnstile client verification failed", { errorCode });
+  // 失敗の案内と再試行は確認欄が表示するため、ここでは使えなくなったtokenだけを捨てる。
+  const handleVerificationError = useCallback(() => {
     setTurnstileToken("");
-    setVerificationError(VERIFICATION_FAILED_MESSAGE);
   }, []);
 
   const { run: handleSubmit, isRunning: isSubmitting } = useSingleFlight(
     async (formData: StaffRegistrationFormData) => {
       if (!token) return;
       if (!turnstileToken) {
-        // Turnstileが失敗済み、またはsite key未設定なら確認欄は表示されないため、待機案内を出さない。
-        if (TURNSTILE_SITE_KEY) setVerificationError((current) => current ?? VERIFICATION_PENDING_MESSAGE);
+        // site key未設定なら確認欄が読み込めない旨を表示するため、待機案内を重ねない。
+        if (TURNSTILE_SITE_KEY) setVerificationError(VERIFICATION_REQUIRED_MESSAGE);
         return;
       }
 

@@ -159,7 +159,9 @@ export const LinkRotationConfirmationBehavior: Story = {
       }),
     );
     const dialog = await page.findByRole("dialog", { name: "スタッフを追加" });
-    await expect(within(dialog).getByText("https://shiftori.example.com/staff/register/shop_456")).toBeInTheDocument();
+    await expect(
+      within(dialog).getByText("https://shiftori.example.com/staff/register/shop_456?openExternalBrowser=1"),
+    ).toBeInTheDocument();
   },
 };
 

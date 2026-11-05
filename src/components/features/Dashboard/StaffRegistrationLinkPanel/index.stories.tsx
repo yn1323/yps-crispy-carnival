@@ -6,6 +6,8 @@ import { StaffRegistrationLinkPanel } from "./index";
 
 const registrationUrl = "https://shiftori.app/staff/register?token=preview-token";
 const rotatedRegistrationUrl = "https://shiftori.app/staff/register?token=rotated-preview-token";
+const sharedRegistrationUrl = `${registrationUrl}&openExternalBrowser=1`;
+const sharedRotatedRegistrationUrl = `${rotatedRegistrationUrl}&openExternalBrowser=1`;
 const noop = () => {};
 
 const meta = {
@@ -86,17 +88,25 @@ export const RotationClearsCopiedStateBehavior: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+    const copiedTexts: string[] = [];
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
-      value: { writeText: async () => {} },
+      value: {
+        writeText: async (text: string) => {
+          copiedTexts.push(text);
+        },
+      },
     });
 
     try {
+      await expect(await canvas.findByText(sharedRegistrationUrl)).toBeInTheDocument();
       await userEvent.click(await canvas.findByRole("button", { name: "リンクをコピー" }));
       await expect(await canvas.findByRole("button", { name: "コピーしました" })).toBeInTheDocument();
+      // LINEで開いた場合も外部ブラウザでセキュリティ確認を行えるよう、共有リンクだけにパラメータを付ける。
+      await expect(copiedTexts).toEqual([sharedRegistrationUrl]);
 
       await userEvent.click(await canvas.findByRole("button", { name: "登録リンクを再発行" }));
-      await expect(await canvas.findByText(rotatedRegistrationUrl)).toBeInTheDocument();
+      await expect(await canvas.findByText(sharedRotatedRegistrationUrl)).toBeInTheDocument();
       await expect(await canvas.findByRole("button", { name: "リンクをコピー" })).toBeInTheDocument();
     } finally {
       if (clipboardDescriptor) Object.defineProperty(navigator, "clipboard", clipboardDescriptor);
