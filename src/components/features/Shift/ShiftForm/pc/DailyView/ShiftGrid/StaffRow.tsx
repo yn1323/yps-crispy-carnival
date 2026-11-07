@@ -2,7 +2,7 @@ import { Box, Flex, Text } from "@chakra-ui/react";
 import { type MutableRefObject, memo } from "react";
 import type { DragMode, LinkedResizeTarget, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
 import { Avatar, IssueDot, issueToneEmphasis, resolveIssueTone, StaffWarningIcon } from "../../../components";
-import { ShiftDateNoteText } from "../../../dateNotes";
+import { ShiftDateNoteText, ShiftStaffNoteIcon } from "../../../dateNotes";
 import { DragPreview } from "./DragPreview";
 import { GridLines } from "./GridLines";
 import { NonEditableTimeOverlay } from "./NonEditableTimeOverlay";
@@ -40,6 +40,8 @@ type StaffRowProps = {
   noteColumnWidth?: number;
   note?: string;
   noteDate?: string;
+  /** 連絡事項の表示設定にかかわらず渡す、名前の横のアイコン用の連絡事項。 */
+  nameNote?: string;
 };
 
 const noopHover = () => {};
@@ -68,6 +70,7 @@ export const StaffRow = memo(function StaffRow({
   noteColumnWidth,
   note,
   noteDate,
+  nameNote,
 }: StaffRowProps) {
   const tone = resolveIssueTone(hasError, false);
   const emphasis = issueToneEmphasis(tone);
@@ -134,6 +137,7 @@ export const StaffRow = memo(function StaffRow({
             <StaffWarningIcon messages={warningMessages} />
           </Flex>
         </Flex>
+        {nameNote && noteDate && <ShiftStaffNoteIcon notes={[{ date: noteDate, note: nameNote }]} />}
       </Flex>
       {noteColumnWidth !== undefined && (
         <Flex

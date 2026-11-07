@@ -5,6 +5,8 @@ import {
   dateOnlyArgs,
   dateOnlyDateNotesArgs,
   dateOnlyValidationWarningArgs,
+  expectStaffNoteIconOpensOnTap,
+  expectWarningIconOpensOnTap,
   fullscreenParameters,
   mobileGlobals,
   shiftFormDecorators,
@@ -92,5 +94,24 @@ export const DailyWithDateNotes: Story = {
   play: async ({ canvasElement }) => {
     const note = await within(canvasElement).findByText("家の用事で18時まで入れません");
     await expect(note).toHaveAttribute("data-clarity-mask", "true");
+  },
+};
+
+/** 連絡事項を非表示にしたときだけ名前の右にアイコンを出し、タップで本文を開く。 */
+export const DailyDateNotesHiddenIconInteractive: Story = {
+  args: dateOnlyDateNotesArgs,
+  globals: mobileGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    await expectStaffNoteIconOpensOnTap(canvasElement, "家の用事で18時まで入れません");
+  },
+};
+
+export const DailyValidationWarningIconInteractive: Story = {
+  args: dateOnlyValidationWarningArgs,
+  globals: mobileGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    await expectWarningIconOpensOnTap(canvasElement);
   },
 };

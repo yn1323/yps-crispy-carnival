@@ -1,6 +1,6 @@
 import type { Decorator } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
-import { expect, waitFor } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { buildAssignmentIssue } from "@/convex/shiftBoard/validation";
 import { DEFAULT_TIME_PATTERN } from "@/src/domains/shop/submissionPattern";
 import type { ShiftForm } from "..";
@@ -243,3 +243,39 @@ export const dateOnlyDateNotesArgs = {
     { staffId: "staff1", date: "2026-06-04", note: LONG_DATE_NOTE },
   ],
 } satisfies ShiftFormArgs;
+
+/** 表示設定から連絡事項を非表示にする。 */
+export const hideDateNotes = async (canvasElement: HTMLElement): Promise<void> => {
+  await userEvent.click(await within(canvasElement).findByRole("button", { name: "表示設定" }));
+  await userEvent.click(await within(document.body).findByRole("menuitemcheckbox", { name: "連絡事項を表示" }));
+};
+
+/**
+ * SPで連絡事項を非表示にすると、カード下段の本文の代わりに名前の右のアイコンが出て、タップで本文を開く。
+ * アイコンのタップでカードの編集は開かない。
+ */
+export const expectStaffNoteIconOpensOnTap = async (canvasElement: HTMLElement, note: string): Promise<void> => {
+  const canvas = within(canvasElement);
+  const body = within(document.body);
+  await expect(await canvas.findByText(note)).toBeInTheDocument();
+  await expect(canvas.queryByRole("button", { name: /^連絡事項\d+件$/ })).not.toBeInTheDocument();
+
+  await hideDateNotes(canvasElement);
+  await waitFor(() => expect(canvas.queryByText(note)).not.toBeInTheDocument());
+  const icons = await canvas.findAllByRole("button", { name: "連絡事項1件" });
+
+  await userEvent.click(icons[0]);
+  const dialogs = await body.findAllByRole("dialog");
+  await expect(dialogs).toHaveLength(1);
+  await expect(dialogs[0]).toHaveTextContent(/^連絡事項/);
+  await expect(dialogs[0].querySelector("[data-clarity-mask]")).not.toBeNull();
+};
+
+/** SPの確認事項アイコンは、タップで理由を開く。アイコンのタップでカードの編集は開かない。 */
+export const expectWarningIconOpensOnTap = async (canvasElement: HTMLElement): Promise<void> => {
+  const icons = await within(canvasElement).findAllByRole("button", { name: /^確認事項\d+件$/ });
+  await userEvent.click(icons[0]);
+  const dialogs = await within(document.body).findAllByRole("dialog");
+  await expect(dialogs).toHaveLength(1);
+  await expect(dialogs[0]).toHaveTextContent(/^確認事項/);
+};

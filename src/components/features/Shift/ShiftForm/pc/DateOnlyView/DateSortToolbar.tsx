@@ -1,6 +1,7 @@
 import { Box, Flex, Icon, Text } from "@chakra-ui/react";
 import { LuMessageSquare } from "react-icons/lu";
 import { formatDateShort, formatDateWithWeekday } from "@/src/domains/shift/date";
+import { DisplaySettingsMenu } from "../../DisplaySettingsMenu";
 import type { DateInfo } from "./types";
 
 type Props = {
@@ -62,6 +63,9 @@ export const DateSortToolbar = ({ dates, selectedDate, onSelect, noteCountByDate
           );
         })}
       </Flex>
+      <Box ml="auto" flexShrink={0}>
+        <DisplaySettingsMenu />
+      </Box>
     </Flex>
   );
 };

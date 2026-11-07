@@ -3,7 +3,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { type TouchEvent, useCallback, useMemo, useRef, useState } from "react";
 import { useDialog } from "@/src/components/ui/Dialog";
 import type { ShiftData } from "@/src/domains/shift/types";
-import { useShiftDateNotes } from "../../dateNotes";
+import { useAllShiftDateNotes } from "../../dateNotes";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
 import {
@@ -39,7 +39,8 @@ export const SPDailyView = () => {
   const issueStaffIds = useAtomValue(issueStaffIdSetForSelectedDateAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
   const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
-  const dateNotes = useShiftDateNotes();
+  // カード下段の本文と名前の右のアイコンは、表示設定に応じてどちらか一方だけが出る。
+  const dateNotes = useAllShiftDateNotes();
 
   const { positions, dates, timeRange, isReadOnly, holidays } = config;
   const isShopClosedDate = holidays.includes(selectedDate);
@@ -154,6 +155,7 @@ export const SPDailyView = () => {
                       hasError={issueStaffIds.has(staff.id)}
                       warningMessages={warningMessagesByStaffId.get(staff.id) ?? []}
                       note={dateNotes.getNote(staff.id, selectedDate)}
+                      noteDate={selectedDate}
                     />
                   ))}
                 </Stack>
@@ -175,6 +177,7 @@ export const SPDailyView = () => {
                       hasError={issueStaffIds.has(staff.id)}
                       warningMessages={warningMessagesByStaffId.get(staff.id) ?? []}
                       note={dateNotes.getNote(staff.id, selectedDate)}
+                      noteDate={selectedDate}
                     />
                   ))}
                 </Stack>
@@ -200,6 +203,7 @@ export const SPDailyView = () => {
                       hasError={issueStaffIds.has(staff.id)}
                       warningMessages={warningMessagesByStaffId.get(staff.id) ?? []}
                       note={dateNotes.getNote(staff.id, selectedDate)}
+                      noteDate={selectedDate}
                     />
                   ))}
                 </Stack>

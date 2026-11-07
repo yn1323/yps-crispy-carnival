@@ -1,6 +1,6 @@
 import { Box, Flex } from "@chakra-ui/react";
 import { IssueDot, issueToneEmphasis, resolveIssueTone, StaffWarningIcon } from "../../components";
-import { ShiftDateNoteBlock } from "../../dateNotes";
+import { ShiftDateNoteBlock, ShiftStaffNoteIcon } from "../../dateNotes";
 import type { SPDailyCardViewModel } from "./script";
 
 const STRIPE_STYLE = {
@@ -52,6 +52,7 @@ type DailyCardProps = {
   hasError?: boolean;
   warningMessages?: string[];
   note?: string;
+  noteDate: string;
 };
 
 export const SPDailyCard = ({
@@ -63,6 +64,7 @@ export const SPDailyCard = ({
   hasError = false,
   warningMessages = [],
   note,
+  noteDate,
 }: DailyCardProps) => {
   const tone = resolveIssueTone(hasError, false);
   const emphasis = issueToneEmphasis(tone);
@@ -100,7 +102,8 @@ export const SPDailyCard = ({
         <Box textStyle="sm" fontWeight={600} color="gray.800" flex={1}>
           {staffName}
         </Box>
-        <StaffWarningIcon messages={warningMessages} />
+        <StaffWarningIcon messages={warningMessages} openOn="tap" />
+        <ShiftStaffNoteIcon notes={note ? [{ date: noteDate, note }] : []} openOn="tap" />
         {viewModel.showRequestMismatch && (
           <Box
             textStyle="2xs"
@@ -176,6 +179,7 @@ export const SPOffCard = ({
   hasError = false,
   warningMessages = [],
   note,
+  noteDate,
 }: {
   staffId: string;
   staffName: string;
@@ -186,6 +190,7 @@ export const SPOffCard = ({
   hasError?: boolean;
   warningMessages?: string[];
   note?: string;
+  noteDate: string;
 }) => {
   const tone = resolveIssueTone(hasError, false);
   const emphasis = issueToneEmphasis(tone);
@@ -225,7 +230,8 @@ export const SPOffCard = ({
         <Box textStyle="sm" fontWeight={600} color="gray.600" flex={1}>
           {staffName}
         </Box>
-        <StaffWarningIcon messages={warningMessages} />
+        <StaffWarningIcon messages={warningMessages} openOn="tap" />
+        <ShiftStaffNoteIcon notes={note ? [{ date: noteDate, note }] : []} openOn="tap" />
         <Box textStyle="2xs" fontWeight={600} style={{ color: labelTone === "warning" ? "#b45309" : "#a1a1aa" }}>
           {label}
         </Box>

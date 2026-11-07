@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
-import { buildDateOnlyRows, buildDateOnlyWeeks, buildSortDateNotes, getSortableDates } from "./script";
+import { buildDateOnlyRows, buildDateOnlyWeeks, buildRowWeekNotes, getSortableDates } from "./script";
 
 describe("buildDateOnlyWeeks", () => {
   it("期間を月曜始まりの週へまとめる", () => {
@@ -94,21 +94,24 @@ describe("buildDateOnlyRows", () => {
   });
 });
 
-describe("buildSortDateNotes", () => {
-  const staff = (id: string, name: string): StaffType => ({ id, name, isSubmitted: true });
-  const rows = [staff("staff-b", "佐藤 太郎"), staff("staff-a", "山田 花子"), staff("staff-c", "鈴木 一郎")].map(
-    (entry) => ({ staff: entry, isStaffNameMuted: false, warningMessages: [], requestBadges: [], cells: [] }),
-  );
+describe("buildRowWeekNotes", () => {
+  const column = (iso: string) => ({
+    date: { iso, inRange: true },
+    isClosed: false,
+    assignmentCount: 0,
+  });
   const notes = new Map([
+    ["staff-a:2026-06-04", "午前だけ"],
     ["staff-a:2026-06-02", "17時以降なら入れます"],
-    ["staff-c:2026-06-02", "家の用事で18時まで入れません"],
-    ["staff-b:2026-06-03", "別の日のメモ"],
+    ["staff-b:2026-06-02", "別スタッフのメモ"],
+    ["staff-a:2026-06-09", "表示外の週のメモ"],
   ]);
 
-  it("並べ替え中の日のメモだけを表の並び順で返す", () => {
-    expect(buildSortDateNotes(rows, "2026-06-02", (staffId, date) => notes.get(`${staffId}:${date}`))).toEqual([
-      { staffId: "staff-a", staffName: "山田 花子", note: "17時以降なら入れます" },
-      { staffId: "staff-c", staffName: "鈴木 一郎", note: "家の用事で18時まで入れません" },
+  it("表示中の週にあるそのスタッフのメモだけを日付順で返す", () => {
+    const columns = ["2026-06-01", "2026-06-02", "2026-06-03", "2026-06-04"].map(column);
+    expect(buildRowWeekNotes("staff-a", columns, (staffId, date) => notes.get(`${staffId}:${date}`))).toEqual([
+      { date: "2026-06-02", note: "17時以降なら入れます" },
+      { date: "2026-06-04", note: "午前だけ" },
     ]);
   });
 });

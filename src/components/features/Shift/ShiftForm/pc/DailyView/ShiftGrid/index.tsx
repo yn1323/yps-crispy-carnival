@@ -3,7 +3,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { TIME_AXIS_PADDING_PX } from "../../../constants";
-import { useShiftDateNotes } from "../../../dateNotes";
+import { useAllShiftDateNotes, useShiftDateNotes } from "../../../dateNotes";
 import {
   dailySortedStaffsAtom,
   hourWidthAtom,
@@ -38,6 +38,7 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
   const setHourWidth = useSetAtom(hourWidthAtom);
   const selectedDate = useAtomValue(selectedDateAtom);
   const dateNotes = useShiftDateNotes();
+  const allDateNotes = useAllShiftDateNotes();
   const { timeRange, isReadOnly, currentStaffId } = config;
 
   const { dragState, isDragging, handleMouseDown, handleMouseMove, handleMouseUp, getCursor } = useDrag();
@@ -167,7 +168,7 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
                 borderColor="gray.100"
               >
                 <Text textStyle="xs" fontWeight={600} color="gray.600">
-                  メモ
+                  連絡事項
                 </Text>
               </Flex>
             )}
@@ -217,6 +218,7 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
                 noteColumnWidth={dateNotes.hasNotes ? NOTE_COL_WIDTH : undefined}
                 note={dateNotes.getNote(staff.id, selectedDate)}
                 noteDate={selectedDate}
+                nameNote={allDateNotes.getNote(staff.id, selectedDate)}
               />
             );
           })}

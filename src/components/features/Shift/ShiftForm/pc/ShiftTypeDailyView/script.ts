@@ -39,11 +39,13 @@ export type ShiftTypeDailyRowViewModel = {
 
 export type ShiftTypeDailyViewModel = {
   isShopClosedDate: boolean;
-  requestHeaderLabel: "確定" | "希望" | "確定・メモ" | "希望・メモ";
+  requestHeaderLabel: "確定" | "希望";
   minimumTableWidth: number;
   columnWidths: {
     staff: number;
     request: number;
+    /** メモがない募集ではメモ列を出さない。 */
+    note: number | null;
     option: number;
   };
   optionColumns: ShiftTypeDailyOptionColumnViewModel[];
@@ -52,8 +54,8 @@ export type ShiftTypeDailyViewModel = {
 
 const STAFF_COLUMN_WIDTH = 220;
 const REQUEST_COLUMN_WIDTH = 150;
-// メモがある募集では、希望バッジの下にメモを1行で置くため希望列を広げる。
-const REQUEST_WITH_NOTE_COLUMN_WIDTH = 300;
+// 時間指定の日別表示のメモ列とそろえる。
+const NOTE_COLUMN_WIDTH = 200;
 const OPTION_COLUMN_WIDTH = 150;
 
 export const buildShiftTypeDailyViewModel = ({
@@ -83,16 +85,20 @@ export const buildShiftTypeDailyViewModel = ({
     isConfirmedDisplay,
   });
 
-  const requestColumnWidth = hasDateNotes ? REQUEST_WITH_NOTE_COLUMN_WIDTH : REQUEST_COLUMN_WIDTH;
-  const requestLabel = isConfirmedDisplay ? "確定" : "希望";
+  const noteColumnWidth = hasDateNotes ? NOTE_COLUMN_WIDTH : null;
 
   return {
     isShopClosedDate: holidays.includes(selectedDate),
-    requestHeaderLabel: hasDateNotes ? `${requestLabel}・メモ` : requestLabel,
-    minimumTableWidth: STAFF_COLUMN_WIDTH + requestColumnWidth + presentation.options.length * OPTION_COLUMN_WIDTH,
+    requestHeaderLabel: isConfirmedDisplay ? "確定" : "希望",
+    minimumTableWidth:
+      STAFF_COLUMN_WIDTH +
+      REQUEST_COLUMN_WIDTH +
+      (noteColumnWidth ?? 0) +
+      presentation.options.length * OPTION_COLUMN_WIDTH,
     columnWidths: {
       staff: STAFF_COLUMN_WIDTH,
-      request: requestColumnWidth,
+      request: REQUEST_COLUMN_WIDTH,
+      note: noteColumnWidth,
       option: OPTION_COLUMN_WIDTH,
     },
     optionColumns: presentation.options.map(({ key, name, timeLabel, countLabel, color }) => ({

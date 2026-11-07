@@ -3,6 +3,7 @@ import dayjs from "dayjs";
 import type { RefObject } from "react";
 import { getWeekdayLabel } from "@/src/domains/shift/date";
 import { DateIssueBadge, dateIssueBorderColor } from "../../components";
+import { DisplaySettingsMenu } from "../../DisplaySettingsMenu";
 import { getShiftWeekdayColor } from "../../weekdayPresentation";
 
 type Props = {
@@ -100,8 +101,18 @@ export const DateRail = ({
         </Flex>
       </Box>
       {selected && (
-        <Box px={4} py={3} bg="white" borderBottomWidth="1px" borderColor="gray.200" flexShrink={0}>
-          <Flex align="baseline" gap={2}>
+        <Flex
+          px={4}
+          py={3}
+          bg="white"
+          borderBottomWidth="1px"
+          borderColor="gray.200"
+          flexShrink={0}
+          align="center"
+          justify="space-between"
+          gap={3}
+        >
+          <Flex align="baseline" gap={2} minW={0}>
             <Box textStyle="xl" fontWeight={700} color="gray.800" fontVariantNumeric="tabular-nums">
               {selected.month() + 1}月{selected.date()}日
             </Box>
@@ -114,7 +125,8 @@ export const DateRail = ({
               </Box>
             )}
           </Flex>
-        </Box>
+          <DisplaySettingsMenu />
+        </Flex>
       )}
     </>
   );

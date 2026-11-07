@@ -1,7 +1,7 @@
 import { buildWeeklyGrid, formatDateShort } from "@/src/domains/shift/date";
 import { hasDateOnlyAssignment, hasDateOnlyRequest } from "@/src/domains/shift/dateOnlyAssignments";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
-import type { DateInfo, DateOnlyRequestBadgeViewModel, DateOnlyRowViewModel, WeekItem } from "./types";
+import type { DateInfo, DateOnlyColumn, DateOnlyRequestBadgeViewModel, DateOnlyRowViewModel, WeekItem } from "./types";
 
 export const buildDateOnlyWeeks = (dates: string[]): WeekItem[] =>
   buildWeeklyGrid(dates).map((week, index) => {
@@ -67,15 +67,15 @@ export const buildDateOnlyRows = ({
   });
 };
 
-export type DateOnlySortDateNote = { staffId: string; staffName: string; note: string };
+export type DateOnlyRowNote = { date: string; note: string };
 
-/** 並べ替え中の日のメモを、表の並び順のまま抜き出す。 */
-export const buildSortDateNotes = (
-  rows: readonly DateOnlyRowViewModel[],
-  sortDate: string,
+/** 表示中の週のメモを、そのスタッフの行に日付順で並べるために抜き出す。 */
+export const buildRowWeekNotes = (
+  staffId: string,
+  columns: readonly DateOnlyColumn[],
   getNote: (staffId: string, date: string) => string | undefined,
-): DateOnlySortDateNote[] =>
-  rows.flatMap((row) => {
-    const note = getNote(row.staff.id, sortDate);
-    return note ? [{ staffId: row.staff.id, staffName: row.staff.name, note }] : [];
+): DateOnlyRowNote[] =>
+  columns.flatMap(({ date }) => {
+    const note = getNote(staffId, date.iso);
+    return note ? [{ date: date.iso, note }] : [];
   });

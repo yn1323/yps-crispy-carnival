@@ -11,7 +11,8 @@ import {
 } from "@/src/domains/shift/date";
 import type { StaffType } from "@/src/domains/shift/types";
 import { Avatar, DateIssueBadge, dateIssueBorderColor, StaffWarningIcon } from "../../components";
-import { ShiftDateNoteBlock, useShiftDateNotes } from "../../dateNotes";
+import { DisplaySettingsMenu } from "../../DisplaySettingsMenu";
+import { ShiftDateNoteBlock, ShiftStaffNoteIcon, useAllShiftDateNotes } from "../../dateNotes";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
 import {
@@ -43,7 +44,8 @@ export const SPDateOnlyDailyView = () => {
   const issueCounts = useAtomValue(issueCountByDateAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
   const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
-  const dateNotes = useShiftDateNotes();
+  // カード下段の本文と名前の右のアイコンは、表示設定に応じてどちらか一方だけが出る。
+  const dateNotes = useAllShiftDateNotes();
 
   const { dates, holidays, isReadOnly } = config;
   const isConfirmedDisplay = config.displayMode === "confirmed";
@@ -113,6 +115,7 @@ export const SPDateOnlyDailyView = () => {
           </Box>
           <Flex flexShrink={0} align="center" gap={2}>
             <SummaryPill label="合計" count={assignedCount} muted={!isInRange || isShopClosedDate} />
+            <DisplaySettingsMenu />
           </Flex>
         </Flex>
       </Box>
@@ -267,7 +270,8 @@ const StaffToggleRow = ({
             <StatusBadge tone={row.statusTone}>{row.statusLabel}</StatusBadge>
           </Flex>
         </Box>
-        <StaffWarningIcon messages={warningMessages} />
+        <StaffWarningIcon messages={warningMessages} openOn="tap" />
+        <ShiftStaffNoteIcon notes={note ? [{ date: activeDate, note }] : []} openOn="tap" />
         <Box
           as="button"
           aria-label={`${row.staff.name} ${formatDateWithWeekday(activeDate)} ${row.assigned ? "勤務あり" : "勤務なし"}`}
