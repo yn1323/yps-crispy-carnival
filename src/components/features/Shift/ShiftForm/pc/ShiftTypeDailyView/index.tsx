@@ -1,10 +1,11 @@
-import { Box, Flex, Text } from "@chakra-ui/react";
+import { Box, chakra, Flex, Text } from "@chakra-ui/react";
 import { useAtomValue, useSetAtom } from "jotai";
 import type { ReactNode } from "react";
 import { useMemo } from "react";
 import type { ShiftTypeOptionLike } from "@/src/domains/shift/shiftTypeAssignments";
 import type { StaffType } from "@/src/domains/shift/types";
 import { Avatar, StaffWarningIcon } from "../../components";
+import { ShiftDateNoteText, ShiftStaffNoteIcon, useAllShiftDateNotes, useShiftDateNotes } from "../../dateNotes";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import type { ShiftTypeOptionColor } from "../../shiftTypeOptionStyles";
 import {
@@ -37,6 +38,8 @@ export const ShiftTypeDailyView = () => {
   const issueCounts = useAtomValue(issueCountByDateAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
   const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
+  const dateNotes = useShiftDateNotes();
+  const allDateNotes = useAllShiftDateNotes();
 
   const { dates, holidays, isReadOnly, submissionPattern } = config;
   const isConfirmedDisplay = config.displayMode === "confirmed";
@@ -50,8 +53,10 @@ export const ShiftTypeDailyView = () => {
         holidays,
         isConfirmedDisplay,
         warningMessagesByStaffId,
+        hasDateNotes: dateNotes.hasNotes,
       }),
     [
+      dateNotes.hasNotes,
       holidays,
       isConfirmedDisplay,
       selectedDate,
@@ -95,14 +100,19 @@ export const ShiftTypeDailyView = () => {
                 <Box as="colgroup">
                   <Box as="col" style={{ width: viewModel.columnWidths.staff }} />
                   <Box as="col" style={{ width: viewModel.columnWidths.request }} />
+                  {viewModel.columnWidths.note !== null && (
+                    <Box as="col" style={{ width: viewModel.columnWidths.note }} />
+                  )}
                   {viewModel.optionColumns.map((option) => (
                     <Box as="col" key={option.key} style={{ width: viewModel.columnWidths.option }} />
                   ))}
                 </Box>
                 <Box as="thead">
                   <Box as="tr" bg="gray.50">
-                    <HeaderCell>スタッフ</HeaderCell>
-                    <HeaderCell>{viewModel.requestHeaderLabel}</HeaderCell>
+                    {/* 人数の行には勤務パターンごとの人数だけを置き、左の見出しは2行分を結合する。 */}
+                    <HeaderCell rowSpan={2}>スタッフ</HeaderCell>
+                    <HeaderCell rowSpan={2}>{viewModel.requestHeaderLabel}</HeaderCell>
+                    {dateNotes.hasNotes && <HeaderCell rowSpan={2}>連絡事項</HeaderCell>}
                     {viewModel.optionColumns.map((option) => (
                       <HeaderCell key={option.key} optionColor={option.color}>
                         <Box fontWeight={700}>{option.name}</Box>
@@ -113,12 +123,8 @@ export const ShiftTypeDailyView = () => {
                     ))}
                   </Box>
                   <Box as="tr">
-                    <HeaderCell muted bg="gray.50">
-                      人数
-                    </HeaderCell>
-                    <HeaderCell muted bg="gray.50" />
                     {viewModel.optionColumns.map((option) => (
-                      <HeaderCell key={option.key} muted optionColor={option.color} tone="count">
+                      <HeaderCell key={option.key} optionColor={option.color} tone="count">
                         <Text color={option.color.accent} fontWeight={700}>
                           {option.countLabel}
                         </Text>
@@ -129,8 +135,19 @@ export const ShiftTypeDailyView = () => {
                 <Box as="tbody">
                   {viewModel.rows.map((row) => (
                     <Box as="tr" key={row.key} borderTopWidth="1px" borderColor="gray.100">
-                      <StaffCell row={row} />
+                      <StaffCell
+                        row={row}
+                        note={allDateNotes.getNote(row.staff.id, selectedDate)}
+                        date={selectedDate}
+                      />
                       <RequestCell badges={row.requestBadges} />
+                      {dateNotes.hasNotes && (
+                        <NoteCell
+                          note={dateNotes.getNote(row.staff.id, selectedDate)}
+                          staffName={row.staffName}
+                          date={selectedDate}
+                        />
+                      )}
                       {row.cells.map((cell) => (
                         <ShiftTypeCell
                           key={cell.key}
@@ -153,35 +170,33 @@ export const ShiftTypeDailyView = () => {
 
 const HeaderCell = ({
   children,
-  muted = false,
   optionColor,
   tone = "header",
-  bg,
+  rowSpan,
 }: {
   children?: ReactNode;
-  muted?: boolean;
   optionColor?: ShiftTypeOptionColor;
   tone?: "header" | "count";
-  bg?: string;
+  rowSpan?: number;
 }) => (
-  <Box
-    as="th"
+  <chakra.th
+    rowSpan={rowSpan}
     px={4}
     py={2}
     textAlign="center"
     borderRightWidth="1px"
     borderColor="gray.200"
-    bg={bg ?? (optionColor ? (tone === "count" ? optionColor.countBg : optionColor.headerBg) : undefined)}
-    color={optionColor ? optionColor.accent : muted ? "gray.600" : "gray.800"}
+    bg={optionColor ? (tone === "count" ? optionColor.countBg : optionColor.headerBg) : undefined}
+    color={optionColor ? optionColor.accent : "gray.800"}
     textStyle="xs"
     fontWeight={600}
     _last={{ borderRightWidth: 0 }}
   >
     {children}
-  </Box>
+  </chakra.th>
 );
 
-const StaffCell = ({ row }: { row: ShiftTypeDailyRowViewModel }) => (
+const StaffCell = ({ row, note, date }: { row: ShiftTypeDailyRowViewModel; note?: string; date: string }) => (
   <Box as="td" px={4} py={2} borderRightWidth="1px" borderColor="gray.100">
     <Flex align="center" gap={3} minW={0}>
       <Avatar staff={row.staff} size={24} />
@@ -189,6 +204,7 @@ const StaffCell = ({ row }: { row: ShiftTypeDailyRowViewModel }) => (
         {row.staffName}
       </Text>
       <StaffWarningIcon messages={row.warningMessages} />
+      {note && <ShiftStaffNoteIcon notes={[{ date, note }]} />}
     </Flex>
   </Box>
 );
@@ -202,6 +218,13 @@ const RequestCell = ({ badges }: { badges: ShiftTypeDailyRequestBadgeViewModel[]
         </RequestBadge>
       ))}
     </Flex>
+  </Box>
+);
+
+/** 時間指定の日別表示のメモ列と同じく、上下の余白を詰めて2行まで表示する。 */
+const NoteCell = ({ note, staffName, date }: { note?: string; staffName: string; date: string }) => (
+  <Box as="td" px={3} py="4px" borderRightWidth="1px" borderColor="gray.100">
+    {note && <ShiftDateNoteText staffName={staffName} date={date} note={note} lineClamp={2} />}
   </Box>
 );
 

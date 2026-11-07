@@ -771,6 +771,18 @@ const schema = defineSchema({
     .index("by_staffId", ["staffId"])
     .index("by_staffId_date", ["staffId", "date"]),
 
+  // 希望シフトに添える日付ごとのメモ。要配慮個人情報が混ざりうるため、
+  // 提出headerへ持たせず、読むコードを提出画面とシフト表に限定する。
+  shiftSubmissionDateNotes: defineTable({
+    submissionId: v.id("shiftSubmissions"),
+    recruitmentId: v.id("recruitments"),
+    staffId: v.id("staffs"),
+    date: v.string(), // "2026-01-20"
+    note: v.string(),
+  })
+    .index("by_recruitmentId", ["recruitmentId"])
+    .index("by_recruitmentId_and_staffId", ["recruitmentId", "staffId"]),
+
   // ========================================
   // 確定シフト割当
   // ========================================

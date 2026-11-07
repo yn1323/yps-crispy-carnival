@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
 import type { SubmissionData } from "../types";
-import type { SubmitShiftSelectionInput } from "./buildSubmissionInput";
+import type { SubmitShiftPayload } from "./buildSubmissionInput";
 import { SubmitFormView } from "./SubmitFormView";
 import { useSubmitFormController } from "./useSubmitFormController";
 
 type Props = {
   data: SubmissionData;
-  onSubmit: (submission: SubmitShiftSelectionInput, acceptedLegal?: boolean) => Promise<void>;
+  onSubmit: (payload: SubmitShiftPayload, acceptedLegal?: boolean) => Promise<void>;
   headerAction?: ReactNode;
 };
 
@@ -21,6 +21,8 @@ export function SubmitForm({ data, onSubmit, headerAction }: Props) {
       acceptedLegal={controller.acceptedLegal}
       acceptedLegalError={controller.acceptedLegalError}
       canApplyPreviousPattern={controller.canApplyPreviousPattern}
+      hasUnsentChanges={controller.hasUnsentChanges}
+      noteEditor={controller.noteEditor}
       timeOptions={controller.timeOptions}
       isSubmitting={controller.isSubmitting}
       isLateSubmitting={controller.isLateSubmitting}
@@ -38,4 +40,4 @@ export function SubmitForm({ data, onSubmit, headerAction }: Props) {
 }
 
 export type { SubmissionData } from "../types";
-export type { SubmitShiftSelectionInput } from "./buildSubmissionInput";
+export type { SubmitShiftPayload, SubmitShiftSelectionInput } from "./buildSubmissionInput";

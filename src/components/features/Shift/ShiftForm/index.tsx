@@ -25,6 +25,7 @@ import {
   UnsubmittedStrip,
   ViewTabs,
 } from "./components";
+import { type ShiftDateNote, ShiftDateNotesProvider } from "./dateNotes";
 import { useShiftFormInit } from "./hooks/useShiftFormInit";
 import { DailyView } from "./pc/DailyView";
 import { DateOnlyView } from "./pc/DateOnlyView";
@@ -42,6 +43,7 @@ import { selectDateWithDailyStaffOrderAtom, shiftsAtom, viewModeAtom } from "./s
 import { ValidationErrorPanel } from "./ValidationErrorPanel";
 
 export type { ReminderStatus } from "./components";
+export type { ShiftDateNote } from "./dateNotes";
 
 export type ShiftFormHeader = {
   desktopTitle: string;
@@ -81,6 +83,8 @@ type ShiftFormProps = {
   onDismissValidationIssues?: () => void;
   header?: ShiftFormHeader;
   exportAction?: ShiftFormExportAction;
+  /** スタッフが提出した日付メモ。割当状態には入れず、表示だけに使う。 */
+  dateNotes?: readonly ShiftDateNote[];
 };
 
 const ShiftFormInner = ({
@@ -405,6 +409,8 @@ const Shell = ({
 
 export const ShiftForm = (props: ShiftFormProps) => (
   <Provider>
-    <ShiftFormInner {...props} />
+    <ShiftDateNotesProvider notes={props.dateNotes}>
+      <ShiftFormInner {...props} />
+    </ShiftDateNotesProvider>
   </Provider>
 );

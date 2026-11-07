@@ -3,7 +3,10 @@ import { expect, userEvent, within } from "storybook/test";
 import { ShiftForm } from "..";
 import {
   dateOnlyArgs,
+  dateOnlyDateNotesArgs,
   dateOnlyValidationWarningArgs,
+  expectStaffNoteIconOpensOnTap,
+  expectWarningIconOpensOnTap,
   fullscreenParameters,
   mobileGlobals,
   shiftFormDecorators,
@@ -82,5 +85,54 @@ export const Interactive: Story = {
     await userEvent.click(await canvas.findByLabelText("6/2(火)の日別を表示"));
     await expect(await canvas.findByRole("tab", { name: "日別" })).toHaveAttribute("aria-selected", "true");
     await expect(await findVisibleByLabelText("田中 太郎 6/2(火) 勤務なし")).toBeInTheDocument();
+  },
+};
+
+export const DailyWithDateNotes: Story = {
+  args: dateOnlyDateNotesArgs,
+  globals: mobileGlobals,
+  play: async ({ canvasElement }) => {
+    const note = await within(canvasElement).findByText("家の用事で18時まで入れません");
+    await expect(note).toHaveAttribute("data-clarity-mask", "true");
+  },
+};
+
+/** 連絡事項を非表示にしたときだけ名前の右にアイコンを出し、タップで本文を開く。 */
+export const DailyDateNotesHiddenIconInteractive: Story = {
+  args: dateOnlyDateNotesArgs,
+  globals: mobileGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    await expectStaffNoteIconOpensOnTap(canvasElement, "家の用事で18時まで入れません");
+  },
+};
+
+export const DailyValidationWarningIconInteractive: Story = {
+  args: dateOnlyValidationWarningArgs,
+  globals: mobileGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    await expectWarningIconOpensOnTap(canvasElement);
+  },
+};
+
+/** 日付チップは日だけを表示し、休みは曜日と同じ行に置く。合計人数は日付の見出しの後ろに置く。 */
+export const DailyDateChipLayout: Story = {
+  args: dateOnlyArgs,
+  globals: mobileGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const closedChip = canvasElement.querySelector<HTMLElement>('[data-date-chip="2026-06-07"]');
+    await expect(closedChip?.textContent).toBe("7日(休)");
+    const chipHeights = new Set(
+      Array.from(canvasElement.querySelectorAll<HTMLElement>("[data-date-chip]")).map((chip) =>
+        Math.round(chip.getBoundingClientRect().height),
+      ),
+    );
+    await expect(chipHeights.size).toBe(1);
+
+    const total = await within(canvasElement).findByText("合計");
+    const settings = await within(canvasElement).findByRole("button", { name: "表示設定" });
+    await expect(total.getBoundingClientRect().right).toBeLessThan(settings.getBoundingClientRect().left - 40);
   },
 };

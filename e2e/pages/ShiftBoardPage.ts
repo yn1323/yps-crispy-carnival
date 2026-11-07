@@ -35,6 +35,22 @@ export class ShiftBoardPage {
     await expect(this.page.getByRole("button", { name: "保存・再送・出力", exact: true })).toBeVisible();
   }
 
+  /** 日付選択の週表で、スタッフの行の連絡事項列に、その日付と提出されたメモが並ぶことを確認する。 */
+  async expectDateOnlyNotesForDate(dateText: string, notes: Array<{ staffName: string; note: string }>) {
+    // 連絡事項列は曜日を省いた「M/D」で日付を表示する。
+    const shortDate = dateText.replace(/\(.\)$/, "");
+    for (const { staffName, note } of notes) {
+      await expect(
+        this.page
+          .getByRole("row")
+          .filter({ hasText: staffName })
+          .getByRole("listitem")
+          .filter({ hasText: shortDate })
+          .filter({ hasText: note }),
+      ).toBeVisible();
+    }
+  }
+
   async saveDraft() {
     await this.page.getByRole("button", { name: "下書き保存", exact: true }).click();
     await expect(this.page.getByText("下書きを保存しました", { exact: true })).toBeVisible();

@@ -1,7 +1,7 @@
-import { buildWeeklyGrid, formatDateShort } from "@/src/domains/shift/date";
+import { buildWeeklyGrid, formatDateRangeShort, formatDateShort } from "@/src/domains/shift/date";
 import { hasDateOnlyAssignment, hasDateOnlyRequest } from "@/src/domains/shift/dateOnlyAssignments";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
-import type { DateInfo, DateOnlyRequestBadgeViewModel, DateOnlyRowViewModel, WeekItem } from "./types";
+import type { DateInfo, DateOnlyColumn, DateOnlyRequestBadgeViewModel, DateOnlyRowViewModel, WeekItem } from "./types";
 
 export const buildDateOnlyWeeks = (dates: string[]): WeekItem[] =>
   buildWeeklyGrid(dates).map((week, index) => {
@@ -9,7 +9,7 @@ export const buildDateOnlyWeeks = (dates: string[]): WeekItem[] =>
     const end = week[week.length - 1]?.iso ?? start;
     return {
       key: `${start}-${end}`,
-      label: start === end ? formatDateShort(start) : `${formatDateShort(start)}-${formatDateShort(end)}`,
+      label: start === end ? formatDateShort(start) : formatDateRangeShort(start, end, "-"),
       subLabel: `${index + 1}週目`,
       dates: week,
     };
@@ -66,3 +66,16 @@ export const buildDateOnlyRows = ({
     };
   });
 };
+
+export type DateOnlyRowNote = { date: string; note: string };
+
+/** 表示中の週のメモを、そのスタッフの行に日付順で並べるために抜き出す。 */
+export const buildRowWeekNotes = (
+  staffId: string,
+  columns: readonly DateOnlyColumn[],
+  getNote: (staffId: string, date: string) => string | undefined,
+): DateOnlyRowNote[] =>
+  columns.flatMap(({ date }) => {
+    const note = getNote(staffId, date.iso);
+    return note ? [{ date: date.iso, note }] : [];
+  });

@@ -197,7 +197,7 @@ export class AppShiftsPage {
       { timeout: APP_SHIFTS_DATA_TIMEOUT },
     );
 
-    const periodLabel = `${formatDateShort(data.periodStart)} 〜 ${formatDateShort(data.periodEnd)}`;
+    const periodLabel = formatBoardPeriod(data.periodStart, data.periodEnd);
     await expect(
       this.page.getByRole("heading", { level: 1, name: `${data.shopName}：${periodLabel}`, exact: true }),
     ).toBeVisible({ timeout: APP_SHIFTS_DATA_TIMEOUT });
@@ -255,6 +255,14 @@ function formatCalendarAriaDate(date: string) {
 function formatDateShort(date: string) {
   const [, month, day] = date.split("-").map(Number);
   return `${month}/${day}`;
+}
+
+/** シフト表の見出しの期間。同じ年月の終了日は日だけにする。 */
+function formatBoardPeriod(start: string, end: string) {
+  const [startYear, startMonth] = start.split("-").map(Number);
+  const [endYear, endMonth, endDay] = end.split("-").map(Number);
+  const endLabel = startYear === endYear && startMonth === endMonth ? `${endDay}` : formatDateShort(end);
+  return `${formatDateShort(start)} 〜 ${endLabel}`;
 }
 
 function escapeRegExp(value: string) {

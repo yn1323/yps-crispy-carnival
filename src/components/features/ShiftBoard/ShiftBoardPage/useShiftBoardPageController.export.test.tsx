@@ -32,7 +32,7 @@ vi.mock("@/src/hooks/useShopMutation", () => ({
 vi.mock("@/src/components/shared/feedback", () => ({ showErrorToast: vi.fn(), showSuccessToast: vi.fn() }));
 vi.mock("@/src/components/ui/toaster", () => ({ toaster: { create: mocks.toast } }));
 
-import { useShiftBoardPageController } from "./useShiftBoardPageController";
+import { type ShiftBoardDateNotes, useShiftBoardPageController } from "./useShiftBoardPageController";
 
 const recruitmentId = "recruitment-a" as Id<"recruitments">;
 const staffId = "staff-a" as Id<"staffs">;
@@ -282,5 +282,26 @@ describe("シフトボードからの出力", () => {
 
     expect(result.current.viewModel.exportAction).toBeNull();
     expect(mocks.export).not.toHaveBeenCalled();
+  });
+
+  it("出力ボタンを押した時点の日付メモを出力へ渡し、メモの取得中は出力しない", () => {
+    const dateNote = { staffId, date: "2099-01-20", note: "17時以降なら入れます" };
+    const { result, rerender } = renderHook(
+      ({ notes }: { notes: ShiftBoardDateNotes }) =>
+        useShiftBoardPageController(data, recruitmentId, mocks.export, notes),
+      { wrapper: Scope, initialProps: { notes: "loading" as ShiftBoardDateNotes } },
+    );
+    act(() => result.current.intents.onShiftsChange(result.current.viewModel.shiftForm.initialShifts));
+
+    expect(result.current.viewModel.exportAction?.isDisabled).toBe(true);
+    expect(result.current.viewModel.shiftForm.dateNotes).toEqual([]);
+    act(() => result.current.intents.onOpenExport());
+    expect(mocks.export).not.toHaveBeenCalled();
+
+    rerender({ notes: [dateNote] });
+    expect(result.current.viewModel.exportAction?.isDisabled).toBe(false);
+    expect(result.current.viewModel.shiftForm.dateNotes).toEqual([dateNote]);
+    act(() => result.current.intents.onOpenExport());
+    expect(mocks.export).toHaveBeenCalledWith(expect.objectContaining({ dateNotes: [dateNote] }));
   });
 });

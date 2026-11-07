@@ -170,13 +170,17 @@ async function seedLegalConsentState(
 }
 
 async function deleteRecruitmentGraph(ctx: MutationCtx, recruitmentId: Id<"recruitments">) {
-  const [slots, dates, submissions, assignments, snapshots, stats] = await Promise.all([
+  const [slots, dates, dateNotes, submissions, assignments, snapshots, stats] = await Promise.all([
     ctx.db
       .query("shiftSubmissionSlots")
       .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
       .collect(),
     ctx.db
       .query("shiftSubmissionDates")
+      .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
+      .collect(),
+    ctx.db
+      .query("shiftSubmissionDateNotes")
       .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
       .collect(),
     ctx.db
@@ -197,7 +201,7 @@ async function deleteRecruitmentGraph(ctx: MutationCtx, recruitmentId: Id<"recru
       .collect(),
   ]);
 
-  for (const doc of [...slots, ...dates, ...submissions, ...assignments, ...snapshots, ...stats]) {
+  for (const doc of [...slots, ...dates, ...dateNotes, ...submissions, ...assignments, ...snapshots, ...stats]) {
     await ctx.db.delete(doc._id);
   }
 }

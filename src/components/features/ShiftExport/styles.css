@@ -47,6 +47,11 @@
 .shift-export-table .shift-export-closed {
   background: #f0f0f0;
 }
+.shift-export-table .shift-export-note {
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 .shift-export-page-number {
   position: absolute;
   bottom: 24pt;

@@ -7,6 +7,8 @@ import { getWeekdayLabel } from "@/src/domains/shift/date";
 import type { ShiftTypeOptionLike } from "@/src/domains/shift/shiftTypeAssignments";
 import type { StaffType } from "@/src/domains/shift/types";
 import { Avatar, DateIssueBadge, dateIssueBorderColor, StaffWarningIcon } from "../../components";
+import { DisplaySettingsMenu } from "../../DisplaySettingsMenu";
+import { ShiftDateNoteBlock, ShiftStaffNoteIcon, useAllShiftDateNotes } from "../../dateNotes";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
 import {
@@ -38,6 +40,8 @@ export const SPShiftTypeDailyView = () => {
   const issueCounts = useAtomValue(issueCountByDateAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
   const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
+  // カード下段の本文と名前の右のアイコンは、表示設定に応じてどちらか一方だけが出る。
+  const dateNotes = useAllShiftDateNotes();
 
   const { dates, holidays, isReadOnly, submissionPattern } = config;
   const isConfirmedDisplay = config.displayMode === "confirmed";
@@ -107,19 +111,21 @@ export const SPShiftTypeDailyView = () => {
                 >
                   {date.date()}
                 </Box>
+                {/* 休みは曜日と同じ行に置き、日付の高さをそろえる。 */}
                 <Box
                   textStyle="2xs"
                   mt="2px"
                   fontWeight={active ? 700 : 500}
+                  whiteSpace="nowrap"
                   style={{ color: active ? "white" : getShiftWeekdayColor(iso) }}
                 >
                   {getWeekdayLabel(iso)}
+                  {isClosed && (
+                    <Box as="span" fontWeight={700} color={active ? "white" : "gray.500"}>
+                      (休)
+                    </Box>
+                  )}
                 </Box>
-                {isClosed && (
-                  <Box textStyle="2xs" mt="1px" fontWeight={700} color={active ? "white" : "gray.500"}>
-                    休
-                  </Box>
-                )}
               </Box>
             );
           })}
@@ -127,8 +133,18 @@ export const SPShiftTypeDailyView = () => {
       </Box>
 
       {selectedDay && (
-        <Box px={4} py={3} bg="white" borderBottomWidth="1px" borderColor="gray.200" flexShrink={0}>
-          <Flex align="baseline" gap={2}>
+        <Flex
+          px={4}
+          py={3}
+          bg="white"
+          borderBottomWidth="1px"
+          borderColor="gray.200"
+          flexShrink={0}
+          align="center"
+          justify="space-between"
+          gap={3}
+        >
+          <Flex align="baseline" gap={2} minW={0}>
             <Box textStyle="xl" fontWeight={700} color="gray.800" fontVariantNumeric="tabular-nums">
               {selectedDay.month() + 1}月{selectedDay.date()}日
             </Box>
@@ -141,7 +157,8 @@ export const SPShiftTypeDailyView = () => {
               </Box>
             )}
           </Flex>
-        </Box>
+          <DisplaySettingsMenu />
+        </Flex>
       )}
 
       <Box flex={1} minH={0} overflow="auto" bg="gray.50" px={3} py={3}>
@@ -163,6 +180,8 @@ export const SPShiftTypeDailyView = () => {
                 card={card}
                 isReadOnly={isReadOnly}
                 warningMessages={warningMessagesByStaffId.get(card.staff.id) ?? []}
+                note={dateNotes.getNote(card.staff.id, selectedDate)}
+                noteDate={selectedDate}
                 onToggle={(option) => handleToggle(card.staff, option)}
               />
             ))}
@@ -206,11 +225,15 @@ const StaffShiftTypeCard = ({
   card,
   isReadOnly,
   warningMessages,
+  note,
+  noteDate,
   onToggle,
 }: {
   card: SPShiftTypeStaffCardViewModel;
   isReadOnly: boolean;
   warningMessages: string[];
+  note?: string;
+  noteDate: string;
   onToggle: (option: ShiftTypeOptionLike) => void;
 }) => (
   <Box bg="white" borderWidth="1px" borderColor="gray.200" borderRadius="md" px={3} py={3}>
@@ -219,10 +242,11 @@ const StaffShiftTypeCard = ({
       <Text textStyle="sm" fontWeight={600} color={card.isNameMuted ? "gray.500" : "gray.800"} flex={1} truncate>
         {card.staff.name}
       </Text>
-      <StaffWarningIcon messages={warningMessages} />
+      <StaffWarningIcon messages={warningMessages} openOn="tap" />
+      <ShiftStaffNoteIcon notes={note ? [{ date: noteDate, note }] : []} openOn="tap" />
       <Flex gap={1} wrap="wrap" justify="flex-end" align="center">
         <Text textStyle="2xs" color="gray.500" fontWeight={600}>
-          {card.requestSectionLabel}
+          {card.requestSectionLabel}：
         </Text>
         {card.requestBadges.map((badge) => (
           <RequestBadge key={badge.key} bg={badge.bg} color={badge.color}>
@@ -242,6 +266,7 @@ const StaffShiftTypeCard = ({
         />
       ))}
     </SimpleGrid>
+    {note && <ShiftDateNoteBlock note={note} />}
   </Box>
 );
 

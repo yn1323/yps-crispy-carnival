@@ -22,7 +22,7 @@ export const submitStoryBaseData: SubmissionData = {
     },
     privacy: {
       title: "スタッフ向けプライバシーポリシー",
-      documentVersion: "staff-privacy-doc-2026-08-26-2",
+      documentVersion: "staff-privacy-doc-2026-10-04",
       requiredConsentVersion: "staff-privacy-consent-2026-08-26",
       path: "/privacy/staff",
     },
@@ -40,6 +40,7 @@ export const submittedRequests = [
 
 export const previousWeeklyPattern = {
   sourceWeekStart: "2026-03-30",
+  notes: [],
   days: [
     { weekday: 1, startTime: "09:00", endTime: "17:00" },
     { weekday: 3, startTime: "10:00", endTime: "18:00" },
