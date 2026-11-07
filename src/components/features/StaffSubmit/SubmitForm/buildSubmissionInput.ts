@@ -24,12 +24,16 @@ export const buildSubmissionInput = (
     return { kind: "dateOnly", workingDates: entries.filter((entry) => entry.isWorking).map((entry) => entry.date) };
   }
   if (pattern.kind === "shiftType") {
+    // 選んだ順に左右されず同じ選択を同じ内容として比べられるよう、勤務パターンの並び順にそろえる。
+    const optionOrder = new Map(pattern.options.map((option, index) => [option.id, index]));
+    const byOptionOrder = (left: string, right: string) =>
+      (optionOrder.get(left) ?? Number.MAX_SAFE_INTEGER) - (optionOrder.get(right) ?? Number.MAX_SAFE_INTEGER);
     return {
       kind: "shiftType",
       selections: entries.flatMap((entry) => {
         const optionIds = getSelectedShiftTypeOptionIds(entry);
         if (!entry.isWorking || optionIds.length === 0) return [];
-        return optionIds.map((optionId) => ({ date: entry.date, optionId }));
+        return [...optionIds].sort(byOptionOrder).map((optionId) => ({ date: entry.date, optionId }));
       }),
     };
   }

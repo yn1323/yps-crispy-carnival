@@ -50,6 +50,29 @@ describe("buildSubmissionInput", () => {
       ],
     });
   });
+
+  it("勤務パターンは選んだ順ではなく勤務パターンの並び順で送り、同じ選択を同じpayloadにする", () => {
+    const pattern = {
+      kind: "shiftType" as const,
+      options: [
+        { id: "early", name: "早番", startTime: "09:00", endTime: "15:00", sortOrder: 0 },
+        { id: "late", name: "遅番", startTime: "15:00", endTime: "22:00", sortOrder: 1 },
+      ],
+    };
+    const build = (optionIds: string[]) =>
+      buildSubmissionInput(pattern, [
+        { date: "2026-04-07", isWorking: true, startTime: "09:00", endTime: "15:00", optionIds },
+      ]);
+
+    expect(build(["late", "early"])).toEqual(build(["early", "late"]));
+    expect(build(["late", "early"])).toEqual({
+      kind: "shiftType",
+      selections: [
+        { date: "2026-04-07", optionId: "early" },
+        { date: "2026-04-07", optionId: "late" },
+      ],
+    });
+  });
 });
 
 describe("buildDateNotesInput", () => {
