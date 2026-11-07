@@ -502,7 +502,7 @@ describe("setup/mutations", () => {
           .first(),
       );
       expect(staffConsentState?.termsConsentVersion).toBe("staff-terms-consent-2026-05-09");
-      expect(staffConsentState?.privacyConsentVersion).toBe("staff-privacy-consent-2026-10-04");
+      expect(staffConsentState?.privacyConsentVersion).toBe("staff-privacy-consent-2026-08-26");
       expect(staffConsentState?.termsDocumentVersion).toBe("staff-terms-doc-2026-08-26");
       expect(staffConsentState?.privacyDocumentVersion).toBe("staff-privacy-doc-2026-10-04");
       expect(staffConsentState?.method).toBe("manager_setup");

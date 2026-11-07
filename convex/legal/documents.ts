@@ -58,7 +58,7 @@ export const LEGAL_DOCUMENTS = {
       kind: "privacy",
       title: "スタッフ向けプライバシーポリシー",
       documentVersion: "staff-privacy-doc-2026-10-04",
-      requiredConsentVersion: "staff-privacy-consent-2026-10-04",
+      requiredConsentVersion: "staff-privacy-consent-2026-08-26",
       path: "/privacy/staff",
     },
   },

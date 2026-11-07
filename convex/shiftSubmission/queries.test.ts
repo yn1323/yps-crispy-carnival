@@ -36,7 +36,7 @@ async function setupSubmissionPageData(
       staffId,
       shopId,
       termsConsentVersion: "staff-terms-consent-2026-05-09",
-      privacyConsentVersion: "staff-privacy-consent-2026-10-04",
+      privacyConsentVersion: "staff-privacy-consent-2026-08-26",
       termsDocumentVersion: "staff-terms-doc-2026-08-26",
       privacyDocumentVersion: "staff-privacy-doc-2026-10-04",
       consentedAt: Date.now(),
@@ -321,7 +321,7 @@ describe("shiftSubmission/queries", () => {
       expect(result.data.legalConsentRequired).toBe(true);
       expect(result.data.legalDocuments.privacy).toMatchObject({
         documentVersion: "staff-privacy-doc-2026-10-04",
-        requiredConsentVersion: "staff-privacy-consent-2026-10-04",
+        requiredConsentVersion: "staff-privacy-consent-2026-08-26",
       });
     });
 
