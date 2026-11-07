@@ -562,6 +562,7 @@ export const useShiftBoardPageController = (
         submitLabel: isConfirmed ? "変更があるスタッフに通知" : "シフトを確定して通知",
         staffCount: staffs.length,
         warnings: displayWarnings,
+        unsubmittedNames,
       },
       unsubmittedDialog: {
         isOpen: unsubmittedDialog.isOpen,
