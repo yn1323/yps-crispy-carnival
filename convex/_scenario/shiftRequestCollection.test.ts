@@ -670,6 +670,10 @@ describe("希望シフト回収シナリオ", () => {
           { date: addDays(workedWeekInput.periodStart, 2), startTime: "12:00", endTime: "20:00" },
         ],
       },
+      dateNotes: [
+        { date: workedWeekInput.periodStart, note: "17時以降なら入れます" },
+        { date: addDays(workedWeekInput.periodStart, 4), note: "金曜は休みたいです" },
+      ],
     });
     await staff.submitShiftRequests({
       sessionToken: "scenario-reuse-all-off-session",
@@ -677,7 +681,7 @@ describe("希望シフト回収シナリオ", () => {
       submission: { kind: "time", requests: [] },
     });
 
-    // Assert: 次の募集では全休み週を飛ばし、シフトあり週の曜日パターンが返る。
+    // Assert: 次の募集では全休み週を飛ばし、シフトあり週の曜日パターンと、休みの日を含むメモが返る。
     const currentPageResult = await staff.getSubmissionPageData({
       sessionToken: "scenario-reuse-current-session",
       recruitmentId: currentRecruitmentId,
@@ -689,6 +693,10 @@ describe("希望シフト回収シナリオ", () => {
       days: [
         { weekday: 1, startTime: "10:00", endTime: "18:00" },
         { weekday: 3, startTime: "12:00", endTime: "20:00" },
+      ],
+      notes: [
+        { weekday: 1, note: "17時以降なら入れます" },
+        { weekday: 5, note: "金曜は休みたいです" },
       ],
     });
 

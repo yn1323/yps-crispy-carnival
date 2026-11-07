@@ -68,11 +68,11 @@ export class StaffSubmitPage {
 
   /** 日付の右のメモボタンからDialogを開いてメモを書く。送信は提出ボタンで行う。 */
   async writeDateNote(dateText: string, note: string) {
-    await this.page.getByRole("button", { name: `${dateText}のメモを書く`, exact: true }).click();
-    const dialog = this.page.getByRole("dialog", { name: `${dateText}のメモ` });
+    await this.page.getByRole("button", { name: `${dateText}の連絡事項を書く`, exact: true }).click();
+    const dialog = this.page.getByRole("dialog", { name: `${dateText}の連絡事項` });
     await expect(dialog).toBeVisible();
     await dialog.getByRole("textbox").fill(note);
-    await dialog.getByRole("button", { name: "完了", exact: true }).click();
+    await dialog.getByRole("button", { name: "OK", exact: true }).click();
     await expect(dialog).toBeHidden();
     await this.expectDateNote(dateText, note);
   }
@@ -80,7 +80,7 @@ export class StaffSubmitPage {
   async expectDateNote(dateText: string, note: string) {
     await expect(
       this.page.getByRole("button", {
-        name: new RegExp(`^${escapeRegExp(dateText)}のメモ：\\s*${escapeRegExp(note)}$`),
+        name: new RegExp(`^${escapeRegExp(dateText)}の連絡事項：\\s*${escapeRegExp(note)}$`),
       }),
     ).toBeVisible({ timeout: STAFF_SUBMIT_DATA_TIMEOUT });
   }

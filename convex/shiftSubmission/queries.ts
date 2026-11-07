@@ -29,6 +29,8 @@ const existingRequestValidator = v.object({
   optionId: v.optional(v.string()),
 });
 
+const previousWeekdayNoteValidator = v.object({ weekday: v.number(), note: v.string() });
+
 const submissionPageDataValidator = v.object({
   shopName: v.string(),
   staffName: v.string(),
@@ -62,10 +64,18 @@ const submissionPageDataValidator = v.object({
     v.object({
       sourceWeekStart: v.string(),
       days: v.array(v.object({ weekday: v.number(), startTime: v.string(), endTime: v.string() })),
+      notes: v.array(previousWeekdayNoteValidator),
     }),
     v.null(),
   ),
-  previousDateOnlyPattern: v.union(v.object({ sourceWeekStart: v.string(), weekdays: v.array(v.number()) }), v.null()),
+  previousDateOnlyPattern: v.union(
+    v.object({
+      sourceWeekStart: v.string(),
+      weekdays: v.array(v.number()),
+      notes: v.array(previousWeekdayNoteValidator),
+    }),
+    v.null(),
+  ),
 });
 
 function unavailable(reason: SubmissionUnavailableReason) {

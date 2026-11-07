@@ -11,7 +11,7 @@ import { generateTimeOptions } from "../timeOptions";
 import type { DayEntry, SubmissionData } from "../types";
 import { buildDateNotesInput, buildSubmissionInput, type SubmitShiftPayload } from "./buildSubmissionInput";
 import { type SubmitFormData, submitFormSchema } from "./schema";
-import { buildPreviousPatternEntries } from "./script";
+import { buildPreviousPatternEntries, buildPreviousPatternNotes } from "./script";
 
 type UseSubmitFormControllerParams = {
   data: SubmissionData;
@@ -193,6 +193,11 @@ export function useSubmitFormController({ data, onSubmit }: UseSubmitFormControl
       shouldDirty: true,
       shouldValidate: true,
     });
+    // 入力済みのメモは上書きせず、メモのない日だけに前回のメモを写す。
+    const previousPatternNotes = buildPreviousPatternNotes(dates, data);
+    if (Object.keys(previousPatternNotes).length > 0) {
+      setValue("dateNotes", { ...previousPatternNotes, ...dateNotes }, { shouldDirty: true });
+    }
   };
 
   const submitForm = handleSubmit(async (formData) => {

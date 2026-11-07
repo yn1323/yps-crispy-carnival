@@ -1,5 +1,5 @@
 import { Box, chakra, Icon, Text, VisuallyHidden } from "@chakra-ui/react";
-import { LuMessageSquare, LuMessageSquarePlus } from "react-icons/lu";
+import { LuMessageSquare, LuPlus } from "react-icons/lu";
 
 /** 日付の右に置くメモボタン。休みに戻す「×」と離し、行の切替操作と兄弟要素にする。 */
 export function DateNoteButton({
@@ -14,27 +14,39 @@ export function DateNoteButton({
   return (
     <chakra.button
       type="button"
-      aria-label={hasNote ? `${dateLabel}のメモを編集` : `${dateLabel}のメモを書く`}
+      aria-label={hasNote ? `${dateLabel}の連絡事項を編集` : `${dateLabel}の連絡事項を書く`}
       onClick={onClick}
       position="relative"
       zIndex={1}
       flexShrink={0}
-      w="28px"
+      ml={1}
       h="28px"
-      ml={-1}
+      px={1.5}
       display="inline-flex"
       alignItems="center"
-      justifyContent="center"
+      gap={0.5}
+      borderWidth="1px"
+      borderColor="gray.300"
       borderRadius="md"
-      color={hasNote ? "teal.700" : "gray.400"}
+      bg="white"
+      color={hasNote ? "teal.700" : "gray.600"}
+      fontSize="xs"
+      fontWeight="medium"
+      whiteSpace="nowrap"
       cursor="pointer"
       transitionProperty="colors"
       transitionDuration="faster"
-      _hover={{ bg: "blackAlpha.50", color: hasNote ? "teal.800" : "gray.600" }}
-      _active={{ bg: "blackAlpha.100", transitionDuration: "0ms" }}
+      // 見た目は小さく保ち、押せる範囲だけを高さ44pxまで広げる。
+      _before={{ content: '""', position: "absolute", insetX: "-4px", insetY: "-8px" }}
+      _hover={{ bg: "gray.50", borderColor: "gray.400", color: hasNote ? "teal.800" : "gray.800" }}
+      _active={{ bg: "gray.100", transitionDuration: "0ms" }}
       _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "1px" }}
     >
-      <Icon boxSize={4}>{hasNote ? <LuMessageSquare /> : <LuMessageSquarePlus />}</Icon>
+      <Icon boxSize={3.5} aria-hidden>
+        {hasNote ? <LuMessageSquare /> : <LuPlus />}
+      </Icon>
+      {/* 幅360pxの時間指定行に収めるため、メモの有無は文言を変えずアイコンと色と下段の本文で示す。 */}
+      メモ
     </chakra.button>
   );
 }
@@ -47,7 +59,7 @@ export function DateNoteLine({ dateLabel, note, onClick }: { dateLabel: string; 
         <LuMessageSquare aria-hidden />
       </Icon>
       <Text as="span" fontSize="xs" lineHeight={1.6} color="gray.600" minW={0} overflowWrap="anywhere">
-        <VisuallyHidden>{dateLabel}のメモ：</VisuallyHidden>
+        <VisuallyHidden>{dateLabel}の連絡事項：</VisuallyHidden>
         <span data-clarity-mask="true">{note}</span>
       </Text>
     </>

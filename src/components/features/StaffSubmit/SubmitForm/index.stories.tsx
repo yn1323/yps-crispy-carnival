@@ -44,6 +44,35 @@ export const PreviousPatternApplied: Story = {
   },
 };
 
+/** 前回と同じシフトを適用すると、連絡事項のない日にだけ前回の連絡事項を写し、入力済みの連絡事項は残す。 */
+export const PreviousPatternCopiesNotes: Story = {
+  args: {
+    data: {
+      ...submitStoryBaseData,
+      previousWeeklyPattern: {
+        ...previousWeeklyPattern,
+        notes: [
+          { weekday: 1, note: "月曜は午前だけ入れます" },
+          { weekday: 3, note: "水曜は18時までです" },
+        ],
+      },
+      existingDateNotes: [{ date: "2026-04-13", note: "この日は早めに上がりたいです" }],
+    },
+    onSubmit: noop,
+  },
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.queryByText("水曜は18時までです")).not.toBeInTheDocument();
+
+    await userEvent.click(await canvas.findByRole("button", { name: "前回と同じシフトを適用" }));
+
+    await expect(await canvas.findByText("水曜は18時までです")).toBeInTheDocument();
+    await expect(canvas.getByText("この日は早めに上がりたいです")).toBeInTheDocument();
+    await expect(canvas.queryByText("月曜は午前だけ入れます")).not.toBeInTheDocument();
+  },
+};
+
 export const LegalConsentRequired: Story = {
   args: {
     data: { ...submitStoryBaseData, legalConsentRequired: true },
@@ -172,7 +201,10 @@ const dateNoteYearEndData = {
   existingDateNotes: [{ date: "2026-12-30", note: "テスト期間のため休みたいです" }],
 };
 
-/** 幅360pxで日付が最も長い年末の募集。時間指定の出勤行にメモボタンが収まることを確認する。 */
+/**
+ * 幅360pxで日付が最も長い年末の募集。時間指定の出勤行にメモボタンが収まり、
+ * 出勤・休みや日付の長さが違ってもメモボタンが縦一列にそろうことを確認する。
+ */
 export const DateNoteInteractive: Story = {
   args: { data: dateNoteYearEndData, onSubmit: noop },
   decorators: [
@@ -189,26 +221,33 @@ export const DateNoteInteractive: Story = {
     for (const card of canvasElement.querySelectorAll<HTMLElement>("[data-day-card]")) {
       await expect(card.scrollWidth).toBeLessThanOrEqual(card.clientWidth);
     }
-    await expect(canvas.queryByText("変更はまだ送られていません")).not.toBeInTheDocument();
+    const noteButtonLefts = canvas
+      .getAllByRole("button", { name: /の連絡事項を(書く|編集)$/ })
+      .map((button) => Math.round(button.getBoundingClientRect().left));
+    await expect(noteButtonLefts.length).toBeGreaterThan(2);
+    await expect(new Set(noteButtonLefts).size).toBe(1);
+    await expect(canvas.queryByText("変更はまだ送信していません。")).not.toBeInTheDocument();
 
-    await userEvent.click(await canvas.findByRole("button", { name: "12/28(月)のメモを書く" }));
+    await userEvent.click(await canvas.findByRole("button", { name: "12/28(月)の連絡事項を書く" }));
     const input = await screen.findByPlaceholderText("17時以降なら入れます");
     await expect(input).toHaveAttribute("data-clarity-mask", "true");
     await expect(input).toHaveAttribute("maxLength", "100");
     await userEvent.type(input, "17時以降なら入れます");
     await expect(await screen.findByText("11/100")).toBeInTheDocument();
-    await userEvent.click(await screen.findByRole("button", { name: "完了" }));
+    await userEvent.click(await screen.findByRole("button", { name: "OK" }));
 
     const noteText = await canvas.findByText("17時以降なら入れます");
     await expect(noteText).toHaveAttribute("data-clarity-mask", "true");
-    await expect(await canvas.findByRole("button", { name: "12/28(月)のメモを編集" })).toBeInTheDocument();
-    await expect(await canvas.findByText("変更はまだ送られていません")).toBeInTheDocument();
+    await expect(await canvas.findByRole("button", { name: "12/28(月)の連絡事項を編集" })).toBeInTheDocument();
+    await expect(await canvas.findByText("変更はまだ送信していません。")).toBeInTheDocument();
 
-    await userEvent.click(await canvas.findByRole("button", { name: /^12\/28\(月\)のメモ：\s*17時以降なら入れます$/ }));
-    await userEvent.click(await screen.findByRole("button", { name: "メモを消す" }));
-    await userEvent.click(await screen.findByRole("button", { name: "完了" }));
+    await userEvent.click(
+      await canvas.findByRole("button", { name: /^12\/28\(月\)の連絡事項：\s*17時以降なら入れます$/ }),
+    );
+    await userEvent.clear(await screen.findByPlaceholderText("17時以降なら入れます"));
+    await userEvent.click(await screen.findByRole("button", { name: "OK" }));
     await waitFor(() => expect(canvas.queryByText("17時以降なら入れます")).not.toBeInTheDocument());
-    await expect(canvas.queryByText("変更はまだ送られていません")).not.toBeInTheDocument();
+    await expect(canvas.queryByText("変更はまだ送信していません。")).not.toBeInTheDocument();
 
     await userEvent.click(await canvas.findByRole("button", { name: "12/30(水)を出勤希望にする" }));
     await expect(await canvas.findByText("テスト期間のため休みたいです")).toBeInTheDocument();

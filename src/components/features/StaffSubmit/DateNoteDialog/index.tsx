@@ -1,8 +1,6 @@
-import { Field, Flex, Text } from "@chakra-ui/react";
+import { Field, Text } from "@chakra-ui/react";
 import { useState } from "react";
-import { LuX } from "react-icons/lu";
 import { SHIFT_DATE_NOTE_MAX_LENGTH } from "@/convex/constants";
-import { IconButton } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
 import { Input } from "@/src/components/ui/FormControls";
 import { formatDateWithWeekday } from "@/src/domains/shift/date";
@@ -39,14 +37,14 @@ function DateNoteDialogContent({
 
   return (
     <Dialog
-      title={`${dateLabel}のメモ`}
+      title={`${dateLabel}の連絡事項`}
       isOpen
       onOpenChange={({ open }) => {
         if (!open) onClose();
       }}
       onClose={onClose}
       formId={DATE_NOTE_FORM_ID}
-      submitLabel="完了"
+      submitLabel="OK"
       maxW={{ base: "calc(100vw - 24px)", md: "480px" }}
     >
       <form
@@ -57,36 +55,17 @@ function DateNoteDialogContent({
         }}
       >
         <Field.Root>
-          <Field.Label>メモ</Field.Label>
-          <Flex w="full" gap={2} align="center">
-            <Input
-              value={note}
-              maxLength={SHIFT_DATE_NOTE_MAX_LENGTH}
-              placeholder="17時以降なら入れます"
-              data-clarity-mask="true"
-              onChange={(event) => setNote(event.currentTarget.value)}
-            />
-            {note.length > 0 && (
-              <IconButton
-                aria-label="メモを消す"
-                size="sm"
-                variant="ghost"
-                colorPalette="gray"
-                flexShrink={0}
-                onClick={() => setNote("")}
-              >
-                <LuX />
-              </IconButton>
-            )}
-          </Flex>
-          <Flex w="full" justify="space-between" gap={3} mt={1}>
-            <Field.HelperText>
-              メモはシフト作成担当者に表示されます。体調や家庭の事情などの詳しい理由は書かなくて大丈夫です。
-            </Field.HelperText>
-            <Text fontSize="xs" color="fg.muted" flexShrink={0} fontVariantNumeric="tabular-nums">
-              {note.length}/{SHIFT_DATE_NOTE_MAX_LENGTH}
-            </Text>
-          </Flex>
+          <Field.Label>管理者に伝えること(任意)</Field.Label>
+          <Input
+            value={note}
+            maxLength={SHIFT_DATE_NOTE_MAX_LENGTH}
+            placeholder="17時以降なら入れます"
+            data-clarity-mask="true"
+            onChange={(event) => setNote(event.currentTarget.value)}
+          />
+          <Text w="full" textAlign="right" fontSize="xs" color="fg.muted" fontVariantNumeric="tabular-nums">
+            {note.length}/{SHIFT_DATE_NOTE_MAX_LENGTH}
+          </Text>
         </Field.Root>
       </form>
     </Dialog>

@@ -23,6 +23,26 @@ type Props = {
 
 export type { DayEntry } from "../types";
 
+/** 日付の幅を最も長い日付にそろえ、出勤・休みや日付の違いでメモボタンの縦位置をずらさない。 */
+const EditableDateLabel = ({ label, color }: { label: string; color: string }) => (
+  <Box
+    position="relative"
+    pointerEvents="none"
+    display="grid"
+    flexShrink={0}
+    fontSize="sm"
+    fontWeight="medium"
+    fontVariantNumeric="tabular-nums"
+  >
+    <Text gridArea="1 / 1" color={color}>
+      {label}
+    </Text>
+    <Text gridArea="1 / 1" visibility="hidden" aria-hidden>
+      00/00(月)
+    </Text>
+  </Box>
+);
+
 export const DayCard = ({
   entry,
   timeOptions,
@@ -87,7 +107,8 @@ export const DayCard = ({
         data-day-card={entry.date}
         w="full"
         h="48px"
-        px={4}
+        pl={3}
+        pr={4}
         align="center"
         justify="space-between"
         bg="gray.100"
@@ -95,9 +116,7 @@ export const DayCard = ({
         borderWidth={1}
         borderColor="border.default"
       >
-        <Text fontSize="sm" fontWeight="medium" color={dateColor}>
-          {dateLabel}
-        </Text>
+        <EditableDateLabel label={dateLabel} color={dateColor} />
         <Box bg="gray.100" px={2.5} py={0.5} borderRadius="full">
           <Text fontSize="xs" fontWeight="bold" color="gray.500">
             定休日
@@ -118,16 +137,15 @@ export const DayCard = ({
         borderColor="border.default"
         overflow="hidden"
       >
-        <Flex position="relative" h="48px" px={4} align="center" gap={1.5}>
+        {/* 左の余白と間隔は、幅360pxで余裕のない出勤行にそろえる。 */}
+        <Flex position="relative" h="48px" pl={3} pr={4} align="center" gap={1}>
           <DayToggleOverlay
             ariaLabel={`${dateLabel}を出勤希望にする`}
             onClick={onToggleWorking}
             hoverBg="gray.50"
             activeBg="gray.100"
           />
-          <Text position="relative" pointerEvents="none" fontSize="sm" fontWeight="medium" color={dateColor}>
-            {dateLabel}
-          </Text>
+          <EditableDateLabel label={dateLabel} color={dateColor} />
           {noteButton}
           <Box position="relative" pointerEvents="none" ml="auto" bg="gray.100" px={2.5} py={0.5} borderRadius="full">
             <Text fontSize="xs" fontWeight="medium" color="fg.muted">
@@ -150,10 +168,8 @@ export const DayCard = ({
         borderColor={error ? "red.500" : "teal.600"}
         overflow="hidden"
       >
-        <Flex w="full" h="48px" px={2} pl={3} align="center" gap={1.5}>
-          <Text fontSize="sm" fontWeight="medium" color={dateColor} flexShrink={0}>
-            {dateLabel}
-          </Text>
+        <Flex w="full" h="48px" px={2} pl={3} align="center" gap={1}>
+          <EditableDateLabel label={dateLabel} color={dateColor} />
           {noteButton}
           <Box flex={1} />
           <Select

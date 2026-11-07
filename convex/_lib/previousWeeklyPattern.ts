@@ -1,7 +1,13 @@
 import type { Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
+import { RECRUITMENT_PERIOD_DAYS_MAX } from "../constants";
 import { addDays, getMondayWeekStart, getWeekday } from "./dateFormat";
 import { timeToMinutes } from "./time";
+
+export type PreviousWeekdayNote = {
+  weekday: number;
+  note: string;
+};
 
 export type PreviousWeeklyPattern = {
   sourceWeekStart: string;
@@ -10,12 +16,47 @@ export type PreviousWeeklyPattern = {
     startTime: string;
     endTime: string;
   }>;
+  notes: PreviousWeekdayNote[];
 };
 
 export type PreviousDateOnlyPattern = {
   sourceWeekStart: string;
   weekdays: number[];
+  notes: PreviousWeekdayNote[];
 };
+
+/**
+ * 前回の週に本人が添えた日付メモを曜日ごとに返す。
+ * メモは週を含む募集から本人の分だけを引き、休みの日のメモも含める。
+ */
+async function getSourceWeekNotes(
+  ctx: Pick<QueryCtx, "db">,
+  args: {
+    staffId: Id<"staffs">;
+    recruitmentIds: Id<"recruitments">[];
+    sourceWeekStart: string;
+    sourceWeekEnd: string;
+    beforeDate: string;
+  },
+): Promise<PreviousWeekdayNote[]> {
+  const notesByRecruitment = await Promise.all(
+    [...new Set(args.recruitmentIds)].map((recruitmentId) =>
+      ctx.db
+        .query("shiftSubmissionDateNotes")
+        .withIndex("by_recruitmentId_and_staffId", (q) =>
+          q.eq("recruitmentId", recruitmentId).eq("staffId", args.staffId),
+        )
+        .take(RECRUITMENT_PERIOD_DAYS_MAX),
+    ),
+  );
+  return notesByRecruitment
+    .flat()
+    .filter(
+      (entry) => entry.date >= args.sourceWeekStart && entry.date <= args.sourceWeekEnd && entry.date < args.beforeDate,
+    )
+    .map((entry) => ({ weekday: getWeekday(entry.date), note: entry.note }))
+    .sort((a, b) => a.weekday - b.weekday);
+}
 
 function clampSlotToTimeRange(
   slot: { startTime: string; endTime: string },
@@ -63,7 +104,16 @@ export async function getPreviousWeeklyPattern(
   }
 
   days.sort((a, b) => a.weekday - b.weekday || timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
-  return days.length > 0 ? { sourceWeekStart, days } : null;
+  if (days.length === 0) return null;
+
+  const notes = await getSourceWeekNotes(ctx, {
+    staffId: args.staffId,
+    recruitmentIds: slots.filter((slot) => slot.date < args.beforeDate).map((slot) => slot.recruitmentId),
+    sourceWeekStart,
+    sourceWeekEnd,
+    beforeDate: args.beforeDate,
+  });
+  return { sourceWeekStart, days, notes };
 }
 
 export async function getPreviousDateOnlyPattern(
@@ -90,9 +140,16 @@ export async function getPreviousDateOnlyPattern(
     )
     .take(32);
 
-  const weekdays = [
-    ...new Set(dates.filter((entry) => entry.date < args.beforeDate).map((entry) => getWeekday(entry.date))),
-  ].sort((a, b) => a - b);
+  const pastDates = dates.filter((entry) => entry.date < args.beforeDate);
+  const weekdays = [...new Set(pastDates.map((entry) => getWeekday(entry.date)))].sort((a, b) => a - b);
+  if (weekdays.length === 0) return null;
 
-  return weekdays.length > 0 ? { sourceWeekStart, weekdays } : null;
+  const notes = await getSourceWeekNotes(ctx, {
+    staffId: args.staffId,
+    recruitmentIds: pastDates.map((entry) => entry.recruitmentId),
+    sourceWeekStart,
+    sourceWeekEnd,
+    beforeDate: args.beforeDate,
+  });
+  return { sourceWeekStart, weekdays, notes };
 }

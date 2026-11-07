@@ -232,7 +232,7 @@ export function SubmitFormView({
                 <LuInfo aria-hidden />
               </Icon>
               <Text fontSize="xs" fontWeight="semibold">
-                変更はまだ送られていません
+                変更はまだ送信していません。
               </Text>
             </Flex>
           )}
