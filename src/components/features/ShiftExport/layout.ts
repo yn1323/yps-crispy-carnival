@@ -63,7 +63,7 @@ export const getExportPages = (schedule: ExportSchedule) =>
   });
 
 /**
- * メモ一覧のページ割り。メモは最大100文字なので、メモ列の幅では2行に収まる。
+ * 連絡事項の一覧のページ割り。メモは最大100文字なので、メモ列の幅では2行に収まる。
  * 行の高さを2行分に固定し、1件のメモをページの間で分けない。
  */
 export const getExportNoteLayout = (schedule: ExportSchedule) => {

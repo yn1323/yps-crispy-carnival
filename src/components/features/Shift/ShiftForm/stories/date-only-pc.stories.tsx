@@ -55,7 +55,10 @@ export const Interactive: Story = {
 
     await expect(canvas.queryByRole("tab", { name: "日別" })).not.toBeInTheDocument();
     await expect(canvas.queryByRole("tab", { name: "一覧" })).not.toBeInTheDocument();
-    await expect(await canvas.findByText("この日で並べ替える")).toBeInTheDocument();
+    // 並べ替えは日付の見出しで行い、表の上には左の週タブと同じ期間を出す。
+    await expect(canvas.queryByText("この日で並べ替える")).not.toBeInTheDocument();
+    await expect(await canvas.findAllByText("6/1-7")).toHaveLength(2);
+    await expect((await canvas.findByRole("button", { name: "6/3(水)で並べ替える" })).closest("thead")).not.toBeNull();
     await expect(getStaffRowTexts()[0]).toContain("田中太郎");
     await userEvent.click(await canvas.findByRole("button", { name: "6/3(水)で並べ替える" }));
     await waitFor(() => expect(getStaffRowTexts()[0]).toContain("鈴木次郎"));
@@ -74,7 +77,7 @@ export const Interactive: Story = {
     await userEvent.click(yamadaJunThird);
     await expect(await findVisibleByLabelText("山田 一郎 6/3(水) 勤務あり")).toBeInTheDocument();
 
-    await userEvent.click(await canvas.findByRole("button", { name: "6/8-6/14を表示" }));
+    await userEvent.click(await canvas.findByRole("button", { name: "6/8-14を表示" }));
     const tanakaJunEighth = await findVisibleByLabelText("田中 太郎 6/8(月) 勤務なし");
     await userEvent.click(tanakaJunEighth);
     await expect(await findVisibleByLabelText("田中 太郎 6/8(月) 勤務あり")).toBeInTheDocument();
@@ -112,8 +115,10 @@ export const DateNotesInteractive: Story = {
     await expect(noteItems[1].startsWith("6/4")).toBe(true);
     await expect(await canvas.findByText("家の用事で18時まで入れません")).toHaveAttribute("data-clarity-mask", "true");
 
-    await expect(await canvas.findByRole("button", { name: "6/4(木)で並べ替える、メモ1件" })).toBeInTheDocument();
-    await expect((await canvas.findAllByLabelText("田中 太郎 6/2(火) 勤務あり、メモあり")).length).toBeGreaterThan(0);
+    await expect(await canvas.findByRole("button", { name: "6/4(木)で並べ替える、連絡事項1件" })).toBeInTheDocument();
+    await expect((await canvas.findAllByLabelText("田中 太郎 6/2(火) 勤務あり、連絡事項あり")).length).toBeGreaterThan(
+      0,
+    );
     await expect(canvas.queryByText(/のメモはありません/)).not.toBeInTheDocument();
 
     // 連絡事項を非表示にしたときだけ、名前セルの右端に表示中の週の件数を示すアイコンを置き、ホバーで日付ごとの本文を表示する。

@@ -28,7 +28,7 @@ test.describe("希望シフトの日付メモ", { tag: ["@e2e-core", "@capabilit
   // 匿名提出の往復、シフト表の表示、出力タブへの受け渡しを含む。近い契約の実測へ余裕を加えた失敗上限。
   test.setTimeout(90_000);
 
-  test("[E2E-NOTE-01] 匿名スタッフが日付メモを添えて提出し、シフト表と出力のメモ一覧で確認できる", async ({
+  test("[E2E-NOTE-01] 匿名スタッフが日付メモを添えて提出し、シフト表と出力の連絡事項で確認できる", async ({
     baseURL,
     browser,
     e2eClerkUser,
@@ -71,7 +71,7 @@ test.describe("希望シフトの日付メモ", { tag: ["@e2e-core", "@capabilit
       });
     });
 
-    await test.step("管理者のシフト表で、並べ替えた日のメモ欄にスタッフのメモが表示される", async () => {
+    await test.step("管理者のシフト表で、スタッフの行の連絡事項列にメモが日付つきで表示される", async () => {
       const appShifts = new AppShiftsPage(page);
       const shiftBoard = new ShiftBoardPage(page);
       await appShifts.goto(seed.organizationId);
@@ -94,7 +94,7 @@ test.describe("希望シフトの日付メモ", { tag: ["@e2e-core", "@capabilit
       attachmentName: "e2e-safe-browser-signals-date-notes-export",
       action: async () => {
         await exportPage.expectReady(seed.organizationId, seed.recruitmentId);
-        await test.step("出力タブでメモ一覧を付けると、受け渡したメモが日付・名前と並ぶ", () =>
+        await test.step("出力タブで連絡事項も出力すると、受け渡したメモが日付・名前と並ぶ", () =>
           exportPage.includeDateNotes([
             { dateText: firstDate, staffName: STAFF_NAME, note: WORKING_DAY_NOTE },
             { dateText: secondDate, staffName: STAFF_NAME, note: DAY_OFF_NOTE },

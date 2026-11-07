@@ -141,6 +141,7 @@ export const DateOnlyView = () => {
         <DateOnlyTable
           columns={columns}
           rows={rows}
+          periodLabel={selectedWeek?.label ?? ""}
           sortableDates={sortableDates}
           sortDate={sortDate}
           isConfirmedDisplay={isConfirmedDisplay}

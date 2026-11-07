@@ -82,19 +82,21 @@ export const DateRail = ({
                 >
                   {date.date()}
                 </Box>
+                {/* 休みは曜日と同じ行に置き、日付の高さをそろえる。 */}
                 <Box
                   textStyle="2xs"
                   mt="2px"
                   fontWeight={active ? 700 : 500}
+                  whiteSpace="nowrap"
                   style={{ color: active ? "white" : getShiftWeekdayColor(iso) }}
                 >
                   {getWeekdayLabel(iso)}
+                  {isClosed && (
+                    <Box as="span" fontWeight={700} color={active ? "white" : "gray.500"}>
+                      (休)
+                    </Box>
+                  )}
                 </Box>
-                {isClosed && (
-                  <Box textStyle="2xs" mt="1px" fontWeight={700} color={active ? "white" : "gray.500"}>
-                    休
-                  </Box>
-                )}
               </Box>
             );
           })}

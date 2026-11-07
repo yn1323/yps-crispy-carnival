@@ -1,4 +1,4 @@
-import { buildWeeklyGrid, formatDateShort } from "@/src/domains/shift/date";
+import { buildWeeklyGrid, formatDateRangeShort, formatDateShort } from "@/src/domains/shift/date";
 import { hasDateOnlyAssignment, hasDateOnlyRequest } from "@/src/domains/shift/dateOnlyAssignments";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import type { DateInfo, DateOnlyColumn, DateOnlyRequestBadgeViewModel, DateOnlyRowViewModel, WeekItem } from "./types";
@@ -9,7 +9,7 @@ export const buildDateOnlyWeeks = (dates: string[]): WeekItem[] =>
     const end = week[week.length - 1]?.iso ?? start;
     return {
       key: `${start}-${end}`,
-      label: start === end ? formatDateShort(start) : `${formatDateShort(start)}-${formatDateShort(end)}`,
+      label: start === end ? formatDateShort(start) : formatDateRangeShort(start, end, "-"),
       subLabel: `${index + 1}週目`,
       dates: week,
     };

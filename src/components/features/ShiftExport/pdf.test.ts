@@ -166,7 +166,7 @@ describe("PDFの実ファイル", () => {
     }
   });
 
-  it("メモ一覧を選ぶとシフト表の後ろに新しいページで一覧を置き、ページ番号を通しにする", async () => {
+  it("連絡事項を出力するとシフト表の後ろに新しいページで一覧を置き、ページ番号を通しにする", async () => {
     const fixture = createExportFixture({
       dateNotes: [{ staffId: "staff-2", date: "2026-08-01", note: "17時以降なら入れます" }],
     });
@@ -185,7 +185,7 @@ describe("PDFの実ファイル", () => {
       }
       expect(texts[0]).not.toContain("17時以降なら入れます");
       expect(texts[0]).toContain("1 / 2");
-      expect(texts[1]).toContain("2026/08/01~08/31 シフトリ駅前店 メモ一覧");
+      expect(texts[1]).toContain("2026/08/01~08/31 シフトリ駅前店 連絡事項");
       expect(texts[1]).toContain("17時以降なら入れます");
       expect(texts[1]).toContain("2 / 2");
     } finally {

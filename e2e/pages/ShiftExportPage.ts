@@ -34,14 +34,14 @@ export class ShiftExportPage {
     }
   }
 
-  /** 初期状態ではメモ一覧を付けず、選んだときだけ日付・名前・メモの一覧を帳票へ加える。 */
+  /** 初期状態では連絡事項を出力せず、選んだときだけ日付・名前・メモの一覧を帳票へ加える。 */
   async includeDateNotes(notes: Array<{ dateText: string; staffName: string; note: string }>) {
-    const checkbox = this.page.getByRole("checkbox", { name: "メモ一覧を付ける" });
+    const checkbox = this.page.getByRole("checkbox", { name: "連絡事項も出力する" });
     await expect(checkbox).not.toBeChecked();
-    await expect(this.page.getByRole("table", { name: "メモ一覧" })).toHaveCount(0);
-    await this.page.getByText("メモ一覧を付ける", { exact: true }).click();
+    await expect(this.page.getByRole("table", { name: "連絡事項" })).toHaveCount(0);
+    await this.page.getByText("連絡事項も出力する", { exact: true }).click();
     await expect(checkbox).toBeChecked();
-    const table = this.page.getByRole("table", { name: "メモ一覧" });
+    const table = this.page.getByRole("table", { name: "連絡事項" });
     await expect(table).toBeVisible();
     for (const { dateText, staffName, note } of notes) {
       const row = table.getByRole("row").filter({ hasText: note });

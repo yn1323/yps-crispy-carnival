@@ -61,7 +61,7 @@ export function ShiftExportView({
                 <Checkbox.Control>
                   <Checkbox.Indicator />
                 </Checkbox.Control>
-                <Checkbox.Label>メモ一覧を付ける</Checkbox.Label>
+                <Checkbox.Label>連絡事項も出力する</Checkbox.Label>
               </Checkbox.Root>
             </Box>
           )}
@@ -212,7 +212,7 @@ export function ShiftExportView({
                 <h1 className="shift-export-title">{getExportNotesTitle(schedule)}</h1>
               </div>
             )}
-            <table className="shift-export-table shift-export-notes" aria-label="メモ一覧">
+            <table className="shift-export-table shift-export-notes" aria-label="連絡事項">
               <colgroup>
                 <col style={{ width: `${layout.dateColumnWidthPt}pt` }} />
                 <col style={{ width: `${layout.staffColumnWidthPt}pt` }} />
@@ -222,7 +222,7 @@ export function ShiftExportView({
                 <tr style={{ height: `${layout.headerHeightPt}pt` }}>
                   <th scope="col">日付</th>
                   <th scope="col">名前</th>
-                  <th scope="col">メモ</th>
+                  <th scope="col">内容</th>
                 </tr>
               </thead>
               <tbody>

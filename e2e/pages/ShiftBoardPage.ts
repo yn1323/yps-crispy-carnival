@@ -35,13 +35,18 @@ export class ShiftBoardPage {
     await expect(this.page.getByRole("button", { name: "保存・再送・出力", exact: true })).toBeVisible();
   }
 
-  /** 日付選択の週表で並べ替える日を選び、その日のメモ欄に提出されたメモが並ぶことを確認する。 */
+  /** 日付選択の週表で、スタッフの行の連絡事項列に、その日付と提出されたメモが並ぶことを確認する。 */
   async expectDateOnlyNotesForDate(dateText: string, notes: Array<{ staffName: string; note: string }>) {
-    await this.page.getByRole("button", { name: new RegExp(`^${escapeRegExp(dateText)}で並べ替える`) }).click();
-    await expect(this.page.getByText(`${dateText}のメモ ${notes.length}件`, { exact: true })).toBeVisible();
+    // 連絡事項列は曜日を省いた「M/D」で日付を表示する。
+    const shortDate = dateText.replace(/\(.\)$/, "");
     for (const { staffName, note } of notes) {
       await expect(
-        this.page.getByRole("listitem").filter({ hasText: staffName }).filter({ hasText: note }),
+        this.page
+          .getByRole("row")
+          .filter({ hasText: staffName })
+          .getByRole("listitem")
+          .filter({ hasText: shortDate })
+          .filter({ hasText: note }),
       ).toBeVisible();
     }
   }
@@ -59,8 +64,4 @@ export class ShiftBoardPage {
     await dialog.getByRole("button", { name: "変更があるスタッフに通知", exact: true }).click();
     await expect(this.page.getByText("変更があるスタッフに通知を送りました", { exact: true })).toBeVisible();
   }
-}
-
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

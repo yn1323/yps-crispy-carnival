@@ -17,9 +17,9 @@ import {
   useAllShiftDateNotes,
   type useShiftDateNotes,
 } from "../../dateNotes";
-import { DateSortToolbar } from "./DateSortToolbar";
 import { buildRowWeekNotes, type DateOnlyRowNote } from "./script";
 import type { DateInfo, DateOnlyColumn, DateOnlyRequestBadgeViewModel, DateOnlyRowViewModel } from "./types";
+import { WeekPeriodBar } from "./WeekPeriodBar";
 
 const STAFF_COL_WIDTH = 220;
 const REQUEST_COL_WIDTH = 160;
@@ -31,6 +31,7 @@ const DATE_COL_WIDTH_WITH_NOTES = 64;
 type Props = {
   columns: DateOnlyColumn[];
   rows: DateOnlyRowViewModel[];
+  periodLabel: string;
   sortableDates: DateInfo[];
   sortDate: string;
   isConfirmedDisplay: boolean;
@@ -43,6 +44,7 @@ type Props = {
 export const DateOnlyTable = ({
   columns,
   rows,
+  periodLabel,
   sortableDates,
   sortDate,
   isConfirmedDisplay,
@@ -53,18 +55,14 @@ export const DateOnlyTable = ({
 }: Props) => {
   const hasNotes = dateNotes.hasNotes;
   const allDateNotes = useAllShiftDateNotes();
+  const sortableDateSet = new Set(sortableDates.map((date) => date.iso));
   const dateColWidth = hasNotes ? DATE_COL_WIDTH_WITH_NOTES : DATE_COL_WIDTH;
   const tableMinWidth =
     STAFF_COL_WIDTH + REQUEST_COL_WIDTH + (hasNotes ? NOTE_COL_WIDTH : 0) + columns.length * dateColWidth;
 
   return (
     <Box minW={`${tableMinWidth}px`} bg="white" overflow="hidden">
-      <DateSortToolbar
-        dates={sortableDates}
-        selectedDate={sortDate}
-        onSelect={onSortDateSelect}
-        noteCountByDate={dateNotes.countByDate}
-      />
+      <WeekPeriodBar periodLabel={periodLabel} />
       <Box as="table" w="100%" style={{ borderCollapse: "separate", borderSpacing: 0, tableLayout: "fixed" }}>
         <Box as="colgroup">
           <Box as="col" style={{ width: STAFF_COL_WIDTH }} />
@@ -89,7 +87,15 @@ export const DateOnlyTable = ({
               </StickyHeaderCell>
             )}
             {columns.map(({ date, isClosed }) => (
-              <DateHeaderCell key={date.iso} date={date} isClosed={isClosed} isSortDate={date.iso === sortDate} />
+              <DateHeaderCell
+                key={date.iso}
+                date={date}
+                isClosed={isClosed}
+                isSortDate={date.iso === sortDate}
+                isSortable={sortableDateSet.has(date.iso)}
+                noteCount={dateNotes.countByDate.get(date.iso) ?? 0}
+                onSort={() => onSortDateSelect(date.iso)}
+              />
             ))}
           </Box>
           <Box as="tr">
@@ -145,16 +151,19 @@ const HeaderCell = ({
   muted = false,
   bg,
   active = false,
+  flush = false,
 }: {
   children?: ReactNode;
   muted?: boolean;
   bg?: string;
   active?: boolean;
+  /** 中のボタンでセル全体を押せるよう、セル自身の余白をなくす。 */
+  flush?: boolean;
 }) => (
   <Box
     as="th"
-    px={3}
-    py={2}
+    px={flush ? 0 : 3}
+    py={flush ? 0 : 2}
     textAlign="center"
     borderRightWidth="1px"
     borderBottomWidth={active ? "2px" : "1px"}
@@ -191,10 +200,25 @@ const StickyHeaderCell = ({ children, left, rowSpan }: { children?: ReactNode; l
   </chakra.th>
 );
 
-const DateHeaderCell = ({ date, isClosed, isSortDate }: { date: DateInfo; isClosed: boolean; isSortDate: boolean }) => {
+/** 並べ替えられる日付の見出しは、押すとその日の希望で行を並べ替えるボタンにする。 */
+const DateHeaderCell = ({
+  date,
+  isClosed,
+  isSortDate,
+  isSortable,
+  noteCount,
+  onSort,
+}: {
+  date: DateInfo;
+  isClosed: boolean;
+  isSortDate: boolean;
+  isSortable: boolean;
+  noteCount: number;
+  onSort: () => void;
+}) => {
   const color = isSunday(date.iso) ? "red.500" : isSaturday(date.iso) ? "blue.500" : "gray.700";
-  return (
-    <HeaderCell bg={isSortDate ? "teal.500" : isClosed ? "gray.100" : "gray.50"} active={isSortDate}>
+  const label = (
+    <>
       <Box
         textStyle="sm"
         color={isSortDate ? "white" : !date.inRange || isClosed ? "gray.400" : "gray.800"}
@@ -211,6 +235,32 @@ const DateHeaderCell = ({ date, isClosed, isSortDate }: { date: DateInfo; isClos
       >
         {getWeekdayLabel(date.iso)}
       </Box>
+    </>
+  );
+  return (
+    <HeaderCell bg={isSortDate ? "teal.500" : isClosed ? "gray.100" : "gray.50"} active={isSortDate} flush={isSortable}>
+      {isSortable ? (
+        <chakra.button
+          type="button"
+          aria-label={`${formatDateWithWeekday(date.iso)}で並べ替える${noteCount > 0 ? `、連絡事項${noteCount}件` : ""}`}
+          aria-pressed={isSortDate}
+          onClick={onSort}
+          display="block"
+          w="full"
+          px={3}
+          py={2}
+          cursor="pointer"
+          transitionProperty="background"
+          transitionDuration="faster"
+          _hover={{ bg: isSortDate ? "teal.600" : "gray.100" }}
+          _active={{ bg: isSortDate ? "teal.700" : "gray.200", transitionDuration: "0ms" }}
+          _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "-2px" }}
+        >
+          {label}
+        </chakra.button>
+      ) : (
+        label
+      )}
     </HeaderCell>
   );
 };
@@ -357,7 +407,7 @@ const DateOnlyCell = ({
       as="button"
       aria-label={`${staffName} ${formatDateWithWeekday(date.iso)} ${
         !date.inRange ? "期間外" : assigned ? "勤務あり" : "勤務なし"
-      }${note ? "、メモあり" : ""}`}
+      }${note ? "、連絡事項あり" : ""}`}
       position="relative"
       aria-disabled={isReadOnly || isClosed || !date.inRange}
       onClick={isReadOnly || isClosed || !date.inRange ? undefined : onToggle}

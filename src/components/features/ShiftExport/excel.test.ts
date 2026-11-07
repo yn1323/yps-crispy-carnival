@@ -180,7 +180,7 @@ describe("Excelの実ファイル", () => {
     expect(widths[1]).toBeGreaterThan(widths[0]);
   });
 
-  it("メモ一覧を選ぶとシフト表の後ろへ「メモ一覧」シートを追加し、数式に見える本文も文字列のまま書く", async () => {
+  it("連絡事項を出力するとシフト表の後ろへ「連絡事項」シートを追加し、数式に見える本文も文字列のまま書く", async () => {
     const formulaLikeNote = '=HYPERLINK("https://example.invalid","メモ")';
     const fixture = createExportFixture({
       dateNotes: [
@@ -200,7 +200,7 @@ describe("Excelの実ファイル", () => {
     const workbook = parseXml(files["xl/workbook.xml"]);
     expect(Array.from(workbook.querySelectorAll("sheet"), (sheet) => sheet.getAttribute("name"))).toEqual([
       "シフト表",
-      "メモ一覧",
+      "連絡事項",
     ]);
     const sheet = parseXml(files["xl/worksheets/sheet2.xml"]);
     const sharedStrings = Array.from(
@@ -209,8 +209,8 @@ describe("Excelの実ファイル", () => {
     );
     const cell = (address: string) => sheet.querySelector(`c[r="${address}"]`);
     const value = (address: string) => sharedStrings[Number(cell(address)?.querySelector("v")?.textContent)];
-    expect(value("A1")).toBe("2026/08/01~08/31 シフトリ駅前店 メモ一覧");
-    expect([value("A2"), value("B2"), value("C2")]).toEqual(["日付", "名前", "メモ"]);
+    expect(value("A1")).toBe("2026/08/01~08/31 シフトリ駅前店 連絡事項");
+    expect([value("A2"), value("B2"), value("C2")]).toEqual(["日付", "名前", "内容"]);
     expect([value("A3"), value("B3"), value("C3")]).toEqual(["8/1(土)", "田中 花子", "17時以降なら入れます"]);
     expect(cell("C4")?.getAttribute("t")).toBe("s");
     expect(cell("C4")?.querySelector("f")).toBeNull();

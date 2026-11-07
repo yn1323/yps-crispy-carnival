@@ -103,7 +103,7 @@ export function buildExportSchedule(data: ShiftExportData, splitPeriod = false, 
   };
 }
 
-/** メモ一覧の行。日付順、同じ日の中は出力のスタッフ順に並べる。部分的な一覧は作らない。 */
+/** 連絡事項の一覧の行。日付順、同じ日の中は出力のスタッフ順に並べる。部分的な一覧は作らない。 */
 function buildExportNoteRows(data: ShiftExportData, dateSet: ReadonlySet<string>): ExportNoteRow[] {
   if (data.dateNotes.length > SHIFT_BOARD_DATE_NOTE_LIMIT) throw new Error("メモが多すぎるため、出力できません。");
   const staffIndexById = new Map(data.staffs.map((staff, index) => [staff.id, index]));
@@ -138,7 +138,7 @@ function buildExportNoteRows(data: ShiftExportData, dateSet: ReadonlySet<string>
 }
 
 export function getExportNotesTitle(schedule: ExportSchedule): string {
-  return `${getExportTitle(schedule)} メモ一覧`;
+  return `${getExportTitle(schedule)} 連絡事項`;
 }
 
 export function getExportFileName(schedule: ExportSchedule, format: "pdf" | "xlsx"): string {

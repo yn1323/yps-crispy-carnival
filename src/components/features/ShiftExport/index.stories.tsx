@@ -238,9 +238,9 @@ export const NotesList: Story = {
   args: { schedule: buildExportSchedule(withNotes, false, true), includeNotes: true },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("checkbox", { name: "メモ一覧を付ける" })).toBeChecked();
-    await expect(canvas.getByRole("heading", { name: "2026/08/01~08/31 シフトリ駅前店 メモ一覧" })).toBeVisible();
-    const notesTable = canvas.getByRole("table", { name: "メモ一覧" });
+    await expect(canvas.getByRole("checkbox", { name: "連絡事項も出力する" })).toBeChecked();
+    await expect(canvas.getByRole("heading", { name: "2026/08/01~08/31 シフトリ駅前店 連絡事項" })).toBeVisible();
+    const notesTable = canvas.getByRole("table", { name: "連絡事項" });
     await expect(
       within(notesTable)
         .getAllByRole("rowheader")
@@ -256,15 +256,15 @@ export const ToggleNotesList: Story = {
   render: () => <ShiftExportPage data={withNotes} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const checkbox = canvas.getByRole("checkbox", { name: "メモ一覧を付ける" });
+    const checkbox = canvas.getByRole("checkbox", { name: "連絡事項も出力する" });
     await expect(checkbox).not.toBeChecked();
-    await expect(canvas.queryByRole("table", { name: "メモ一覧" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("table", { name: "連絡事項" })).not.toBeInTheDocument();
 
     await userEvent.click(checkbox);
-    await waitFor(() => expect(canvas.getByRole("table", { name: "メモ一覧" })).toBeVisible());
+    await waitFor(() => expect(canvas.getByRole("table", { name: "連絡事項" })).toBeVisible());
 
     await userEvent.click(checkbox);
-    await waitFor(() => expect(canvas.queryByRole("table", { name: "メモ一覧" })).not.toBeInTheDocument());
+    await waitFor(() => expect(canvas.queryByRole("table", { name: "連絡事項" })).not.toBeInTheDocument());
   },
 };
 
@@ -272,6 +272,6 @@ export const WithoutNotesHidesNotesOption: Story = {
   parameters: { screenshot: { skip: true } },
   render: () => <ShiftExportPage data={createExportFixture()} />,
   play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).queryByRole("checkbox", { name: "メモ一覧を付ける" })).not.toBeInTheDocument();
+    await expect(within(canvasElement).queryByRole("checkbox", { name: "連絡事項も出力する" })).not.toBeInTheDocument();
   },
 };

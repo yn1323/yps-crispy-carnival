@@ -163,7 +163,7 @@ export const createShiftPdf = async (schedule: ExportSchedule): Promise<Blob> =>
         const columns = [
           { key: "date", label: "日付", width: layout.dateColumnWidthPt },
           { key: "staff", label: "名前", width: layout.staffColumnWidthPt },
-          { key: "note", label: "メモ", width: layout.noteColumnWidthPt },
+          { key: "note", label: "内容", width: layout.noteColumnWidthPt },
         ];
         return (
           <Page

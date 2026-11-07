@@ -5,6 +5,7 @@ import {
   deriveDatesFromWeekdays,
   formatCompactDateListWithWeekday,
   formatDatePeriodWithWeekday,
+  formatDateRangeShort,
   getInclusiveDateCount,
   getWeekStartDate,
   isDateInRange,
@@ -96,6 +97,13 @@ describe("date helpers", () => {
     expect(formatCompactDateListWithWeekday(["2026-06-01", "2026-06-03", "2026-07-01"])).toBe(
       "6/1(月), 3(水), 7/1(水)",
     );
+  });
+
+  test("formatDateRangeShort は同じ年月の終了日だけ月を省く", () => {
+    expect(formatDateRangeShort("2026-12-23", "2026-12-31")).toBe("12/23 〜 31");
+    expect(formatDateRangeShort("2026-12-28", "2027-01-03")).toBe("12/28 〜 1/3");
+    expect(formatDateRangeShort("2026-12-01", "2027-12-31")).toBe("12/1 〜 12/31");
+    expect(formatDateRangeShort("2026-12-21", "2026-12-27", "-")).toBe("12/21-27");
   });
 });
 

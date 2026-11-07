@@ -94,7 +94,7 @@ const addScheduleRows = (worksheet: Worksheet, schedule: ExportSchedule) => {
 const addNotesWorksheet = (workbook: Workbook, schedule: ExportSchedule) => {
   if (schedule.noteRows.length === 0) return;
   const layout = getExportNoteLayout(schedule);
-  const worksheet = workbook.addWorksheet("メモ一覧", {
+  const worksheet = workbook.addWorksheet("連絡事項", {
     views: [{ state: "frozen", ySplit: 2, topLeftCell: "A3", showGridLines: false }],
     pageSetup: {
       paperSize: 9,
@@ -116,7 +116,7 @@ const addNotesWorksheet = (workbook: Workbook, schedule: ExportSchedule) => {
   worksheet.getCell("A1").font = { name: "Noto Sans JP", size: 16, bold: true, color: { argb: BLACK } };
   const header = worksheet.getRow(2);
   header.height = layout.headerHeightPt;
-  ["日付", "名前", "メモ"].forEach((label, index) => {
+  ["日付", "名前", "内容"].forEach((label, index) => {
     const cell = header.getCell(index + 1);
     cell.value = label;
     styleTableCell(cell, layout.fontSizePt);

@@ -145,7 +145,7 @@ describe("AppShiftBoardRoutePage", () => {
     expect(screen.getByTestId("shop-id").textContent).toBe("shop-1");
     expect(screen.getByTestId("shop-id").getAttribute("data-layout")).toBe("app");
     expect(screen.getByTestId("shop-id").getAttribute("data-date-notes")).toBe(JSON.stringify("loading"));
-    await waitFor(() => expect(screen.getByRole("heading", { name: "yn1323店舗：8/17 〜 8/24" })).not.toBeNull());
+    await waitFor(() => expect(screen.getByRole("heading", { name: "yn1323店舗：8/17 〜 24" })).not.toBeNull());
     const managerShopScope = screen.getByTestId("manager-shop-scope");
     expect(managerShopScope.getAttribute("data-shop-id")).toBe("shop-1");
     expect(managerShopScope.getAttribute("data-organization-id")).toBe("organization-1");

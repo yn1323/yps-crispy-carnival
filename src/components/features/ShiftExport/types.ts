@@ -50,8 +50,8 @@ export type ExportSchedule = {
   bodyLineCount: number;
   dates: ExportDate[];
   rows: ExportStaffRow[];
-  /** 募集にメモがあるか。出力画面で「メモ一覧を付ける」を出すかに使う。 */
+  /** 募集にメモがあるか。出力画面で「連絡事項も出力する」を出すかに使う。 */
   hasDateNotes: boolean;
-  /** 「メモ一覧を付ける」を選んだときだけ、日付順・スタッフ順のメモを持つ。 */
+  /** 「連絡事項も出力する」を選んだときだけ、日付順・スタッフ順のメモを持つ。 */
   noteRows: ExportNoteRow[];
 };

@@ -1,4 +1,5 @@
 import { Box, Flex, Stack, Text } from "@chakra-ui/react";
+import dayjs from "dayjs";
 import { useAtomValue, useSetAtom } from "jotai";
 import type { ReactNode } from "react";
 import { useCallback, useMemo, useRef } from "react";
@@ -111,12 +112,14 @@ export const SPDateOnlyDailyView = () => {
               </Text>
               {!isInRange && <StatusBadge tone="muted">期間外</StatusBadge>}
               {isShopClosedDate && <StatusBadge tone="muted">定休日</StatusBadge>}
+              <Box ml={2} alignSelf="center">
+                <SummaryPill label="合計" count={assignedCount} muted={!isInRange || isShopClosedDate} />
+              </Box>
             </Flex>
           </Box>
-          <Flex flexShrink={0} align="center" gap={2}>
-            <SummaryPill label="合計" count={assignedCount} muted={!isInRange || isShopClosedDate} />
+          <Box flexShrink={0}>
             <DisplaySettingsMenu />
-          </Flex>
+          </Box>
         </Flex>
       </Box>
 
@@ -197,9 +200,8 @@ const DateRail = ({
               onClick={() => onSelect(date.iso)}
               position="relative"
               flexShrink={0}
-              w="56px"
-              minH="58px"
-              py="7px"
+              w="52px"
+              py="8px"
               textAlign="center"
               borderRadius="md"
               borderWidth="1px"
@@ -220,21 +222,23 @@ const DateRail = ({
                 color={active ? "white" : undefined}
                 fontVariantNumeric="tabular-nums"
               >
-                {formatDateShort(date.iso)}
+                {dayjs(date.iso).date()}
               </Text>
+              {/* 休みと期間外は曜日と同じ行に置き、日付の高さをそろえる。 */}
               <Text
                 textStyle="2xs"
                 mt="2px"
                 fontWeight={active ? 700 : 500}
+                whiteSpace="nowrap"
                 color={active ? "white" : !date.inRange || isClosed ? "gray.400" : dayColor(date.iso)}
               >
                 {getWeekdayLabel(date.iso)}
+                {(isClosed || !date.inRange) && (
+                  <Text as="span" fontWeight={700}>
+                    {date.inRange ? "(休)" : "(外)"}
+                  </Text>
+                )}
               </Text>
-              {(isClosed || !date.inRange) && (
-                <Text textStyle="2xs" mt="1px" fontWeight={700} color={active ? "white" : "gray.400"}>
-                  {date.inRange ? "休" : "外"}
-                </Text>
-              )}
             </Box>
           );
         })}

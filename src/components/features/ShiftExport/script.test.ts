@@ -85,7 +85,7 @@ describe("buildExportSchedule", () => {
     expect(getExportTitle(buildExportSchedule(data))).toBe(expected);
   });
 
-  it("メモ一覧は選んだときだけ日付順・保存したスタッフ順に作り、メモの有無は常に返す", () => {
+  it("連絡事項の一覧は選んだときだけ日付順・保存したスタッフ順に作り、メモの有無は常に返す", () => {
     const fixture = createExportFixture({
       dateNotes: [
         { staffId: "staff-1", date: "2026-08-03", note: "鈴木のメモ" },

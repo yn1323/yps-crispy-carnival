@@ -115,3 +115,24 @@ export const DailyValidationWarningIconInteractive: Story = {
     await expectWarningIconOpensOnTap(canvasElement);
   },
 };
+
+/** 日付チップは日だけを表示し、休みは曜日と同じ行に置く。合計人数は日付の見出しの後ろに置く。 */
+export const DailyDateChipLayout: Story = {
+  args: dateOnlyArgs,
+  globals: mobileGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const closedChip = canvasElement.querySelector<HTMLElement>('[data-date-chip="2026-06-07"]');
+    await expect(closedChip?.textContent).toBe("7日(休)");
+    const chipHeights = new Set(
+      Array.from(canvasElement.querySelectorAll<HTMLElement>("[data-date-chip]")).map((chip) =>
+        Math.round(chip.getBoundingClientRect().height),
+      ),
+    );
+    await expect(chipHeights.size).toBe(1);
+
+    const total = await within(canvasElement).findByText("合計");
+    const settings = await within(canvasElement).findByRole("button", { name: "表示設定" });
+    await expect(total.getBoundingClientRect().right).toBeLessThan(settings.getBoundingClientRect().left - 40);
+  },
+};
