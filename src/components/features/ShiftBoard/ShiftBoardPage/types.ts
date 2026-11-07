@@ -36,6 +36,7 @@ export type ShiftBoardPageViewModel = {
     submitLabel: string;
     staffCount: number;
     warnings: DisplayIssue[];
+    unsubmittedNames: string[];
   };
   unsubmittedDialog: {
     isOpen: boolean;
