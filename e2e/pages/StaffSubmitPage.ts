@@ -33,8 +33,11 @@ export class StaffSubmitPage {
     await expect(this.submitButton()).toBeVisible({ timeout: STAFF_SUBMIT_DATA_TIMEOUT });
   }
 
+  /** 日付の行全体に重ねた切替ボタンを押す。休みの日は出勤希望に、日付選択の出勤日は休みに切り替わる。 */
   async toggleDay(dateText: string) {
-    await this.page.getByText(dateText, { exact: true }).locator("..").click();
+    await this.page
+      .getByRole("button", { name: new RegExp(`^${escapeRegExp(dateText)}を(出勤希望にする|休みにする)$`) })
+      .click();
   }
 
   async expectSchedule(deadlineText: string, includedDateText: string, excludedDateText: string) {
