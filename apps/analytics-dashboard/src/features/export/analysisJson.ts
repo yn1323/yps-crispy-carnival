@@ -1,6 +1,7 @@
 import { dateJST, dateToUtcMs } from "@convex/_lib/dateFormat";
 import type {
   AnalyticsMetric,
+  AnalyticsMinStaff,
   ExportSubmissionPatternDto,
   OrganizationExportResponse,
   ShopBillingFilter,
@@ -22,13 +23,18 @@ export type AnalysisScope =
         billing: ShopBillingFilter | null;
         attention: boolean;
         notified: boolean;
-        multiStaff: boolean;
+        minStaff: AnalyticsMinStaff | null;
         activity: { from: string; to: string; metric: AnalyticsMetric } | null;
       };
     }
   | {
       kind: "organizationList";
-      filters: { hasNameSearch: boolean; billing: ShopBillingFilter | null; notified: boolean; multiStaff: boolean };
+      filters: {
+        hasNameSearch: boolean;
+        billing: ShopBillingFilter | null;
+        notified: boolean;
+        minStaff: AnalyticsMinStaff | null;
+      };
     }
   | { kind: "organization" }
   | { kind: "shop" };

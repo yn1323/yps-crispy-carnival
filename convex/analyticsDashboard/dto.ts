@@ -10,10 +10,16 @@ export type AnalyticsPageInfoDto = {
   pageSize: number;
   returnedCount: number;
 };
+/**
+ * 日の終わりまでの直近14日に通知を受け付けた組織・店舗の数。管理者を含めた人数の区分ごとに数える。
+ * 人数は集計した時点の値。集計時に記録しなかった日と、集計が終わっていない日はnull。
+ */
+export type AnalyticsEngagedCountsDto = Record<`min${AnalyticsMinStaff}`, { organizations: number; shops: number }>;
 export type AnalyticsDayDto = {
   date: string;
   status: AnalyticsDayStatus;
   counts: AnalyticsCountsDto | null;
+  engaged: AnalyticsEngagedCountsDto | null;
   observationStartAt: number | null;
   observationEndAt: number | null;
   computedAt: number | null;
@@ -72,12 +78,16 @@ export type ShopBillingFilter =
   | "pending"
   | "scheduledChange"
   | "paymentTerminationPending";
+/** 一覧の人数の絞り込み。管理者を含めて、この人数以上の組織・店舗だけにする。 */
+export type AnalyticsMinStaff = 2 | 6;
 /** 募集の提出方法。時間指定・日付選択・パターン選択に対応する。 */
 export type SubmissionPatternKind = "time" | "dateOnly" | "shiftType";
 /** 店舗一覧で問い合わせ前に気づきたい状態。 */
 export type AnalyticsShopAttention = "shift_ended" | "inactive";
 export type AnalyticsShopListRowDto = AnalyticsShopRowDto & {
   staffCount: number | null;
+  /** スタッフ数のうち、組織の有効な管理者の数。スタッフ数を確認できない場合はnull。 */
+  managerCount: number | null;
   latestShift: { periodStart: string; periodEnd: string; submissionPattern: SubmissionPatternKind } | null;
   /** 計測開始後に提出・確定を記録した最終日。 */
   lastActivityDate: string | null;

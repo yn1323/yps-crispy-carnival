@@ -3,7 +3,7 @@ import type { Doc } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { addDays, dateJST, jstDayRangeMs, subtractCalendarMonths } from "../_lib/dateFormat";
 import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
-import { ANALYTICS_DEFINITION_VERSION, emptyAnalyticsResultCounts } from "./model";
+import { ANALYTICS_DEFINITION_VERSION, emptyAnalyticsEngagedCounts, emptyAnalyticsResultCounts } from "./model";
 import { safeAnalyticsErrorCode } from "./observability";
 import { type AnalyticsPageArgs, retryAnalyticsRunRef, runAnalyticsPageRef } from "./refs";
 import { ANALYTICS_POLICY } from "./registry";
@@ -47,6 +47,8 @@ export async function startDailyRun(ctx: MutationCtx, state: Doc<"analyticsState
   const windowStartDate = addDays(date, -89);
   const inputStartDate = startDate > windowStartDate ? startDate : windowStartDate;
   const expired = inputStartDate < detailRetentionDate(now);
+  // 人数は現在値しか残らないため、前日分を集計するrunだけで通知あり・2名以上と6名以上の組織・店舗を数える。
+  const recordsEngagement = !expired && date === addDays(dateJST(now), -1);
   const runId = await ctx.db.insert("analyticsDailyResults", {
     date,
     definitionVersion: ANALYTICS_DEFINITION_VERSION,
@@ -56,6 +58,9 @@ export async function startDailyRun(ctx: MutationCtx, state: Doc<"analyticsState
     isPartialDay: observationStartAt > bounds.startMs,
     inputStartDate,
     counts: emptyAnalyticsResultCounts(),
+    ...(recordsEngagement
+      ? { engagement: { stage: "organizations" as const, counts: emptyAnalyticsEngagedCounts() } }
+      : {}),
     stepVersion: 0,
     attemptCount: 1,
     retryAttempt: 0,

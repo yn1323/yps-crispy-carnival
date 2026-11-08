@@ -44,6 +44,7 @@ import {
 import {
   cycleDetailResponseValidator,
   featureRequestsResponseValidator,
+  minStaffValidator,
   nullableString,
   organizationsResponseValidator,
   overviewResponseValidator,
@@ -63,6 +64,7 @@ function dayDto(
   const base = {
     date,
     counts: null,
+    engaged: null,
     observationStartAt: null,
     observationEndAt: null,
     computedAt: null,
@@ -76,6 +78,8 @@ function dayDto(
     date,
     status: result.status === "complete" ? (result.isPartialDay ? "partial" : "complete") : result.status,
     counts: result.status === "complete" ? result.counts.day : null,
+    // 前日分の集計で数えた日だけ返す。過去の日を後から集計した場合は記録しない。
+    engaged: result.status === "complete" && result.engagement?.stage === "complete" ? result.engagement.counts : null,
     observationStartAt: result.observationStartAt,
     observationEndAt: result.observationEndAt,
     computedAt: result.completedAt ?? null,
@@ -186,7 +190,7 @@ export const getShops = internalQuery({
     billing: v.union(shopBillingFilterValidator, v.null()),
     attention: v.boolean(),
     notified: v.boolean(),
-    multiStaff: v.boolean(),
+    minStaff: v.union(minStaffValidator, v.null()),
   },
   returns: shopsResponseValidator,
   handler: async (ctx, args): Promise<ShopsResponse> => {
@@ -202,7 +206,7 @@ export const getShops = internalQuery({
           args.billing !== null ||
           args.attention ||
           args.notified ||
-          args.multiStaff))
+          args.minStaff !== null))
     )
       throw new Error("invalid_request");
     const search = args.search.trim().toLocaleLowerCase("ja");
@@ -233,7 +237,7 @@ export const getShops = internalQuery({
       billing: args.billing,
       attention: args.attention,
       notifiedSince: recentNotificationSince(args.notified, args.asOf),
-      multiStaff: args.multiStaff,
+      minStaff: args.minStaff,
     };
     // 名称・契約・要注意・通知・人数・実績の条件は、表示中のページでなく全店舗に対して照合する。
     // 店舗は論理削除だけのため、実績の内訳では削除済み店舗も店舗tableから辿れる。
@@ -265,6 +269,7 @@ export const getShops = internalQuery({
           (organization && (await shopListRow(ctx, shop, organization, today))) || {
             ...row,
             staffCount: null,
+            managerCount: null,
             latestShift: null,
             lastActivityDate: null,
             lastNotifiedAt: null,
@@ -285,7 +290,7 @@ export const getOrganizations = internalQuery({
     search: v.string(),
     billing: v.union(shopBillingFilterValidator, v.null()),
     notified: v.boolean(),
-    multiStaff: v.boolean(),
+    minStaff: v.union(minStaffValidator, v.null()),
   },
   returns: organizationsResponseValidator,
   handler: async (ctx, args): Promise<OrganizationsResponse> => {
@@ -294,7 +299,7 @@ export const getOrganizations = internalQuery({
       search: args.search.trim().toLocaleLowerCase("ja"),
       billing: args.billing,
       notifiedSince: recentNotificationSince(args.notified, args.asOf),
-      multiStaff: args.multiStaff,
+      minStaff: args.minStaff,
     };
     const { rows, pageInfo } = await scanNewestFirst(
       ctx,

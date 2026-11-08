@@ -6,7 +6,11 @@ import {
   shiftConfirmationSnapshotAssignmentValidator,
 } from "./_lib/shiftAssignmentValidators";
 import { submissionPatternValidator } from "./_lib/submissionPattern";
-import { analyticsResultCountsValidator, analyticsRunStatusValidator } from "./analytics/model";
+import {
+  analyticsEngagementValidator,
+  analyticsResultCountsValidator,
+  analyticsRunStatusValidator,
+} from "./analytics/model";
 import {
   notificationFanoutCancelReasonValidator,
   notificationFanoutKindValidator,
@@ -1179,6 +1183,8 @@ const schema = defineSchema({
     inputStartDate: v.string(),
     counts: analyticsResultCountsValidator,
     cursorShopId: v.optional(v.id("shops")),
+    // 前日分を集計するrunだけが持つ。人数は現在値しか残らないため、過去の日には記録しない。
+    engagement: v.optional(analyticsEngagementValidator),
     stepVersion: v.number(),
     attemptCount: v.number(),
     retryAttempt: v.number(),

@@ -20,18 +20,21 @@ describe("Analytics BFFの入力契約", () => {
     { endpoint: "shops", from: "2026-09-05", to: "2026-09-05", metric: "submitted", billing: "trial" },
     { endpoint: "shops", from: "2026-09-05", to: "2026-09-05", metric: "submitted", attention: true },
     { endpoint: "shops", from: "2026-09-05", to: "2026-09-05", metric: "submitted", notified: true },
-    { endpoint: "shops", from: "2026-09-05", to: "2026-09-05", metric: "submitted", multiStaff: true },
+    { endpoint: "shops", from: "2026-09-05", to: "2026-09-05", metric: "submitted", minStaff: 2 },
     { endpoint: "shops", billing: "active" },
     { endpoint: "shops", attention: "1" },
     { endpoint: "shops", notified: "1" },
-    { endpoint: "shops", multiStaff: "1" },
+    { endpoint: "shops", minStaff: "2" },
+    { endpoint: "shops", minStaff: 3 },
+    { endpoint: "shops", multiStaff: true },
     { endpoint: "shops", metric: "submitted" },
     { endpoint: "shops", limit: 101 },
     { endpoint: "shops", cursor: "next-page" },
     { endpoint: "organizations", attention: true },
     { endpoint: "organizations", billing: "active" },
     { endpoint: "organizations", notified: "true" },
-    { endpoint: "organizations", multiStaff: "true" },
+    { endpoint: "organizations", minStaff: 0 },
+    { endpoint: "organizations", minStaff: Number.NaN },
     { endpoint: "organizations", cursor: "next-page" },
     { endpoint: "organizations", search: "x".repeat(101) },
     { endpoint: "requests", limit: 51 },
@@ -128,24 +131,27 @@ describe("Analytics BFFの入力契約", () => {
         billing: null,
         attention: false,
         notified: false,
-        multiStaff: false,
+        minStaff: null,
       },
     });
     expect(
       normalizeBrowserRequestInput(
         "shops",
-        new URLSearchParams({ billing: "paid", attention: "true", notified: "true", multiStaff: "true", limit: "20" }),
+        new URLSearchParams({ billing: "paid", attention: "true", notified: "true", minStaff: "2", limit: "20" }),
       ),
     ).toMatchObject({
       ok: true,
-      value: { billing: "paid", attention: true, notified: true, multiStaff: true, from: null, to: null, metric: null },
+      value: { billing: "paid", attention: true, notified: true, minStaff: 2, from: null, to: null, metric: null },
     });
     expect(
       normalizeBrowserRequestInput(
         "organizations",
-        new URLSearchParams({ billing: "trial", notified: "true", multiStaff: "true" }),
+        new URLSearchParams({ billing: "trial", notified: "true", minStaff: "6" }),
       ),
-    ).toMatchObject({ ok: true, value: { billing: "trial", notified: true, multiStaff: true } });
+    ).toMatchObject({ ok: true, value: { billing: "trial", notified: true, minStaff: 6 } });
+    expect(normalizeBrowserRequestInput("organizations", new URLSearchParams({ minStaff: "abc" }))).toEqual({
+      ok: false,
+    });
   });
   it("マジックリンク検索はPOST bodyのtokenだけで受け付け、ブラウザのURL入力からは組み立てない", () => {
     expect(parseAnalyticsDashboardRequest({ endpoint: "magicLinkLookup", token: "abcdefgh-1234" })).toEqual({
