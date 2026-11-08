@@ -20,6 +20,7 @@ import {
   shopPath,
 } from "@/features/analytics/format";
 import { compareSortValues, fetchListPages, LIST_PAGE_SIZE } from "@/features/analytics/listPages";
+import { NotifiedSelect } from "@/features/analytics/NotifiedSelect";
 import { AnalyticsPageLoading, MoreButton, Panel, QueryError } from "@/features/analytics/PageState";
 
 type ShopScope = { from: string; to: string; metric: AnalyticsMetric };
@@ -28,6 +29,7 @@ type ShopFilters = {
   scope: ShopScope | null;
   billing: ShopBillingFilter | null;
   attention: boolean;
+  notified: boolean;
 };
 
 /** 絞り込みはURLを正本にし、日次分析のカードやグラフから同じ条件で開けるようにする。 */
@@ -45,6 +47,7 @@ function readFilters(search: string): ShopFilters {
     scope,
     billing: !scope && billing && billing in BILLING_FILTER_LABELS ? (billing as ShopBillingFilter) : null,
     attention: !scope && params.get("attention") === "1",
+    notified: !scope && params.get("notified") === "1",
   };
 }
 function filtersPath(filters: ShopFilters) {
@@ -59,6 +62,7 @@ function filtersPath(filters: ShopFilters) {
   } else {
     if (filters.billing) params.set("billing", filters.billing);
     if (filters.attention) params.set("attention", "1");
+    if (filters.notified) params.set("notified", "1");
   }
   if (filters.search) params.set("q", filters.search);
   return params.size ? `/shops?${params}` : "/shops";
@@ -66,7 +70,12 @@ function filtersPath(filters: ShopFilters) {
 function requestParams(filters: ShopFilters): ShopSearchParams {
   return filters.scope
     ? { search: filters.search, ...filters.scope }
-    : { search: filters.search, billing: filters.billing, attention: filters.attention || undefined };
+    : {
+        search: filters.search,
+        billing: filters.billing,
+        attention: filters.attention || undefined,
+        notified: filters.notified || undefined,
+      };
 }
 function scopeLabel(scope: ShopScope) {
   const metric = METRICS.find((item) => item.key === scope.metric)?.label ?? "指標を確認してください";
@@ -223,12 +232,26 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
               </NativeSelect.Root>
             </Text>
           )}
+          {!scoped && (
+            <NotifiedSelect
+              value={filters.notified}
+              onChange={(notified) => setFilters({ search: input.trim(), notified })}
+            />
+          )}
           <Button type="submit">絞り込む</Button>
         </Flex>
       </form>
+      {filters.notified && (
+        <Text color="gray.600" fontSize="sm">
+          直近14日に通知を受け付けた店舗です。送信に失敗した通知も含め、取り消した通知は含めません。
+        </Text>
+      )}
       {query.error && <QueryError error={query.error} onRetry={() => void query.refetch()} />}
       {query.isPending ? (
-        <AnalyticsPageLoading title="店舗を読み込み中" description="店舗一覧の最初のページを取得しています。" />
+        <AnalyticsPageLoading
+          title="店舗を読み込み中"
+          description="並べ替えに使うため、該当する店舗をすべて取得しています。店舗が多いと時間がかかります。"
+        />
       ) : (
         first && (
           <Panel
@@ -239,7 +262,7 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
                   ? `契約が「${BILLING_FILTER_LABELS[filters.billing]}」の店舗`
                   : "現在の店舗一覧"
             }
-            description={`${formatDateTime(first.data.asOf)}時点。絞り込みは全店舗が対象です。${scoped ? "" : "登録の新しい順に読み込みます。"}並べ替えは読み込んだ店舗の中で行います。`}
+            description={`${formatDateTime(first.data.asOf)}時点。絞り込みと並べ替えは全店舗が対象です。`}
           >
             {scopeStatus === "outside_retention" || scopeStatus === "unavailable" ? (
               <Alert.Root status="warning">

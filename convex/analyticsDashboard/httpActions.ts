@@ -99,6 +99,7 @@ async function dispatchQuery(
         metric: input.metric,
         billing: input.billing,
         attention: input.attention,
+        notified: input.notified,
         asOf,
       });
     case "organizations":
@@ -107,6 +108,7 @@ async function dispatchQuery(
         limit: input.limit,
         search: input.search,
         billing: input.billing,
+        notified: input.notified,
         asOf,
       });
     case "shop":

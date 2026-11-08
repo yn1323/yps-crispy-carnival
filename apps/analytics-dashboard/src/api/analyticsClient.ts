@@ -85,6 +85,7 @@ export type ShopSearchParams = PaginationParams & {
   metric?: AnalyticsMetric | null;
   billing?: ShopBillingFilter | null;
   attention?: boolean;
+  notified?: boolean;
 };
 /** 続きを連続で読む途中でrate limitへ達しても、取得済みのページを捨てず同じcursorから再開する。 */
 async function fetchListEndpoint<T>(path: string, params: Record<string, SearchValue>, signal?: AbortSignal) {
@@ -111,7 +112,11 @@ async function fetchListEndpoint<T>(path: string, params: Record<string, SearchV
 export function fetchShops(params: ShopSearchParams, signal?: AbortSignal) {
   return fetchListEndpoint<ShopsResponse>("/api/analytics/shops", params, signal);
 }
-export type OrganizationSearchParams = PaginationParams & { search?: string; billing?: ShopBillingFilter | null };
+export type OrganizationSearchParams = PaginationParams & {
+  search?: string;
+  billing?: ShopBillingFilter | null;
+  notified?: boolean;
+};
 export function fetchOrganizations(params: OrganizationSearchParams, signal?: AbortSignal) {
   return fetchListEndpoint<OrganizationsResponse>("/api/analytics/organizations", params, signal);
 }

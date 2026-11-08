@@ -16,9 +16,10 @@ import {
   shopPath,
 } from "@/features/analytics/format";
 import { compareSortValues, fetchListPages, LIST_PAGE_SIZE } from "@/features/analytics/listPages";
+import { NotifiedSelect } from "@/features/analytics/NotifiedSelect";
 import { AnalyticsPageLoading, MoreButton, Panel, QueryError } from "@/features/analytics/PageState";
 
-type OrganizationFilters = { search: string; billing: ShopBillingFilter | null };
+type OrganizationFilters = { search: string; billing: ShopBillingFilter | null; notified: boolean };
 
 /** 絞り込みはURLを正本にし、日次分析の契約状況カードから同じ条件で開けるようにする。 */
 function readFilters(search: string): OrganizationFilters {
@@ -27,11 +28,13 @@ function readFilters(search: string): OrganizationFilters {
   return {
     search: params.get("q") ?? "",
     billing: billing && billing in BILLING_FILTER_LABELS ? (billing as ShopBillingFilter) : null,
+    notified: params.get("notified") === "1",
   };
 }
 function filtersPath(filters: OrganizationFilters) {
   const params = new URLSearchParams();
   if (filters.billing) params.set("billing", filters.billing);
+  if (filters.notified) params.set("notified", "1");
   if (filters.search) params.set("q", filters.search);
   return params.size ? `/organizations?${params}` : "/organizations";
 }
@@ -86,7 +89,16 @@ export function OrganizationsPage({ navigate }: { navigate: (path: string) => vo
     initialPageParam: null as string | null,
     queryFn: ({ pageParam, signal }) =>
       fetchListPages(pageParam, (cursor) =>
-        fetchOrganizations({ search: filters.search, billing: filters.billing, cursor, limit: LIST_PAGE_SIZE }, signal),
+        fetchOrganizations(
+          {
+            search: filters.search,
+            billing: filters.billing,
+            notified: filters.notified || undefined,
+            cursor,
+            limit: LIST_PAGE_SIZE,
+          },
+          signal,
+        ),
       ),
     getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
@@ -153,17 +165,29 @@ export function OrganizationsPage({ navigate }: { navigate: (path: string) => vo
               <NativeSelect.Indicator />
             </NativeSelect.Root>
           </Text>
+          <NotifiedSelect
+            value={filters.notified}
+            onChange={(notified) => setFilters({ search: input.trim(), notified })}
+          />
           <Button type="submit">絞り込む</Button>
         </Flex>
       </form>
+      {filters.notified && (
+        <Text color="gray.600" fontSize="sm">
+          直近14日に、組織または所属店舗の通知を受け付けた組織です。送信に失敗した通知も含め、取り消した通知は含めません。
+        </Text>
+      )}
       {query.error && <QueryError error={query.error} onRetry={() => void query.refetch()} />}
       {query.isPending ? (
-        <AnalyticsPageLoading title="組織を読み込み中" description="組織一覧の最初のページを取得しています。" />
+        <AnalyticsPageLoading
+          title="組織を読み込み中"
+          description="並べ替えに使うため、該当する組織をすべて取得しています。組織が多いと時間がかかります。"
+        />
       ) : (
         first && (
           <Panel
             title={filters.billing ? `契約が「${BILLING_FILTER_LABELS[filters.billing]}」の組織` : "現在の組織一覧"}
-            description={`${formatDateTime(first.data.asOf)}時点。絞り込みは全組織が対象です。登録の新しい順に読み込み、並べ替えは読み込んだ組織の中で行います。利用人数はプラン上限と同じ数え方で、管理者を含み、複数店舗に所属する人も1人と数えます。`}
+            description={`${formatDateTime(first.data.asOf)}時点。絞り込みと並べ替えは全組織が対象です。利用人数はプラン上限と同じ数え方で、管理者を含み、複数店舗に所属する人も1人と数えます。`}
           >
             <DataTable
               rows={rows}

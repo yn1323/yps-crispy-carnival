@@ -15,6 +15,7 @@ import type {
   AnalyticsShopRowDto,
   BillingOverviewDto,
   CycleRowDto,
+  NotificationOutboxStatus,
   OrganizationBillingSummaryDto,
   ShopBillingFilter,
   StaffRowDto,
@@ -29,6 +30,10 @@ const ORGANIZATION_LIST_SHOP_LIMIT = 10;
 const SCAN_RESERVE = { documentsRead: 2_000, bytesRead: 2 * 1024 * 1024, databaseQueries: 1_000 };
 /** 最後の提出・確定からこの日数以上たった店舗を要注意にする。 */
 export const SHOP_INACTIVE_DAYS = 14;
+/** 一覧の「通知あり」の絞り込みで、通知の受付を確認する直近の日数。 */
+export const RECENT_NOTIFICATION_DAYS = 14;
+/** 利用の手がかりにする通知の状態。組織の停止などで取り消した通知は含めない。送信済みを先に確認する。 */
+const RECENT_NOTIFICATION_STATUSES: readonly NotificationOutboxStatus[] = ["sent", "failed", "pending", "processing"];
 const TRIAL_ENDING_SOON_MS = 7 * DAY_MS;
 
 export function paginationOptions(cursor: string | null, limit: number, maximum = 100): PaginationOptions {
@@ -208,6 +213,36 @@ export async function billingOverview(ctx: QueryCtx, asOf: number): Promise<Bill
   }
   return result;
 }
+/** 一覧の絞り込み条件。notifiedSinceを指定すると、その時刻以降に受け付けた通知がある対象だけを返す。 */
+type ListFilter = { billing: ShopBillingFilter | null; notifiedSince: number | null };
+/**
+ * 取消以外の通知を`since`以降に受け付けたか。状態ごとの既存indexを受付時刻の範囲で1件だけ読む。
+ * 店舗の通知はすべて組織IDを持つため、組織では店舗宛と組織宛の両方を確認できる。
+ */
+async function hasRecentNotification(
+  ctx: QueryCtx,
+  target: { shopId: Id<"shops"> } | { organizationId: Id<"organizations"> },
+  since: number,
+): Promise<boolean> {
+  for (const status of RECENT_NOTIFICATION_STATUSES) {
+    const row =
+      "shopId" in target
+        ? await ctx.db
+            .query("notificationOutbox")
+            .withIndex("by_shopId_status", (q) =>
+              q.eq("shopId", target.shopId).eq("status", status).gte("_creationTime", since),
+            )
+            .first()
+        : await ctx.db
+            .query("notificationOutbox")
+            .withIndex("by_organizationId_status", (q) =>
+              q.eq("organizationId", target.organizationId).eq("status", status).gte("_creationTime", since),
+            )
+            .first();
+    if (row) return true;
+  }
+  return false;
+}
 /**
  * 店舗一覧の1行。絞り込みに一致しない店舗は、重いスタッフ数の集計前にnullを返す。
  */
@@ -216,10 +251,12 @@ export async function shopListRow(
   shop: Doc<"shops">,
   organization: Doc<"organizations">,
   today: string,
-  filter: { billing: ShopBillingFilter | null; attention: boolean } = { billing: null, attention: false },
+  filter: ListFilter & { attention: boolean } = { billing: null, notifiedSince: null, attention: false },
 ): Promise<AnalyticsShopListRowDto | null> {
   const billing = await organizationBilling(ctx, organization._id);
   if (filter.billing && !billingMatches(billing, filter.billing)) return null;
+  if (filter.notifiedSince !== null && !(await hasRecentNotification(ctx, { shopId: shop._id }, filter.notifiedSince)))
+    return null;
   const [latestShift, lastActivity] = await Promise.all([
     ctx.db
       .query("recruitments")
@@ -263,13 +300,13 @@ export async function shopListRow(
   };
 }
 /**
- * 組織一覧の1行。名称と契約の絞り込みに一致しない組織は、利用人数の集計前にnullを返す。
+ * 組織一覧の1行。名称・契約・通知の絞り込みに一致しない組織は、利用人数の集計前にnullを返す。
  * searchは小文字化済みの検索語で、組織名または現在の店舗名の一部と照合する。
  */
 export async function organizationListRow(
   ctx: QueryCtx,
   organization: Doc<"organizations">,
-  filter: { search: string; billing: ShopBillingFilter | null },
+  filter: ListFilter & { search: string },
 ): Promise<AnalyticsOrganizationListRowDto | null> {
   if (organization.isDeleted) return null;
   const shops = await ctx.db
@@ -287,6 +324,11 @@ export async function organizationListRow(
     return null;
   const billing = await organizationBilling(ctx, organization._id);
   if (filter.billing && !billingMatches(billing, filter.billing)) return null;
+  if (
+    filter.notifiedSince !== null &&
+    !(await hasRecentNotification(ctx, { organizationId: organization._id }, filter.notifiedSince))
+  )
+    return null;
   const probe = await getOrganizationActualUsageProbe(ctx, organization._id, ORGANIZATION_PLAN_LIMITS.pro);
   const exact = (dimension: OrganizationUsageDimension, value: number) =>
     probe.unknownDimensions.includes(dimension) || probe.lowerBoundDimensions.includes(dimension) ? null : value;
