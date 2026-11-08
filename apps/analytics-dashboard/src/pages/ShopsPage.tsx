@@ -161,8 +161,10 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
     void analysisExport.start(async (signal) => {
       let pages = query.data?.pages ?? [];
       if (query.hasNextPage) {
-        let result = await query.fetchNextPage();
-        while (result.hasNextPage && !signal.aborted) result = await query.fetchNextPage();
+        // 取得に失敗しても続きがあるとhasNextPageが残るため、失敗時はthrowして出力を止める。
+        const fetchNext = () => query.fetchNextPage({ throwOnError: true });
+        let result = await fetchNext();
+        while (result.hasNextPage && !signal.aborted) result = await fetchNext();
         pages = result.data?.pages ?? pages;
       }
       signal.throwIfAborted();
