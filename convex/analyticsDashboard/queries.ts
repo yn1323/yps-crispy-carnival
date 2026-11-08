@@ -260,6 +260,7 @@ export const getShops = internalQuery({
             staffCount: null,
             latestShift: null,
             lastActivityDate: null,
+            lastNotifiedAt: null,
             billing: null,
             attention: [],
           }

@@ -111,6 +111,8 @@ function sortValue(row: AnalyticsShopListRowDto, key: string) {
       return row.billing ? billingLabel(row.billing) : null;
     case "lastActivity":
       return row.lastActivityDate;
+    case "lastNotified":
+      return row.lastNotifiedAt;
     default:
       return row.latestShift ? `${row.latestShift.periodStart}/${row.latestShift.periodEnd}` : null;
   }
@@ -137,8 +139,7 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
     const unique = new Map((query.data?.pages ?? []).flatMap((page) => page.rows).map((row) => [row.shopId, row]));
     return [...unique.values()].sort(
       (left, right) =>
-        compareSortValues(sortValue(left, sort.key), sortValue(right, sort.key)) *
-          (sort.direction === "asc" ? 1 : -1) ||
+        compareSortValues(sortValue(left, sort.key), sortValue(right, sort.key), sort.direction) ||
         left.name.localeCompare(right.name, "ja") ||
         left.shopId.localeCompare(right.shopId),
     );
@@ -339,6 +340,13 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
                       render: (row) => formatDate(row.lastActivityDate),
                     },
                     {
+                      key: "lastNotified",
+                      header: "最終通知",
+                      sortable: true,
+                      firstDirection: "desc",
+                      render: (row) => formatDateTime(row.lastNotifiedAt),
+                    },
+                    {
                       key: "registeredAt",
                       header: "登録日",
                       sortable: true,
@@ -358,6 +366,7 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
                         直近のシフト：{row.isDeleted ? "確認できません" : formatShiftPeriod(row.latestShift)}
                       </Text>
                       <Text fontSize="sm">最終利用：{formatDate(row.lastActivityDate)}</Text>
+                      <Text fontSize="sm">最終通知：{formatDateTime(row.lastNotifiedAt)}</Text>
                       <Text fontSize="xs" color="gray.600">
                         登録：{formatDate(row.registeredAt)}
                       </Text>

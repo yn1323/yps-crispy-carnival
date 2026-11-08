@@ -32,8 +32,8 @@ const SCAN_RESERVE = { documentsRead: 2_000, bytesRead: 2 * 1024 * 1024, databas
 export const SHOP_INACTIVE_DAYS = 14;
 /** 一覧の「通知あり」の絞り込みで、通知の受付を確認する直近の日数。 */
 export const RECENT_NOTIFICATION_DAYS = 14;
-/** 利用の手がかりにする通知の状態。組織の停止などで取り消した通知は含めない。送信済みを先に確認する。 */
-const RECENT_NOTIFICATION_STATUSES: readonly NotificationOutboxStatus[] = ["sent", "failed", "pending", "processing"];
+/** 利用の手がかりにする通知の状態。組織の停止などで取り消した通知は含めない。 */
+const NOTIFIED_STATUSES: readonly NotificationOutboxStatus[] = ["sent", "failed", "pending", "processing"];
 const TRIAL_ENDING_SOON_MS = 7 * DAY_MS;
 
 export function paginationOptions(cursor: string | null, limit: number, maximum = 100): PaginationOptions {
@@ -216,32 +216,35 @@ export async function billingOverview(ctx: QueryCtx, asOf: number): Promise<Bill
 /** 一覧の絞り込み条件。notifiedSinceを指定すると、その時刻以降に受け付けた通知がある対象だけを返す。 */
 type ListFilter = { billing: ShopBillingFilter | null; notifiedSince: number | null };
 /**
- * 取消以外の通知を`since`以降に受け付けたか。状態ごとの既存indexを受付時刻の範囲で1件だけ読む。
- * 店舗の通知はすべて組織IDを持つため、組織では店舗宛と組織宛の両方を確認できる。
+ * 取消以外の通知を最後に受け付けた時刻。状態ごとの既存indexで、受付の新しい1件だけを読む。
+ * 店舗の通知はすべて組織IDを持つため、組織では店舗宛と組織宛の両方を対象にできる。
  */
-async function hasRecentNotification(
+async function lastNotifiedAt(
   ctx: QueryCtx,
   target: { shopId: Id<"shops"> } | { organizationId: Id<"organizations"> },
-  since: number,
-): Promise<boolean> {
-  for (const status of RECENT_NOTIFICATION_STATUSES) {
-    const row =
+): Promise<number | null> {
+  const latest = await Promise.all(
+    NOTIFIED_STATUSES.map((status) =>
       "shopId" in target
-        ? await ctx.db
+        ? ctx.db
             .query("notificationOutbox")
-            .withIndex("by_shopId_status", (q) =>
-              q.eq("shopId", target.shopId).eq("status", status).gte("_creationTime", since),
-            )
+            .withIndex("by_shopId_status", (q) => q.eq("shopId", target.shopId).eq("status", status))
+            .order("desc")
             .first()
-        : await ctx.db
+        : ctx.db
             .query("notificationOutbox")
             .withIndex("by_organizationId_status", (q) =>
-              q.eq("organizationId", target.organizationId).eq("status", status).gte("_creationTime", since),
+              q.eq("organizationId", target.organizationId).eq("status", status),
             )
-            .first();
-    if (row) return true;
-  }
-  return false;
+            .order("desc")
+            .first(),
+    ),
+  );
+  const times = latest.flatMap((row) => (row ? [row._creationTime] : []));
+  return times.length > 0 ? Math.max(...times) : null;
+}
+function notifiedSinceMatches(lastNotified: number | null, notifiedSince: number | null): boolean {
+  return notifiedSince === null || (lastNotified !== null && lastNotified >= notifiedSince);
 }
 /**
  * 店舗一覧の1行。絞り込みに一致しない店舗は、重いスタッフ数の集計前にnullを返す。
@@ -255,8 +258,8 @@ export async function shopListRow(
 ): Promise<AnalyticsShopListRowDto | null> {
   const billing = await organizationBilling(ctx, organization._id);
   if (filter.billing && !billingMatches(billing, filter.billing)) return null;
-  if (filter.notifiedSince !== null && !(await hasRecentNotification(ctx, { shopId: shop._id }, filter.notifiedSince)))
-    return null;
+  const lastNotified = await lastNotifiedAt(ctx, { shopId: shop._id });
+  if (!notifiedSinceMatches(lastNotified, filter.notifiedSince)) return null;
   const [latestShift, lastActivity] = await Promise.all([
     ctx.db
       .query("recruitments")
@@ -295,6 +298,7 @@ export async function shopListRow(
     staffCount,
     latestShift: latestShift ? { periodStart: latestShift.periodStart, periodEnd: latestShift.periodEnd } : null,
     lastActivityDate: lastActivity?.date ?? null,
+    lastNotifiedAt: lastNotified,
     billing,
     attention,
   };
@@ -324,11 +328,8 @@ export async function organizationListRow(
     return null;
   const billing = await organizationBilling(ctx, organization._id);
   if (filter.billing && !billingMatches(billing, filter.billing)) return null;
-  if (
-    filter.notifiedSince !== null &&
-    !(await hasRecentNotification(ctx, { organizationId: organization._id }, filter.notifiedSince))
-  )
-    return null;
+  const lastNotified = await lastNotifiedAt(ctx, { organizationId: organization._id });
+  if (!notifiedSinceMatches(lastNotified, filter.notifiedSince)) return null;
   const probe = await getOrganizationActualUsageProbe(ctx, organization._id, ORGANIZATION_PLAN_LIMITS.pro);
   const exact = (dimension: OrganizationUsageDimension, value: number) =>
     probe.unknownDimensions.includes(dimension) || probe.lowerBoundDimensions.includes(dimension) ? null : value;
@@ -340,6 +341,7 @@ export async function organizationListRow(
     peopleCount: exact("people", probe.usage.peopleCount),
     activeManagerCount: exact("activeManagers", probe.usage.activeManagerCount),
     shopCount: exact("shops", probe.usage.shopCount),
+    lastNotifiedAt: lastNotified,
     shops: shops.map((shop) => ({ shopId: shop._id, name: shop.name })),
   };
 }

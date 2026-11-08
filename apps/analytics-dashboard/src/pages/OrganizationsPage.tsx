@@ -55,6 +55,8 @@ function sortValue(row: AnalyticsOrganizationListRowDto, key: string) {
       return row.activeManagerCount;
     case "shopCount":
       return row.shopCount;
+    case "lastNotified":
+      return row.lastNotifiedAt;
     default:
       return row.registeredAt;
   }
@@ -110,8 +112,7 @@ export function OrganizationsPage({ navigate }: { navigate: (path: string) => vo
     );
     return [...unique.values()].sort(
       (left, right) =>
-        compareSortValues(sortValue(left, sort.key), sortValue(right, sort.key)) *
-          (sort.direction === "asc" ? 1 : -1) ||
+        compareSortValues(sortValue(left, sort.key), sortValue(right, sort.key), sort.direction) ||
         left.name.localeCompare(right.name, "ja") ||
         left.organizationId.localeCompare(right.organizationId),
     );
@@ -223,6 +224,13 @@ export function OrganizationsPage({ navigate }: { navigate: (path: string) => vo
                 },
                 { key: "shopCount", header: "店舗", sortable: true, render: (row) => <ShopLinks row={row} /> },
                 {
+                  key: "lastNotified",
+                  header: "最終通知",
+                  sortable: true,
+                  firstDirection: "desc",
+                  render: (row) => formatDateTime(row.lastNotifiedAt),
+                },
+                {
                   key: "registeredAt",
                   header: "登録日",
                   sortable: true,
@@ -237,6 +245,7 @@ export function OrganizationsPage({ navigate }: { navigate: (path: string) => vo
                     利用人数：{countLabel(row.peopleCount)}・管理者：{countLabel(row.activeManagerCount)}
                   </Text>
                   <ShopLinks row={row} />
+                  <Text fontSize="sm">最終通知：{formatDateTime(row.lastNotifiedAt)}</Text>
                   <Text fontSize="xs" color="gray.600">
                     登録：{formatDate(row.registeredAt)}
                   </Text>

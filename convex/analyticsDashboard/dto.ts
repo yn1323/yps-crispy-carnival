@@ -79,6 +79,8 @@ export type AnalyticsShopListRowDto = AnalyticsShopRowDto & {
   latestShift: { periodStart: string; periodEnd: string } | null;
   /** 計測開始後に提出・確定を記録した最終日。 */
   lastActivityDate: string | null;
+  /** 店舗宛の通知を最後に受け付けた時刻。取り消した通知は含めない。 */
+  lastNotifiedAt: number | null;
   billing: OrganizationBillingSummaryDto | null;
   attention: AnalyticsShopAttention[];
 };
@@ -108,6 +110,8 @@ export type AnalyticsOrganizationListRowDto = {
   peopleCount: number | null;
   activeManagerCount: number | null;
   shopCount: number | null;
+  /** 組織宛または所属店舗宛の通知を最後に受け付けた時刻。取り消した通知は含めない。 */
+  lastNotifiedAt: number | null;
   /** 現在の店舗。登録の古い順に表示上限まで返す。 */
   shops: Array<{ shopId: string; name: string }>;
 };

@@ -214,6 +214,7 @@ describe("analyticsDashboardの日次結果", () => {
       staffCount: null,
       latestShift: null,
       lastActivityDate: null,
+      lastNotifiedAt: null,
       billing: null,
       attention: [],
     });
@@ -271,6 +272,7 @@ describe("analyticsDashboardの問い合わせ境界", () => {
       staffCount: 3,
       latestShift: null,
       lastActivityDate: null,
+      lastNotifiedAt: null,
       billing: null,
       attention: [],
     });
@@ -852,6 +854,7 @@ describe("analyticsDashboardの組織一覧", () => {
       peopleCount: 3,
       activeManagerCount: 1,
       shopCount: 2,
+      lastNotifiedAt: null,
       shops: [
         { shopId: ids.mainShopId, name: "本店" },
         { shopId: ids.branchShopId, name: "駅前店" },
@@ -872,7 +875,7 @@ describe("analyticsDashboardの直近14日に通知した組織・店舗", () =>
     vi.useRealTimers();
   });
 
-  it("取消以外の通知を直近14日に受け付けた店舗と組織だけを返す", async () => {
+  it("取消以外の通知を最後に受け付けた時刻を返し、直近14日にある店舗と組織だけに絞り込める", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(AS_OF - 30 * DAY_MS);
     const t = convexTest(schema, modules);
@@ -925,16 +928,27 @@ describe("analyticsDashboardの直近14日に通知した組織・店舗", () =>
     await notify(ids.organizationWide, "sent", AS_OF - DAY_MS, "organization");
     const organizationOf = async (shopId: Id<"shops">) =>
       await t.run(async (ctx) => (await ctx.db.get(shopId))?.organizationId);
+    const organizationWideId = await organizationOf(ids.organizationWide);
 
+    const all = await t.query(getShopsRef, { ...PAGE, search: "", ...CURRENT });
+    const lastNotified = new Map(all.rows.map((row) => [row.shopId, row.lastNotifiedAt]));
+    expect(Object.fromEntries(lastNotified)).toEqual({
+      [ids.sent]: expect.closeTo(AS_OF - 13 * DAY_MS, 0),
+      [ids.failed]: expect.closeTo(AS_OF - DAY_MS, 0),
+      [ids.cancelled]: null,
+      [ids.old]: expect.closeTo(AS_OF - 15 * DAY_MS, 0),
+      [ids.silent]: null,
+      [ids.organizationWide]: null,
+    });
     const shops = await t.query(getShopsRef, { ...PAGE, search: "", ...CURRENT, notified: true });
     expect(shops.rows.map((row) => row.shopId).sort()).toEqual([ids.sent, ids.failed].sort());
     const organizations = await t.query(getOrganizationsRef, { ...PAGE, search: "", billing: null, notified: true });
+    expect(organizations.rows.find((row) => row.organizationId === organizationWideId)?.lastNotifiedAt).toBeCloseTo(
+      AS_OF - DAY_MS,
+      0,
+    );
     expect(organizations.rows.map((row) => row.organizationId).sort()).toEqual(
-      [
-        await organizationOf(ids.sent),
-        await organizationOf(ids.failed),
-        await organizationOf(ids.organizationWide),
-      ].sort(),
+      [await organizationOf(ids.sent), await organizationOf(ids.failed), organizationWideId].sort(),
     );
     await expect(
       t.query(getShopsRef, { ...PAGE, search: "", ...dayScope("2026-09-08"), notified: true }),

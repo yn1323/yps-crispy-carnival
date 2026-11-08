@@ -7,6 +7,8 @@ export type DataTableColumn<T> = {
   align?: "left" | "right" | "center";
   width?: string;
   sortable?: boolean;
+  /** 別の列からこの列へ並べ替えを切り替えた時の最初の順序。既定は昇順。 */
+  firstDirection?: DataTableSort["direction"];
   render: (row: T) => ReactNode;
 };
 
@@ -51,7 +53,9 @@ export function DataTable<T>({
     if (onNavigate) onNavigate(href);
     else window.location.assign(href);
   };
-  const nextDirection = (key: string) => (sort?.key === key && sort.direction === "asc" ? "desc" : "asc");
+  const firstDirection = (key: string) => columns.find((column) => column.key === key)?.firstDirection ?? "asc";
+  const nextDirection = (key: string) =>
+    sort?.key === key ? (sort.direction === "asc" ? "desc" : "asc") : firstDirection(key);
 
   return (
     <>
@@ -64,7 +68,9 @@ export function DataTable<T>({
             <NativeSelect.Field
               aria-label="並べ替える項目"
               value={sort.key}
-              onChange={(event) => onSortChange({ key: event.target.value, direction: "asc" })}
+              onChange={(event) =>
+                onSortChange({ key: event.target.value, direction: firstDirection(event.target.value) })
+              }
             >
               {columns
                 .filter((column) => column.sortable)

@@ -25,12 +25,18 @@ export async function fetchListPages<Data extends { rows: unknown[]; pageInfo: A
   }
 }
 
-/** 値のない行を末尾へ寄せ、数値は大小、文字列は日本語の自然順で比べる。 */
-export function compareSortValues(a: string | number | null | undefined, b: string | number | null | undefined) {
+/** 値のない行は昇順・降順のどちらでも末尾へ寄せ、数値は大小、文字列は日本語の自然順で比べる。 */
+export function compareSortValues(
+  a: string | number | null | undefined,
+  b: string | number | null | undefined,
+  direction: "asc" | "desc",
+) {
   if (a == null && b != null) return 1;
   if (a != null && b == null) return -1;
   if (a == null || b == null) return 0;
-  return typeof a === "number" && typeof b === "number"
-    ? a - b
-    : String(a).localeCompare(String(b), "ja", { numeric: true });
+  const order =
+    typeof a === "number" && typeof b === "number"
+      ? a - b
+      : String(a).localeCompare(String(b), "ja", { numeric: true });
+  return direction === "asc" ? order : -order;
 }
