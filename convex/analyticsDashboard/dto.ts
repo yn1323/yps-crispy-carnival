@@ -72,11 +72,13 @@ export type ShopBillingFilter =
   | "pending"
   | "scheduledChange"
   | "paymentTerminationPending";
+/** 募集の提出方法。時間指定・日付選択・パターン選択に対応する。 */
+export type SubmissionPatternKind = "time" | "dateOnly" | "shiftType";
 /** 店舗一覧で問い合わせ前に気づきたい状態。 */
 export type AnalyticsShopAttention = "shift_ended" | "inactive";
 export type AnalyticsShopListRowDto = AnalyticsShopRowDto & {
   staffCount: number | null;
-  latestShift: { periodStart: string; periodEnd: string } | null;
+  latestShift: { periodStart: string; periodEnd: string; submissionPattern: SubmissionPatternKind } | null;
   /** 計測開始後に提出・確定を記録した最終日。 */
   lastActivityDate: string | null;
   /** 店舗宛の通知を最後に受け付けた時刻。取り消した通知は含めない。 */
@@ -136,6 +138,8 @@ export type CycleRowDto = {
   deadline: string;
   status: "open" | "confirmed";
   confirmedAt: number | null;
+  /** 募集を作成した時点の提出方法。店舗の現在の設定とは異なる場合がある。 */
+  submissionPattern: SubmissionPatternKind;
 };
 export type CycleEvidenceDto = {
   recruitmentId: string;

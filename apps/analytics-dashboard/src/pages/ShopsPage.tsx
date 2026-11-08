@@ -17,6 +17,7 @@ import {
   formatDateTime,
   formatShiftPeriod,
   METRICS,
+  SUBMISSION_PATTERN_LABELS,
   shopPath,
 } from "@/features/analytics/format";
 import { compareSortValues, fetchListPages, LIST_PAGE_SIZE } from "@/features/analytics/listPages";
@@ -118,6 +119,8 @@ function sortValue(row: AnalyticsShopListRowDto, key: string) {
       return row.lastActivityDate;
     case "lastNotified":
       return row.lastNotifiedAt;
+    case "submissionPattern":
+      return row.latestShift ? SUBMISSION_PATTERN_LABELS[row.latestShift.submissionPattern] : null;
     default:
       return row.latestShift ? `${row.latestShift.periodStart}/${row.latestShift.periodEnd}` : null;
   }
@@ -350,6 +353,13 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
                       render: (row) => (row.isDeleted ? "確認できません" : formatShiftPeriod(row.latestShift)),
                     },
                     {
+                      key: "submissionPattern",
+                      header: "提出方法",
+                      sortable: true,
+                      render: (row) =>
+                        row.latestShift ? SUBMISSION_PATTERN_LABELS[row.latestShift.submissionPattern] : "—",
+                    },
+                    {
                       key: "lastActivity",
                       header: "最終利用",
                       sortable: true,
@@ -380,6 +390,7 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
                       </Text>
                       <Text fontSize="sm">
                         直近のシフト：{row.isDeleted ? "確認できません" : formatShiftPeriod(row.latestShift)}
+                        {row.latestShift && `（${SUBMISSION_PATTERN_LABELS[row.latestShift.submissionPattern]}）`}
                       </Text>
                       <Text fontSize="sm">最終利用：{formatDate(row.lastActivityDate)}</Text>
                       <Text fontSize="sm">最終通知：{formatDateTime(row.lastNotifiedAt)}</Text>

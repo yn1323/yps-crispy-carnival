@@ -46,7 +46,12 @@ function dayScope(date: string, to = date) {
 }
 async function seedRecruitment(
   ctx: MutationCtx,
-  args: { shopId: Id<"shops">; periodStart?: string; periodEnd?: string },
+  args: {
+    shopId: Id<"shops">;
+    periodStart?: string;
+    periodEnd?: string;
+    submissionPattern?: Doc<"recruitments">["submissionPattern"];
+  },
 ) {
   return await ctx.db.insert("recruitments", {
     shopId: args.shopId,
@@ -56,7 +61,7 @@ async function seedRecruitment(
     shopClosedDates: [],
     status: "open",
     isDeleted: false,
-    submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+    submissionPattern: args.submissionPattern ?? { kind: "time", startTime: "09:00", endTime: "22:00" },
   });
 }
 
@@ -315,6 +320,41 @@ describe("analyticsDashboardの問い合わせ境界", () => {
       staffCount: 0,
       latestShift: { periodStart: "2026-10-01", periodEnd: "2026-10-15" },
     });
+  });
+
+  it("直近シフトと募集一覧は、店舗の現在設定ではなく募集を作成した時点の提出方法を返す", async () => {
+    const t = convexTest(schema, modules);
+    const shopId = await t.run(async (ctx) => {
+      const shopId = await seedShop(ctx, "提出方法の店舗");
+      await seedRecruitment(ctx, {
+        shopId,
+        periodStart: "2026-09-01",
+        periodEnd: "2026-09-15",
+        submissionPattern: {
+          kind: "shiftType",
+          options: [{ id: "early", name: "早番", startTime: "09:00", endTime: "15:00", sortOrder: 0 }],
+        },
+      });
+      await seedRecruitment(ctx, {
+        shopId,
+        periodStart: "2026-10-01",
+        periodEnd: "2026-10-15",
+        submissionPattern: { kind: "dateOnly" },
+      });
+      return shopId;
+    });
+
+    const list = await t.query(getShopsRef, { ...PAGE, search: "提出方法の店舗", ...CURRENT });
+    expect(list.rows[0]?.latestShift).toEqual({
+      periodStart: "2026-10-01",
+      periodEnd: "2026-10-15",
+      submissionPattern: "dateOnly",
+    });
+    const detail = await t.query(getShopRef, { ...PAGE, shopId });
+    expect(detail?.cycles.map(({ periodStart, submissionPattern }) => ({ periodStart, submissionPattern }))).toEqual([
+      { periodStart: "2026-10-01", submissionPattern: "dateOnly" },
+      { periodStart: "2026-09-01", submissionPattern: "shiftType" },
+    ]);
   });
 
   it("スタッフ走査上限を超えた店舗は部分件数を返さず、上限以内なら正確な件数を返す。2名以上の絞り込みには含める", async () => {

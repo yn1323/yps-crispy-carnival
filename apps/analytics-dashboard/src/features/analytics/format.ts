@@ -1,5 +1,10 @@
 import { getDeadlineCutoff } from "@convex/_lib/dateFormat";
-import type { AnalyticsShopAttention, OrganizationBillingSummaryDto, ShopBillingFilter } from "@/api/analyticsTypes";
+import type {
+  AnalyticsShopAttention,
+  OrganizationBillingSummaryDto,
+  ShopBillingFilter,
+  SubmissionPatternKind,
+} from "@/api/analyticsTypes";
 
 export const METRICS = [
   { key: "registered", label: "新規登録店舗", description: "その日に新しく登録された店舗" },
@@ -16,6 +21,12 @@ export function formatDate(value: string | number | null | undefined) {
   if (!Number.isFinite(date.getTime())) return "日付を確認してください";
   return new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeZone: "Asia/Tokyo" }).format(date);
 }
+/** 本体の「シフト管理の基本用語」と同じ入力方法名。 */
+export const SUBMISSION_PATTERN_LABELS: Record<SubmissionPatternKind, string> = {
+  time: "時間指定",
+  dateOnly: "日付選択",
+  shiftType: "パターン選択",
+};
 export function formatShiftPeriod(period: { periodStart: string; periodEnd: string } | null | undefined) {
   if (!period) return "シフトなし";
   const [startYear, startMonth, startDay] = period.periodStart.split("-").map(Number);

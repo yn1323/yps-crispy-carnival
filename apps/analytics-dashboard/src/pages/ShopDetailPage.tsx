@@ -14,6 +14,7 @@ import {
   formatDeadline,
   lineStatusLabel,
   METRICS,
+  SUBMISSION_PATTERN_LABELS,
   staffPath,
 } from "@/features/analytics/format";
 import { AnalyticsPageLoading, Details, IdText, MoreButton, Panel, QueryError } from "@/features/analytics/PageState";
@@ -187,7 +188,7 @@ export function ShopDetailPage({ shopId, navigate }: { shopId: string; navigate:
                     .join("・")
                 : "なし",
             },
-            { label: "提出方法", value: data.submissionPattern },
+            { label: "現在の提出方法", value: data.submissionPattern },
           ]}
         />
       </Panel>
@@ -268,6 +269,11 @@ export function ShopDetailPage({ shopId, navigate }: { shopId: string; navigate:
             },
             { key: "deadline", header: "提出締切", render: (row) => formatDeadline(row.deadline) },
             {
+              key: "submissionPattern",
+              header: "提出方法",
+              render: (row) => SUBMISSION_PATTERN_LABELS[row.submissionPattern],
+            },
+            {
               key: "status",
               header: "状態",
               render: (row) => <Badge>{row.status === "confirmed" ? "確定済み" : "未確定"}</Badge>,
@@ -279,6 +285,7 @@ export function ShopDetailPage({ shopId, navigate }: { shopId: string; navigate:
                 {formatDate(row.periodStart)}〜{formatDate(row.periodEnd)}
               </Text>
               <Text fontSize="sm">締切：{formatDeadline(row.deadline)}</Text>
+              <Text fontSize="sm">提出方法：{SUBMISSION_PATTERN_LABELS[row.submissionPattern]}</Text>
               <Badge alignSelf="start">{row.status === "confirmed" ? "確定済み" : "未確定"}</Badge>
             </Stack>
           )}

@@ -311,7 +311,13 @@ export async function shopListRow(
   return {
     ...shopRow(shop, organization),
     staffCount,
-    latestShift: latestShift ? { periodStart: latestShift.periodStart, periodEnd: latestShift.periodEnd } : null,
+    latestShift: latestShift
+      ? {
+          periodStart: latestShift.periodStart,
+          periodEnd: latestShift.periodEnd,
+          submissionPattern: latestShift.submissionPattern.kind,
+        }
+      : null,
     lastActivityDate: lastActivity?.date ?? null,
     lastNotifiedAt: lastNotified,
     billing,
@@ -381,6 +387,7 @@ export function cycleRow(cycle: Doc<"recruitments">): CycleRowDto {
     deadline: cycle.deadline,
     status: cycle.status,
     confirmedAt: cycle.confirmedAt ?? null,
+    submissionPattern: cycle.submissionPattern.kind,
   };
 }
 export async function staffRow(ctx: QueryCtx, staffId: Id<"staffs">, shopId: Id<"shops">): Promise<StaffRowDto | null> {

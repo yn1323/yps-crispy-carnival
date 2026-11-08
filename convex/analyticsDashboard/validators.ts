@@ -113,9 +113,13 @@ export const shopRowValidator = v.object({
   registeredAt: nullableNumber,
   isDeleted: v.boolean(),
 });
+const submissionPatternKindValidator = v.union(v.literal("time"), v.literal("dateOnly"), v.literal("shiftType"));
 const shopListRowValidator = shopRowValidator.extend({
   staffCount: nullableNumber,
-  latestShift: v.union(v.object({ periodStart: v.string(), periodEnd: v.string() }), v.null()),
+  latestShift: v.union(
+    v.object({ periodStart: v.string(), periodEnd: v.string(), submissionPattern: submissionPatternKindValidator }),
+    v.null(),
+  ),
   lastActivityDate: nullableString,
   lastNotifiedAt: nullableNumber,
   billing: nullableBillingSummary,
@@ -171,6 +175,7 @@ export const cycleRowValidator = v.object({
   deadline: v.string(),
   status: v.union(v.literal("open"), v.literal("confirmed")),
   confirmedAt: nullableNumber,
+  submissionPattern: submissionPatternKindValidator,
 });
 const cycleEvidenceValidator = v.object({
   recruitmentId: v.string(),
