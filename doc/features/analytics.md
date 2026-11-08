@@ -21,6 +21,14 @@
 
 7日・30日・90日の期間値も店舗ごとに重複を除きます。日別の件数を足し合わせません。
 
+### 通知あり・2名以上と6名以上の組織・店舗
+
+前日分の集計では、日の終わり時点で直近14日に通知を受け付けた組織数と店舗数も記録します。管理者を含めて2名以上と6名以上に分けて数えます。  
+条件は組織・店舗一覧の「直近14日に通知あり」と人数の「2名以上」「6名以上」と同じです。通知は日の終わりまでの14日間で判定し、人数は翌朝の集計時点の値で数えます。
+
+人数は現在値しか残らないため、前日以外の日を後からまとめて集計した場合は記録しません。  
+この記録を始める前の日も復元しません。
+
 ## 保存するデータ
 
 | table | 役割 |
@@ -28,7 +36,7 @@
 | `analyticsState` | 計測開始日時、定義version、未集計日を確認する位置 |
 | `analyticsShopDays` | 店舗・日ごとの登録、提出、確定の有無 |
 | `analyticsCycleEvidence` | 問い合わせで参照する、計測開始後の提出・確定日時 |
-| `analyticsDailyResults` | 日別と固定期間の店舗数、集計状態、再試行と進捗 |
+| `analyticsDailyResults` | 日別と固定期間の店舗数、通知あり・2名以上と6名以上の組織数と店舗数、集計状態、再試行と進捗 |
 
 氏名、メールアドレス、LINE user ID、提出内容、通知本文、要望本文はAnalytics tableへ複製しません。  
 現在の店舗やスタッフは[問い合わせ用API](analytics-dashboard.md)から読み、日次集計の有無に依存させません。
@@ -39,6 +47,7 @@ JST 03:00に前日分を集計します。最初の起動でまだ計測開始�
 初日は開始時刻以降だけを観測し、画面で「初日は途中から計測」と明示します。翌日から完全な一日分になります。
 
 集計は店舗を有界pageで読み、日別と7日・30日・90日の件数を同じrunへ保存します。  
+前日分のrunは、先に組織と店舗を作成順の有界pageで読み、通知あり・2名以上と6名以上の数を保存してから利用実績を集計します。  
 進捗versionと次pageの予約を同じtransactionで更新し、遅れて届いた旧pageや重複実行を拒否します。成功時だけ数値を公開します。
 
 失敗時は1分・5分・15分後に再試行します。翌日の定期処理も、失敗・長時間停止したrunと未作成日を確認します。  
@@ -62,7 +71,7 @@ JST 03:00に前日分を集計します。最初の起動でまだ計測開始�
 ## 関連ファイル
 
 - `convex/analytics/model.ts`、`convex/analytics/record.ts`、`convex/analytics/registry.ts`
-- `convex/analytics/nightly.ts`、`convex/analytics/runs.ts`、`convex/analytics/maintenance.ts`
+- `convex/analytics/nightly.ts`、`convex/analytics/runs.ts`、`convex/analytics/engagement.ts`、`convex/analytics/maintenance.ts`
 - `convex/schema.ts`、`convex/crons.ts`
 - [分析KPI可視化アプリ](analytics-dashboard.md)
 - [設計・実装計画](../plans/2026-09-05_Analytics日次利用指標と問い合わせ閲覧_設計実装計画.md)

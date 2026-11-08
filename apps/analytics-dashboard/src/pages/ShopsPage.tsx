@@ -3,7 +3,12 @@ import { isShopScopeRange } from "@convex/analyticsDashboard/schemas";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { fetchShops, type ShopSearchParams } from "@/api/analyticsClient";
-import type { AnalyticsMetric, AnalyticsShopListRowDto, ShopBillingFilter } from "@/api/analyticsTypes";
+import type {
+  AnalyticsMetric,
+  AnalyticsMinStaff,
+  AnalyticsShopListRowDto,
+  ShopBillingFilter,
+} from "@/api/analyticsTypes";
 import { useReportAnalyticsEnvironment } from "@/app/analyticsEnvironment";
 import { DataTable, type DataTableSort } from "@/components/DataTable";
 import { PageHeading } from "@/components/PageHeading";
@@ -16,14 +21,16 @@ import {
   formatDate,
   formatDateTime,
   formatShiftPeriod,
+  formatTotal,
   METRICS,
   SUBMISSION_PATTERN_LABELS,
   shopPath,
+  sumCounts,
 } from "@/features/analytics/format";
 import { compareSortValues, fetchListPages, LIST_PAGE_SIZE } from "@/features/analytics/listPages";
-import { MultiStaffToggle } from "@/features/analytics/MultiStaffToggle";
-import { NotifiedSelect } from "@/features/analytics/NotifiedSelect";
+import { NotifiedSelect, readNotified, writeNotified } from "@/features/analytics/NotifiedSelect";
 import { AnalyticsPageLoading, MoreButton, Panel, QueryError } from "@/features/analytics/PageState";
+import { readMinStaff, StaffCountFilter, writeMinStaff } from "@/features/analytics/StaffCountFilter";
 import { AnalysisExportStatus, useAnalysisExport } from "@/features/export/useAnalysisExport";
 
 type ShopScope = { from: string; to: string; metric: AnalyticsMetric };
@@ -33,10 +40,13 @@ type ShopFilters = {
   billing: ShopBillingFilter | null;
   attention: boolean;
   notified: boolean;
-  multiStaff: boolean;
+  minStaff: AnalyticsMinStaff | null;
 };
 
-/** 絞り込みはURLを正本にし、日次分析のカードやグラフから同じ条件で開けるようにする。 */
+/**
+ * 絞り込みはURLを正本にし、日次分析のカードやグラフから同じ条件で開けるようにする。
+ * 全店舗を読むと重いため、現在の店舗では直近14日に通知あり・2名以上を既定にする。
+ */
 function readFilters(search: string): ShopFilters {
   const params = new URLSearchParams(search);
   const date = params.get("date");
@@ -51,8 +61,8 @@ function readFilters(search: string): ShopFilters {
     scope,
     billing: !scope && billing && billing in BILLING_FILTER_LABELS ? (billing as ShopBillingFilter) : null,
     attention: !scope && params.get("attention") === "1",
-    notified: !scope && params.get("notified") === "1",
-    multiStaff: !scope && params.get("multiStaff") === "1",
+    notified: !scope && readNotified(params),
+    minStaff: scope ? null : readMinStaff(params),
   };
 }
 function filtersPath(filters: ShopFilters) {
@@ -67,8 +77,8 @@ function filtersPath(filters: ShopFilters) {
   } else {
     if (filters.billing) params.set("billing", filters.billing);
     if (filters.attention) params.set("attention", "1");
-    if (filters.notified) params.set("notified", "1");
-    if (filters.multiStaff) params.set("multiStaff", "1");
+    writeNotified(params, filters.notified);
+    writeMinStaff(params, filters.minStaff);
   }
   if (filters.search) params.set("q", filters.search);
   return params.size ? `/shops?${params}` : "/shops";
@@ -81,7 +91,7 @@ function requestParams(filters: ShopFilters): ShopSearchParams {
         billing: filters.billing,
         attention: filters.attention || undefined,
         notified: filters.notified || undefined,
-        multiStaff: filters.multiStaff || undefined,
+        minStaff: filters.minStaff,
       };
 }
 function scopeLabel(scope: ShopScope) {
@@ -89,6 +99,10 @@ function scopeLabel(scope: ShopScope) {
   const period =
     scope.from === scope.to ? formatDate(scope.from) : `${formatDate(scope.from)}〜${formatDate(scope.to)}`;
   return `${period}・${metric}`;
+}
+
+function countLabel(value: number | null) {
+  return value == null ? "確認できません" : `${formatCount(value)}人`;
 }
 
 function AttentionBadges({ row }: { row: AnalyticsShopListRowDto }) {
@@ -112,6 +126,8 @@ function sortValue(row: AnalyticsShopListRowDto, key: string) {
       return row.organizationName;
     case "staffCount":
       return row.staffCount;
+    case "managerCount":
+      return row.managerCount;
     case "registeredAt":
       return row.registeredAt;
     case "billing":
@@ -153,6 +169,20 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
         left.shopId.localeCompare(right.shopId),
     );
   }, [query.data?.pages, sort]);
+  const totals = useMemo(() => {
+    // 削除済み店舗には現在のスタッフがいないため、合計に含めず、数を確認できない行としても扱わない。
+    const current = rows.filter((row) => !row.isDeleted);
+    return {
+      staff: sumCounts(
+        current.map((row) => row.staffCount),
+        query.hasNextPage,
+      ),
+      managers: sumCounts(
+        current.map((row) => row.managerCount),
+        query.hasNextPage,
+      ),
+    };
+  }, [rows, query.hasNextPage]);
   const scopeStatus = first?.data.scopeStatus;
   const setFilters = (next: Partial<ShopFilters>) => navigate(filtersPath({ ...filters, ...next }));
   const analysisExport = useAnalysisExport();
@@ -177,7 +207,7 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
             billing: filters.billing,
             attention: filters.attention,
             notified: filters.notified,
-            multiStaff: filters.multiStaff,
+            minStaff: filters.minStaff,
             activity: filters.scope,
           },
         },
@@ -279,9 +309,9 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
             />
           )}
           {!scoped && (
-            <MultiStaffToggle
-              value={filters.multiStaff}
-              onChange={(multiStaff) => setFilters({ search: input.trim(), multiStaff })}
+            <StaffCountFilter
+              value={filters.minStaff}
+              onChange={(minStaff) => setFilters({ search: input.trim(), minStaff })}
             />
           )}
           <Button type="submit">絞り込む</Button>
@@ -292,9 +322,11 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
           直近14日に通知を受け付けた店舗です。送信に失敗した通知も含め、取り消した通知は含めません。
         </Text>
       )}
-      {filters.multiStaff && (
+      {filters.minStaff !== null && (
         <Text color="gray.600" fontSize="sm">
-          管理者を含むスタッフが2名以上の店舗です。管理者だけの店舗を除き、スタッフが多くて数を確認できない店舗は含めます。
+          管理者を含むスタッフが{filters.minStaff}名以上の店舗です。
+          {filters.minStaff === 2 ? "管理者だけの店舗を除きます。" : ""}
+          スタッフが多くて数を確認できない店舗は含めます。
         </Text>
       )}
       {query.error && <QueryError error={query.error} onRetry={() => void query.refetch()} />}
@@ -313,7 +345,13 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
                   ? `契約が「${BILLING_FILTER_LABELS[filters.billing]}」の店舗`
                   : "現在の店舗一覧"
             }
-            description={`${formatDateTime(first.data.asOf)}時点。絞り込みと並べ替えは全店舗が対象です。`}
+            aside={
+              <Text color="gray.700" fontSize="sm" fontWeight="bold">
+                {formatTotal({ total: rows.length, isLowerBound: query.hasNextPage }, "店舗")}・スタッフ{" "}
+                {formatTotal(totals.staff, "人")}・管理者 {formatTotal(totals.managers, "人")}
+              </Text>
+            }
+            description={`${formatDateTime(first.data.asOf)}時点。絞り込みと並べ替えは全店舗が対象です。スタッフと管理者の合計は店舗ごとの人数の合計で、複数の店舗に所属する人は店舗ごとに数えます。人数を確認できない店舗があると、合計は「以上」と表示します。`}
           >
             {scopeStatus === "outside_retention" || scopeStatus === "unavailable" ? (
               <Alert.Root status="warning">
@@ -389,7 +427,14 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
                       header: "スタッフ数",
                       sortable: true,
                       align: "right",
-                      render: (row) => (row.staffCount == null ? "確認できません" : `${formatCount(row.staffCount)}人`),
+                      render: (row) => countLabel(row.staffCount),
+                    },
+                    {
+                      key: "managerCount",
+                      header: "管理者",
+                      sortable: true,
+                      align: "right",
+                      render: (row) => countLabel(row.managerCount),
                     },
                     {
                       key: "latestShift",
@@ -431,7 +476,7 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
                       <Text fontSize="sm">{row.organizationName ?? "組織を確認できません"}</Text>
                       <Text fontSize="sm">契約：{billingLabel(row.billing)}</Text>
                       <Text fontSize="sm">
-                        スタッフ数：{row.staffCount == null ? "確認できません" : `${formatCount(row.staffCount)}人`}
+                        スタッフ数：{countLabel(row.staffCount)}・管理者：{countLabel(row.managerCount)}
                       </Text>
                       <Text fontSize="sm">
                         直近のシフト：{row.isDeleted ? "確認できません" : formatShiftPeriod(row.latestShift)}

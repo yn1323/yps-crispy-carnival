@@ -214,7 +214,7 @@ describe("analyticsDashboard/httpActions", () => {
         billing: null,
         attention: false,
         notified: false,
-        multiStaff: false,
+        minStaff: null,
       },
       {
         endpoint: "organizations",
@@ -223,7 +223,7 @@ describe("analyticsDashboard/httpActions", () => {
         search: "",
         billing: null,
         notified: false,
-        multiStaff: false,
+        minStaff: null,
       },
       { endpoint: "shop", shopId: ids.shopId, cursor: null, limit: 1 },
       { endpoint: "staff", shopId: ids.shopId, staffId: ids.staffId, cursor: null, limit: 1 },

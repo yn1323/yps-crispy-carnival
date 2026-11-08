@@ -1,10 +1,13 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Id } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { jstDayRangeMs } from "../_lib/dateFormat";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { getOverviewRef } from "../analyticsDashboard/refs";
+import { DAY_MS } from "../constants";
 import { emptyAnalyticsResultCounts } from "./model";
 import { ensureAnalyticsState, recordAnalyticsUsage } from "./record";
 import {
@@ -154,16 +157,26 @@ describe("Analyticsの自動開始と日次集計", () => {
     });
     vi.setSystemTime(MORNING);
     await t.mutation(scheduleDailyAnalyticsRef, {});
-    const run = await t.run(async (ctx) => getDailyResult(ctx, "2026-09-05"));
+    let run = await t.run(async (ctx) => getDailyResult(ctx, "2026-09-05"));
+    // 前日分のrunは、2名以上・通知ありの組織・店舗を数え終えてから利用実績を集計する。
+    while (run?.engagement && run.engagement.stage !== "complete") {
+      await t.mutation(aggregateAnalyticsPageRef, { runId: run._id, stepVersion: run.stepVersion });
+      run = await t.run(async (ctx) => getDailyResult(ctx, "2026-09-05"));
+    }
     if (!run) throw new Error("run missing");
-    const args = { runId: run._id, stepVersion: run.stepVersion };
+    const runId = run._id;
+    const args = { runId, stepVersion: run.stepVersion };
     await t.mutation(aggregateAnalyticsPageRef, args);
-    const first = await t.run(async (ctx) => ctx.db.get(run._id));
-    expect(first).toMatchObject({ status: "running", stepVersion: 1, counts: { day: { registered: 20 } } });
+    const first = await t.run(async (ctx) => ctx.db.get(runId));
+    expect(first).toMatchObject({
+      status: "running",
+      stepVersion: run.stepVersion + 1,
+      counts: { day: { registered: 20 } },
+    });
     await t.mutation(aggregateAnalyticsPageRef, args);
-    expect(await t.run(async (ctx) => ctx.db.get(run._id))).toEqual(first);
+    expect(await t.run(async (ctx) => ctx.db.get(runId))).toEqual(first);
     await t.finishAllScheduledFunctions(vi.runAllTimers);
-    const completed = await t.run(async (ctx) => ctx.db.get(run._id));
+    const completed = await t.run(async (ctx) => ctx.db.get(runId));
     expect(completed).toMatchObject({
       status: "complete",
       counts: { day: { registered: 22 } },
@@ -196,6 +209,88 @@ describe("Analyticsの自動開始と日次集計", () => {
     expect(completed).toMatchObject({ status: "complete", attemptCount: 2, counts: { day: { registered: 1 } } });
     await t.mutation(failAnalyticsPageRef, { runId: run._id, stepVersion: 0, errorCode: "analytics_run_stale" });
     expect(await t.run(async (ctx) => ctx.db.get(run._id))).toEqual(completed);
+  });
+
+  it("前日分の集計で、日の終わり時点に直近14日に通知を受け付けた組織と店舗を2名以上・6名以上に分けて数え、過去の日には記録しない", async () => {
+    const t = convexTest(schema, modules);
+    const dayEnd = jstDayRangeMs("2026-09-25").endMs;
+    const ids = await t.run(async (ctx) => {
+      await ensureAnalyticsState(ctx);
+      const seedTeam = async (name: string, staffCount: number) => {
+        const shopId = await seedShop(ctx, name);
+        for (let index = 0; index < staffCount; index += 1) await seedStaff(ctx, { shopId, name: `${name}${index}` });
+        return shopId;
+      };
+      const ids = {
+        engaged: await seedTeam("通知あり2名", 2),
+        large: await seedTeam("通知あり6名", 6),
+        oldNotice: await seedTeam("15日前の通知", 2),
+        alone: await seedTeam("通知あり1名", 1),
+        cancelled: await seedTeam("取消した通知", 2),
+        afterDayEnd: await seedTeam("翌日の通知", 2),
+      };
+      // 1回に確認する上限を超える組織・店舗を置き、続きのpageでも数える。
+      for (let index = 0; index < 100; index += 1) await seedShop(ctx, `通知なし${index}`);
+      return ids;
+    });
+    const notify = async (shopId: Id<"shops">, status: Doc<"notificationOutbox">["status"], at: number) => {
+      vi.setSystemTime(at);
+      await t.run(async (ctx) => {
+        const shop = await ctx.db.get(shopId);
+        if (!shop) throw new Error("missing fixture shop");
+        await ctx.db.insert("notificationOutbox", {
+          channel: "email",
+          status,
+          dedupeKey: `email:analytics-engaged:${shopId}:${at}`,
+          shopId,
+          organizationId: shop.organizationId,
+          purpose: "business",
+          notificationContext: "notification.sendRecruitmentNotificationEmails",
+          deliverySuppressed: false,
+          payload: {
+            kind: "email",
+            from: "シフトリ <noreply@example.com>",
+            to: "staff@example.com",
+            subject: "シフト募集のお知らせ",
+            html: "<p>募集</p>",
+            context: "notification.sendRecruitmentNotificationEmails",
+          },
+          attemptCount: 1,
+          nextRunAt: at,
+          createdAt: at,
+          updatedAt: at,
+        });
+      });
+    };
+    await notify(ids.oldNotice, "sent", dayEnd - 15 * DAY_MS);
+    await notify(ids.engaged, "sent", dayEnd - 3 * DAY_MS);
+    await notify(ids.large, "failed", dayEnd - 3 * DAY_MS);
+    await notify(ids.alone, "sent", dayEnd - 3 * DAY_MS);
+    await notify(ids.cancelled, "cancelled", dayEnd - 2 * DAY_MS);
+    await notify(ids.afterDayEnd, "sent", dayEnd + 60 * 60 * 1000);
+
+    const morning = dayEnd + 3 * 60 * 60 * 1000;
+    vi.setSystemTime(morning);
+    await t.mutation(scheduleDailyAnalyticsRef, {});
+    const run = await t.run(async (ctx) => getDailyResult(ctx, "2026-09-25"));
+    if (!run) throw new Error("run missing");
+    await t.mutation(aggregateAnalyticsPageRef, { runId: run._id, stepVersion: run.stepVersion });
+    expect((await t.run(async (ctx) => ctx.db.get(run._id)))?.engagement).toEqual({
+      stage: "organizations",
+      counts: { min2: { organizations: 2, shops: 0 }, min6: { organizations: 1, shops: 0 } },
+      cursorCreationTime: expect.any(Number),
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const result = await t.run(async (ctx) => getDailyResult(ctx, "2026-09-25"));
+    const engaged = { min2: { organizations: 2, shops: 2 }, min6: { organizations: 1, shops: 1 } };
+    expect(result).toMatchObject({ status: "complete", engagement: { stage: "complete", counts: engaged } });
+    const overview = await t.query(getOverviewRef, { rangeDays: 30, asOf: morning });
+    expect(overview.yesterday).toMatchObject({ date: "2026-09-25", engaged });
+    expect(overview.series.find((day) => day.date === "2026-09-24")).toMatchObject({
+      status: "complete",
+      engaged: null,
+    });
   });
 
   it("保持期限に達したrunを終端化してから入力を削除し、集計結果は残す", async () => {

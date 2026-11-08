@@ -1,5 +1,9 @@
 import { v } from "convex/values";
-import { analyticsCountsValidator, analyticsMetricValidator } from "../analytics/model";
+import {
+  analyticsCountsValidator,
+  analyticsEngagedCountsValidator,
+  analyticsMetricValidator,
+} from "../analytics/model";
 import {
   notificationChannelValidator,
   notificationHistoryDeliveryStatusValidator,
@@ -37,6 +41,7 @@ export const shopBillingFilterValidator = v.union(
   v.literal("scheduledChange"),
   v.literal("paymentTerminationPending"),
 );
+export const minStaffValidator = v.union(v.literal(2), v.literal(6));
 const recruitmentPeriodValidator = v.object({
   recruitmentId: v.string(),
   periodStart: v.string(),
@@ -69,6 +74,7 @@ const dayValidator = v.object({
     v.literal("partial"),
   ),
   counts: v.union(analyticsCountsValidator, v.null()),
+  engaged: v.union(analyticsEngagedCountsValidator, v.null()),
   observationStartAt: nullableNumber,
   observationEndAt: nullableNumber,
   computedAt: nullableNumber,
@@ -116,6 +122,7 @@ export const shopRowValidator = v.object({
 const submissionPatternKindValidator = v.union(v.literal("time"), v.literal("dateOnly"), v.literal("shiftType"));
 const shopListRowValidator = shopRowValidator.extend({
   staffCount: nullableNumber,
+  managerCount: nullableNumber,
   latestShift: v.union(
     v.object({ periodStart: v.string(), periodEnd: v.string(), submissionPattern: submissionPatternKindValidator }),
     v.null(),

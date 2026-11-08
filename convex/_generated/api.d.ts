@@ -58,6 +58,7 @@ import type * as accountDeletion_queries from "../accountDeletion/queries.js";
 import type * as accountDeletion_schemas from "../accountDeletion/schemas.js";
 import type * as accountEmail_actions from "../accountEmail/actions.js";
 import type * as accountEmail_mutations from "../accountEmail/mutations.js";
+import type * as analytics_engagement from "../analytics/engagement.js";
 import type * as analytics_maintenance from "../analytics/maintenance.js";
 import type * as analytics_model from "../analytics/model.js";
 import type * as analytics_nightly from "../analytics/nightly.js";
@@ -341,6 +342,7 @@ declare const fullApi: ApiFromModules<{
   "accountDeletion/schemas": typeof accountDeletion_schemas;
   "accountEmail/actions": typeof accountEmail_actions;
   "accountEmail/mutations": typeof accountEmail_mutations;
+  "analytics/engagement": typeof analytics_engagement;
   "analytics/maintenance": typeof analytics_maintenance;
   "analytics/model": typeof analytics_model;
   "analytics/nightly": typeof analytics_nightly;

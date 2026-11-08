@@ -2,7 +2,7 @@ import { Button, Flex, Input, Link, NativeSelect, Stack, Text } from "@chakra-ui
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { fetchOrganizations } from "@/api/analyticsClient";
-import type { AnalyticsOrganizationListRowDto, ShopBillingFilter } from "@/api/analyticsTypes";
+import type { AnalyticsMinStaff, AnalyticsOrganizationListRowDto, ShopBillingFilter } from "@/api/analyticsTypes";
 import { useReportAnalyticsEnvironment } from "@/app/analyticsEnvironment";
 import { DataTable, type DataTableSort } from "@/components/DataTable";
 import { PageHeading } from "@/components/PageHeading";
@@ -13,37 +13,42 @@ import {
   formatCount,
   formatDate,
   formatDateTime,
+  formatTotal,
   shopPath,
+  sumCounts,
 } from "@/features/analytics/format";
 import { compareSortValues, fetchListPages, LIST_PAGE_SIZE } from "@/features/analytics/listPages";
-import { MultiStaffToggle } from "@/features/analytics/MultiStaffToggle";
-import { NotifiedSelect } from "@/features/analytics/NotifiedSelect";
+import { NotifiedSelect, readNotified, writeNotified } from "@/features/analytics/NotifiedSelect";
 import { AnalyticsPageLoading, MoreButton, Panel, QueryError } from "@/features/analytics/PageState";
+import { readMinStaff, StaffCountFilter, writeMinStaff } from "@/features/analytics/StaffCountFilter";
 import { AnalysisExportStatus, useAnalysisExport } from "@/features/export/useAnalysisExport";
 
 type OrganizationFilters = {
   search: string;
   billing: ShopBillingFilter | null;
   notified: boolean;
-  multiStaff: boolean;
+  minStaff: AnalyticsMinStaff | null;
 };
 
-/** 絞り込みはURLを正本にし、日次分析の契約状況カードから同じ条件で開けるようにする。 */
+/**
+ * 絞り込みはURLを正本にし、日次分析の契約状況カードから同じ条件で開けるようにする。
+ * 全組織を読むと重いため、通知と人数は直近14日に通知あり・2名以上を既定にする。
+ */
 function readFilters(search: string): OrganizationFilters {
   const params = new URLSearchParams(search);
   const billing = params.get("billing");
   return {
     search: params.get("q") ?? "",
     billing: billing && billing in BILLING_FILTER_LABELS ? (billing as ShopBillingFilter) : null,
-    notified: params.get("notified") === "1",
-    multiStaff: params.get("multiStaff") === "1",
+    notified: readNotified(params),
+    minStaff: readMinStaff(params),
   };
 }
 function filtersPath(filters: OrganizationFilters) {
   const params = new URLSearchParams();
   if (filters.billing) params.set("billing", filters.billing);
-  if (filters.notified) params.set("notified", "1");
-  if (filters.multiStaff) params.set("multiStaff", "1");
+  writeNotified(params, filters.notified);
+  writeMinStaff(params, filters.minStaff);
   if (filters.search) params.set("q", filters.search);
   return params.size ? `/organizations?${params}` : "/organizations";
 }
@@ -105,7 +110,7 @@ export function OrganizationsPage({ navigate }: { navigate: (path: string) => vo
             search: filters.search,
             billing: filters.billing,
             notified: filters.notified || undefined,
-            multiStaff: filters.multiStaff || undefined,
+            minStaff: filters.minStaff,
             cursor,
             limit: LIST_PAGE_SIZE,
           },
@@ -127,6 +132,19 @@ export function OrganizationsPage({ navigate }: { navigate: (path: string) => vo
         left.organizationId.localeCompare(right.organizationId),
     );
   }, [query.data?.pages, sort]);
+  const totals = useMemo(
+    () => ({
+      people: sumCounts(
+        rows.map((row) => row.peopleCount),
+        query.hasNextPage,
+      ),
+      managers: sumCounts(
+        rows.map((row) => row.activeManagerCount),
+        query.hasNextPage,
+      ),
+    }),
+    [rows, query.hasNextPage],
+  );
   const setFilters = (next: Partial<OrganizationFilters>) => navigate(filtersPath({ ...filters, ...next }));
   const analysisExport = useAnalysisExport();
   // 自動で読む上限に達して続きがある場合も、条件に合う全組織を読み切ってから出力する。
@@ -148,7 +166,7 @@ export function OrganizationsPage({ navigate }: { navigate: (path: string) => vo
             hasNameSearch: filters.search !== "",
             billing: filters.billing,
             notified: filters.notified,
-            multiStaff: filters.multiStaff,
+            minStaff: filters.minStaff,
           },
         },
         organizationIds: [...new Set(pages.flatMap((page) => page.rows).map((row) => row.organizationId))],
@@ -219,9 +237,9 @@ export function OrganizationsPage({ navigate }: { navigate: (path: string) => vo
             value={filters.notified}
             onChange={(notified) => setFilters({ search: input.trim(), notified })}
           />
-          <MultiStaffToggle
-            value={filters.multiStaff}
-            onChange={(multiStaff) => setFilters({ search: input.trim(), multiStaff })}
+          <StaffCountFilter
+            value={filters.minStaff}
+            onChange={(minStaff) => setFilters({ search: input.trim(), minStaff })}
           />
           <Button type="submit">絞り込む</Button>
         </Flex>
@@ -231,9 +249,10 @@ export function OrganizationsPage({ navigate }: { navigate: (path: string) => vo
           直近14日に、組織または所属店舗の通知を受け付けた組織です。送信に失敗した通知も含め、取り消した通知は含めません。
         </Text>
       )}
-      {filters.multiStaff && (
+      {filters.minStaff !== null && (
         <Text color="gray.600" fontSize="sm">
-          管理者を含む利用人数が2名以上の組織です。管理者だけの組織を除きます。
+          管理者を含む利用人数が{filters.minStaff}名以上の組織です。
+          {filters.minStaff === 2 ? "管理者だけの組織を除きます。" : ""}
         </Text>
       )}
       {query.error && <QueryError error={query.error} onRetry={() => void query.refetch()} />}
@@ -246,7 +265,13 @@ export function OrganizationsPage({ navigate }: { navigate: (path: string) => vo
         first && (
           <Panel
             title={filters.billing ? `契約が「${BILLING_FILTER_LABELS[filters.billing]}」の組織` : "現在の組織一覧"}
-            description={`${formatDateTime(first.data.asOf)}時点。絞り込みと並べ替えは全組織が対象です。利用人数はプラン上限と同じ数え方で、管理者を含み、複数店舗に所属する人も1人と数えます。`}
+            aside={
+              <Text color="gray.700" fontSize="sm" fontWeight="bold">
+                {formatTotal({ total: rows.length, isLowerBound: query.hasNextPage }, "組織")}・利用人数{" "}
+                {formatTotal(totals.people, "人")}・管理者 {formatTotal(totals.managers, "人")}
+              </Text>
+            }
+            description={`${formatDateTime(first.data.asOf)}時点。絞り込みと並べ替えは全組織が対象です。利用人数はプラン上限と同じ数え方で、管理者を含み、複数店舗に所属する人も1人と数えます。人数を確認できない組織があると、合計は「以上」と表示します。`}
           >
             <Flex justify="space-between" align="center" gap={3} wrap="wrap">
               <Text fontSize="xs" color="gray.600">

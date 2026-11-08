@@ -5,6 +5,7 @@ import {
   observedInternalAction as internalAction,
   observedInternalMutation as internalMutation,
 } from "../_lib/errorObservability";
+import { countEngagedPage } from "./engagement";
 import { ANALYTICS_DEFINITION_VERSION, ANALYTICS_METRICS, ANALYTICS_PERIOD_DAYS } from "./model";
 import { safeAnalyticsErrorCode } from "./observability";
 import { ensureAnalyticsState } from "./record";
@@ -21,6 +22,14 @@ export const aggregatePage = internalMutation({
     if (run.definitionVersion !== ANALYTICS_DEFINITION_VERSION) throw new Error("analytics_definition_mismatch");
     if (run.inputStartDate < detailRetentionDate(Date.now())) {
       await expireRun(ctx, run, Date.now());
+      return null;
+    }
+    if (run.engagement && run.engagement.stage !== "complete") {
+      // 人数を集計時点の値で数えるため、利用実績より先に、日の終わり時点の通知と合わせて数える。
+      const engagement = await countEngagedPage(ctx, run.engagement, run.observationEndAt);
+      const stepVersion = run.stepVersion + 1;
+      await ctx.db.patch(run._id, { engagement, stepVersion, updatedAt: Date.now() });
+      await ctx.scheduler.runAfter(0, runAnalyticsPageRef, { runId: run._id, stepVersion });
       return null;
     }
     const counts = {
