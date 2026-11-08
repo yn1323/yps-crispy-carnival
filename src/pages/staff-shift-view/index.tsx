@@ -3,7 +3,11 @@ import { useQuery } from "convex/react";
 import { LuTriangleAlert, LuWifiOff } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { StaffAccessBoundary, type StaffAccessState } from "@/src/components/features/StaffAccess";
+import {
+  StaffAccessBoundary,
+  type StaffAccessState,
+  useStaffLinkInvalidMeasurement,
+} from "@/src/components/features/StaffAccess";
 import { ShiftViewPage } from "@/src/components/features/StaffView";
 import { FullPageSpinner } from "@/src/components/templates/FullPageSpinner";
 import { StaffCenteredContent, StaffLayout } from "@/src/components/templates/StaffLayout";
@@ -84,6 +88,7 @@ function ShiftViewContent({ session }: { session: { sessionToken: string; recrui
     accessKind: "view",
     recruitmentId: session.recruitmentId as Id<"recruitments">,
   });
+  useStaffLinkInvalidMeasurement(data === null ? "invalid_link" : null, "view");
 
   if (data === undefined) return <FullPageSpinner />;
 

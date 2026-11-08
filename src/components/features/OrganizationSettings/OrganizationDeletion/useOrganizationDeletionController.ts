@@ -5,6 +5,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import { selectedShopAtom } from "@/src/stores/shop";
 import { EMPTY_USER, userAtom } from "@/src/stores/user";
 import type { OrganizationDeletionDialogState } from "./OrganizationDeletionDialog";
@@ -72,6 +73,7 @@ export function useOrganizationDeletionController(
         requestId: intent.requestId,
       };
       await deleteOrganizationForOrganization(deletionArgs);
+      trackProductEvent({ kind: "manage_action", target: "organization", action: "delete_organization" });
       // Dialogの履歴guardを先に戻し、そのhistory.back()に遷移を上書きされないようにする。
       pendingRedirectRef.current = "/dashboard";
       setSelectedShop(null);

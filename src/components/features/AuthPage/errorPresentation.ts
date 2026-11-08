@@ -1,3 +1,5 @@
+import { trackProductEvent } from "@/src/lib/webMeasurement";
+
 type ClerkError = {
   code?: string;
   message?: string;
@@ -6,6 +8,8 @@ type ClerkError = {
 
 export function getClerkErrorMessage(error: unknown) {
   const clerkError = getFirstClerkError(error);
+  // 利用者へ表示するClerkのエラーは、すべてこの関数を通る。codeだけを送り、messageは送らない。
+  trackProductEvent({ kind: "auth_error", errorCode: clerkError?.code });
   if (!clerkError) return "認証に失敗しました。\n時間をおいて、もう一度お試しください。";
 
   switch (clerkError.code) {

@@ -17,10 +17,14 @@ import {
   formatDateTime,
   formatShiftPeriod,
   METRICS,
+  SUBMISSION_PATTERN_LABELS,
   shopPath,
 } from "@/features/analytics/format";
 import { compareSortValues, fetchListPages, LIST_PAGE_SIZE } from "@/features/analytics/listPages";
+import { MultiStaffToggle } from "@/features/analytics/MultiStaffToggle";
+import { NotifiedSelect } from "@/features/analytics/NotifiedSelect";
 import { AnalyticsPageLoading, MoreButton, Panel, QueryError } from "@/features/analytics/PageState";
+import { AnalysisExportStatus, useAnalysisExport } from "@/features/export/useAnalysisExport";
 
 type ShopScope = { from: string; to: string; metric: AnalyticsMetric };
 type ShopFilters = {
@@ -28,6 +32,8 @@ type ShopFilters = {
   scope: ShopScope | null;
   billing: ShopBillingFilter | null;
   attention: boolean;
+  notified: boolean;
+  multiStaff: boolean;
 };
 
 /** 絞り込みはURLを正本にし、日次分析のカードやグラフから同じ条件で開けるようにする。 */
@@ -45,6 +51,8 @@ function readFilters(search: string): ShopFilters {
     scope,
     billing: !scope && billing && billing in BILLING_FILTER_LABELS ? (billing as ShopBillingFilter) : null,
     attention: !scope && params.get("attention") === "1",
+    notified: !scope && params.get("notified") === "1",
+    multiStaff: !scope && params.get("multiStaff") === "1",
   };
 }
 function filtersPath(filters: ShopFilters) {
@@ -59,6 +67,8 @@ function filtersPath(filters: ShopFilters) {
   } else {
     if (filters.billing) params.set("billing", filters.billing);
     if (filters.attention) params.set("attention", "1");
+    if (filters.notified) params.set("notified", "1");
+    if (filters.multiStaff) params.set("multiStaff", "1");
   }
   if (filters.search) params.set("q", filters.search);
   return params.size ? `/shops?${params}` : "/shops";
@@ -66,7 +76,13 @@ function filtersPath(filters: ShopFilters) {
 function requestParams(filters: ShopFilters): ShopSearchParams {
   return filters.scope
     ? { search: filters.search, ...filters.scope }
-    : { search: filters.search, billing: filters.billing, attention: filters.attention || undefined };
+    : {
+        search: filters.search,
+        billing: filters.billing,
+        attention: filters.attention || undefined,
+        notified: filters.notified || undefined,
+        multiStaff: filters.multiStaff || undefined,
+      };
 }
 function scopeLabel(scope: ShopScope) {
   const metric = METRICS.find((item) => item.key === scope.metric)?.label ?? "指標を確認してください";
@@ -102,6 +118,10 @@ function sortValue(row: AnalyticsShopListRowDto, key: string) {
       return row.billing ? billingLabel(row.billing) : null;
     case "lastActivity":
       return row.lastActivityDate;
+    case "lastNotified":
+      return row.lastNotifiedAt;
+    case "submissionPattern":
+      return row.latestShift ? SUBMISSION_PATTERN_LABELS[row.latestShift.submissionPattern] : null;
     default:
       return row.latestShift ? `${row.latestShift.periodStart}/${row.latestShift.periodEnd}` : null;
   }
@@ -128,14 +148,43 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
     const unique = new Map((query.data?.pages ?? []).flatMap((page) => page.rows).map((row) => [row.shopId, row]));
     return [...unique.values()].sort(
       (left, right) =>
-        compareSortValues(sortValue(left, sort.key), sortValue(right, sort.key)) *
-          (sort.direction === "asc" ? 1 : -1) ||
+        compareSortValues(sortValue(left, sort.key), sortValue(right, sort.key), sort.direction) ||
         left.name.localeCompare(right.name, "ja") ||
         left.shopId.localeCompare(right.shopId),
     );
   }, [query.data?.pages, sort]);
   const scopeStatus = first?.data.scopeStatus;
   const setFilters = (next: Partial<ShopFilters>) => navigate(filtersPath({ ...filters, ...next }));
+  const analysisExport = useAnalysisExport();
+  // 自動で読む上限に達して続きがある場合も、条件に合う全店舗を読み切ってから出力する。
+  const exportShops = () =>
+    void analysisExport.start(async (signal) => {
+      let pages = query.data?.pages ?? [];
+      if (query.hasNextPage) {
+        // 取得に失敗しても続きがあるとhasNextPageが残るため、失敗時はthrowして出力を止める。
+        const fetchNext = () => query.fetchNextPage({ throwOnError: true });
+        let result = await fetchNext();
+        while (result.hasNextPage && !signal.aborted) result = await fetchNext();
+        pages = result.data?.pages ?? pages;
+      }
+      signal.throwIfAborted();
+      const loaded = [...new Map(pages.flatMap((page) => page.rows).map((row) => [row.shopId, row])).values()];
+      return {
+        scope: {
+          kind: "shopList",
+          filters: {
+            hasNameSearch: filters.search !== "",
+            billing: filters.billing,
+            attention: filters.attention,
+            notified: filters.notified,
+            multiStaff: filters.multiStaff,
+            activity: filters.scope,
+          },
+        },
+        shopIds: loaded.filter((row) => !row.isDeleted).map((row) => row.shopId),
+        deletedShopCount: loaded.filter((row) => row.isDeleted).length,
+      };
+    });
   return (
     <Stack gap={6}>
       <PageHeading
@@ -223,12 +272,37 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
               </NativeSelect.Root>
             </Text>
           )}
+          {!scoped && (
+            <NotifiedSelect
+              value={filters.notified}
+              onChange={(notified) => setFilters({ search: input.trim(), notified })}
+            />
+          )}
+          {!scoped && (
+            <MultiStaffToggle
+              value={filters.multiStaff}
+              onChange={(multiStaff) => setFilters({ search: input.trim(), multiStaff })}
+            />
+          )}
           <Button type="submit">絞り込む</Button>
         </Flex>
       </form>
+      {filters.notified && (
+        <Text color="gray.600" fontSize="sm">
+          直近14日に通知を受け付けた店舗です。送信に失敗した通知も含め、取り消した通知は含めません。
+        </Text>
+      )}
+      {filters.multiStaff && (
+        <Text color="gray.600" fontSize="sm">
+          管理者を含むスタッフが2名以上の店舗です。管理者だけの店舗を除き、スタッフが多くて数を確認できない店舗は含めます。
+        </Text>
+      )}
       {query.error && <QueryError error={query.error} onRetry={() => void query.refetch()} />}
       {query.isPending ? (
-        <AnalyticsPageLoading title="店舗を読み込み中" description="店舗一覧の最初のページを取得しています。" />
+        <AnalyticsPageLoading
+          title="店舗を読み込み中"
+          description="並べ替えに使うため、該当する店舗をすべて取得しています。店舗が多いと時間がかかります。"
+        />
       ) : (
         first && (
           <Panel
@@ -239,7 +313,7 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
                   ? `契約が「${BILLING_FILTER_LABELS[filters.billing]}」の店舗`
                   : "現在の店舗一覧"
             }
-            description={`${formatDateTime(first.data.asOf)}時点。絞り込みは全店舗が対象です。${scoped ? "" : "登録の新しい順に読み込みます。"}並べ替えは読み込んだ店舗の中で行います。`}
+            description={`${formatDateTime(first.data.asOf)}時点。絞り込みと並べ替えは全店舗が対象です。`}
           >
             {scopeStatus === "outside_retention" || scopeStatus === "unavailable" ? (
               <Alert.Root status="warning">
@@ -252,6 +326,20 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
               </Alert.Root>
             ) : (
               <>
+                <Flex justify="space-between" align="center" gap={3} wrap="wrap">
+                  <Text fontSize="xs" color="gray.600">
+                    条件に合う全店舗を、組織・店舗・人物を仮名にした分析用JSONで保存できます。
+                  </Text>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={analysisExport.isRunning || (rows.length === 0 && !query.hasNextPage)}
+                    onClick={exportShops}
+                  >
+                    分析用JSONを保存
+                  </Button>
+                </Flex>
+                <AnalysisExportStatus state={analysisExport.state} onClose={analysisExport.close} />
                 <DataTable
                   rows={rows}
                   sort={sort}
@@ -310,10 +398,24 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
                       render: (row) => (row.isDeleted ? "確認できません" : formatShiftPeriod(row.latestShift)),
                     },
                     {
+                      key: "submissionPattern",
+                      header: "提出方法",
+                      sortable: true,
+                      render: (row) =>
+                        row.latestShift ? SUBMISSION_PATTERN_LABELS[row.latestShift.submissionPattern] : "—",
+                    },
+                    {
                       key: "lastActivity",
                       header: "最終利用",
                       sortable: true,
                       render: (row) => formatDate(row.lastActivityDate),
+                    },
+                    {
+                      key: "lastNotified",
+                      header: "最終通知",
+                      sortable: true,
+                      firstDirection: "desc",
+                      render: (row) => formatDateTime(row.lastNotifiedAt),
                     },
                     {
                       key: "registeredAt",
@@ -333,8 +435,10 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
                       </Text>
                       <Text fontSize="sm">
                         直近のシフト：{row.isDeleted ? "確認できません" : formatShiftPeriod(row.latestShift)}
+                        {row.latestShift && `（${SUBMISSION_PATTERN_LABELS[row.latestShift.submissionPattern]}）`}
                       </Text>
                       <Text fontSize="sm">最終利用：{formatDate(row.lastActivityDate)}</Text>
+                      <Text fontSize="sm">最終通知：{formatDateTime(row.lastNotifiedAt)}</Text>
                       <Text fontSize="xs" color="gray.600">
                         登録：{formatDate(row.registeredAt)}
                       </Text>

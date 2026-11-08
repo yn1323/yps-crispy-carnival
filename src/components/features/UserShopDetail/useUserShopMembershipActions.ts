@@ -4,6 +4,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import type { UserShopDetailMembership } from "./types";
 
 export function useUserShopMembershipActions({
@@ -105,6 +106,7 @@ export function useUserShopMembershipActions({
           excluded,
           expectedOrganizationId,
         });
+        trackProductEvent({ kind: "manage_action", target: "staff", action: excluded ? "exclude" : "include" });
         const current = currentTargetRef.current;
         if (current.targetShopId === target.targetShopId && current.staffId === target.staffId) {
           showSuccessToast({ title: excluded ? "シフト対象外にしました" : "シフト対象に戻しました" });

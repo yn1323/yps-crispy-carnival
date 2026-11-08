@@ -18,6 +18,7 @@
 
 | 計画 | 状態 | 次に必要な判断 | 現在の正本 |
 |---|---|---|---|
+| [Analytics分析用JSONの仮名化出力](2026-11-09_Analytics分析用JSONの仮名化出力_設計.md) | `reviewing` | 対応表を画面だけに出すか、仮名をファイルごとに振るか、募集8件・利用日90日の範囲で足りるかを決める | [分析KPI可視化アプリ](../features/analytics-dashboard.md) |
 | [GA4計測基盤とSkill整備](2026-08-12_GA4計測基盤とSkill整備_実装計画.md) | `partially superseded` | アプリ側safe coreは監査残件実装計画へ移管済み。`ga4-measurement` Skillを別途作成するかだけを決める | [公開Web計測](../features/web-measurement.md)、[GA4・GTM運用](../manual/ga4-gtm.md) |
 | [AIシフト下書き機能 詳細設計](2026-07-03_AIシフト下書き機能.md) | `reviewing` | 機能を採用するか、誰が再検討するかを決める | 現行のシフト作成は[シフト表](../features/shift-board.md) |
 | [AIシフト下書き機能 実装仕様書](2026-07-03_AIシフト下書き機能_実装仕様書.md) | `reviewing` | 詳細設計の採否後に実装仕様を確定する | 現行のシフト作成は[シフト表](../features/shift-board.md) |
@@ -28,6 +29,7 @@
 
 | 計画 | 状態 | 未完了条件 | 現在の正本 |
 |---|---|---|---|
+| [希望シフトの日付メモ](2026-10-04_希望シフトの日付メモ_実装計画.md) | `repository implemented` | 提出画面、シフト表（PC・SP）、PDF・Excelのメモ一覧、プライバシーポリシー更新を実装し、ローカルのlint・型検査・全テスト・buildは成功。仮決定の項目（文字数、再同意、閲覧のみ、常時有効、保持期間、メモ一覧の初期状態）とポリシー文言の法務確認、VRT基準画像の承認、CI、実環境への反映とClarity設定の確認が残る | [希望シフト提出](../features/shift-submission.md)、[シフト表](../features/shift-board.md) |
 | [LINE連携トークンの使い回し](2026-10-31_LINE連携トークン使い回し_実装計画.md) | `repository implemented` | メール経由の発行での使い回し、メール変更時の失効、主担当テスト、機能文書の更新を実装し、lint・型検査・Logic/Convex/Scenario testは成功。UI testはローカル環境でブラウザを起動できず未実行。CI・自動レビューと実環境への反映が残る | [LINE通知連携](../features/line-notification.md) |
 | [トライアル終了前のDashboard案内](2026-10-17_トライアル終了前のDashboard案内_実装計画.md) | `repository implemented` | 未契約Trialへ終了14日前・7日前・最終日の段階的な案内をDashboardに実装し、ローカルの検証は成功。表示と押下の計測、VRT基準画像の承認、CI、実環境への反映が残る | [Dashboardの課金案内](../features/trial-ending-dashboard-callout.md) |
 | [Analyticsの問い合わせ調査と利用状況の追加](2026-09-26_Analytics問い合わせ調査と利用状況の追加_実装計画.md) | `repository implemented` | 要注意の店舗、契約状態、通知の状態と検索、スタッフの行動履歴、組織の操作履歴、内部IDの表示、tokenによるマジックリンクの確認、通知の組織名・店舗名検索、契約状況・期間の店舗数からの店舗一覧の絞り込み、店舗一覧の分割取得を既存データだけで実装し、ローカルのlint・型検査・Convex/logic test・Analytics buildは成功。CI・自動レビュー、実環境への反映と実データでの表示確認が残る | [分析KPI可視化アプリ](../features/analytics-dashboard.md) |

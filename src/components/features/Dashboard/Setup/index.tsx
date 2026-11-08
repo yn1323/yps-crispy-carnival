@@ -27,9 +27,11 @@ export function Setup({ managerProfileDefaults, showAccountDeletion, announcemen
     async (promotionCode: string) => {
       try {
         await verifyPromotionCode({ promotionCode });
+        trackProductEvent({ kind: "promotion_code_apply", result: "valid" });
         return true;
       } catch {
         // 利用者には設定不備や通信失敗を区別せず、不一致と同じ案内を表示する。
+        trackProductEvent({ kind: "promotion_code_apply", result: "invalid" });
         return false;
       }
     },

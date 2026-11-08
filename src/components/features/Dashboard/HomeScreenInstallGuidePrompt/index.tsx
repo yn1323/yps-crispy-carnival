@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { LuExternalLink, LuX } from "react-icons/lu";
 import { IconButton } from "@/src/components/ui/Button";
 import { isStandaloneWebApp, STANDALONE_DISPLAY_QUERY } from "@/src/lib/pwaDisplayMode";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 
 export const HOME_SCREEN_INSTALL_GUIDE_DISMISSAL_STORAGE_KEY =
   "shiftori-dashboard-home-screen-install-guide-dismissed:v1";
@@ -13,6 +14,7 @@ const MOBILE_VIEWPORT_QUERY = "(max-width: 1023px)";
 export function HomeScreenInstallGuidePrompt() {
   const [isVisible, setIsVisible] = useState(false);
   const dismissedInSessionRef = useRef(false);
+  const viewTrackedRef = useRef(false);
 
   useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
@@ -39,7 +41,14 @@ export function HomeScreenInstallGuidePrompt() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isVisible || viewTrackedRef.current) return;
+    viewTrackedRef.current = true;
+    trackProductEvent({ kind: "home_screen_guide", action: "view" });
+  }, [isVisible]);
+
   const handleDismiss = () => {
+    trackProductEvent({ kind: "home_screen_guide", action: "dismiss" });
     dismissedInSessionRef.current = true;
     setIsVisible(false);
     writeDismissedState();
@@ -47,10 +56,21 @@ export function HomeScreenInstallGuidePrompt() {
 
   if (!isVisible) return null;
 
-  return <HomeScreenInstallGuidePromptView onDismiss={handleDismiss} />;
+  return (
+    <HomeScreenInstallGuidePromptView
+      onDismiss={handleDismiss}
+      onOpen={() => trackProductEvent({ kind: "home_screen_guide", action: "open" })}
+    />
+  );
 }
 
-export function HomeScreenInstallGuidePromptView({ onDismiss }: { onDismiss: () => void }) {
+export function HomeScreenInstallGuidePromptView({
+  onDismiss,
+  onOpen,
+}: {
+  onDismiss: () => void;
+  onOpen?: () => void;
+}) {
   return (
     <Flex w="full" align="center" justify="flex-end" gap={1}>
       <Link
@@ -58,6 +78,7 @@ export function HomeScreenInstallGuidePromptView({ onDismiss }: { onDismiss: () 
         target="_blank"
         rel="noopener noreferrer"
         aria-label="ホーム画面にシフトリを追加する（別タブで開きます）"
+        onClick={onOpen}
         minH="44px"
         display="inline-flex"
         alignItems="center"

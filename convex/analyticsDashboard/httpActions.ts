@@ -9,8 +9,10 @@ import {
   getNotificationSummaryRef,
   getNotificationsRef,
   getOrganizationEventsRef,
+  getOrganizationExportRef,
   getOrganizationsRef,
   getOverviewRef,
+  getShopExportRef,
   getShopRef,
   getShopsRef,
   getStaffRef,
@@ -99,6 +101,8 @@ async function dispatchQuery(
         metric: input.metric,
         billing: input.billing,
         attention: input.attention,
+        notified: input.notified,
+        multiStaff: input.multiStaff,
         asOf,
       });
     case "organizations":
@@ -107,6 +111,8 @@ async function dispatchQuery(
         limit: input.limit,
         search: input.search,
         billing: input.billing,
+        notified: input.notified,
+        multiStaff: input.multiStaff,
         asOf,
       });
     case "shop":
@@ -143,6 +149,10 @@ async function dispatchQuery(
       return await ctx.runQuery(getStaffTimelineRef, { shopId: input.shopId, staffId: input.staffId, asOf });
     case "magicLinkLookup":
       return await ctx.runQuery(getMagicLinkLookupRef, { token: input.token, asOf });
+    case "shopExport":
+      return await ctx.runQuery(getShopExportRef, { shopId: input.shopId, asOf });
+    case "organizationExport":
+      return await ctx.runQuery(getOrganizationExportRef, { organizationId: input.organizationId, asOf });
     case "organizationEvents":
       return await ctx.runQuery(getOrganizationEventsRef, {
         shopId: input.shopId,

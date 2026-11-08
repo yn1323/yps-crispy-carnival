@@ -1,12 +1,19 @@
 // @vitest-environment jsdom
 
+import { ConvexError } from "convex/values";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   hasActiveWebMeasurement,
   initializeDocumentWebMeasurement,
   isWebMeasurementRuntimeEnabled,
   resetWebMeasurementForTests,
+  setManagerMeasurementIdentity,
+  setManagerMeasurementOrganization,
+  setManagerMeasurementShop,
+  setStaffMeasurementIdentity,
   stopDocumentWebMeasurement,
+  trackAppError,
+  trackAppTiming,
   trackPageView,
   trackProductEvent,
   trackPublicCta,
@@ -63,6 +70,7 @@ describe("Web計測runtime", () => {
         {
           event: "page_view",
           app_environment: "preview",
+          display_mode: "browser",
           page_location: `${window.location.origin}${pagePath}`,
           release_id: "release-1",
           route_area: routeArea,
@@ -191,11 +199,108 @@ describe("Web計測runtime", () => {
     expect(window.dataLayer?.at(-1)).toEqual({
       event: "shift_export",
       app_environment: "preview",
+      display_mode: "browser",
       format: "pdf",
       release_id: "release-1",
       route_area: "manager",
       route_family: "shift_export",
     });
+  });
+
+  it("管理者とスタッフの識別子を、それぞれの画面のイベントだけに付ける", () => {
+    initializeDocumentWebMeasurement({
+      config: { ...config, webVitalsSampleRate: 0 },
+      currentPathname: "/dashboard",
+      initialDocumentPathname: "/dashboard",
+      viewportWidth: 1280,
+    });
+    setManagerMeasurementIdentity({ userId: "user_2abc" });
+    setManagerMeasurementOrganization({ organizationId: "org123", organizationPlan: "pro" });
+    setManagerMeasurementShop("shop456");
+    setStaffMeasurementIdentity({ recruitmentId: "recruitment789" });
+
+    trackProductEvent({ kind: "manage_action", target: "shift", action: "save" }, "/shifts/recruitment789/board");
+    expect(window.dataLayer?.at(-1)).toMatchObject({
+      event: "manage_action",
+      user_id: "user_2abc",
+      organization_id: "org123",
+      shop_id: "shop456",
+      organization_plan: "pro",
+      recruitment_id: undefined,
+      display_mode: "browser",
+    });
+
+    trackProductEvent({ kind: "staff_link_reissue" }, "/shifts/reissue");
+    expect(window.dataLayer?.at(-1)).toMatchObject({ recruitment_id: "recruitment789", user_id: undefined });
+
+    setManagerMeasurementIdentity(null);
+    trackProductEvent({ kind: "feature_request_submit" }, "/dashboard");
+    expect(window.dataLayer?.at(-1)).toMatchObject({ user_id: undefined, shop_id: undefined });
+  });
+
+  it.each([
+    { error: new ConvexError("Not found"), surface: "toast", source: "server_business", code: "not_found" },
+    { error: new ConvexError("提出期限を過ぎています"), surface: "toast", source: "server_business", code: "other" },
+    {
+      error: new Error("[CONVEX M(shiftBoard:save)] [Request ID: abc] Server Error"),
+      surface: "toast",
+      source: "server_unexpected",
+      code: "none",
+    },
+    {
+      error: new TypeError("Failed to fetch dynamically imported module: /assets/a.js"),
+      surface: "screen",
+      source: "chunk_load",
+      code: "none",
+    },
+    { error: new TypeError("Failed to fetch"), surface: "toast", source: "network", code: "none" },
+    { error: new Error("secret name"), surface: "screen", source: "render", code: "none" },
+    { error: new Error("secret name"), surface: "toast", source: "client", code: "none" },
+  ] as const)("画面に出たエラーを$sourceに分類し、messageを送らない", ({ error, surface, source, code }) => {
+    initializeDocumentWebMeasurement({
+      config: { ...config, webVitalsSampleRate: 0 },
+      currentPathname: "/dashboard",
+      initialDocumentPathname: "/dashboard",
+      viewportWidth: 1280,
+    });
+
+    expect(trackAppError(surface, error)).toBe(true);
+    expect(window.dataLayer?.at(-1)).toMatchObject({
+      event: "app_error",
+      error_surface: surface,
+      error_source: source,
+      error_code: code,
+    });
+    expect(JSON.stringify(window.dataLayer)).not.toContain("secret");
+    expect(JSON.stringify(window.dataLayer)).not.toContain("Request ID");
+  });
+
+  it("表示までの時間はsampling対象documentで段階ごとに一度だけ送る", () => {
+    initializeDocumentWebMeasurement(
+      {
+        config,
+        currentPathname: "/dashboard",
+        initialDocumentPathname: "/dashboard",
+        viewportWidth: 1280,
+      },
+      { random: () => 0, reportVitals: async () => {} },
+    );
+
+    expect(trackAppTiming("clerk_loaded")).toBe(true);
+    expect(trackAppTiming("clerk_loaded")).toBe(false);
+    expect(window.dataLayer?.filter((event) => event.event === "app_timing")).toEqual([
+      expect.objectContaining({ phase: "clerk_loaded", document_route_family: "dashboard" }),
+    ]);
+
+    resetWebMeasurementForTests();
+    window.dataLayer = [];
+    initializeDocumentWebMeasurement({
+      config: { ...config, webVitalsSampleRate: 0 },
+      currentPathname: "/dashboard",
+      initialDocumentPathname: "/dashboard",
+      viewportWidth: 1280,
+    });
+    expect(trackAppTiming("clerk_loaded")).toBe(false);
   });
 
   it("Web Vitalsのdocument routeはcallback時の現在routeへ変えない", async () => {

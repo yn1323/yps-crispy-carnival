@@ -11,10 +11,12 @@ import type {
   NotificationSearchResponse,
   NotificationSummaryResponse,
   OrganizationEventsResponse,
+  OrganizationExportResponse,
   OrganizationsResponse,
   OverviewResponse,
   ShopBillingFilter,
   ShopDetailResponse,
+  ShopExportResponse,
   ShopsResponse,
   StaffDetailResponse,
   StaffTimelineResponse,
@@ -85,6 +87,8 @@ export type ShopSearchParams = PaginationParams & {
   metric?: AnalyticsMetric | null;
   billing?: ShopBillingFilter | null;
   attention?: boolean;
+  notified?: boolean;
+  multiStaff?: boolean;
 };
 /** 続きを連続で読む途中でrate limitへ達しても、取得済みのページを捨てず同じcursorから再開する。 */
 async function fetchListEndpoint<T>(path: string, params: Record<string, SearchValue>, signal?: AbortSignal) {
@@ -111,7 +115,12 @@ async function fetchListEndpoint<T>(path: string, params: Record<string, SearchV
 export function fetchShops(params: ShopSearchParams, signal?: AbortSignal) {
   return fetchListEndpoint<ShopsResponse>("/api/analytics/shops", params, signal);
 }
-export type OrganizationSearchParams = PaginationParams & { search?: string; billing?: ShopBillingFilter | null };
+export type OrganizationSearchParams = PaginationParams & {
+  search?: string;
+  billing?: ShopBillingFilter | null;
+  notified?: boolean;
+  multiStaff?: boolean;
+};
 export function fetchOrganizations(params: OrganizationSearchParams, signal?: AbortSignal) {
   return fetchListEndpoint<OrganizationsResponse>("/api/analytics/organizations", params, signal);
 }
@@ -187,5 +196,16 @@ export function lookupMagicLink(token: string) {
     "/api/analytics/magic-links/lookup",
     {},
     { endpoint: "magicLinkLookup", token },
+  );
+}
+/** 分析用JSONの元データ。多数の店舗を続けて読むため、rate limitでは待って同じ要求を再開する。 */
+export function fetchShopExport(shopId: string, signal?: AbortSignal) {
+  return fetchListEndpoint<ShopExportResponse>(`/api/analytics/export/shops/${encodeURIComponent(shopId)}`, {}, signal);
+}
+export function fetchOrganizationExport(organizationId: string, signal?: AbortSignal) {
+  return fetchListEndpoint<OrganizationExportResponse>(
+    `/api/analytics/export/organizations/${encodeURIComponent(organizationId)}`,
+    {},
+    signal,
   );
 }

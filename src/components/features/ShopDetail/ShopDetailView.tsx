@@ -93,6 +93,7 @@ export function ShopDetailView({
 
       {isStaffMembershipDialogOpen && (
         <ErrorBoundary
+          errorSurface="dialog"
           fallback={
             <ShopStaffMembershipDialogError
               isOpen

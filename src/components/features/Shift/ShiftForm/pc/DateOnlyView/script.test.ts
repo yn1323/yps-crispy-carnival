@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
-import { buildDateOnlyRows, buildDateOnlyWeeks, getSortableDates } from "./script";
+import { buildDateOnlyRows, buildDateOnlyWeeks, buildRowWeekNotes, getSortableDates } from "./script";
 
 describe("buildDateOnlyWeeks", () => {
   it("期間を月曜始まりの週へまとめる", () => {
@@ -91,5 +91,27 @@ describe("buildDateOnlyRows", () => {
     expect(rows[0].isStaffNameMuted).toBe(false);
     expect(rows[1].requestBadges).toEqual([{ key: "unsubmitted", label: "未提出", tone: "warning" }]);
     expect(rows[1].isStaffNameMuted).toBe(true);
+  });
+});
+
+describe("buildRowWeekNotes", () => {
+  const column = (iso: string) => ({
+    date: { iso, inRange: true },
+    isClosed: false,
+    assignmentCount: 0,
+  });
+  const notes = new Map([
+    ["staff-a:2026-06-04", "午前だけ"],
+    ["staff-a:2026-06-02", "17時以降なら入れます"],
+    ["staff-b:2026-06-02", "別スタッフのメモ"],
+    ["staff-a:2026-06-09", "表示外の週のメモ"],
+  ]);
+
+  it("表示中の週にあるそのスタッフのメモだけを日付順で返す", () => {
+    const columns = ["2026-06-01", "2026-06-02", "2026-06-03", "2026-06-04"].map(column);
+    expect(buildRowWeekNotes("staff-a", columns, (staffId, date) => notes.get(`${staffId}:${date}`))).toEqual([
+      { date: "2026-06-02", note: "17時以降なら入れます" },
+      { date: "2026-06-04", note: "午前だけ" },
+    ]);
   });
 });

@@ -72,13 +72,17 @@ export type ShopBillingFilter =
   | "pending"
   | "scheduledChange"
   | "paymentTerminationPending";
+/** 募集の提出方法。時間指定・日付選択・パターン選択に対応する。 */
+export type SubmissionPatternKind = "time" | "dateOnly" | "shiftType";
 /** 店舗一覧で問い合わせ前に気づきたい状態。 */
 export type AnalyticsShopAttention = "shift_ended" | "inactive";
 export type AnalyticsShopListRowDto = AnalyticsShopRowDto & {
   staffCount: number | null;
-  latestShift: { periodStart: string; periodEnd: string } | null;
+  latestShift: { periodStart: string; periodEnd: string; submissionPattern: SubmissionPatternKind } | null;
   /** 計測開始後に提出・確定を記録した最終日。 */
   lastActivityDate: string | null;
+  /** 店舗宛の通知を最後に受け付けた時刻。取り消した通知は含めない。 */
+  lastNotifiedAt: number | null;
   billing: OrganizationBillingSummaryDto | null;
   attention: AnalyticsShopAttention[];
 };
@@ -108,6 +112,8 @@ export type AnalyticsOrganizationListRowDto = {
   peopleCount: number | null;
   activeManagerCount: number | null;
   shopCount: number | null;
+  /** 組織宛または所属店舗宛の通知を最後に受け付けた時刻。取り消した通知は含めない。 */
+  lastNotifiedAt: number | null;
   /** 現在の店舗。登録の古い順に表示上限まで返す。 */
   shops: Array<{ shopId: string; name: string }>;
 };
@@ -132,6 +138,8 @@ export type CycleRowDto = {
   deadline: string;
   status: "open" | "confirmed";
   confirmedAt: number | null;
+  /** 募集を作成した時点の提出方法。店舗の現在の設定とは異なる場合がある。 */
+  submissionPattern: SubmissionPatternKind;
 };
 export type CycleEvidenceDto = {
   recruitmentId: string;
@@ -395,6 +403,88 @@ export type MagicLinkLookupResponse = {
     };
   } | null;
 };
+/**
+ * 分析用JSONの元データ。人物名、メールアドレス、パターン名、日付メモなどの自由記述を型に持たない。
+ * 店舗名・組織名は画面の対応表だけに使い、ブラウザで仮名へ置き換えてからファイルにする。
+ */
+export type ExportSubmissionPatternDto =
+  | { kind: "time"; startTime: string; endTime: string }
+  | { kind: "dateOnly" }
+  | { kind: "shiftType"; options: Array<{ startTime: string; endTime: string }> };
+export type ShopExportMemberDto = {
+  /** 同じメールアドレスを持つ最も古いスタッフのID。ブラウザで仮名へ置き換え、ファイルには入れない。 */
+  personKey: string;
+  isManager: boolean;
+  excludedFromShift: boolean;
+  accountLinked: boolean;
+  lineStatus: StaffRowDto["lineStatus"];
+  joinedAt: number;
+};
+export type ShopExportSubmissionDto = {
+  /** 現在の有効なスタッフでなければnull。 */
+  personKey: string | null;
+  firstSubmittedAt: number;
+  lastSubmittedAt: number;
+  /** 初回提出が提出期限の当日中だったか。 */
+  firstSubmittedByDeadline: boolean;
+  needsResubmission: boolean;
+  /** 割当の走査が上限に達した募集ではnull。 */
+  assigned: boolean | null;
+};
+export type ShopExportRecruitmentDto = {
+  periodStart: string;
+  periodEnd: string;
+  deadline: string;
+  createdAt: number;
+  status: "open" | "confirmed";
+  confirmedAt: number | null;
+  confirmedBeforeStart: boolean | null;
+  submissionPattern: ExportSubmissionPatternDto;
+  shopClosedDateCount: number;
+  editCount: number;
+  reminderScheduledAt: number | null;
+  reminderSentAt: number | null;
+  draftSavedAt: number | null;
+  /** 最後に提出数を更新した時点の提出人数とシフト対象人数。 */
+  stats: { submittedCount: number; shiftTargetCount: number } | null;
+  submissions: ShopExportSubmissionDto[];
+  submissionsTruncated: boolean;
+  assignment: { assignedStaffCount: number; assignmentCount: number; isTruncated: boolean };
+};
+export type ShopExportResponse = {
+  kind: "shopExport";
+  asOf: number;
+  shop: {
+    shopId: string;
+    name: string;
+    organizationId: string;
+    organizationName: string;
+    registeredAt: number;
+    regularClosedDays: string[];
+    submissionPattern: ExportSubmissionPatternDto;
+  };
+  usage: {
+    analyticsStartedAt: number | null;
+    staffCount: number | null;
+    lastActivityDate: string | null;
+    lastNotifiedAt: number | null;
+    attention: AnalyticsShopAttention[];
+    /** 直近90日のうち、提出・確定を記録した日。 */
+    activeDays: Array<{ date: string; submitted: boolean; confirmed: boolean }>;
+  };
+  members: ShopExportMemberDto[];
+  membersTruncated: boolean;
+  recruitments: ShopExportRecruitmentDto[];
+  recruitmentsTruncated: boolean;
+};
+export type OrganizationExportResponse = {
+  kind: "organizationExport";
+  asOf: number;
+  organization: Omit<AnalyticsOrganizationListRowDto, "shops">;
+  /** 現在の店舗。登録の古い順。 */
+  shops: Array<{ shopId: string; name: string }>;
+  shopsTruncated: boolean;
+};
 export type AnalyticsDashboardResponse =
   | OverviewResponse
   | ShopsResponse
@@ -407,4 +497,6 @@ export type AnalyticsDashboardResponse =
   | NotificationSummaryResponse
   | StaffTimelineResponse
   | OrganizationEventsResponse
-  | MagicLinkLookupResponse;
+  | MagicLinkLookupResponse
+  | ShopExportResponse
+  | OrganizationExportResponse;

@@ -3,11 +3,14 @@ import { ShiftForm } from "..";
 import {
   allPatternsArgs,
   emptyOrAllUnsubmittedArgs,
+  expectStaffNoteIconOpensOnTap,
+  expectWarningIconOpensOnTap,
   fullscreenParameters,
   halfHourBusinessHoursArgs,
   mobileGlobals,
   overnightArgs,
   shiftFormDecorators,
+  timeDateNotesArgs,
   validationWarningArgs,
 } from "./shared";
 
@@ -63,4 +66,28 @@ export const TimeWithValidationWarnings: Story = {
   name: "With Validation Warnings",
   args: validationWarningArgs,
   globals: mobileGlobals,
+};
+
+export const WithDateNotes: Story = {
+  args: timeDateNotesArgs,
+  globals: mobileGlobals,
+};
+
+/** 連絡事項を非表示にしたときだけ名前の右にアイコンを出し、タップで本文を開く。 */
+export const DateNotesHiddenIconInteractive: Story = {
+  args: timeDateNotesArgs,
+  globals: mobileGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    await expectStaffNoteIconOpensOnTap(canvasElement, "17時以降なら入れます");
+  },
+};
+
+export const ValidationWarningIconInteractive: Story = {
+  args: validationWarningArgs,
+  globals: mobileGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    await expectWarningIconOpensOnTap(canvasElement);
+  },
 };

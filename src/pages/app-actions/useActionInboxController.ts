@@ -11,6 +11,7 @@ import {
   buildStaffRegistrationActionInboxItem,
 } from "@/src/components/features/ActionInbox";
 import { formatDateShort, formatDateTime } from "@/src/domains/shift/date";
+import { trackAppError, trackProductEvent } from "@/src/lib/webMeasurement";
 import type { ActionInboxSourceItem } from "./useActionInboxData";
 
 type PendingActionInboxConfirmation =
@@ -87,6 +88,7 @@ export function useActionInboxController({
           expectedOrganizationId: organizationId,
           requestId: item.requestId,
         });
+        trackProductEvent({ kind: "staff_add", method: "request_approve", count: 1 });
         onRefresh();
       },
       requestRejectRegistration: (item) => {
@@ -114,6 +116,7 @@ export function useActionInboxController({
               : "連絡先や募集の状態が変わったため、通知を再送できませんでした。",
           );
         }
+        trackProductEvent({ kind: "manage_action", target: "notification", action: "resend" });
         onRefresh();
       },
       requestResolveNotification: (item) => {
@@ -135,6 +138,7 @@ export function useActionInboxController({
         requestIdsRef.current.set(key, requestId);
         await resendInvitation({ organizationId, invitationId: item.invitationId, requestId });
         requestIdsRef.current.delete(key);
+        trackProductEvent({ kind: "manage_action", target: "manager", action: "resend_invite" });
         onRefresh();
       },
       requestRevokeInvitation: (item) => {
@@ -170,6 +174,7 @@ export function useActionInboxController({
           expectedOrganizationId: organizationId,
           requestId: item.requestId,
         });
+        trackProductEvent({ kind: "manage_action", target: "staff", action: "reject_request" });
       } else if (pendingConfirmation.kind === "resolveNotification") {
         const { item } = pendingConfirmation;
         await resolveFailure({
@@ -177,17 +182,20 @@ export function useActionInboxController({
           expectedOrganizationId: organizationId,
           failureId: item.failureId,
         });
+        trackProductEvent({ kind: "manage_action", target: "notification", action: "resolve" });
       } else {
         await revokeInvitation({
           organizationId,
           invitationId: pendingConfirmation.item.invitationId,
           requestId: pendingConfirmation.requestId,
         });
+        trackProductEvent({ kind: "manage_action", target: "manager", action: "revoke_invite" });
       }
       setCompletedItemId(completedId);
       onRefresh();
       setPendingConfirmation(null);
     } catch (error) {
+      trackAppError("dialog", error);
       setConfirmationError(resolveErrorMessage(error));
     } finally {
       confirmingRef.current = false;

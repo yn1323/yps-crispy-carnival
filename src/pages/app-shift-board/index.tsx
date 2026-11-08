@@ -11,7 +11,7 @@ import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
 import { ErrorBoundary } from "@/src/components/ui/ErrorBoundary";
 import { ShiftoriLoading } from "@/src/components/ui/ShiftoriLoading";
-import { formatDateShort } from "@/src/domains/shift/date";
+import { formatDateRangeShort } from "@/src/domains/shift/date";
 import { useShiftBoardDayKey } from "@/src/hooks/useShiftBoardDayKey";
 import { ManagerShopScopeProvider } from "@/src/providers/ManagerShopScopeProvider";
 import { useRetainedShiftBoardData } from "./useRetainedShiftBoardData";
@@ -66,6 +66,16 @@ function AppShiftBoardQuery({ organizationId, recruitmentId }: Required<Props>) 
         }
       : "skip",
   );
+  const queriedDateNotes = useQuery(
+    api.shiftBoard.queries.getShiftBoardDateNotes,
+    shopScope
+      ? {
+          shopId: shopScope.shopId,
+          expectedOrganizationId: organizationDocumentId,
+          recruitmentId: recruitmentDocumentId,
+        }
+      : "skip",
+  );
   const data = useRetainedShiftBoardData(
     `${organizationId}:${shopScope?.shopId ?? "none"}:${recruitmentId}`,
     queriedData,
@@ -93,7 +103,7 @@ function AppShiftBoardQuery({ organizationId, recruitmentId }: Required<Props>) 
     );
   }
 
-  const periodTitle = `${formatDateShort(data.recruitment.periodStart)} 〜 ${formatDateShort(data.recruitment.periodEnd)}`;
+  const periodTitle = formatDateRangeShort(data.recruitment.periodStart, data.recruitment.periodEnd);
 
   return (
     <Animation>
@@ -102,6 +112,7 @@ function AppShiftBoardQuery({ organizationId, recruitmentId }: Required<Props>) 
           key={recruitmentId}
           data={data}
           onExport={onExport}
+          dateNotes={queriedDateNotes === undefined ? "loading" : (queriedDateNotes ?? [])}
           recruitmentId={recruitmentDocumentId}
           layout="app"
           header={{

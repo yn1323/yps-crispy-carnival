@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   loadMorePast: vi.fn(),
   showErrorToast: vi.fn(),
   showSuccessToast: vi.fn(),
+  trackProductEvent: vi.fn(),
   boardProps: undefined as Record<string, unknown> | undefined,
 }));
 
@@ -68,6 +69,8 @@ vi.mock("@/src/providers/ManagerShopScopeProvider", () => ({
     </div>
   ),
 }));
+
+vi.mock("@/src/lib/webMeasurement", () => ({ trackProductEvent: mocks.trackProductEvent }));
 
 vi.mock("@/src/components/shared/feedback", () => ({
   showErrorToast: mocks.showErrorToast,
@@ -340,6 +343,7 @@ beforeEach(() => {
   mocks.deleteRecruitment.mockReset().mockResolvedValue(null);
   mocks.showErrorToast.mockReset();
   mocks.showSuccessToast.mockReset();
+  mocks.trackProductEvent.mockReset();
   mocks.loadMoreOrganizationPastPreviews.mockReset();
   mocks.loadMorePast.mockReset();
   mocks.usePaginatedQuery.mockReset().mockImplementation((_reference, args) =>
@@ -394,6 +398,16 @@ describe("OrganizationRecruitmentManagement", () => {
     expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
       title: "シフト提出依頼をスタッフに送りました",
     });
+  });
+
+  it("一覧を別の店舗に絞り込んでいても、募集作成の計測には作成した店舗を渡す", async () => {
+    renderFeature({ shopFilter: "shop-b" as Id<"shops"> });
+    fireEvent.click(screen.getByRole("button", { name: "新しい募集をつくる" }));
+    fireEvent.click(screen.getByRole("button", { name: "募集を作成" }));
+
+    await waitFor(() => expect(mocks.createRecruitment).toHaveBeenCalledOnce());
+    expect(mocks.createRecruitment.mock.calls[0]?.[0]).toMatchObject({ shopId: "shop-a" });
+    expect(mocks.trackProductEvent).toHaveBeenCalledExactlyOnceWith({ kind: "recruitment_create", shopId: "shop-a" });
   });
 
   it("削除対象カードの店舗scopeと組織scopeを明示し、別店舗のscopeを流用しない", async () => {

@@ -1,6 +1,7 @@
 import { Box, Flex } from "@chakra-ui/react";
 import dayjs from "dayjs";
 import { getWeekdayLabel } from "@/src/domains/shift/date";
+import { DisplaySettingsMenu } from "../../DisplaySettingsMenu";
 import { getShiftWeekdayColor } from "../../weekdayPresentation";
 
 type Props = {
@@ -13,8 +14,18 @@ export const DayTitle = ({ date, holidays = [] }: Props) => {
   const d = dayjs(date);
   const isClosed = holidays.includes(date);
   return (
-    <Box px={5} py={3} bg="white" borderBottomWidth="1px" borderColor="gray.200" flexShrink={0}>
-      <Flex align="baseline" gap={2}>
+    <Flex
+      px={5}
+      py={3}
+      bg="white"
+      borderBottomWidth="1px"
+      borderColor="gray.200"
+      flexShrink={0}
+      align="center"
+      justify="space-between"
+      gap={3}
+    >
+      <Flex align="baseline" gap={2} minW={0}>
         <Box textStyle="2xl" fontWeight={700} color="gray.800" fontVariantNumeric="tabular-nums">
           {d.month() + 1}月{d.date()}日
         </Box>
@@ -27,6 +38,7 @@ export const DayTitle = ({ date, holidays = [] }: Props) => {
           </Box>
         )}
       </Flex>
-    </Box>
+      <DisplaySettingsMenu />
+    </Flex>
   );
 };

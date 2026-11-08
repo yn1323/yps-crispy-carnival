@@ -9,12 +9,15 @@ export type TimelineBarViewModel = {
   widthPercentage: number;
 };
 
+export type RequestBarViewModel = TimelineBarViewModel & {
+  label: string | null;
+};
+
 export type SPDailyCardViewModel = {
   hasAssignment: boolean;
-  showRequestMismatch: boolean;
-  showRestLabel: boolean;
+  hasRequest: boolean;
   assignedTimeLabel: string | null;
-  requestedBars: TimelineBarViewModel[];
+  requestedBars: RequestBarViewModel[];
   workBars: TimelineBarViewModel[];
   breakBars: TimelineBarViewModel[];
 };
@@ -136,14 +139,18 @@ export const buildSPDailyCardViewModel = (shift: ShiftData | undefined, timeRang
 
   return {
     hasAssignment: assignedRange !== null,
-    showRequestMismatch: requestedTimes.length > 0 && assignedRange === null,
-    showRestLabel: requestedTimes.length === 0 && assignedRange === null,
+    hasRequest: requestedTimes.length > 0,
     assignedTimeLabel: assignedRange
       ? `${formatShiftClockTime(assignedRange[0])}–${formatShiftClockTime(assignedRange[1])}`
       : null,
-    requestedBars: requestedTimes.map((request, index) =>
-      toTimelineBar(`${request.start}-${request.end}-${index}`, request.start, request.end, timeRange),
-    ),
+    requestedBars: requestedTimes.map((request, index) => ({
+      ...toTimelineBar(`${request.start}-${request.end}-${index}`, request.start, request.end, timeRange),
+      // 勤務バーと重なると文字が欠けるため、勤務がない日だけ点線の中に希望時間を書く。
+      label:
+        assignedRange === null
+          ? `希望：${formatShiftClockTime(request.start)}-${formatShiftClockTime(request.end)}`
+          : null,
+    })),
     workBars: workPositions.map((position) => toTimelineBar(position.id, position.start, position.end, timeRange)),
     breakBars: breaks.map((gap) => toTimelineBar(`break-${gap.start}-${gap.end}`, gap.start, gap.end, timeRange)),
   };

@@ -72,6 +72,15 @@ export const UnsubmittedStaff: Story = {
   args: baseArgs,
 };
 
+/** 休み希望の日に勤務を入れた状態。希望は「休み」と表示する。 */
+export const DayOffRequestWithShift: Story = {
+  args: {
+    ...baseArgs,
+    staff: mockStaffs[0],
+    shift: { ...shiftWithSingleRange, requestedTime: null, requestedTimes: undefined },
+  },
+};
+
 export const NewShift: Story = {
   args: {
     ...baseArgs,

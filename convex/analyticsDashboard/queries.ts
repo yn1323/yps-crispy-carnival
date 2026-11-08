@@ -5,6 +5,7 @@ import { addDays, dateJST, jstDayRangeMs, subtractCalendarMonths } from "../_lib
 import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
 import { isCurrentSubmission } from "../_lib/recruitmentEditing";
 import { ANALYTICS_DEFINITION_VERSION, analyticsMetricValidator } from "../analytics/model";
+import { DAY_MS } from "../constants";
 import { listActiveStaffsForOrganizationPerson, resolveCanonicalStaffScope } from "../line/service";
 import type {
   AnalyticsDayDto,
@@ -27,6 +28,7 @@ import {
   organizationListRow,
   pageInfo,
   paginationOptions,
+  RECENT_NOTIFICATION_DAYS,
   recentCycles,
   scanNewestFirst,
   shopListRow,
@@ -136,6 +138,11 @@ export const getOverview = internalQuery({
   },
 });
 
+/** 「通知あり」の絞り込みで、通知の受付を確認する起点。直近14日を要求時刻から遡る。 */
+function recentNotificationSince(notified: boolean, asOf: number): number | null {
+  return notified ? asOf - RECENT_NOTIFICATION_DAYS * DAY_MS : null;
+}
+
 /**
  * 実績の内訳を返せるかを判定する。計測開始後の日がすべて現在の定義で集計済みの場合だけ返す。
  */
@@ -178,6 +185,8 @@ export const getShops = internalQuery({
     metric: v.union(analyticsMetricValidator, v.null()),
     billing: v.union(shopBillingFilterValidator, v.null()),
     attention: v.boolean(),
+    notified: v.boolean(),
+    multiStaff: v.boolean(),
   },
   returns: shopsResponseValidator,
   handler: async (ctx, args): Promise<ShopsResponse> => {
@@ -188,7 +197,12 @@ export const getShops = internalQuery({
     if (
       args.search.length > SEARCH_TEXT_MAX_LENGTH ||
       (!scope && (args.from !== null || args.to !== null || args.metric !== null)) ||
-      (scope && (!isShopScopeRange(scope.from, scope.to) || args.billing !== null || args.attention))
+      (scope &&
+        (!isShopScopeRange(scope.from, scope.to) ||
+          args.billing !== null ||
+          args.attention ||
+          args.notified ||
+          args.multiStaff))
     )
       throw new Error("invalid_request");
     const search = args.search.trim().toLocaleLowerCase("ja");
@@ -215,8 +229,13 @@ export const getShops = internalQuery({
       }
       return organizations.get(shop.organizationId) ?? null;
     };
-    const filter = { billing: args.billing, attention: args.attention };
-    // 名称・契約・要注意・実績の条件は、表示中のページでなく全店舗に対して照合する。
+    const filter = {
+      billing: args.billing,
+      attention: args.attention,
+      notifiedSince: recentNotificationSince(args.notified, args.asOf),
+      multiStaff: args.multiStaff,
+    };
+    // 名称・契約・要注意・通知・人数・実績の条件は、表示中のページでなく全店舗に対して照合する。
     // 店舗は論理削除だけのため、実績の内訳では削除済み店舗も店舗tableから辿れる。
     const { rows, pageInfo } = await scanNewestFirst(
       ctx,
@@ -248,6 +267,7 @@ export const getShops = internalQuery({
             staffCount: null,
             latestShift: null,
             lastActivityDate: null,
+            lastNotifiedAt: null,
             billing: null,
             attention: [],
           }
@@ -264,11 +284,18 @@ export const getOrganizations = internalQuery({
     asOf: v.number(),
     search: v.string(),
     billing: v.union(shopBillingFilterValidator, v.null()),
+    notified: v.boolean(),
+    multiStaff: v.boolean(),
   },
   returns: organizationsResponseValidator,
   handler: async (ctx, args): Promise<OrganizationsResponse> => {
     if (args.search.length > SEARCH_TEXT_MAX_LENGTH) throw new Error("invalid_request");
-    const filter = { search: args.search.trim().toLocaleLowerCase("ja"), billing: args.billing };
+    const filter = {
+      search: args.search.trim().toLocaleLowerCase("ja"),
+      billing: args.billing,
+      notifiedSince: recentNotificationSince(args.notified, args.asOf),
+      multiStaff: args.multiStaff,
+    };
     const { rows, pageInfo } = await scanNewestFirst(
       ctx,
       (before) =>

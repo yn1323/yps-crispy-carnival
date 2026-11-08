@@ -1,4 +1,5 @@
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
+import { getDayOfWeek } from "@/src/domains/shift/date";
 import { buildRestEntry } from "../dayEntryState";
 import {
   buildEntriesFromPreviousDateOnlyPattern,
@@ -35,4 +36,20 @@ export function buildPreviousPatternEntries(dates: string[], data: SubmissionDat
 
   const shopClosedDateSet = new Set(data.shopClosedDates);
   return entries.map((entry) => (shopClosedDateSet.has(entry.date) ? buildRestEntry(entry) : entry));
+}
+
+/** 前回の週の日付メモを、曜日の合う今回の日付へ写す。定休日には写さない。 */
+export function buildPreviousPatternNotes(dates: string[], data: SubmissionData): Record<string, string> {
+  const pattern =
+    data.submissionPattern.kind === "dateOnly" ? data.previousDateOnlyPattern : data.previousWeeklyPattern;
+  if (!pattern) return {};
+
+  const noteByWeekday = new Map(pattern.notes.map(({ weekday, note }) => [weekday, note]));
+  const shopClosedDateSet = new Set(data.shopClosedDates);
+  const notes: Record<string, string> = {};
+  for (const date of dates) {
+    const note = noteByWeekday.get(getDayOfWeek(date));
+    if (note && !shopClosedDateSet.has(date)) notes[date] = note;
+  }
+  return notes;
 }

@@ -1,4 +1,5 @@
-import { Box, chakra, Flex, Icon, Stack, Text } from "@chakra-ui/react";
+import { Box, chakra, Flex, Icon, Popover, Portal, Stack, type SystemStyleObject, Text } from "@chakra-ui/react";
+import type { KeyboardEvent, ReactNode, SyntheticEvent } from "react";
 import { LuFileDown, LuSave, LuTriangleAlert } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
 import { Tooltip } from "@/src/components/ui/tooltip";
@@ -83,14 +84,109 @@ export const IssueDot = ({ tone = "error" }: { tone?: IssueTone }) => (
   <Box boxSize="6px" borderRadius="full" bg={TONE_DOT_BG[tone]} flexShrink={0} aria-label={`${TONE_NOUN[tone]}あり`} />
 );
 
-export const StaffWarningIcon = ({ messages }: { messages: string[] }) => {
-  if (messages.length === 0) return null;
+// 名前のクリックやカードの編集、行の操作を始めないよう、イベントをアイコンで止める。
+const stopPropagation = (event: SyntheticEvent) => event.stopPropagation();
+const stopEnterAndSpace = (event: KeyboardEvent) => {
+  if (event.key === "Enter" || event.key === " ") event.stopPropagation();
+};
+
+const STAFF_ICON_BASE_STYLE: SystemStyleObject = {
+  flexShrink: 0,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  boxSize: "22px",
+  borderRadius: "full",
+};
+
+/**
+ * スタッフ名の横に置く、補足をツールチップで開く小さなアイコン。
+ * タッチ操作ではツールチップが開かないため、SPでは`openOn="tap"`でタップで開閉するPopoverにする。
+ */
+export const StaffIconTip = ({
+  label,
+  openOn,
+  content,
+  iconStyle,
+  children,
+}: {
+  label: string;
+  openOn: "hover" | "tap";
+  content: ReactNode;
+  iconStyle: SystemStyleObject;
+  children: ReactNode;
+}) => {
+  const css = { ...STAFF_ICON_BASE_STYLE, ...iconStyle };
+
+  if (openOn === "tap") {
+    return (
+      <Popover.Root positioning={{ placement: "bottom-end", gutter: 6 }}>
+        <Popover.Trigger asChild>
+          <chakra.button
+            type="button"
+            aria-label={label}
+            css={css}
+            position="relative"
+            // 見た目は小さく保ち、押せる範囲だけを高さ44pxまで広げる。
+            _before={{ content: '""', position: "absolute", insetX: "-4px", insetY: "-11px" }}
+            onClick={stopPropagation}
+            onKeyDown={stopEnterAndSpace}
+          >
+            {children}
+          </chakra.button>
+        </Popover.Trigger>
+        <Portal>
+          <Popover.Positioner>
+            <Popover.Content
+              w="max-content"
+              maxW="min(280px, calc(100vw - 24px))"
+              px={3}
+              py={2}
+              color="white"
+              css={{ "--popover-bg": "colors.gray.800" }}
+              // Portalの中でもReactのイベントはカードへ伝わるため、カードの編集を開かないよう止める。
+              onClick={stopPropagation}
+            >
+              <Popover.Arrow>
+                <Popover.ArrowTip />
+              </Popover.Arrow>
+              {content}
+            </Popover.Content>
+          </Popover.Positioner>
+        </Portal>
+      </Popover.Root>
+    );
+  }
 
   return (
     <Tooltip
       showArrow
       openDelay={80}
       contentProps={{ maxW: "280px", bg: "gray.800", color: "white" }}
+      content={content}
+    >
+      <Box
+        role="button"
+        tabIndex={0}
+        aria-label={label}
+        css={css}
+        onClick={stopPropagation}
+        onMouseDown={stopPropagation}
+        onKeyDown={stopEnterAndSpace}
+      >
+        {children}
+      </Box>
+    </Tooltip>
+  );
+};
+
+export const StaffWarningIcon = ({ messages, openOn = "hover" }: { messages: string[]; openOn?: "hover" | "tap" }) => {
+  if (messages.length === 0) return null;
+
+  return (
+    <StaffIconTip
+      label={`確認事項${messages.length}件`}
+      openOn={openOn}
       content={
         <Stack gap={1}>
           <Text textStyle="xs" fontWeight={700}>
@@ -103,40 +199,23 @@ export const StaffWarningIcon = ({ messages }: { messages: string[] }) => {
           ))}
         </Stack>
       }
+      iconStyle={{
+        color: "orange.600",
+        bg: "orange.50",
+        borderWidth: "1px",
+        borderColor: "orange.200",
+        cursor: "help",
+        transitionProperty: "colors",
+        transitionDuration: "faster",
+        _hover: { bg: "orange.100", color: "orange.700" },
+        _active: { bg: "orange.200", transitionDuration: "0ms" },
+        _focusVisible: { outline: "2px solid", outlineColor: "orange.400", outlineOffset: "1px" },
+      }}
     >
-      <Box
-        role="button"
-        tabIndex={0}
-        aria-label={`確認事項${messages.length}件`}
-        flexShrink={0}
-        display="inline-flex"
-        alignItems="center"
-        justifyContent="center"
-        boxSize="22px"
-        borderRadius="full"
-        color="orange.600"
-        bg="orange.50"
-        borderWidth="1px"
-        borderColor="orange.200"
-        cursor="help"
-        onClick={(event) => event.stopPropagation()}
-        onMouseDown={(event) => event.stopPropagation()}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.stopPropagation();
-          }
-        }}
-        transitionProperty="colors"
-        transitionDuration="faster"
-        _hover={{ bg: "orange.100", color: "orange.700" }}
-        _active={{ bg: "orange.200", transitionDuration: "0ms" }}
-        _focusVisible={{ outline: "2px solid", outlineColor: "orange.400", outlineOffset: "1px" }}
-      >
-        <Icon boxSize={3.5}>
-          <LuTriangleAlert />
-        </Icon>
-      </Box>
-    </Tooltip>
+      <Icon boxSize={3.5}>
+        <LuTriangleAlert />
+      </Icon>
+    </StaffIconTip>
   );
 };
 

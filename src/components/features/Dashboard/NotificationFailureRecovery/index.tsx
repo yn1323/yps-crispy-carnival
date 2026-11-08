@@ -16,6 +16,7 @@ import { toaster } from "@/src/components/ui/toaster";
 import { useShopCustomPaginatedQuery } from "@/src/hooks/useShopCustomPaginatedQuery";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { trackAppError, trackProductEvent } from "@/src/lib/webMeasurement";
 import { resendAllOpenNotificationFailuresBatches } from "./script";
 import type { DashboardNotificationFailure } from "./types";
 
@@ -108,6 +109,7 @@ export function NotificationFailureRecovery({
           : "連絡先や募集の状態が変わったため、通知を再送できませんでした。",
       );
     }
+    trackProductEvent({ kind: "manage_action", target: "notification", action: "resend" });
     markProcessed([failure._id], false);
   };
 
@@ -116,6 +118,7 @@ export function NotificationFailureRecovery({
     try {
       const result = await resendAllOpenNotificationFailuresBatches(() => resendOpenFailures({}));
       if (result.scheduledFailureIds.length > 0) {
+        trackProductEvent({ kind: "manage_action", target: "notification", action: "resend_all" });
         markProcessed(result.scheduledFailureIds, true);
         toaster.create({
           title: result.hasRemainingFailures ? "一部の通知を再送しました" : "送れなかった通知を再送しました",
@@ -152,11 +155,13 @@ export function NotificationFailureRecovery({
     const target = dismissTarget;
     try {
       await resolveFailure({ failureId: target._id });
+      trackProductEvent({ kind: "manage_action", target: "notification", action: "resolve" });
       markProcessed([target._id], true);
       setDismissTarget(null);
       setConfirmationError(null);
       restoreConfirmationTriggerFocus();
-    } catch {
+    } catch (error) {
+      trackAppError("dialog", error);
       if (!isReadOnlyRef.current) {
         setConfirmationError("送れなかった通知を破棄できませんでした。通知の状態を確認して、もう一度お試しください。");
       }

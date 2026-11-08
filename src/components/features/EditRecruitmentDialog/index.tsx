@@ -13,6 +13,7 @@ import { addDays } from "@/src/domains/shift/date";
 import { useDeadlineActive } from "@/src/hooks/useDeadlineActive";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { getConvexErrorCode } from "@/src/lib/convex/error";
+import { trackAppError, trackProductEvent } from "@/src/lib/webMeasurement";
 
 type EditableRecruitment = CreateRecruitmentData & {
   _id: Id<"recruitments">;
@@ -56,13 +57,16 @@ export function EditRecruitmentDialog({ recruitment, shop, expectedOrganizationI
         shopId: shop.shopId as Id<"shops">,
         expectedOrganizationId: expectedOrganizationId as Id<"organizations">,
       });
+      if (result.changed) trackProductEvent({ kind: "manage_action", target: "recruitment", action: "update" });
       if (!isMountedRef.current) return;
       onClose();
       showSuccessToast({ title: result.changed ? "シフト募集を変更しました" : "変更はありません" });
     } catch (error) {
       if (!isMountedRef.current) return;
-      if (getConvexErrorCode(error) === "RECRUITMENT_CHANGED") setHasStaleError(true);
-      else showErrorToast(error);
+      if (getConvexErrorCode(error) === "RECRUITMENT_CHANGED") {
+        trackAppError("dialog", error);
+        setHasStaleError(true);
+      } else showErrorToast(error);
     }
   });
 

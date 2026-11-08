@@ -3,6 +3,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { type TouchEvent, useCallback, useMemo, useRef, useState } from "react";
 import { useDialog } from "@/src/components/ui/Dialog";
 import type { ShiftData } from "@/src/domains/shift/types";
+import { useAllShiftDateNotes } from "../../dateNotes";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
 import {
@@ -38,6 +39,8 @@ export const SPDailyView = () => {
   const issueStaffIds = useAtomValue(issueStaffIdSetForSelectedDateAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
   const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
+  // カード下段の本文と名前の右のアイコンは、表示設定に応じてどちらか一方だけが出る。
+  const dateNotes = useAllShiftDateNotes();
 
   const { positions, dates, timeRange, isReadOnly, holidays } = config;
   const isShopClosedDate = holidays.includes(selectedDate);
@@ -59,11 +62,19 @@ export const SPDailyView = () => {
     [sortedStaffs, shiftByStaffId, timeRange],
   );
   const workRows = useMemo(() => rows.filter((row) => row.viewModel.hasAssignment), [rows]);
-  const restRows = useMemo(() => rows.filter((row) => !row.viewModel.hasAssignment && row.staff.isSubmitted), [rows]);
-  const unsubmittedRows = useMemo(
-    () => rows.filter((row) => !row.viewModel.hasAssignment && !row.staff.isSubmitted),
-    [rows],
+  const unassignedRows = useMemo(() => rows.filter((row) => !row.viewModel.hasAssignment), [rows]);
+  // 編集中は、勤務を外しても希望シフトの時間がある人を休み希望に混ぜず、希望の点線を残す。
+  // 閲覧専用はPC版と同じく希望を出さないため、勤務がない人はすべて休みとして扱う。
+  const requestRows = useMemo(
+    () => (isReadOnly ? [] : unassignedRows.filter((row) => row.viewModel.hasRequest)),
+    [isReadOnly, unassignedRows],
   );
+  const offRows = useMemo(
+    () => (isReadOnly ? unassignedRows : unassignedRows.filter((row) => !row.viewModel.hasRequest)),
+    [isReadOnly, unassignedRows],
+  );
+  const restRows = useMemo(() => offRows.filter((row) => row.staff.isSubmitted), [offRows]);
+  const unsubmittedRows = useMemo(() => offRows.filter((row) => !row.staff.isSubmitted), [offRows]);
 
   const selectedStaff = useMemo(
     () => sortedStaffs.find((staff) => staff.id === selectedStaffId),
@@ -97,6 +108,20 @@ export const SPDailyView = () => {
   const handleShiftDelete = useCallback(
     (staffId: string) => clearShiftPositions({ staffId, date: selectedDate }),
     [clearShiftPositions, selectedDate],
+  );
+
+  const renderDailyCard = ({ staff, viewModel }: (typeof rows)[number]) => (
+    <SPDailyCard
+      key={staff.id}
+      staffId={staff.id}
+      staffName={staff.name}
+      viewModel={viewModel}
+      onTap={() => handleCardTap(staff.id)}
+      hasError={issueStaffIds.has(staff.id)}
+      warningMessages={warningMessagesByStaffId.get(staff.id) ?? []}
+      note={dateNotes.getNote(staff.id, selectedDate)}
+      noteDate={selectedDate}
+    />
   );
 
   const handleTouchStart = useCallback((event: TouchEvent) => {
@@ -140,20 +165,13 @@ export const SPDailyView = () => {
             {workRows.length > 0 && (
               <Box>
                 <SectionHeader label="出勤あり" count={workRows.length} />
-                <Stack gap={2}>
-                  {workRows.map(({ staff, viewModel }) => (
-                    <SPDailyCard
-                      key={staff.id}
-                      staffId={staff.id}
-                      staffName={staff.name}
-                      viewModel={viewModel}
-                      showRestLabel={viewModel.showRestLabel && staff.isSubmitted}
-                      onTap={() => handleCardTap(staff.id)}
-                      hasError={issueStaffIds.has(staff.id)}
-                      warningMessages={warningMessagesByStaffId.get(staff.id) ?? []}
-                    />
-                  ))}
-                </Stack>
+                <Stack gap={2}>{workRows.map(renderDailyCard)}</Stack>
+              </Box>
+            )}
+            {requestRows.length > 0 && (
+              <Box>
+                <SectionHeader label="出勤希望" count={requestRows.length} hint="タップで追加" />
+                <Stack gap={2}>{requestRows.map(renderDailyCard)}</Stack>
               </Box>
             )}
             {restRows.length > 0 && (
@@ -171,6 +189,8 @@ export const SPDailyView = () => {
                       isReadOnly={isReadOnly}
                       hasError={issueStaffIds.has(staff.id)}
                       warningMessages={warningMessagesByStaffId.get(staff.id) ?? []}
+                      note={dateNotes.getNote(staff.id, selectedDate)}
+                      noteDate={selectedDate}
                     />
                   ))}
                 </Stack>
@@ -195,6 +215,8 @@ export const SPDailyView = () => {
                       isReadOnly={isReadOnly}
                       hasError={issueStaffIds.has(staff.id)}
                       warningMessages={warningMessagesByStaffId.get(staff.id) ?? []}
+                      note={dateNotes.getNote(staff.id, selectedDate)}
+                      noteDate={selectedDate}
                     />
                   ))}
                 </Stack>

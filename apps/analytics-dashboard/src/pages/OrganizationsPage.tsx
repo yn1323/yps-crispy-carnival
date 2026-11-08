@@ -16,9 +16,17 @@ import {
   shopPath,
 } from "@/features/analytics/format";
 import { compareSortValues, fetchListPages, LIST_PAGE_SIZE } from "@/features/analytics/listPages";
+import { MultiStaffToggle } from "@/features/analytics/MultiStaffToggle";
+import { NotifiedSelect } from "@/features/analytics/NotifiedSelect";
 import { AnalyticsPageLoading, MoreButton, Panel, QueryError } from "@/features/analytics/PageState";
+import { AnalysisExportStatus, useAnalysisExport } from "@/features/export/useAnalysisExport";
 
-type OrganizationFilters = { search: string; billing: ShopBillingFilter | null };
+type OrganizationFilters = {
+  search: string;
+  billing: ShopBillingFilter | null;
+  notified: boolean;
+  multiStaff: boolean;
+};
 
 /** 絞り込みはURLを正本にし、日次分析の契約状況カードから同じ条件で開けるようにする。 */
 function readFilters(search: string): OrganizationFilters {
@@ -27,11 +35,15 @@ function readFilters(search: string): OrganizationFilters {
   return {
     search: params.get("q") ?? "",
     billing: billing && billing in BILLING_FILTER_LABELS ? (billing as ShopBillingFilter) : null,
+    notified: params.get("notified") === "1",
+    multiStaff: params.get("multiStaff") === "1",
   };
 }
 function filtersPath(filters: OrganizationFilters) {
   const params = new URLSearchParams();
   if (filters.billing) params.set("billing", filters.billing);
+  if (filters.notified) params.set("notified", "1");
+  if (filters.multiStaff) params.set("multiStaff", "1");
   if (filters.search) params.set("q", filters.search);
   return params.size ? `/organizations?${params}` : "/organizations";
 }
@@ -52,6 +64,8 @@ function sortValue(row: AnalyticsOrganizationListRowDto, key: string) {
       return row.activeManagerCount;
     case "shopCount":
       return row.shopCount;
+    case "lastNotified":
+      return row.lastNotifiedAt;
     default:
       return row.registeredAt;
   }
@@ -86,7 +100,17 @@ export function OrganizationsPage({ navigate }: { navigate: (path: string) => vo
     initialPageParam: null as string | null,
     queryFn: ({ pageParam, signal }) =>
       fetchListPages(pageParam, (cursor) =>
-        fetchOrganizations({ search: filters.search, billing: filters.billing, cursor, limit: LIST_PAGE_SIZE }, signal),
+        fetchOrganizations(
+          {
+            search: filters.search,
+            billing: filters.billing,
+            notified: filters.notified || undefined,
+            multiStaff: filters.multiStaff || undefined,
+            cursor,
+            limit: LIST_PAGE_SIZE,
+          },
+          signal,
+        ),
       ),
     getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
@@ -98,13 +122,51 @@ export function OrganizationsPage({ navigate }: { navigate: (path: string) => vo
     );
     return [...unique.values()].sort(
       (left, right) =>
-        compareSortValues(sortValue(left, sort.key), sortValue(right, sort.key)) *
-          (sort.direction === "asc" ? 1 : -1) ||
+        compareSortValues(sortValue(left, sort.key), sortValue(right, sort.key), sort.direction) ||
         left.name.localeCompare(right.name, "ja") ||
         left.organizationId.localeCompare(right.organizationId),
     );
   }, [query.data?.pages, sort]);
   const setFilters = (next: Partial<OrganizationFilters>) => navigate(filtersPath({ ...filters, ...next }));
+  const analysisExport = useAnalysisExport();
+  // 自動で読む上限に達して続きがある場合も、条件に合う全組織を読み切ってから出力する。
+  const exportOrganizations = () =>
+    void analysisExport.start(async (signal) => {
+      let pages = query.data?.pages ?? [];
+      if (query.hasNextPage) {
+        // 取得に失敗しても続きがあるとhasNextPageが残るため、失敗時はthrowして出力を止める。
+        const fetchNext = () => query.fetchNextPage({ throwOnError: true });
+        let result = await fetchNext();
+        while (result.hasNextPage && !signal.aborted) result = await fetchNext();
+        pages = result.data?.pages ?? pages;
+      }
+      signal.throwIfAborted();
+      return {
+        scope: {
+          kind: "organizationList",
+          filters: {
+            hasNameSearch: filters.search !== "",
+            billing: filters.billing,
+            notified: filters.notified,
+            multiStaff: filters.multiStaff,
+          },
+        },
+        organizationIds: [...new Set(pages.flatMap((page) => page.rows).map((row) => row.organizationId))],
+      };
+    });
+  const exportOrganization = (organizationId: string) =>
+    void analysisExport.start(async () => ({ scope: { kind: "organization" }, organizationIds: [organizationId] }));
+  const exportButton = (row: AnalyticsOrganizationListRowDto) => (
+    <Button
+      size="xs"
+      variant="outline"
+      aria-label={`${row.name}の分析用JSONを保存`}
+      disabled={analysisExport.isRunning}
+      onClick={() => exportOrganization(row.organizationId)}
+    >
+      JSON
+    </Button>
+  );
   return (
     <Stack gap={6}>
       <PageHeading
@@ -153,18 +215,53 @@ export function OrganizationsPage({ navigate }: { navigate: (path: string) => vo
               <NativeSelect.Indicator />
             </NativeSelect.Root>
           </Text>
+          <NotifiedSelect
+            value={filters.notified}
+            onChange={(notified) => setFilters({ search: input.trim(), notified })}
+          />
+          <MultiStaffToggle
+            value={filters.multiStaff}
+            onChange={(multiStaff) => setFilters({ search: input.trim(), multiStaff })}
+          />
           <Button type="submit">絞り込む</Button>
         </Flex>
       </form>
+      {filters.notified && (
+        <Text color="gray.600" fontSize="sm">
+          直近14日に、組織または所属店舗の通知を受け付けた組織です。送信に失敗した通知も含め、取り消した通知は含めません。
+        </Text>
+      )}
+      {filters.multiStaff && (
+        <Text color="gray.600" fontSize="sm">
+          管理者を含む利用人数が2名以上の組織です。管理者だけの組織を除きます。
+        </Text>
+      )}
       {query.error && <QueryError error={query.error} onRetry={() => void query.refetch()} />}
       {query.isPending ? (
-        <AnalyticsPageLoading title="組織を読み込み中" description="組織一覧の最初のページを取得しています。" />
+        <AnalyticsPageLoading
+          title="組織を読み込み中"
+          description="並べ替えに使うため、該当する組織をすべて取得しています。組織が多いと時間がかかります。"
+        />
       ) : (
         first && (
           <Panel
             title={filters.billing ? `契約が「${BILLING_FILTER_LABELS[filters.billing]}」の組織` : "現在の組織一覧"}
-            description={`${formatDateTime(first.data.asOf)}時点。絞り込みは全組織が対象です。登録の新しい順に読み込み、並べ替えは読み込んだ組織の中で行います。利用人数はプラン上限と同じ数え方で、管理者を含み、複数店舗に所属する人も1人と数えます。`}
+            description={`${formatDateTime(first.data.asOf)}時点。絞り込みと並べ替えは全組織が対象です。利用人数はプラン上限と同じ数え方で、管理者を含み、複数店舗に所属する人も1人と数えます。`}
           >
+            <Flex justify="space-between" align="center" gap={3} wrap="wrap">
+              <Text fontSize="xs" color="gray.600">
+                条件に合う全組織と各組織の全店舗を、組織・店舗・人物を仮名にした分析用JSONで保存できます。行の「JSON」はその組織だけを保存します。
+              </Text>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={analysisExport.isRunning || (rows.length === 0 && !query.hasNextPage)}
+                onClick={exportOrganizations}
+              >
+                分析用JSONを保存
+              </Button>
+            </Flex>
+            <AnalysisExportStatus state={analysisExport.state} onClose={analysisExport.close} />
             <DataTable
               rows={rows}
               sort={sort}
@@ -199,11 +296,19 @@ export function OrganizationsPage({ navigate }: { navigate: (path: string) => vo
                 },
                 { key: "shopCount", header: "店舗", sortable: true, render: (row) => <ShopLinks row={row} /> },
                 {
+                  key: "lastNotified",
+                  header: "最終通知",
+                  sortable: true,
+                  firstDirection: "desc",
+                  render: (row) => formatDateTime(row.lastNotifiedAt),
+                },
+                {
                   key: "registeredAt",
                   header: "登録日",
                   sortable: true,
                   render: (row) => formatDate(row.registeredAt),
                 },
+                { key: "export", header: "分析用", render: exportButton },
               ]}
               renderMobileRow={(row) => (
                 <Stack gap={2}>
@@ -213,9 +318,13 @@ export function OrganizationsPage({ navigate }: { navigate: (path: string) => vo
                     利用人数：{countLabel(row.peopleCount)}・管理者：{countLabel(row.activeManagerCount)}
                   </Text>
                   <ShopLinks row={row} />
-                  <Text fontSize="xs" color="gray.600">
-                    登録：{formatDate(row.registeredAt)}
-                  </Text>
+                  <Text fontSize="sm">最終通知：{formatDateTime(row.lastNotifiedAt)}</Text>
+                  <Flex justify="space-between" align="center" gap={2}>
+                    <Text fontSize="xs" color="gray.600">
+                      登録：{formatDate(row.registeredAt)}
+                    </Text>
+                    {exportButton(row)}
+                  </Flex>
                 </Stack>
               )}
             />

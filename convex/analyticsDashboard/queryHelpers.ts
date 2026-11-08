@@ -15,6 +15,7 @@ import type {
   AnalyticsShopRowDto,
   BillingOverviewDto,
   CycleRowDto,
+  NotificationOutboxStatus,
   OrganizationBillingSummaryDto,
   ShopBillingFilter,
   StaffRowDto,
@@ -29,6 +30,15 @@ const ORGANIZATION_LIST_SHOP_LIMIT = 10;
 const SCAN_RESERVE = { documentsRead: 2_000, bytesRead: 2 * 1024 * 1024, databaseQueries: 1_000 };
 /** 最後の提出・確定からこの日数以上たった店舗を要注意にする。 */
 export const SHOP_INACTIVE_DAYS = 14;
+/** 一覧の「通知あり」の絞り込みで、通知の受付を確認する直近の日数。 */
+export const RECENT_NOTIFICATION_DAYS = 14;
+/**
+ * 一覧の「2名以上」の絞り込みで求める人数。店舗の作成時に管理者自身もスタッフとして登録されるため、
+ * 1名の店舗・組織は管理者だけで、スタッフを迎えていない。
+ */
+const MULTI_STAFF_MIN_COUNT = 2;
+/** 利用の手がかりにする通知の状態。組織の停止などで取り消した通知は含めない。 */
+const NOTIFIED_STATUSES: readonly NotificationOutboxStatus[] = ["sent", "failed", "pending", "processing"];
 const TRIAL_ENDING_SOON_MS = 7 * DAY_MS;
 
 export function paginationOptions(cursor: string | null, limit: number, maximum = 100): PaginationOptions {
@@ -209,17 +219,60 @@ export async function billingOverview(ctx: QueryCtx, asOf: number): Promise<Bill
   return result;
 }
 /**
- * 店舗一覧の1行。絞り込みに一致しない店舗は、重いスタッフ数の集計前にnullを返す。
+ * 一覧の絞り込み条件。notifiedSinceを指定すると、その時刻以降に受け付けた通知がある対象だけを返す。
+ * multiStaffは、管理者を含む人数がMULTI_STAFF_MIN_COUNT以上の対象だけを返す。
+ */
+type ListFilter = { billing: ShopBillingFilter | null; notifiedSince: number | null; multiStaff: boolean };
+/**
+ * 取消以外の通知を最後に受け付けた時刻。状態ごとの既存indexで、受付の新しい1件だけを読む。
+ * 店舗の通知はすべて組織IDを持つため、組織では店舗宛と組織宛の両方を対象にできる。
+ */
+async function lastNotifiedAt(
+  ctx: QueryCtx,
+  target: { shopId: Id<"shops"> } | { organizationId: Id<"organizations"> },
+): Promise<number | null> {
+  const latest = await Promise.all(
+    NOTIFIED_STATUSES.map((status) =>
+      "shopId" in target
+        ? ctx.db
+            .query("notificationOutbox")
+            .withIndex("by_shopId_status", (q) => q.eq("shopId", target.shopId).eq("status", status))
+            .order("desc")
+            .first()
+        : ctx.db
+            .query("notificationOutbox")
+            .withIndex("by_organizationId_status", (q) =>
+              q.eq("organizationId", target.organizationId).eq("status", status),
+            )
+            .order("desc")
+            .first(),
+    ),
+  );
+  const times = latest.flatMap((row) => (row ? [row._creationTime] : []));
+  return times.length > 0 ? Math.max(...times) : null;
+}
+function notifiedSinceMatches(lastNotified: number | null, notifiedSince: number | null): boolean {
+  return notifiedSince === null || (lastNotified !== null && lastNotified >= notifiedSince);
+}
+/**
+ * 店舗一覧の1行。人数以外の絞り込みに一致しない店舗は、重いスタッフ数の集計前にnullを返す。
  */
 export async function shopListRow(
   ctx: QueryCtx,
   shop: Doc<"shops">,
   organization: Doc<"organizations">,
   today: string,
-  filter: { billing: ShopBillingFilter | null; attention: boolean } = { billing: null, attention: false },
+  filter: ListFilter & { attention: boolean } = {
+    billing: null,
+    notifiedSince: null,
+    multiStaff: false,
+    attention: false,
+  },
 ): Promise<AnalyticsShopListRowDto | null> {
   const billing = await organizationBilling(ctx, organization._id);
   if (filter.billing && !billingMatches(billing, filter.billing)) return null;
+  const lastNotified = await lastNotifiedAt(ctx, { shopId: shop._id });
+  if (!notifiedSinceMatches(lastNotified, filter.notifiedSince)) return null;
   const [latestShift, lastActivity] = await Promise.all([
     ctx.db
       .query("recruitments")
@@ -253,23 +306,33 @@ export async function shopListRow(
       staffCount += 1;
     }
   }
+  // 走査上限を超える店舗は件数を返さないが、削除されていないスタッフが上限を超えて残るため2名以上に含める。
+  if (filter.multiStaff && staffCount !== null && staffCount < MULTI_STAFF_MIN_COUNT) return null;
   return {
     ...shopRow(shop, organization),
     staffCount,
-    latestShift: latestShift ? { periodStart: latestShift.periodStart, periodEnd: latestShift.periodEnd } : null,
+    latestShift: latestShift
+      ? {
+          periodStart: latestShift.periodStart,
+          periodEnd: latestShift.periodEnd,
+          submissionPattern: latestShift.submissionPattern.kind,
+        }
+      : null,
     lastActivityDate: lastActivity?.date ?? null,
+    lastNotifiedAt: lastNotified,
     billing,
     attention,
   };
 }
 /**
- * 組織一覧の1行。名称と契約の絞り込みに一致しない組織は、利用人数の集計前にnullを返す。
+ * 組織一覧の1行。名称・契約・通知の絞り込みに一致しない組織は、利用人数の集計前にnullを返す。
+ * 人数の絞り込みは、利用人数の集計後に判定する。
  * searchは小文字化済みの検索語で、組織名または現在の店舗名の一部と照合する。
  */
 export async function organizationListRow(
   ctx: QueryCtx,
   organization: Doc<"organizations">,
-  filter: { search: string; billing: ShopBillingFilter | null },
+  filter: ListFilter & { search: string },
 ): Promise<AnalyticsOrganizationListRowDto | null> {
   if (organization.isDeleted) return null;
   const shops = await ctx.db
@@ -287,7 +350,11 @@ export async function organizationListRow(
     return null;
   const billing = await organizationBilling(ctx, organization._id);
   if (filter.billing && !billingMatches(billing, filter.billing)) return null;
+  const lastNotified = await lastNotifiedAt(ctx, { organizationId: organization._id });
+  if (!notifiedSinceMatches(lastNotified, filter.notifiedSince)) return null;
   const probe = await getOrganizationActualUsageProbe(ctx, organization._id, ORGANIZATION_PLAN_LIMITS.pro);
+  // 走査上限に達して利用人数を表示できない組織でも、数えた人数は実数の下限になるため判定に使える。
+  if (filter.multiStaff && probe.usage.peopleCount < MULTI_STAFF_MIN_COUNT) return null;
   const exact = (dimension: OrganizationUsageDimension, value: number) =>
     probe.unknownDimensions.includes(dimension) || probe.lowerBoundDimensions.includes(dimension) ? null : value;
   return {
@@ -298,6 +365,7 @@ export async function organizationListRow(
     peopleCount: exact("people", probe.usage.peopleCount),
     activeManagerCount: exact("activeManagers", probe.usage.activeManagerCount),
     shopCount: exact("shops", probe.usage.shopCount),
+    lastNotifiedAt: lastNotified,
     shops: shops.map((shop) => ({ shopId: shop._id, name: shop.name })),
   };
 }
@@ -319,6 +387,7 @@ export function cycleRow(cycle: Doc<"recruitments">): CycleRowDto {
     deadline: cycle.deadline,
     status: cycle.status,
     confirmedAt: cycle.confirmedAt ?? null,
+    submissionPattern: cycle.submissionPattern.kind,
   };
 }
 export async function staffRow(ctx: QueryCtx, staffId: Id<"staffs">, shopId: Id<"shops">): Promise<StaffRowDto | null> {

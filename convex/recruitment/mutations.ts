@@ -19,6 +19,7 @@ import {
   NOTIFICATION_FANOUT_SCOPE_LIMIT,
   RECRUITMENT_DUPLICATE_SCAN_LIMIT,
   SHIFT_ASSIGNMENT_LIMIT,
+  SHIFT_BOARD_DATE_NOTE_LIMIT,
   SHIFT_BOARD_SHIFT_REQUEST_LIMIT,
   SHIFT_BOARD_STAFF_LIMIT,
 } from "../constants";
@@ -212,7 +213,7 @@ export const updateRecruitment = managerMutation({
       generateDateRange(input.periodStart, input.periodEnd).filter((date) => !input.shopClosedDates.includes(date)),
     );
     const requiresResubmission = [...workingDates].some((date) => !previousWorkingDates.has(date));
-    const [submissions, slots, dates, assignments, activeStaffs] = await Promise.all([
+    const [submissions, slots, dates, dateNotes, assignments, activeStaffs] = await Promise.all([
       ctx.db
         .query("shiftSubmissions")
         .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitment._id))
@@ -226,6 +227,10 @@ export const updateRecruitment = managerMutation({
         .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitment._id))
         .take(SHIFT_BOARD_SHIFT_REQUEST_LIMIT + 1),
       ctx.db
+        .query("shiftSubmissionDateNotes")
+        .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitment._id))
+        .take(SHIFT_BOARD_DATE_NOTE_LIMIT + 1),
+      ctx.db
         .query("shiftAssignments")
         .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitment._id))
         .take(SHIFT_ASSIGNMENT_LIMIT + 1),
@@ -238,6 +243,7 @@ export const updateRecruitment = managerMutation({
       submissions.length > SHIFT_BOARD_STAFF_LIMIT ||
       slots.length > SHIFT_BOARD_SHIFT_REQUEST_LIMIT ||
       dates.length > SHIFT_BOARD_SHIFT_REQUEST_LIMIT ||
+      dateNotes.length > SHIFT_BOARD_DATE_NOTE_LIMIT ||
       assignments.length > SHIFT_ASSIGNMENT_LIMIT ||
       activeStaffs.length > NOTIFICATION_FANOUT_SCOPE_LIMIT
     ) {
@@ -248,6 +254,7 @@ export const updateRecruitment = managerMutation({
     await Promise.all([
       ...slots.filter((entry) => !workingDates.has(entry.date)).map((entry) => ctx.db.delete(entry._id)),
       ...dates.filter((entry) => !workingDates.has(entry.date)).map((entry) => ctx.db.delete(entry._id)),
+      ...dateNotes.filter((entry) => !workingDates.has(entry.date)).map((entry) => ctx.db.delete(entry._id)),
       ...assignments.filter((entry) => !workingDates.has(entry.date)).map((entry) => ctx.db.delete(entry._id)),
       ...(requiresResubmission
         ? submissions.map((submission) => ctx.db.patch(submission._id, { needsResubmission: true }))

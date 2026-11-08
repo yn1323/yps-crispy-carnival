@@ -4,13 +4,19 @@ import { getDeadlineCutoff, getSubmitLinkCutoff } from "../_lib/dateFormat";
 import { staffSessionMutation } from "../_lib/functions";
 import { rateLimit } from "../_lib/rateLimits";
 import { assertRecruitmentEditVersion, isCurrentSubmission } from "../_lib/recruitmentEditing";
+import { sessionMatchesAccessKind } from "../_lib/staffAccess";
 import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import { timeToMinutes } from "../_lib/time";
 import { recordAnalyticsUsage } from "../analytics/record";
 import { hasCurrentStaffLegalConsent, recordStaffLegalConsent } from "../legal/service";
 import { getActiveRecruitmentInShop } from "../recruitment/service";
 import { isShiftTargetStaff } from "../staff/service";
-import { type SubmitShiftSelection, submitShiftRequestsSchema, submitShiftSelectionSchema } from "./schemas";
+import {
+  type SubmitShiftSelection,
+  shiftDateNotesSchema,
+  submitShiftRequestsSchema,
+  submitShiftSelectionSchema,
+} from "./schemas";
 
 type NormalizedShiftRequest = { date: string; startTime: string; endTime: string; optionId?: string };
 type NormalizedSubmissionInput = {
@@ -122,6 +128,23 @@ function normalizeSubmissionInput(
   return { slots, dates: [] };
 }
 
+function normalizeDateNotes(input: unknown, recruitment: Doc<"recruitments">) {
+  const parsed = shiftDateNotesSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new ConvexError("Invalid request data");
+  }
+  const shopClosedDateSet = new Set(recruitment.shopClosedDates);
+  const notedDates = new Set<string>();
+  for (const entry of parsed.data) {
+    if (notedDates.has(entry.date)) {
+      throw new ConvexError("同じ日に登録できるメモは1件だけです。");
+    }
+    notedDates.add(entry.date);
+    assertValidDateForSubmission(entry.date, recruitment, shopClosedDateSet);
+  }
+  return parsed.data;
+}
+
 /**
  * 希望シフトを提出（新規 or 修正）
  * requests が空配列 = 全日休み提出
@@ -132,9 +155,16 @@ export const submitShiftRequests = staffSessionMutation({
     expectedEditVersion: v.optional(v.number()),
     acceptedLegal: v.optional(v.boolean()),
     submission: shiftSubmissionInputValidator,
+    // 省略時は既存のメモを変えない。配列を渡した場合は本人・この募集のメモを全置換する。
+    dateNotes: v.optional(v.array(v.object({ date: v.string(), note: v.string() }))),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
+    // staffSessionMutationのaccessKindはcaller入力なので、提出用sessionだけに固定する。
+    if (!sessionMatchesAccessKind(ctx.session, "submit")) {
+      throw new ConvexError("Not found");
+    }
+
     const rateLimitResult = await rateLimit(ctx, {
       name: "submitShiftRequests",
       key: ctx.staff._id,
@@ -184,6 +214,7 @@ export const submitShiftRequests = staffSessionMutation({
     if (!parsedRequests.success) {
       throw new ConvexError("Invalid request data");
     }
+    const dateNotes = args.dateNotes === undefined ? undefined : normalizeDateNotes(args.dateNotes, recruitment);
 
     if (!(await hasCurrentStaffLegalConsent(ctx, ctx.staff._id))) {
       if (args.acceptedLegal !== true) {
@@ -210,12 +241,22 @@ export const submitShiftRequests = staffSessionMutation({
         q.eq("recruitmentId", args.recruitmentId).eq("staffId", ctx.staff._id),
       )
       .collect();
+    const existingDateNotes =
+      dateNotes === undefined
+        ? []
+        : await ctx.db
+            .query("shiftSubmissionDateNotes")
+            .withIndex("by_recruitmentId_and_staffId", (q) =>
+              q.eq("recruitmentId", args.recruitmentId).eq("staffId", ctx.staff._id),
+            )
+            .collect();
 
     // 再提出は差分更新ではなく全置換。休みの日は明細を作らないため、
     // 明細の有無と現在の提出済み状態は分けて管理する。
     await Promise.all([
       ...existingSlots.map((r) => ctx.db.delete(r._id)),
       ...existingDates.map((r) => ctx.db.delete(r._id)),
+      ...existingDateNotes.map((r) => ctx.db.delete(r._id)),
     ]);
 
     let submissionId: Id<"shiftSubmissions">;
@@ -255,6 +296,15 @@ export const submitShiftRequests = staffSessionMutation({
           recruitmentId: args.recruitmentId,
           staffId: ctx.staff._id,
           date,
+        }),
+      ),
+      ...(dateNotes ?? []).map(({ date, note }) =>
+        ctx.db.insert("shiftSubmissionDateNotes", {
+          submissionId,
+          recruitmentId: args.recruitmentId,
+          staffId: ctx.staff._id,
+          date,
+          note,
         }),
       ),
     ]);

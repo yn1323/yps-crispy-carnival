@@ -1,6 +1,6 @@
 import type { Decorator } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
-import { expect, waitFor } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { buildAssignmentIssue } from "@/convex/shiftBoard/validation";
 import { DEFAULT_TIME_PATTERN } from "@/src/domains/shop/submissionPattern";
 import type { ShiftForm } from "..";
@@ -213,4 +213,69 @@ const hasVisibleText = (root: HTMLElement, expected: string): boolean =>
 
 export const expectVisibleText = async (root: HTMLElement, expected: string): Promise<void> => {
   await waitFor(() => expect(hasVisibleText(root, expected)).toBe(true));
+};
+
+const LONG_DATE_NOTE =
+  "火曜は授業が16時半に終わるので17時以降なら入れます。ゼミの発表準備があるため、できれば遅番だけにしてもらえると助かります。";
+
+// 日付メモ: 1行に収まるメモ、省略される長いメモ、休み希望のメモを含める。
+export const timeDateNotesArgs = {
+  ...allPatternsArgs,
+  dateNotes: [
+    { staffId: "staff1", date: "2026-01-23", note: "17時以降なら入れます" },
+    { staffId: "staff2", date: "2026-01-23", note: LONG_DATE_NOTE },
+  ],
+} satisfies ShiftFormArgs;
+
+export const shiftTypeDateNotesArgs = {
+  ...shiftTypeArgs,
+  dateNotes: [
+    { staffId: "staff1", date: "2026-05-21", note: "17時以降なら入れます" },
+    { staffId: "staff2", date: "2026-05-21", note: LONG_DATE_NOTE },
+  ],
+} satisfies ShiftFormArgs;
+
+export const dateOnlyDateNotesArgs = {
+  ...dateOnlyArgs,
+  dateNotes: [
+    { staffId: "staff1", date: "2026-06-02", note: "17時以降なら入れます" },
+    { staffId: "staff4", date: "2026-06-02", note: "家の用事で18時まで入れません" },
+    { staffId: "staff1", date: "2026-06-04", note: LONG_DATE_NOTE },
+  ],
+} satisfies ShiftFormArgs;
+
+/** 表示設定から連絡事項を非表示にする。 */
+export const hideDateNotes = async (canvasElement: HTMLElement): Promise<void> => {
+  await userEvent.click(await within(canvasElement).findByRole("button", { name: "表示設定" }));
+  await userEvent.click(await within(document.body).findByRole("menuitemcheckbox", { name: "連絡事項を表示" }));
+};
+
+/**
+ * SPで連絡事項を非表示にすると、カード下段の本文の代わりに名前の右のアイコンが出て、タップで本文を開く。
+ * アイコンのタップでカードの編集は開かない。
+ */
+export const expectStaffNoteIconOpensOnTap = async (canvasElement: HTMLElement, note: string): Promise<void> => {
+  const canvas = within(canvasElement);
+  const body = within(document.body);
+  await expect(await canvas.findByText(note)).toBeInTheDocument();
+  await expect(canvas.queryByRole("button", { name: /^連絡事項\d+件$/ })).not.toBeInTheDocument();
+
+  await hideDateNotes(canvasElement);
+  await waitFor(() => expect(canvas.queryByText(note)).not.toBeInTheDocument());
+  const icons = await canvas.findAllByRole("button", { name: "連絡事項1件" });
+
+  await userEvent.click(icons[0]);
+  const dialogs = await body.findAllByRole("dialog");
+  await expect(dialogs).toHaveLength(1);
+  await expect(dialogs[0]).toHaveTextContent(/^連絡事項/);
+  await expect(dialogs[0].querySelector("[data-clarity-mask]")).not.toBeNull();
+};
+
+/** SPの確認事項アイコンは、タップで理由を開く。アイコンのタップでカードの編集は開かない。 */
+export const expectWarningIconOpensOnTap = async (canvasElement: HTMLElement): Promise<void> => {
+  const icons = await within(canvasElement).findAllByRole("button", { name: /^確認事項\d+件$/ });
+  await userEvent.click(icons[0]);
+  const dialogs = await within(document.body).findAllByRole("dialog");
+  await expect(dialogs).toHaveLength(1);
+  await expect(dialogs[0]).toHaveTextContent(/^確認事項/);
 };

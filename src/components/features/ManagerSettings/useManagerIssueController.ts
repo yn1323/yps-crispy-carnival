@@ -5,6 +5,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import type { ManagerSettingsCandidate, ReadyManagerSettingsOverview } from "./types";
 
 type ManagerInvitationIssueRequest =
@@ -52,6 +53,9 @@ export function useManagerIssueController({
         requestId: current.requestId,
       };
       const result = await issueForOrganization({ organizationId, ...args });
+      if (result.status !== "alreadyPending") {
+        trackProductEvent({ kind: "manage_action", target: "manager", action: "invite" });
+      }
       showSuccessToast({
         title: result.status === "alreadyPending" ? "この管理者招待は送信済みです" : "送信を受け付けました",
       });

@@ -1,4 +1,5 @@
 import { Box, Flex, Stack, Text } from "@chakra-ui/react";
+import dayjs from "dayjs";
 import { useAtomValue, useSetAtom } from "jotai";
 import type { ReactNode } from "react";
 import { useCallback, useMemo, useRef } from "react";
@@ -11,6 +12,8 @@ import {
 } from "@/src/domains/shift/date";
 import type { StaffType } from "@/src/domains/shift/types";
 import { Avatar, DateIssueBadge, dateIssueBorderColor, StaffWarningIcon } from "../../components";
+import { DisplaySettingsMenu } from "../../DisplaySettingsMenu";
+import { ShiftDateNoteBlock, ShiftStaffNoteIcon, useAllShiftDateNotes } from "../../dateNotes";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
 import {
@@ -42,6 +45,8 @@ export const SPDateOnlyDailyView = () => {
   const issueCounts = useAtomValue(issueCountByDateAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
   const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
+  // カード下段の本文と名前の右のアイコンは、表示設定に応じてどちらか一方だけが出る。
+  const dateNotes = useAllShiftDateNotes();
 
   const { dates, holidays, isReadOnly } = config;
   const isConfirmedDisplay = config.displayMode === "confirmed";
@@ -107,11 +112,14 @@ export const SPDateOnlyDailyView = () => {
               </Text>
               {!isInRange && <StatusBadge tone="muted">期間外</StatusBadge>}
               {isShopClosedDate && <StatusBadge tone="muted">定休日</StatusBadge>}
+              <Box ml={2} alignSelf="center">
+                <SummaryPill label="合計" count={assignedCount} muted={!isInRange || isShopClosedDate} />
+              </Box>
             </Flex>
           </Box>
-          <Flex flexShrink={0} align="center" gap={2}>
-            <SummaryPill label="合計" count={assignedCount} muted={!isInRange || isShopClosedDate} />
-          </Flex>
+          <Box flexShrink={0}>
+            <DisplaySettingsMenu />
+          </Box>
         </Flex>
       </Box>
 
@@ -129,6 +137,7 @@ export const SPDateOnlyDailyView = () => {
                 activeDate={activeDate}
                 isReadOnly={isReadOnly}
                 warningMessages={warningMessagesByStaffId.get(row.staff.id) ?? []}
+                note={dateNotes.getNote(row.staff.id, activeDate)}
                 onToggle={() => handleToggle(row.staff)}
               />
             ))}
@@ -191,9 +200,8 @@ const DateRail = ({
               onClick={() => onSelect(date.iso)}
               position="relative"
               flexShrink={0}
-              w="56px"
-              minH="58px"
-              py="7px"
+              w="52px"
+              py="8px"
               textAlign="center"
               borderRadius="md"
               borderWidth="1px"
@@ -214,21 +222,23 @@ const DateRail = ({
                 color={active ? "white" : undefined}
                 fontVariantNumeric="tabular-nums"
               >
-                {formatDateShort(date.iso)}
+                {dayjs(date.iso).date()}
               </Text>
+              {/* 休みと期間外は曜日と同じ行に置き、日付の高さをそろえる。 */}
               <Text
                 textStyle="2xs"
                 mt="2px"
                 fontWeight={active ? 700 : 500}
+                whiteSpace="nowrap"
                 color={active ? "white" : !date.inRange || isClosed ? "gray.400" : dayColor(date.iso)}
               >
                 {getWeekdayLabel(date.iso)}
+                {(isClosed || !date.inRange) && (
+                  <Text as="span" fontWeight={700}>
+                    {date.inRange ? "(休)" : "(外)"}
+                  </Text>
+                )}
               </Text>
-              {(isClosed || !date.inRange) && (
-                <Text textStyle="2xs" mt="1px" fontWeight={700} color={active ? "white" : "gray.400"}>
-                  {date.inRange ? "休" : "外"}
-                </Text>
-              )}
             </Box>
           );
         })}
@@ -242,60 +252,66 @@ const StaffToggleRow = ({
   activeDate,
   isReadOnly,
   warningMessages,
+  note,
   onToggle,
 }: {
   row: SPDateOnlyStaffRowViewModel;
   activeDate: string;
   isReadOnly: boolean;
   warningMessages: string[];
+  note?: string;
   onToggle: () => void;
 }) => {
   return (
-    <Flex bg="white" borderWidth="1px" borderColor="gray.200" borderRadius="md" px={3} py={3} align="center" gap={3}>
-      <Avatar staff={row.staff} size={28} />
-      <Box flex={1} minW={0}>
-        <Text textStyle="sm" fontWeight={600} color={row.isNameMuted ? "gray.500" : "gray.800"} truncate>
-          {row.staff.name}
-        </Text>
-        <Flex mt={1} align="center" gap={2}>
-          <StatusBadge tone={row.statusTone}>{row.statusLabel}</StatusBadge>
-        </Flex>
-      </Box>
-      <StaffWarningIcon messages={warningMessages} />
-      <Box
-        as="button"
-        aria-label={`${row.staff.name} ${formatDateWithWeekday(activeDate)} ${row.assigned ? "勤務あり" : "勤務なし"}`}
-        aria-pressed={row.assigned}
-        aria-disabled={isReadOnly}
-        onClick={isReadOnly ? undefined : onToggle}
-        w="56px"
-        h="40px"
-        flexShrink={0}
-        borderRadius="md"
-        borderWidth="1px"
-        borderColor={row.assigned ? "teal.600" : "gray.200"}
-        bg={row.assigned ? "teal.500" : row.requested ? "white" : "gray.50"}
-        color={row.assigned ? "white" : "gray.400"}
-        fontSize="xl"
-        fontWeight={row.assigned ? 700 : 500}
-        cursor={isReadOnly ? "default" : "pointer"}
-        transitionProperty="colors"
-        transitionDuration="faster"
-        _hover={
-          isReadOnly
-            ? undefined
-            : {
-                bg: row.assigned ? "teal.600" : "gray.100",
-                borderColor: row.assigned ? "teal.700" : "gray.300",
-                color: row.assigned ? "white" : "gray.500",
-              }
-        }
-        _active={isReadOnly ? undefined : { bg: row.assigned ? "teal.600" : "gray.100", transitionDuration: "0ms" }}
-        _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "1px" }}
-      >
-        {row.assigned ? "○" : "×"}
-      </Box>
-    </Flex>
+    <Box bg="white" borderWidth="1px" borderColor="gray.200" borderRadius="md" px={3} py={3}>
+      <Flex align="center" gap={3}>
+        <Avatar staff={row.staff} size={28} />
+        <Box flex={1} minW={0}>
+          <Text textStyle="sm" fontWeight={600} color={row.isNameMuted ? "gray.500" : "gray.800"} truncate>
+            {row.staff.name}
+          </Text>
+          <Flex mt={1} align="center" gap={2}>
+            <StatusBadge tone={row.statusTone}>{row.statusLabel}</StatusBadge>
+          </Flex>
+        </Box>
+        <StaffWarningIcon messages={warningMessages} openOn="tap" />
+        <ShiftStaffNoteIcon notes={note ? [{ date: activeDate, note }] : []} openOn="tap" />
+        <Box
+          as="button"
+          aria-label={`${row.staff.name} ${formatDateWithWeekday(activeDate)} ${row.assigned ? "勤務あり" : "勤務なし"}`}
+          aria-pressed={row.assigned}
+          aria-disabled={isReadOnly}
+          onClick={isReadOnly ? undefined : onToggle}
+          w="56px"
+          h="40px"
+          flexShrink={0}
+          borderRadius="md"
+          borderWidth="1px"
+          borderColor={row.assigned ? "teal.600" : "gray.200"}
+          bg={row.assigned ? "teal.500" : row.requested ? "white" : "gray.50"}
+          color={row.assigned ? "white" : "gray.400"}
+          fontSize="xl"
+          fontWeight={row.assigned ? 700 : 500}
+          cursor={isReadOnly ? "default" : "pointer"}
+          transitionProperty="colors"
+          transitionDuration="faster"
+          _hover={
+            isReadOnly
+              ? undefined
+              : {
+                  bg: row.assigned ? "teal.600" : "gray.100",
+                  borderColor: row.assigned ? "teal.700" : "gray.300",
+                  color: row.assigned ? "white" : "gray.500",
+                }
+          }
+          _active={isReadOnly ? undefined : { bg: row.assigned ? "teal.600" : "gray.100", transitionDuration: "0ms" }}
+          _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "1px" }}
+        >
+          {row.assigned ? "○" : "×"}
+        </Box>
+      </Flex>
+      {note && <ShiftDateNoteBlock note={note} />}
+    </Box>
   );
 };
 

@@ -140,6 +140,12 @@ export const getWeekdayLabel = (date: string): string => {
 export const formatDatePeriodWithWeekday = (start: string, end: string, separator = " 〜 "): string =>
   `${formatDateWithWeekday(start)}${separator}${formatDateWithWeekday(end)}`;
 
+// 期間を短く表示する。同じ年月の終了日は日だけにする（"12/23 〜 31"、"12/28 〜 1/3"）。
+export const formatDateRangeShort = (start: string, end: string, separator = " 〜 "): string => {
+  const endLabel = dayjs(end).isSame(start, "month") ? dayjs(end).format("D") : formatDateShort(end);
+  return `${formatDateShort(start)}${separator}${endLabel}`;
+};
+
 export const formatCompactDateListWithWeekday = (dates: string[]): string =>
   dates
     .map((date, index) => {

@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { api } from "@/convex/_generated/api";
 import { FullPageSpinner } from "@/src/components/templates/FullPageSpinner";
 import { normalizeAuthRedirect } from "@/src/lib/auth/redirect";
+import { setManagerMeasurementIdentity, trackAppTiming } from "@/src/lib/webMeasurement";
 import { selectedShopAtom } from "@/src/stores/shop";
 import { EMPTY_USER, userAtom } from "@/src/stores/user";
 import { MOBILE_APP_NAVIGATION_HEIGHT } from "./AppPrimaryNavigation";
@@ -59,6 +60,25 @@ export const AuthGuard = ({ children }: Props) => {
   }, [isAccountDeleted, setSelectedShop, setUser]);
 
   const isUserContextReady = Boolean(userId && currentUser && !isAccountDeleted) && user.authId === userId;
+
+  // 画面が持つClerkのuser IDだけを計測へ渡す。組織と店舗は、画面が使うscopeのproviderが渡す。
+  useEffect(() => {
+    setManagerMeasurementIdentity(isUserContextReady && userId ? { userId } : null);
+  }, [isUserContextReady, userId]);
+
+  useEffect(() => () => setManagerMeasurementIdentity(null), []);
+
+  useEffect(() => {
+    if (isLoaded) trackAppTiming("clerk_loaded");
+  }, [isLoaded]);
+
+  useEffect(() => {
+    if (currentUser !== undefined) trackAppTiming("user_loaded");
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (isUserContextReady) trackAppTiming("app_ready");
+  }, [isUserContextReady]);
 
   // ログアウト・セッション失効時は userAtom が残っていても必ずログインへ戻す。
   // （queryは未認証時にthrowせず空を返すため、エラー経由のリダイレクトは発生しない）

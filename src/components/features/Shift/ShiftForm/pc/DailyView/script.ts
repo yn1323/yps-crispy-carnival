@@ -9,6 +9,18 @@ export type ShiftPopoverViewModel = {
   segments: Array<{ id: string; timeLabel: string }>;
 };
 
+const formatRequestLabel = (shift: ShiftData, isStaffSubmitted: boolean): string => {
+  const requestedTimes = shift.requestedTimes ?? [];
+  if (requestedTimes.length > 0) {
+    return `希望：${requestedTimes.map((request) => formatShiftClockTimeRange(request.start, request.end)).join(" / ")}`;
+  }
+  if (shift.requestedTime) {
+    return `希望：${formatShiftClockTimeRange(shift.requestedTime.start, shift.requestedTime.end)}`;
+  }
+  // 提出済みで希望時間がない日は休み希望。未提出は希望自体がないため「なし」のまま。
+  return isStaffSubmitted ? "希望：休み" : "希望：なし";
+};
+
 export const buildShiftPopoverViewModel = ({
   shift,
   isStaffSubmitted,
@@ -18,14 +30,7 @@ export const buildShiftPopoverViewModel = ({
   isStaffSubmitted: boolean;
   isReadOnly: boolean;
 }): ShiftPopoverViewModel => {
-  const requestedTimes = shift.requestedTimes ?? [];
-  const requestLabel = isReadOnly
-    ? null
-    : requestedTimes.length > 0
-      ? `希望：${requestedTimes.map((request) => formatShiftClockTimeRange(request.start, request.end)).join(" / ")}`
-      : shift.requestedTime
-        ? `希望：${formatShiftClockTimeRange(shift.requestedTime.start, shift.requestedTime.end)}`
-        : "希望：なし";
+  const requestLabel = isReadOnly ? null : formatRequestLabel(shift, isStaffSubmitted);
   const segments = [...shift.positions]
     .filter(isLegacyCompatibleWorkPosition)
     .sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start))

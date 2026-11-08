@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { type ContactFormData, contactFormSchema } from "@/convex/contact/schemas";
 import { VERIFICATION_REQUIRED_MESSAGE } from "@/src/components/shared/TurnstileWidget";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { trackAppError, trackProductEvent } from "@/src/lib/webMeasurement";
 import { createContactFormDefaultValues, getContactMessagePresentation } from "./script";
 import type { ContactSubmitData } from "./submitContactRequest";
 
@@ -59,8 +60,10 @@ export function useContactFormController({ onSubmit, verification }: UseContactF
     setServerError(null);
     try {
       await onSubmit({ ...values, turnstileToken, requestId: crypto.randomUUID() });
+      trackProductEvent({ kind: "generate_lead" });
       setSubmitted(true);
     } catch (error) {
+      trackAppError("section", error);
       setServerError(error instanceof Error ? error.message : SUBMISSION_ERROR_MESSAGE);
       if ("siteKey" in verification) {
         setTurnstileToken("");

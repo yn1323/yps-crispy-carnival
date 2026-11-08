@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSubmissionInput } from "./buildSubmissionInput";
+import { buildDateNotesInput, buildSubmissionInput } from "./buildSubmissionInput";
 
 const dayEntries = [
   { date: "2026-04-07", isWorking: true, startTime: "09:00", endTime: "18:00" },
@@ -49,5 +49,47 @@ describe("buildSubmissionInput", () => {
         { date: "2026-04-09", optionId: "late" },
       ],
     });
+  });
+
+  it("勤務パターンは選んだ順ではなく勤務パターンの並び順で送り、同じ選択を同じpayloadにする", () => {
+    const pattern = {
+      kind: "shiftType" as const,
+      options: [
+        { id: "early", name: "早番", startTime: "09:00", endTime: "15:00", sortOrder: 0 },
+        { id: "late", name: "遅番", startTime: "15:00", endTime: "22:00", sortOrder: 1 },
+      ],
+    };
+    const build = (optionIds: string[]) =>
+      buildSubmissionInput(pattern, [
+        { date: "2026-04-07", isWorking: true, startTime: "09:00", endTime: "15:00", optionIds },
+      ]);
+
+    expect(build(["late", "early"])).toEqual(build(["early", "late"]));
+    expect(build(["late", "early"])).toEqual({
+      kind: "shiftType",
+      selections: [
+        { date: "2026-04-07", optionId: "early" },
+        { date: "2026-04-07", optionId: "late" },
+      ],
+    });
+  });
+});
+
+describe("buildDateNotesInput", () => {
+  it("定休日と空のメモを除き、正規化したメモを日付順に送る", () => {
+    expect(
+      buildDateNotesInput(
+        {
+          "2026-04-09": "  午前だけ\n入れます ",
+          "2026-04-07": "17時以降なら入れます",
+          "2026-04-08": "   ",
+          "2026-04-10": "定休日のメモ",
+        },
+        ["2026-04-10"],
+      ),
+    ).toEqual([
+      { date: "2026-04-07", note: "17時以降なら入れます" },
+      { date: "2026-04-09", note: "午前だけ 入れます" },
+    ]);
   });
 });

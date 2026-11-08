@@ -12,6 +12,7 @@ import { DEFAULT_POSITION } from "@/src/domains/shift/constants";
 import { formatDateShort, formatDateTime, getWeekdayLabel } from "@/src/domains/shift/date";
 import type { ShiftData, ViewMode } from "@/src/domains/shift/types";
 import { DEFAULT_TIME_PATTERN } from "@/src/domains/shop/submissionPattern";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import { DemoIntroTour } from "./DemoIntroTour";
 import { DemoLauncherFab } from "./DemoLauncherFab";
 import { mockDates, mockShifts, mockStaffs, mockTimeRange } from "./demoData";
@@ -94,12 +95,14 @@ export const DemoShiftBoardPage = ({ baseDate, headerStart, heading, height = "1
 
   const handleConfirm = useCallback(() => {
     // tour は handleOpenConfirm 時点で skip + idle 済み。確定後も FAB を出しておきたいので idle のまま
+    trackProductEvent({ kind: "demo_progress", stage: "confirm" });
     setConfirmedAt(Date.now());
     confirmModal.close();
     showSuccessToast({ title: "確定後の画面を表示しました" });
   }, [confirmModal]);
 
   const handleTourCloseRequest = useCallback(() => {
+    trackProductEvent({ kind: "demo_progress", stage: "tour_close" });
     tourRef.current?.skip();
     setTourPhase("idle");
   }, []);
@@ -207,7 +210,13 @@ export const DemoShiftBoardPage = ({ baseDate, headerStart, heading, height = "1
 
         <ClientOnly>
           {tourPhase === "idle" && viewMode === "daily" && (
-            <DemoLauncherFab onStart={() => setTourPhase("running")} onDismiss={() => setTourPhase("done")} />
+            <DemoLauncherFab
+              onStart={() => {
+                trackProductEvent({ kind: "demo_progress", stage: "tour_start" });
+                setTourPhase("running");
+              }}
+              onDismiss={() => setTourPhase("done")}
+            />
           )}
 
           {/* idle/running はマウント継続で run だけトグル。done で unmount する前に
