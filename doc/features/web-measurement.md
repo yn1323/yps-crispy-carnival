@@ -51,7 +51,7 @@ ApplicationがdataLayerへ追加するイベントは次に限定する。  `web
 | `page_view` | 初回documentとpathnameが変わるSPA遷移 | `page_location`、`page_referrer` |
 | `select_content` | TOPのheader・hero・毎月の流れ・料金section・下部CTA、機能一覧と機能ページの上部・下部CTA、記事末尾CTAの選択 | `content_type`、`content_id` |
 | `section_view` | TOPの料金sectionの上端が画面の上60%へ入ったとき（TOPの表示ごとに1回） | `section`（`pricing`） |
-| `help_search` | ヘルプ検索の入力が1.5秒止まったとき | `has_results`（`true`、`false`）、`search_term`（結果が0件のときだけ） |
+| `help_search` | ヘルプ検索の入力が1.5秒止まったとき | `has_results`（`true`、`false`）。検索語は氏名や連絡先を含み得るため送らない |
 | `generate_lead` | お問い合わせの送信に成功したとき | なし |
 | `demo_progress` | デモのツアーを始めたとき、ツアーを閉じたとき、確定まで進んだとき | `stage`（`tour_start`、`tour_close`、`confirm`） |
 | `security_check_issue` | スタッフ登録・問い合わせのセキュリティ確認が15秒以内に終わらない、または失敗したとき（確認のやり直しごとに理由ごと1回） | `reason`（`stalled`、`error`、`unsupported`、`interactive_timeout`、`script_load_failed`）、`error_code`（数字のTurnstile error code、なしは`none`、数字以外は`unknown`） |

@@ -1410,21 +1410,6 @@
                     "value": "{{DLV - has_results}}"
                   }
                 ]
-              },
-              {
-                "type": "MAP",
-                "map": [
-                  {
-                    "type": "TEMPLATE",
-                    "key": "parameter",
-                    "value": "search_term"
-                  },
-                  {
-                    "type": "TEMPLATE",
-                    "key": "parameterValue",
-                    "value": "{{DLV - search_term}}"
-                  }
-                ]
               }
             ]
           },
@@ -10110,31 +10095,6 @@
             "type": "TEMPLATE",
             "key": "name",
             "value": "phase"
-          }
-        ],
-        "fingerprint": "0"
-      },
-      {
-        "accountId": "0",
-        "containerId": "0",
-        "variableId": "46",
-        "name": "DLV - search_term",
-        "type": "v",
-        "parameter": [
-          {
-            "type": "INTEGER",
-            "key": "dataLayerVersion",
-            "value": "2"
-          },
-          {
-            "type": "BOOLEAN",
-            "key": "setDefaultValue",
-            "value": "false"
-          },
-          {
-            "type": "TEMPLATE",
-            "key": "name",
-            "value": "search_term"
           }
         ],
         "fingerprint": "0"

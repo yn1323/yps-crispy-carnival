@@ -146,7 +146,7 @@ export type ProductMeasurementInput =
   | { kind: "setup_complete"; setupKind: SetupKind; submissionPattern: SubmissionPatternKind }
   | { kind: "section_view"; section: MeasuredPageSection }
   | { kind: "shift_export"; format: ShiftExportFormat }
-  | { kind: "help_search"; hasResults: boolean; searchTerm?: string }
+  | { kind: "help_search"; hasResults: boolean }
   | { kind: "plan_checkout_start"; plan: CheckoutPlan }
   | { kind: "security_check_issue"; reason: SecurityCheckIssueReason; errorCode?: string }
   | { kind: "generate_lead" }
@@ -234,7 +234,7 @@ type SerializedProductParams = {
   setup_complete: { setup_kind: SetupKind; submission_pattern: SubmissionPatternKind };
   section_view: { section: MeasuredPageSection };
   shift_export: { format: ShiftExportFormat };
-  help_search: { has_results: BooleanString; search_term: string | undefined };
+  help_search: { has_results: BooleanString };
   plan_checkout_start: { plan: CheckoutPlan };
   security_check_issue: { reason: SecurityCheckIssueReason; error_code: string };
   generate_lead: NoParams;
@@ -330,19 +330,6 @@ export function normalizeMeasurementErrorCode(value: string | undefined): string
   return /^[a-z][a-z0-9_]{0,47}$/.test(normalized) ? normalized : "other";
 }
 
-const MAX_HELP_SEARCH_TERM_LENGTH = 30;
-
-/**
- * 結果が0件の検索語だけを送る。
- * メールアドレス、電話番号、URLのように個人や連絡先を含み得る語は送らない。
- */
-export function normalizeHelpSearchTerm(value: string | undefined): string | undefined {
-  const normalized = value?.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase();
-  if (!normalized || normalized.length > MAX_HELP_SEARCH_TERM_LENGTH) return undefined;
-  if (/@/.test(normalized) || /\d{4,}/.test(normalized) || /https?:|www\./.test(normalized)) return undefined;
-  return normalized;
-}
-
 /** 残り日数を集計しやすい区分にする。0未満と不明な値は`overdue`にする。 */
 export function getDaysBucket(days: number): DaysBucket {
   if (!(days >= 0)) return "overdue";
@@ -427,11 +414,8 @@ function serializeProductPayload(event: ProductMeasurementInput): SerializedProd
     case "shift_export":
       return { event: "shift_export", format: event.format };
     case "help_search":
-      return {
-        event: "help_search",
-        has_results: toBooleanString(event.hasResults),
-        search_term: event.hasResults ? undefined : normalizeHelpSearchTerm(event.searchTerm),
-      };
+      // 自由入力の検索語は氏名や連絡先を含み得るため、結果の有無だけを送る。
+      return { event: "help_search", has_results: toBooleanString(event.hasResults) };
     case "plan_checkout_start":
       return { event: "plan_checkout_start", plan: event.plan };
     case "security_check_issue":

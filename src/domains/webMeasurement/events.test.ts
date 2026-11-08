@@ -3,7 +3,6 @@ import {
   buildWebVitalEvent,
   getDaysBucket,
   getViewportClass,
-  normalizeHelpSearchTerm,
   normalizeMeasurementErrorCode,
   normalizeReleaseId,
   normalizeWebMeasurementEnvironment,
@@ -262,26 +261,22 @@ describe("Web計測event serializer", () => {
     ).toMatchObject({ user_id: undefined, shop_id: undefined });
   });
 
-  it.each([
-    { hasResults: false, searchTerm: " シフト  提出 ", expected: "シフト 提出" },
-    { hasResults: true, searchTerm: "シフト", expected: undefined },
-    { hasResults: false, searchTerm: "taro@example.com", expected: undefined },
-    { hasResults: false, searchTerm: "090-1234-5678", expected: undefined },
-  ])("ヘルプ検索語は0件で安全な語だけを送る（$searchTerm）", ({ hasResults, searchTerm, expected }) => {
-    const payload = serializeWebMeasurementEvent(
-      { kind: "help_search", hasResults, searchTerm, routeFamily: "help_index" },
-      context,
-    );
-    expect(Object.keys(payload)).toContain("search_term");
-    expect(payload).toMatchObject({ search_term: expected });
-  });
+  it.each(["山田 太郎", "+33 6 12 34 56 78", "090-1234-5678", "taro@example.com"])(
+    "ヘルプ検索の自由入力はGA4へ送らない（%s）",
+    (searchTerm) => {
+      // 型で検索語を受け取らないことに加え、呼び出し元が余分な値を渡してもpayloadへ載せない。
+      const event = { kind: "help_search" as const, hasResults: false, searchTerm, routeFamily: "help_index" as const };
+      const payload = serializeWebMeasurementEvent(event, context);
+      expect(payload).not.toHaveProperty("search_term");
+      expect(JSON.stringify(payload)).not.toContain(searchTerm);
+      expect(payload).toMatchObject({ event: "help_search", has_results: "false" });
+    },
+  );
 
-  it("error code・検索語・日数を有限値へ正規化する", () => {
+  it("error code・日数を有限値へ正規化する", () => {
     expect(normalizeMeasurementErrorCode(undefined)).toBe("none");
     expect(normalizeMeasurementErrorCode("RECRUITMENT_CHANGED")).toBe("recruitment_changed");
     expect(normalizeMeasurementErrorCode("提出期限を過ぎています")).toBe("other");
-    expect(normalizeHelpSearchTerm("a".repeat(31))).toBeUndefined();
-    expect(normalizeHelpSearchTerm("https://example.com")).toBeUndefined();
     expect(getDaysBucket(-1)).toBe("overdue");
     expect(getDaysBucket(Number.NaN)).toBe("overdue");
     expect(getDaysBucket(0)).toBe("0");

@@ -84,7 +84,6 @@ Google tagと各イベントタグの`page_location`は、アプリが直前の`
 | `section` | 表示されたsection |
 | `format` | シフト出力の形式 |
 | `has_results` | ヘルプ検索の結果の有無 |
-| `search_term` | 結果が0件だったヘルプ検索語 |
 | `plan` | 申込みを始めたプラン |
 | `reason` | セキュリティ確認の失敗、確定を止めた検証、スタッフのリンクを使えない理由 |
 | `error_code` | Turnstile、Clerk、Convexのerror code |
