@@ -6,6 +6,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { showSuccessToast } from "@/src/components/shared/feedback";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { getConvexErrorMessage } from "@/src/lib/convex/error";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import type {
   ShopStaffMembershipChangeInput,
   ShopStaffMembershipData,
@@ -193,6 +194,7 @@ export function useShopStaffMembershipController({ shopId, expectedOrganizationI
       setPreviewRequest(null);
       try {
         await changeMemberships({ ...input, expectedOrganizationId });
+        trackProductEvent({ kind: "manage_action", target: "staff", action: "change_shops" });
         if (isMountedRef.current) setRetainedReadyRemovalPreview(undefined);
         const latest = latestStateRef.current;
         if (isMountedRef.current && latest.isOpen && latest.shopId === input.shopId) {

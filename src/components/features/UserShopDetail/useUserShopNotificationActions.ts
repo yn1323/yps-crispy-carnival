@@ -6,6 +6,7 @@ import { showNotificationResendCooldownToast } from "@/src/components/shared/Not
 import { toaster } from "@/src/components/ui/toaster";
 import { useDeadlineActive } from "@/src/hooks/useDeadlineActive";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import type { UserShopDetailMembership, UserShopDetailRecruitment } from "./types";
 
 const RECRUITMENT_QUERY_PAGE_SIZE = 100;
@@ -65,6 +66,7 @@ export function useUserShopNotificationActions({
         expectedOrganizationId,
       });
       if (result.scheduled) {
+        trackProductEvent({ kind: "manage_action", target: "staff", action: "notify_recruitment" });
         showSuccessToast({ title: "シフト募集通知を再送しました" });
         return;
       }
@@ -99,6 +101,7 @@ export function useUserShopNotificationActions({
         expectedOrganizationId,
       });
       if (result.scheduled) {
+        trackProductEvent({ kind: "manage_action", target: "staff", action: "notify_shift" });
         showSuccessToast({ title: "確定シフト通知を再送しました" });
         return;
       }

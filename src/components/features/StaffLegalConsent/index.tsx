@@ -4,6 +4,7 @@ import { api } from "@/convex/_generated/api";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { toaster } from "@/src/components/ui/toaster";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { trackAppError, trackProductEvent } from "@/src/lib/webMeasurement";
 import { StaffLegalConsentView } from "./ConsentView";
 import type { StaffLegalConsentPageData } from "./types";
 
@@ -22,6 +23,7 @@ export function StaffLegalConsent({ token, data }: Props) {
     try {
       const result = await accept({ token, acceptedLegal: true });
       if (result.status === "ok" && pageData.status === "ok") {
+        trackProductEvent({ kind: "staff_legal_consent" });
         setAcceptedData({
           status: "accepted",
           staffName: pageData.staffName,
@@ -32,6 +34,7 @@ export function StaffLegalConsent({ token, data }: Props) {
         return;
       }
 
+      trackAppError("toast", undefined);
       toaster.create({ title: "このリンクでは同意できません", type: "error" });
     } catch (error) {
       showErrorToast(error);

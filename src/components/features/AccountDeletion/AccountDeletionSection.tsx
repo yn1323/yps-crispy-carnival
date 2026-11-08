@@ -3,6 +3,7 @@ import { Component, type ReactNode } from "react";
 import { api } from "@/convex/_generated/api";
 import { DeletionActionSection, DeletionActionSectionSkeleton } from "@/src/components/shared/DeletionActionSection";
 import { todayJST } from "@/src/domains/shift/date";
+import { trackAppError } from "@/src/lib/webMeasurement";
 import { AccountDeletionDialog } from "./AccountDeletionDialog";
 import type { AccountDeletionBlockedPreview, AccountDeletionPreview, AccountDeletionReadyPreview } from "./types";
 import { useAccountDeletionController } from "./useAccountDeletionController";
@@ -152,6 +153,10 @@ class AccountDeletionPreviewErrorBoundary extends Component<ErrorBoundaryProps, 
 
   static getDerivedStateFromError() {
     return { hasError: true };
+  }
+
+  componentDidCatch(error: Error) {
+    trackAppError("section", error);
   }
 
   render() {

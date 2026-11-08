@@ -212,6 +212,7 @@ export function useStripeBillingController(input: Input) {
     if (handledStripeResultRef.current === resultKey) return;
     handledStripeResultRef.current = resultKey;
 
+    trackProductEvent({ kind: "plan_checkout_result", result: stripeResult });
     if (stripeResult === "returned") {
       onStripeResultHandled?.();
       return;
@@ -358,6 +359,7 @@ export function useStripeBillingController(input: Input) {
         return;
       }
       if (result.status === "cancelled") {
+        trackProductEvent({ kind: "manage_action", target: "billing", action: "cancel_checkout" });
         setPendingCheckout({ scopeKey: scope.key, purpose: scope.purpose, status: "idle" });
         showSuccessToast(cancelledCheckoutMessage(scope.purpose));
         return;
@@ -463,6 +465,7 @@ export function useStripeBillingController(input: Input) {
         );
         if (!result) throw new Error("Unexpected billing response");
         if (result.status === "unavailable") return showUnavailable(result.reason);
+        trackProductEvent({ kind: "manage_action", target: "billing", action: "change_plan_now" });
         setDialog(null);
         showSuccessToast({ title: "Proへの変更を受け付けました" });
         return;
@@ -483,6 +486,18 @@ export function useStripeBillingController(input: Input) {
       const result = asBillingAcceptedActionResult(rawResult);
       if (!result) throw new Error("Unexpected billing response");
       if (result.status === "unavailable") return showUnavailable(result.reason);
+      trackProductEvent({
+        kind: "manage_action",
+        target: "billing",
+        action:
+          currentDialog.kind === "cancelTrialContinuation"
+            ? "cancel_trial_continuation"
+            : currentDialog.kind === "schedulePlanChange"
+              ? "schedule_plan_change"
+              : currentDialog.kind === "scheduleServiceStop"
+                ? "schedule_stop"
+                : "cancel_plan_change",
+      });
       setDialog(null);
       showSuccessToast({ title: acceptedMessage(currentDialog) });
     } catch (error) {
@@ -504,6 +519,7 @@ export function useStripeBillingController(input: Input) {
       );
       if (!result) throw new Error("Unexpected billing response");
       if (result.status === "unavailable") return showUnavailable(result.reason);
+      trackProductEvent({ kind: "manage_action", target: "billing", action: "open_portal" });
       openBillingUrl(result.url);
     } catch (error) {
       showErrorToast(error);

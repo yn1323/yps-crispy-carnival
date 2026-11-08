@@ -14,6 +14,7 @@ import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { Textarea } from "@/src/components/ui/FormControls";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import { type AppFeatureRequestScope, resolveAppFeatureRequestShopId } from "./appScope";
 
 const formSchema = z.object({ comment: featureRequestCommentSchema });
@@ -64,6 +65,7 @@ export function FeatureRequestDialog({ onSubmit }: FeatureRequestDialogProps) {
   const { run: submitOnce, isRunning } = useSingleFlight(async (values: FormData) => {
     try {
       await onSubmit({ comment: values.comment, requestId: crypto.randomUUID() });
+      trackProductEvent({ kind: "feature_request_submit" });
       reset();
       dialog.close();
       showSuccessToast({ title: "要望を送信しました。\nご協力ありがとうございます！" });

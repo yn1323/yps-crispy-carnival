@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { LuRotateCw, LuTriangleAlert } from "react-icons/lu";
+import { trackAppError } from "@/src/lib/webMeasurement";
 import { extractRouterErrors, formatErrorDetails, type RouterErrorDetail } from "./script";
 import styles from "./styles.css?inline";
 
@@ -16,6 +17,10 @@ function reloadPage(): void {
 /** Providerや通常のstylesheetが利用できない場合にも表示する。 */
 export function RouteErrorFallback({ error, onRefresh = reloadPage, routerErrors }: Props) {
   const [snapshot, setSnapshot] = useState<{ error: unknown; details: RouterErrorDetail[] }>();
+
+  useEffect(() => {
+    trackAppError("screen", error);
+  }, [error]);
 
   useEffect(() => {
     if (routerErrors !== undefined) return;

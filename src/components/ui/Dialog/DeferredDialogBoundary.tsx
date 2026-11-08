@@ -61,6 +61,7 @@ export function DeferredDialogBoundary({
 
   return (
     <ErrorBoundary
+      errorSurface="dialog"
       fallback={renderFallbackDialog(
         <Empty
           icon={LuTriangleAlert}

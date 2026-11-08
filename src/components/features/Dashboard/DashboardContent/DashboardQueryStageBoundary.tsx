@@ -1,4 +1,5 @@
 import { Component, Fragment, type ReactNode } from "react";
+import { trackAppError } from "@/src/lib/webMeasurement";
 
 export type DashboardQueryRecoveryActions = {
   onRetry: () => void;
@@ -23,6 +24,10 @@ export class DashboardQueryStageBoundary extends Component<Props, State> {
 
   static getDerivedStateFromError(): Partial<State> {
     return { hasError: true };
+  }
+
+  componentDidCatch(error: Error): void {
+    trackAppError("section", error);
   }
 
   private retry = () => {

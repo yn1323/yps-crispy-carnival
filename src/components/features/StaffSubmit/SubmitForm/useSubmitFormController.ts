@@ -29,6 +29,7 @@ const buildPayload = (
 
 export function useSubmitFormController({ data, onSubmit }: UseSubmitFormControllerParams) {
   const latestWorkingTimeRef = useRef<WorkingTime | undefined>(undefined);
+  const usedPreviousPatternRef = useRef(false);
   const latestShiftTypeOptionIdsRef = useRef<string[] | undefined>(undefined);
   const pendingLateSubmissionRef = useRef<{
     payload: SubmitShiftPayload;
@@ -187,6 +188,7 @@ export function useSubmitFormController({ data, onSubmit }: UseSubmitFormControl
 
   const handleApplyPreviousPattern = () => {
     if (!previousPatternEntries) return;
+    usedPreviousPatternRef.current = true;
     latestWorkingTimeRef.current = undefined;
     latestShiftTypeOptionIdsRef.current = undefined;
     setValue("entries", previousPatternEntries, {
@@ -206,7 +208,10 @@ export function useSubmitFormController({ data, onSubmit }: UseSubmitFormControl
       return;
     }
 
-    const payload = buildPayload(data, formData.entries, formData.dateNotes ?? {});
+    const builtPayload = buildPayload(data, formData.entries, formData.dateNotes ?? {});
+    const payload = usedPreviousPatternRef.current
+      ? { ...builtPayload, usedPreviousPattern: true as const }
+      : builtPayload;
     if (isLateInitialSubmission) {
       pendingLateSubmissionRef.current = { payload, acceptedLegal: formData.acceptedLegal };
       lateSubmitDialog.open();

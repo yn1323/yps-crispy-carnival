@@ -1,5 +1,7 @@
 import { Alert, Flex, Stack, Text } from "@chakra-ui/react";
+import { useEffect } from "react";
 import { Button } from "@/src/components/ui/Button";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import type { TrialEndingNoticeData, TrialEndingNoticeViewModel } from "./script";
 import { useTrialEndingNotice } from "./useTrialEndingNotice";
 
@@ -24,6 +26,11 @@ export function TrialEndingNotice({ notice, organizationId, onOpenBillingSetting
 
 function TrialEndingNoticeController({ notice, organizationId, onOpenBillingSettings }: Props) {
   const { viewModel, dismiss } = useTrialEndingNotice(notice, organizationId);
+  const visibleStage = viewModel?.stage;
+  useEffect(() => {
+    if (!visibleStage) return;
+    trackProductEvent({ kind: "trial_notice_view", stage: visibleStage === "lastDay" ? "last_day" : visibleStage });
+  }, [visibleStage]);
   if (!viewModel) return null;
   return (
     <TrialEndingNoticeView viewModel={viewModel} onOpenBillingSettings={onOpenBillingSettings} onDismiss={dismiss} />

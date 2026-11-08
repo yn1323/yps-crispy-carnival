@@ -2,6 +2,7 @@ import { useSignIn, useSignUp } from "@clerk/react";
 import { useState } from "react";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { buildSsoCallbackUrl } from "@/src/lib/auth/redirect";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import { throwIfClerkOperationFailed } from "../clerkOperations";
 import { completeAuthSession } from "../completeAuthSession";
 import type { EmailVerificationValues } from "../EmailCodeVerificationForm";
@@ -55,6 +56,7 @@ export function useSignupFlowController({ redirectTo }: UseSignupFlowControllerP
       if (fetchStatus !== "idle") return;
 
       setErrorMessage(undefined);
+      trackProductEvent({ kind: "auth_method_select", method: "email" });
       try {
         const result = await signUp.password({
           emailAddress: values.email,

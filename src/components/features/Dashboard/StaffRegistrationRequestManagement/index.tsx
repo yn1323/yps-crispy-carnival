@@ -19,6 +19,7 @@ import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useShopQuery } from "@/src/hooks/useShopQuery";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { getConvexErrorMessage } from "@/src/lib/convex/error";
+import { trackAppError, trackProductEvent } from "@/src/lib/webMeasurement";
 import type { StaffRegistrationRequest } from "../types";
 import { resolveStaffRegistrationApprovalAvailability } from "./script";
 
@@ -96,6 +97,7 @@ export function StaffRegistrationRequestManagement({
     setPeopleCapacityResolution(null);
     try {
       await approveRequest({ requestId: request._id });
+      trackProductEvent({ kind: "staff_add", method: "request_approve", count: 1 });
       setProcessedRequestIds((current) => new Set(current).add(request._id));
       showSuccessToast({
         title: "スタッフ登録申請を承認しました",
@@ -126,13 +128,15 @@ export function StaffRegistrationRequestManagement({
     const target = rejectTarget;
     try {
       await rejectRequest({ requestId: target._id });
+      trackProductEvent({ kind: "manage_action", target: "staff", action: "reject_request" });
       setProcessedRequestIds((current) => new Set(current).add(target._id));
       setCompletedItemIds((current) => [...current, actionItemId(target._id)]);
       setRejectTarget(null);
       setConfirmationError(null);
       restoreConfirmationTriggerFocus();
       showSuccessToast({ title: "スタッフ登録申請を却下しました" });
-    } catch {
+    } catch (error) {
+      trackAppError("dialog", error);
       if (!isReadOnlyRef.current) {
         setConfirmationError("スタッフ登録申請を却下できませんでした。申請の状態を確認して、もう一度お試しください。");
       }

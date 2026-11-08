@@ -6,6 +6,7 @@ import { LuCheck, LuCopy, LuRefreshCw } from "react-icons/lu";
 import { withOpenExternalBrowser } from "@/convex/_lib/lineUrl";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { Tooltip } from "@/src/components/ui/tooltip";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import { STAFF_ADDITION_EMAIL_NOTICE, STAFF_ADDITION_EMAIL_NOTICE_HREF } from "../staffAdditionCopy";
 
 type Props = {
@@ -75,6 +76,7 @@ export function StaffRegistrationLinkPanel({
     if (!shareUrl) return;
     try {
       await navigator.clipboard.writeText(shareUrl);
+      trackProductEvent({ kind: "share", method: "copy", contentType: "staff_registration_link" });
       setCopiedUrl(shareUrl);
       if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current);
       copyResetTimerRef.current = setTimeout(() => {

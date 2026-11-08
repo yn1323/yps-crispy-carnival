@@ -14,6 +14,7 @@ import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useShopPaginatedQuery } from "@/src/hooks/useShopPaginatedQuery";
 import { useShopQuery } from "@/src/hooks/useShopQuery";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { trackAppError, trackProductEvent } from "@/src/lib/webMeasurement";
 import { useManagerShopScope } from "@/src/providers/ManagerShopScopeProvider";
 import { selectedShopAtom } from "@/src/stores/shop";
 import { buildDashboardRecruitmentGroups, sortRecruitmentsByCreatedAt } from "../script";
@@ -135,6 +136,8 @@ export function RecruitmentManagement({
     if (isReadOnly) return;
     try {
       await createRecruitment(formData);
+      const createdShopId = managerShopScope?.shopId ?? selectedShop?.shopId;
+      if (createdShopId) trackProductEvent({ kind: "recruitment_create", shopId: createdShopId });
       createDialog.close();
       showSuccessToast({
         title: "シフト提出依頼をスタッフに送りました",
@@ -142,6 +145,7 @@ export function RecruitmentManagement({
     } catch (error) {
       const message = getCreateRecruitmentErrorMessage(error);
       if (message) {
+        trackAppError("toast", error);
         toaster.create({ title: message, type: "error", duration: Number.POSITIVE_INFINITY });
         return;
       }
@@ -159,6 +163,7 @@ export function RecruitmentManagement({
     if (isReadOnly || !deleteTarget) return;
     try {
       await deleteRecruitment({ recruitmentId: deleteTarget._id });
+      trackProductEvent({ kind: "manage_action", target: "recruitment", action: "delete" });
       deleteDialog.close();
       setDeleteTarget(null);
       showSuccessToast({ title: "シフト募集を削除しました" });

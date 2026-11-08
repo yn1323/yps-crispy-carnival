@@ -5,6 +5,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { getConvexErrorMessage } from "@/src/lib/convex/error";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import type { UserDetailData, UserDetailDialog } from "./types";
 
 export function useUserRemovalActions({
@@ -46,6 +47,7 @@ export function useUserRemovalActions({
         },
         expectedOrganizationId,
       });
+      trackProductEvent({ kind: "manage_action", target: "staff", action: "remove" });
       setDialog(null);
       showSuccessToast({
         title: "ユーザーを組織から削除しました",

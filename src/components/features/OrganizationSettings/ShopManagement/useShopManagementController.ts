@@ -4,6 +4,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import type { ShopManagementDialogState, ShopManagementOperation } from "./types";
 
 type Input = {
@@ -33,6 +34,7 @@ export function useShopManagementController(input: Input) {
       const requestId = crypto.randomUUID();
       const args = { ...operation.data, requestId };
       await addShopForOrganization({ organizationId: latest.organizationId, ...args });
+      trackProductEvent({ kind: "manage_action", target: "organization", action: "add_shop" });
       showSuccessToast({ title: "店舗を追加しました" });
       setDialog(null);
     } catch (error) {

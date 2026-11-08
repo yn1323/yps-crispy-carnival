@@ -7,6 +7,7 @@ import { showNotificationResendCooldownToast } from "@/src/components/shared/Not
 import { toaster } from "@/src/components/ui/toaster";
 import { useDeadlineActive } from "@/src/hooks/useDeadlineActive";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import type { UserDetailData } from "./types";
 
 export function useUserLineActions({
@@ -61,6 +62,7 @@ export function useUserLineActions({
         staffId: target.sourceStaffId,
         expectedOrganizationId,
       });
+      trackProductEvent({ kind: "manage_action", target: "staff", action: "line_link_issue" });
       if (isSameLineLinkTarget(currentTargetRef.current, target)) {
         setAuthorizeUrl(result.authorizeUrl);
         return true;
@@ -100,6 +102,7 @@ export function useUserLineActions({
           }
           return false;
         }
+        trackProductEvent({ kind: "manage_action", target: "staff", action: "line_invite" });
         showSuccessToast({ title: "LINE連携リンクをメールで送りました" });
         return true;
       }
@@ -119,6 +122,7 @@ export function useUserLineActions({
         requestId,
         expectedOrganizationId,
       });
+      trackProductEvent({ kind: "manage_action", target: "staff", action: "line_disconnect" });
       if (isSameLinePersonTarget(currentTargetRef.current, target)) {
         setAuthorizeUrl(null);
         setQrTargetKey(null);

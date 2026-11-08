@@ -11,6 +11,7 @@ import { getClerkErrorMessage } from "@/src/components/features/AuthPage/errorPr
 import { maskEmailAddress } from "@/src/components/features/AuthPage/loginVerification";
 import { normalizeShopContextOptions } from "@/src/domains/shop/context";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import {
   ManagerInvitationAcceptanceView,
   type ManagerInvitationAcceptanceViewState,
@@ -78,6 +79,7 @@ export function ManagerInvitationAcceptance({ token }: Props) {
     try {
       const result = await acceptInvitation({ token });
       if (result.status === "linked") {
+        trackProductEvent({ kind: "manage_action", target: "manager", action: "accept_invite" });
         setLinkedTarget({
           organizationId: result.organizationId,
           shopId: result.shopId,

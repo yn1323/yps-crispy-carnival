@@ -2,6 +2,8 @@ import { useMutation } from "convex/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { StaffAccessKind, StaffLinkUnavailableReason } from "@/src/domains/staffAccess";
+import type { StaffLinkInvalidReason } from "@/src/domains/webMeasurement";
+import { setStaffMeasurementIdentity, trackAppError, trackProductEvent } from "@/src/lib/webMeasurement";
 import { clearSession, getStoredSession, type SessionInfo, storeSession } from "./sessionStorage";
 
 export type StaffSessionState =
@@ -12,6 +14,15 @@ export type StaffSessionState =
   | { status: "authenticated"; session: SessionInfo; clearSession: () => void };
 
 const DEFAULT_EXPIRED_REASON: StaffLinkUnavailableReason = "invalid_link";
+
+/** serverは失敗理由をまとめて返すため、画面が知っている範囲で計測用の理由へ分ける。 */
+function getStaffLinkInvalidReason(
+  recruitmentId: string | null,
+  reason: StaffLinkUnavailableReason,
+): StaffLinkInvalidReason {
+  if (reason !== "invalid_link") return reason;
+  return recruitmentId ? "rejected" : "unknown_link";
+}
 
 export function useStaffSession(token: string | undefined, accessKind: StaffAccessKind): StaffSessionState {
   const verifyToken = useMutation(api.staffAuth.mutations.verifyToken);
@@ -43,8 +54,10 @@ export function useStaffSession(token: string | undefined, accessKind: StaffAcce
 
         if (result.status === "ok") {
           storeSession(result.recruitmentId, result.sessionToken, accessKind);
+          setStaffMeasurementIdentity({ recruitmentId: result.recruitmentId });
           setSession({ sessionToken: result.sessionToken, recruitmentId: result.recruitmentId, accessKind });
         } else if (result.status === "rate_limited") {
+          trackProductEvent({ kind: "staff_link_invalid", reason: "rate_limited", accessKind });
           setRateLimited(true);
         } else {
           const reason = result.reason ?? DEFAULT_EXPIRED_REASON;
@@ -54,15 +67,22 @@ export function useStaffSession(token: string | undefined, accessKind: StaffAcce
           if (result.recruitmentId && accessKind === "view" && reason === "invalid_link") {
             const storedSession = getStoredSession(result.recruitmentId, accessKind);
             if (storedSession) {
+              setStaffMeasurementIdentity({ recruitmentId: storedSession.recruitmentId });
               setSession(storedSession);
               return;
             }
           }
+          trackProductEvent({
+            kind: "staff_link_invalid",
+            reason: getStaffLinkInvalidReason(result.recruitmentId, reason),
+            accessKind,
+          });
           setExpired({ recruitmentId: result.recruitmentId, reason });
         }
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (verifyingRequestKeyRef.current !== requestKey) return;
+        trackAppError("screen", error);
         setNetworkError(true);
       })
       .finally(() => {
@@ -74,6 +94,7 @@ export function useStaffSession(token: string | undefined, accessKind: StaffAcce
 
   useEffect(() => {
     if (!token) {
+      trackProductEvent({ kind: "staff_link_invalid", reason: "no_token", accessKind });
       verifyingRequestKeyRef.current = null;
       setSession(null);
       setExpired({ recruitmentId: null, reason: DEFAULT_EXPIRED_REASON });
@@ -82,7 +103,9 @@ export function useStaffSession(token: string | undefined, accessKind: StaffAcce
       return;
     }
     verify();
-  }, [token, verify]);
+  }, [accessKind, token, verify]);
+
+  useEffect(() => () => setStaffMeasurementIdentity(null), []);
 
   const retry = useCallback(() => {
     verify();

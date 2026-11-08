@@ -31,7 +31,10 @@ vi.mock("@/src/providers/ChakraProvider", () => ({
 }));
 
 vi.mock("@/src/components/ui/toaster", () => ({ Toaster: () => null }));
-vi.mock("@/src/lib/webMeasurement", () => ({ trackPageView: () => {} }));
+vi.mock("@/src/lib/webMeasurement", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/src/lib/webMeasurement")>()),
+  trackPageView: () => {},
+}));
 vi.mock("@/src/hooks/useCloseDialogOnBrowserBack", () => ({ registerDialogBackNavigation: () => {} }));
 
 vi.mock("./routeTree.gen.ts", async () => {

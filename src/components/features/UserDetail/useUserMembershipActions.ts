@@ -5,6 +5,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { getConvexErrorMessage } from "@/src/lib/convex/error";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import type { UserMembershipChangeInput } from "./types";
 
 export function useUserMembershipActions({
@@ -29,6 +30,7 @@ export function useUserMembershipActions({
           personId,
           expectedOrganizationId,
         });
+        trackProductEvent({ kind: "manage_action", target: "staff", action: "change_shops" });
         if (!canChangeMembershipRef.current) return false;
         showSuccessToast({ title: "所属店舗を変更しました" });
         return true;
