@@ -5,7 +5,7 @@ const TABS = [
   { key: "shops", label: "店舗", href: "/shops" },
 ] as const;
 
-/** 組織一覧と店舗一覧を切り替える。絞り込みはタブごとに持ち、切り替えると解除する。 */
+/** 組織一覧と店舗一覧を切り替える。絞り込みはタブごとに持ち、切り替えると既定の絞り込みに戻す。 */
 export function DirectoryTabs({ active }: { active: (typeof TABS)[number]["key"] }) {
   return (
     <HStack as="nav" aria-label="一覧の切り替え" gap={0} borderBottom="1px solid" borderColor="gray.200">

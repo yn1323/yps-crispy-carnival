@@ -31,7 +31,7 @@ const CURRENT = {
   billing: null,
   attention: false,
   notified: false,
-  multiStaff: false,
+  minStaff: null,
 };
 function dayScope(date: string, to = date) {
   return {
@@ -41,7 +41,7 @@ function dayScope(date: string, to = date) {
     billing: null,
     attention: false,
     notified: false,
-    multiStaff: false,
+    minStaff: null,
   };
 }
 async function seedRecruitment(
@@ -233,6 +233,7 @@ describe("analyticsDashboardの日次結果", () => {
       registeredAt: null,
       isDeleted: true,
       staffCount: null,
+      managerCount: null,
       latestShift: null,
       lastActivityDate: null,
       lastNotifiedAt: null,
@@ -254,7 +255,7 @@ describe("analyticsDashboardの日次結果", () => {
 });
 
 describe("analyticsDashboardの問い合わせ境界", () => {
-  it("店舗スタッフ数は管理者とシフト対象外を含み、削除状態とcanonical所属不整合を除く", async () => {
+  it("店舗スタッフ数は管理者とシフト対象外を含み、削除状態とcanonical所属不整合を除く。管理者数はそのうちの管理者を数える", async () => {
     const t = convexTest(schema, modules);
     const shopId = await t.run(async (ctx) => {
       const shopId = await seedShop(ctx, "集計店舗");
@@ -291,6 +292,7 @@ describe("analyticsDashboardの問い合わせ境界", () => {
       registeredAt: expect.any(Number),
       isDeleted: false,
       staffCount: 3,
+      managerCount: 1,
       latestShift: null,
       lastActivityDate: null,
       lastNotifiedAt: null,
@@ -367,7 +369,7 @@ describe("analyticsDashboardの問い合わせ境界", () => {
     });
     const args = { ...PAGE, search: "", ...CURRENT };
     expect((await t.query(getShopsRef, args)).rows[0].staffCount).toBeNull();
-    expect((await t.query(getShopsRef, { ...args, multiStaff: true })).rows).toHaveLength(1);
+    expect((await t.query(getShopsRef, { ...args, minStaff: 2 })).rows).toHaveLength(1);
     await t.run(async (ctx) => await ctx.db.patch(overflowStaffId, { isDeleted: true }));
     expect((await t.query(getShopsRef, args)).rows[0].staffCount).toBe(SHOP_LIST_STAFF_SCAN_LIMIT);
   });
@@ -898,13 +900,13 @@ describe("analyticsDashboardの組織一覧", () => {
       if (!otherShop) throw new Error("missing fixture shop");
       return { organizationId, mainShopId, branchShopId, otherOrganizationId: otherShop.organizationId };
     });
-    const list = async (filter: { search?: string; billing?: ShopBillingFilter; multiStaff?: boolean }) =>
+    const list = async (filter: { search?: string; billing?: ShopBillingFilter; minStaff?: 2 | 6 | null }) =>
       await t.query(getOrganizationsRef, {
         ...PAGE,
         search: "",
         billing: null,
         notified: false,
-        multiStaff: false,
+        minStaff: null,
         ...filter,
       });
 
@@ -934,8 +936,8 @@ describe("analyticsDashboardの組織一覧", () => {
   });
 });
 
-describe("analyticsDashboardのスタッフ2名以上の組織・店舗", () => {
-  it("管理者を含めて2名以上の店舗と組織だけに絞り込み、実績の内訳とは併用しない", async () => {
+describe("analyticsDashboardのスタッフ数で絞り込む組織・店舗", () => {
+  it("管理者を含めて2名以上・6名以上の店舗と組織だけに絞り込み、実績の内訳とは併用しない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const seedManagedShop = async (name: string, subject: string, staffNames: string[]) => {
@@ -948,30 +950,45 @@ describe("analyticsDashboardのスタッフ2名以上の組織・店舗", () => 
       };
       const managerOnly = await seedManagedShop("管理者だけの店", "analytics_multi_staff_alone", []);
       const withStaff = await seedManagedShop("スタッフのいる店", "analytics_multi_staff_team", ["通常スタッフ"]);
+      const largeTeam = await seedManagedShop("6名の店", "analytics_multi_staff_large", [
+        "スタッフA",
+        "スタッフB",
+        "スタッフC",
+        "スタッフD",
+        "スタッフE",
+      ]);
       const removedStaff = await seedManagedShop("退職者だけの店", "analytics_multi_staff_removed", []);
       await seedStaff(ctx, { shopId: removedStaff, name: "削除スタッフ", isDeleted: true });
       await seedShop(ctx, "人のいない店");
       const organizationOf = async (shopId: Id<"shops">) => (await ctx.db.get(shopId))?.organizationId;
-      return { withStaff, withStaffOrganization: await organizationOf(withStaff), managerOnly };
+      return {
+        withStaff,
+        withStaffOrganization: await organizationOf(withStaff),
+        largeTeam,
+        largeTeamOrganization: await organizationOf(largeTeam),
+        managerOnly,
+      };
     });
 
-    const shops = await t.query(getShopsRef, { ...PAGE, search: "", ...CURRENT, multiStaff: true });
-    expect(shops.rows.map((row) => [row.shopId, row.staffCount])).toEqual([[ids.withStaff, 2]]);
-    const organizations = await t.query(getOrganizationsRef, {
-      ...PAGE,
-      search: "",
-      billing: null,
-      notified: false,
-      multiStaff: true,
-    });
-    expect(organizations.rows.map((row) => [row.organizationId, row.peopleCount])).toEqual([
+    const shops = await t.query(getShopsRef, { ...PAGE, search: "", ...CURRENT, minStaff: 2 });
+    expect(shops.rows.map((row) => [row.shopId, row.staffCount, row.managerCount])).toEqual([
+      [ids.largeTeam, 6, 1],
+      [ids.withStaff, 2, 1],
+    ]);
+    const largeShops = await t.query(getShopsRef, { ...PAGE, search: "", ...CURRENT, minStaff: 6 });
+    expect(largeShops.rows.map((row) => row.shopId)).toEqual([ids.largeTeam]);
+    const organizations = async (minStaff: 2 | 6) =>
+      await t.query(getOrganizationsRef, { ...PAGE, search: "", billing: null, notified: false, minStaff });
+    expect((await organizations(2)).rows.map((row) => [row.organizationId, row.peopleCount])).toEqual([
+      [ids.largeTeamOrganization, 6],
       [ids.withStaffOrganization, 2],
     ]);
+    expect((await organizations(6)).rows.map((row) => row.organizationId)).toEqual([ids.largeTeamOrganization]);
     const all = await t.query(getShopsRef, { ...PAGE, search: "管理者だけ", ...CURRENT });
-    expect(all.rows.map((row) => [row.shopId, row.staffCount])).toEqual([[ids.managerOnly, 1]]);
-    await expect(
-      t.query(getShopsRef, { ...PAGE, search: "", ...dayScope("2026-09-08"), multiStaff: true }),
-    ).rejects.toThrow("invalid_request");
+    expect(all.rows.map((row) => [row.shopId, row.staffCount, row.managerCount])).toEqual([[ids.managerOnly, 1, 1]]);
+    await expect(t.query(getShopsRef, { ...PAGE, search: "", ...dayScope("2026-09-08"), minStaff: 2 })).rejects.toThrow(
+      "invalid_request",
+    );
   });
 });
 
@@ -1052,7 +1069,7 @@ describe("analyticsDashboardの直近14日に通知した組織・店舗", () =>
       search: "",
       billing: null,
       notified: true,
-      multiStaff: false,
+      minStaff: null,
     });
     expect(organizations.rows.find((row) => row.organizationId === organizationWideId)?.lastNotifiedAt).toBeCloseTo(
       AS_OF - DAY_MS,

@@ -12,6 +12,8 @@ import {
   BILLING_FILTER_LABELS,
   billingOrganizationsPath,
   dayShopsPath,
+  ENGAGED_METRICS,
+  engagedCount,
   formatCount,
   formatDate,
   formatDateTime,
@@ -19,6 +21,9 @@ import {
   rangeShopsPath,
 } from "@/features/analytics/format";
 import { AnalyticsPageLoading, Panel, QueryError } from "@/features/analytics/PageState";
+
+const ENGAGED_DESCRIPTION =
+  "「通知あり・2名以上」「通知あり・6名以上」は、日の終わりまでの14日間に通知を受け付け、管理者を含めてその人数以上の組織・店舗の数です。人数は翌朝の集計時点の値です。記録を始める前の日と、後からまとめて集計した日は記録がありません。";
 
 const DAY_LABELS: Record<AnalyticsDayDto["status"], string> = {
   before_start: "計測開始前",
@@ -135,6 +140,7 @@ function downloadSummary(data: OverviewResponse) {
       date: day.date,
       status: day.status,
       counts: day.counts,
+      engaged: day.engaged,
       observationStartAt: day.observationStartAt,
       observationEndAt: day.observationEndAt,
       computedAt: day.computedAt,
@@ -261,6 +267,34 @@ export function OverviewPage({ navigate }: { navigate: (path: string) => void })
             </Stack>
           ))}
         </Grid>
+        <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" }} gap={4}>
+          {ENGAGED_METRICS.map((metric) => (
+            <Stack
+              key={metric.key}
+              gap={2}
+              bg="white"
+              border="1px solid"
+              borderColor="gray.200"
+              borderRadius="lg"
+              p={5}
+            >
+              <Text color="gray.700" fontWeight="bold">
+                {metric.label}
+              </Text>
+              <Text fontSize="4xl" fontWeight="bold">
+                {formatCount(engagedCount(data.yesterday.engaged, metric))}
+                {data.yesterday.engaged && (
+                  <Text as="span" fontSize="sm" ml={2}>
+                    {metric.unit}
+                  </Text>
+                )}
+              </Text>
+            </Stack>
+          ))}
+        </Grid>
+        <Text color="gray.600" fontSize="xs">
+          {ENGAGED_DESCRIPTION}
+        </Text>
       </Stack>
       <BillingPanel billing={data.billing} navigate={navigate} />
       <Panel
@@ -326,6 +360,21 @@ export function OverviewPage({ navigate }: { navigate: (path: string) => void })
             </ChartPanel>
           ))}
         </Grid>
+        <Grid templateColumns={{ base: "1fr", xl: "repeat(2, 1fr)" }} gap={4}>
+          {ENGAGED_METRICS.map((metric) => (
+            <ChartPanel
+              key={metric.key}
+              title={metric.label}
+              description="日の終わり時点の数です。記録がない日は表示しません。"
+              contentHeight="230px"
+            >
+              <TrendChart
+                keys={[metric.label]}
+                data={data.series.map((day) => ({ date: day.date, [metric.label]: engagedCount(day.engaged, metric) }))}
+              />
+            </ChartPanel>
+          ))}
+        </Grid>
       </Panel>
       <Panel title="日別の実績" description="店舗数から、その日に実績があった店舗の内訳を開けます。">
         <DataTable
@@ -346,6 +395,12 @@ export function OverviewPage({ navigate }: { navigate: (path: string) => void })
                   "—"
                 ),
             })),
+            ...ENGAGED_METRICS.map((metric) => ({
+              key: metric.key,
+              header: metric.label,
+              align: "right" as const,
+              render: (day: AnalyticsDayDto) => formatCount(engagedCount(day.engaged, metric)),
+            })),
             { key: "status", header: "集計状態", render: (day) => <DayStatus day={day} /> },
           ]}
           renderMobileRow={(day) => (
@@ -364,6 +419,12 @@ export function OverviewPage({ navigate }: { navigate: (path: string) => void })
                   ) : (
                     <Text>—</Text>
                   )}
+                </Flex>
+              ))}
+              {ENGAGED_METRICS.map((metric) => (
+                <Flex key={metric.key} justify="space-between">
+                  <Text fontSize="sm">{metric.label}</Text>
+                  <Text>{day.engaged ? `${formatCount(engagedCount(day.engaged, metric))}${metric.unit}` : "—"}</Text>
                 </Flex>
               ))}
             </Stack>

@@ -215,7 +215,7 @@ export const getOrganizationExport = internalQuery({
     const row = await organizationListRow(ctx, organization, {
       billing: null,
       notifiedSince: null,
-      multiStaff: false,
+      minStaff: null,
       search: "",
     });
     if (!row) return null;

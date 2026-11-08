@@ -4,10 +4,15 @@ import type { QueryCtx } from "../_generated/server";
 import { addDays } from "../_lib/dateFormat";
 import { DAY_MS } from "../constants";
 import { getOrganizationPersonLineState, resolveCanonicalStaffScope } from "../line/service";
-import { getOrganizationActualUsageProbe, type OrganizationUsageDimension } from "../organization/service";
+import {
+  getOrganizationActualUsageProbe,
+  getValidActiveOrganizationManagerPersonIds,
+  type OrganizationUsageDimension,
+} from "../organization/service";
 import { ORGANIZATION_PLAN_LIMITS } from "../organizationBilling/planLimits";
 import { hasValidCanonicalStaffUserLifecycle } from "../staff/service";
 import type {
+  AnalyticsMinStaff,
   AnalyticsOrganizationListRowDto,
   AnalyticsPageInfoDto,
   AnalyticsShopAttention,
@@ -20,7 +25,7 @@ import type {
   ShopBillingFilter,
   StaffRowDto,
 } from "./dto";
-import { ANALYTICS_DASHBOARD_MAX_SCAN_ROWS, CREATION_TIME_CURSOR_PATTERN } from "./schemas";
+import { ANALYTICS_DASHBOARD_MAX_SCAN_ROWS, CREATION_TIME_CURSOR_PATTERN, MIN_STAFF_OPTIONS } from "./schemas";
 
 // 一覧の1行は、一店舗あたりstaff 201件、person/user各200件まで読む。1回に返す行も20件に抑える。
 export const LIST_PAGE_LIMIT = 20;
@@ -30,13 +35,8 @@ const ORGANIZATION_LIST_SHOP_LIMIT = 10;
 const SCAN_RESERVE = { documentsRead: 2_000, bytesRead: 2 * 1024 * 1024, databaseQueries: 1_000 };
 /** 最後の提出・確定からこの日数以上たった店舗を要注意にする。 */
 export const SHOP_INACTIVE_DAYS = 14;
-/** 一覧の「通知あり」の絞り込みで、通知の受付を確認する直近の日数。 */
+/** 一覧の「通知あり」の絞り込みと日次分析の記録で、通知の受付を確認する直近の日数。 */
 export const RECENT_NOTIFICATION_DAYS = 14;
-/**
- * 一覧の「2名以上」の絞り込みで求める人数。店舗の作成時に管理者自身もスタッフとして登録されるため、
- * 1名の店舗・組織は管理者だけで、スタッフを迎えていない。
- */
-const MULTI_STAFF_MIN_COUNT = 2;
 /** 利用の手がかりにする通知の状態。組織の停止などで取り消した通知は含めない。 */
 const NOTIFIED_STATUSES: readonly NotificationOutboxStatus[] = ["sent", "failed", "pending", "processing"];
 const TRIAL_ENDING_SOON_MS = 7 * DAY_MS;
@@ -65,7 +65,7 @@ export function pageInfo(
     returnedCount,
   };
 }
-async function scanBudgetLow(ctx: QueryCtx) {
+export async function scanBudgetLow(ctx: Pick<QueryCtx, "meta">) {
   const metrics = await ctx.meta.getTransactionMetrics();
   return (
     metrics.documentsRead.remaining < SCAN_RESERVE.documentsRead ||
@@ -220,30 +220,41 @@ export async function billingOverview(ctx: QueryCtx, asOf: number): Promise<Bill
 }
 /**
  * 一覧の絞り込み条件。notifiedSinceを指定すると、その時刻以降に受け付けた通知がある対象だけを返す。
- * multiStaffは、管理者を含む人数がMULTI_STAFF_MIN_COUNT以上の対象だけを返す。
+ * minStaffは、管理者を含む人数がその数以上の対象だけを返す。
  */
-type ListFilter = { billing: ShopBillingFilter | null; notifiedSince: number | null; multiStaff: boolean };
+type ListFilter = {
+  billing: ShopBillingFilter | null;
+  notifiedSince: number | null;
+  minStaff: AnalyticsMinStaff | null;
+};
+type DbCtx = Pick<QueryCtx, "db">;
 /**
  * 取消以外の通知を最後に受け付けた時刻。状態ごとの既存indexで、受付の新しい1件だけを読む。
  * 店舗の通知はすべて組織IDを持つため、組織では店舗宛と組織宛の両方を対象にできる。
+ * beforeを指定すると、その時刻より前に受け付けた通知だけを対象にする。
  */
 async function lastNotifiedAt(
-  ctx: QueryCtx,
+  ctx: DbCtx,
   target: { shopId: Id<"shops"> } | { organizationId: Id<"organizations"> },
+  before: number | null = null,
 ): Promise<number | null> {
   const latest = await Promise.all(
     NOTIFIED_STATUSES.map((status) =>
       "shopId" in target
         ? ctx.db
             .query("notificationOutbox")
-            .withIndex("by_shopId_status", (q) => q.eq("shopId", target.shopId).eq("status", status))
+            .withIndex("by_shopId_status", (q) => {
+              const range = q.eq("shopId", target.shopId).eq("status", status);
+              return before === null ? range : range.lt("_creationTime", before);
+            })
             .order("desc")
             .first()
         : ctx.db
             .query("notificationOutbox")
-            .withIndex("by_organizationId_status", (q) =>
-              q.eq("organizationId", target.organizationId).eq("status", status),
-            )
+            .withIndex("by_organizationId_status", (q) => {
+              const range = q.eq("organizationId", target.organizationId).eq("status", status);
+              return before === null ? range : range.lt("_creationTime", before);
+            })
             .order("desc")
             .first(),
     ),
@@ -253,6 +264,59 @@ async function lastNotifiedAt(
 }
 function notifiedSinceMatches(lastNotified: number | null, notifiedSince: number | null): boolean {
   return notifiedSince === null || (lastNotified !== null && lastNotified >= notifiedSince);
+}
+/** 走査上限を超えて数を確認できない店舗は、削除されていないスタッフが上限を超えて残るため、人数の条件に含める。 */
+function staffCountMatches(staffCount: number | null, minStaff: AnalyticsMinStaff | null): boolean {
+  return minStaff === null || staffCount === null || staffCount >= minStaff;
+}
+/**
+ * 店舗の現在有効なスタッフの人物ID。管理者とシフト対象外のスタッフも含め、削除済み・所属不整合のスタッフは除く。
+ * 走査上限を超えて確定できない店舗はnullを返す。
+ */
+async function activeShopStaffPersonIds(
+  ctx: DbCtx,
+  shop: Doc<"shops">,
+  organizationId: Id<"organizations">,
+): Promise<Id<"organizationPeople">[] | null> {
+  const staffs = await ctx.db
+    .query("staffs")
+    .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
+    .take(SHOP_LIST_STAFF_SCAN_LIMIT + 1);
+  if (staffs.length > SHOP_LIST_STAFF_SCAN_LIMIT) return null;
+  const personIds: Id<"organizationPeople">[] = [];
+  for (const staff of staffs) {
+    if (staff.organizationId !== organizationId) continue;
+    const person = await ctx.db.get(staff.organizationPersonId);
+    if (person?.status !== "active" || person.organizationId !== organizationId) continue;
+    if (!(await hasValidCanonicalStaffUserLifecycle(ctx, staff, person))) continue;
+    personIds.push(person._id);
+  }
+  return personIds;
+}
+/**
+ * 日次分析で記録する組織の人数の区分。asOfより前の直近14日に組織宛または所属店舗宛の通知を受け付けた組織について、
+ * 一覧の利用人数と同じ数え方で満たす区分を返す。人数は呼び出した時点の値で数える。
+ */
+export async function engagedOrganizationMinStaffs(
+  ctx: DbCtx,
+  organization: Doc<"organizations">,
+  asOf: number,
+): Promise<AnalyticsMinStaff[]> {
+  if (organization.isDeleted) return [];
+  const lastNotified = await lastNotifiedAt(ctx, { organizationId: organization._id }, asOf);
+  if (!notifiedSinceMatches(lastNotified, asOf - RECENT_NOTIFICATION_DAYS * DAY_MS)) return [];
+  const probe = await getOrganizationActualUsageProbe(ctx, organization._id, ORGANIZATION_PLAN_LIMITS.pro);
+  return MIN_STAFF_OPTIONS.filter((minStaff) => probe.usage.peopleCount >= minStaff);
+}
+/** 日次分析で記録する店舗の人数の区分。組織と同じ期間の店舗宛の通知と、一覧のスタッフ数で判定する。 */
+export async function engagedShopMinStaffs(ctx: DbCtx, shop: Doc<"shops">, asOf: number): Promise<AnalyticsMinStaff[]> {
+  if (shop.isDeleted) return [];
+  const organization = await ctx.db.get(shop.organizationId);
+  if (!organization || organization.isDeleted) return [];
+  const lastNotified = await lastNotifiedAt(ctx, { shopId: shop._id }, asOf);
+  if (!notifiedSinceMatches(lastNotified, asOf - RECENT_NOTIFICATION_DAYS * DAY_MS)) return [];
+  const personIds = await activeShopStaffPersonIds(ctx, shop, organization._id);
+  return MIN_STAFF_OPTIONS.filter((minStaff) => staffCountMatches(personIds?.length ?? null, minStaff));
 }
 /**
  * 店舗一覧の1行。人数以外の絞り込みに一致しない店舗は、重いスタッフ数の集計前にnullを返す。
@@ -265,7 +329,7 @@ export async function shopListRow(
   filter: ListFilter & { attention: boolean } = {
     billing: null,
     notifiedSince: null,
-    multiStaff: false,
+    minStaff: null,
     attention: false,
   },
 ): Promise<AnalyticsShopListRowDto | null> {
@@ -291,26 +355,18 @@ export async function shopListRow(
   if (latestShift && latestShift.periodEnd < today) attention.push("shift_ended");
   if (lastActivity && lastActivity.date <= addDays(today, -SHOP_INACTIVE_DAYS)) attention.push("inactive");
   if (filter.attention && attention.length === 0) return null;
-  const staffs = await ctx.db
-    .query("staffs")
-    .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
-    .take(SHOP_LIST_STAFF_SCAN_LIMIT + 1);
-  let staffCount: number | null = null;
-  if (staffs.length <= SHOP_LIST_STAFF_SCAN_LIMIT) {
-    staffCount = 0;
-    for (const staff of staffs) {
-      if (staff.organizationId !== organization._id) continue;
-      const person = await ctx.db.get(staff.organizationPersonId);
-      if (person?.status !== "active" || person.organizationId !== organization._id) continue;
-      if (!(await hasValidCanonicalStaffUserLifecycle(ctx, staff, person))) continue;
-      staffCount += 1;
-    }
+  const personIds = await activeShopStaffPersonIds(ctx, shop, organization._id);
+  if (!staffCountMatches(personIds?.length ?? null, filter.minStaff)) return null;
+  let managerCount: number | null = null;
+  if (personIds) {
+    // 組織一覧の管理者数と同じ判定で、この店舗のスタッフとして登録されている管理者だけを数える。
+    const managers = new Set(await getValidActiveOrganizationManagerPersonIds(ctx, organization._id));
+    managerCount = personIds.filter((personId) => managers.has(personId)).length;
   }
-  // 走査上限を超える店舗は件数を返さないが、削除されていないスタッフが上限を超えて残るため2名以上に含める。
-  if (filter.multiStaff && staffCount !== null && staffCount < MULTI_STAFF_MIN_COUNT) return null;
   return {
     ...shopRow(shop, organization),
-    staffCount,
+    staffCount: personIds?.length ?? null,
+    managerCount,
     latestShift: latestShift
       ? {
           periodStart: latestShift.periodStart,
@@ -354,7 +410,7 @@ export async function organizationListRow(
   if (!notifiedSinceMatches(lastNotified, filter.notifiedSince)) return null;
   const probe = await getOrganizationActualUsageProbe(ctx, organization._id, ORGANIZATION_PLAN_LIMITS.pro);
   // 走査上限に達して利用人数を表示できない組織でも、数えた人数は実数の下限になるため判定に使える。
-  if (filter.multiStaff && probe.usage.peopleCount < MULTI_STAFF_MIN_COUNT) return null;
+  if (filter.minStaff !== null && probe.usage.peopleCount < filter.minStaff) return null;
   const exact = (dimension: OrganizationUsageDimension, value: number) =>
     probe.unknownDimensions.includes(dimension) || probe.lowerBoundDimensions.includes(dimension) ? null : value;
   return {

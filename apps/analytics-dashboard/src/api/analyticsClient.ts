@@ -1,6 +1,7 @@
 import type {
   AnalyticsApiEnvelope,
   AnalyticsMetric,
+  AnalyticsMinStaff,
   AnalyticsRangeDays,
   CycleDetailResponse,
   FeatureRequestsResponse,
@@ -88,7 +89,7 @@ export type ShopSearchParams = PaginationParams & {
   billing?: ShopBillingFilter | null;
   attention?: boolean;
   notified?: boolean;
-  multiStaff?: boolean;
+  minStaff?: AnalyticsMinStaff | null;
 };
 /** 続きを連続で読む途中でrate limitへ達しても、取得済みのページを捨てず同じcursorから再開する。 */
 async function fetchListEndpoint<T>(path: string, params: Record<string, SearchValue>, signal?: AbortSignal) {
@@ -119,7 +120,7 @@ export type OrganizationSearchParams = PaginationParams & {
   search?: string;
   billing?: ShopBillingFilter | null;
   notified?: boolean;
-  multiStaff?: boolean;
+  minStaff?: AnalyticsMinStaff | null;
 };
 export function fetchOrganizations(params: OrganizationSearchParams, signal?: AbortSignal) {
   return fetchListEndpoint<OrganizationsResponse>("/api/analytics/organizations", params, signal);

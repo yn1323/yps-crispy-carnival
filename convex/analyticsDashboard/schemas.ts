@@ -1,6 +1,7 @@
 import { addDays, dateToUtcMs, formatUtcDate } from "../_lib/dateFormat";
 import type {
   AnalyticsMetric,
+  AnalyticsMinStaff,
   AnalyticsRangeDays,
   NotificationCategory,
   NotificationOutboxStatus,
@@ -22,6 +23,11 @@ export const ORGANIZATION_EVENTS_MAX_PAGE_SIZE = 50;
 export const SHOP_SCOPE_MAX_DAYS = 90;
 export const SEARCH_TEXT_MAX_LENGTH = 100;
 /** 日次分析の契約状況カードと同じ区分。 */
+/**
+ * 一覧の人数の絞り込みと日次分析の記録で使う、管理者を含めた人数の下限。
+ * 店舗の作成時に管理者自身もスタッフとして登録されるため、2名以上で管理者だけの組織・店舗を除ける。
+ */
+export const MIN_STAFF_OPTIONS: readonly AnalyticsMinStaff[] = [2, 6];
 export const SHOP_BILLING_FILTERS: readonly ShopBillingFilter[] = [
   "trial",
   "paid",
@@ -45,8 +51,8 @@ export type AnalyticsShopsRequest = Pagination & {
   attention: boolean;
   /** 直近14日に、取消以外の通知を受け付けた店舗だけにする。 */
   notified: boolean;
-  /** 管理者を含むスタッフが2名以上の店舗だけにする。 */
-  multiStaff: boolean;
+  /** 管理者を含むスタッフがこの人数以上の店舗だけにする。 */
+  minStaff: AnalyticsMinStaff | null;
 };
 /** 現在の組織一覧。名称は組織名または店舗名の部分一致で照合する。 */
 export type AnalyticsOrganizationsRequest = Pagination & {
@@ -55,8 +61,8 @@ export type AnalyticsOrganizationsRequest = Pagination & {
   billing: ShopBillingFilter | null;
   /** 直近14日に、取消以外の通知を受け付けた組織だけにする。 */
   notified: boolean;
-  /** 管理者を含む利用人数が2名以上の組織だけにする。 */
-  multiStaff: boolean;
+  /** 管理者を含む利用人数がこの人数以上の組織だけにする。 */
+  minStaff: AnalyticsMinStaff | null;
 };
 export type AnalyticsShopRequest = Pagination & { endpoint: "shop"; shopId: string };
 export type AnalyticsStaffRequest = Pagination & { endpoint: "staff"; shopId: string; staffId: string };
@@ -128,6 +134,9 @@ function hasOnly(value: Record<string, unknown>, keys: string[]): boolean {
 }
 function oneOf<T extends string>(value: unknown, allowed: readonly T[]): value is T {
   return typeof value === "string" && (allowed as readonly string[]).includes(value);
+}
+function isMinStaff(value: unknown): value is AnalyticsMinStaff {
+  return (MIN_STAFF_OPTIONS as readonly unknown[]).includes(value);
 }
 export function isShopScopeRange(from: string, to: string): boolean {
   return isAnalyticsDate(from) && isAnalyticsDate(to) && from <= to && addDays(from, SHOP_SCOPE_MAX_DAYS - 1) >= to;
@@ -224,7 +233,7 @@ export function parseAnalyticsDashboardRequest(value: unknown): ParseResult<Anal
       const billing = value.billing ?? null;
       const attention = value.attention ?? false;
       const notified = value.notified ?? false;
-      const multiStaff = value.multiStaff ?? false;
+      const minStaff = value.minStaff ?? null;
       if (
         !hasOnly(value, [
           "endpoint",
@@ -237,7 +246,7 @@ export function parseAnalyticsDashboardRequest(value: unknown): ParseResult<Anal
           "billing",
           "attention",
           "notified",
-          "multiStaff",
+          "minStaff",
         ]) ||
         !page ||
         (page.cursor !== null && !CREATION_TIME_CURSOR_PATTERN.test(page.cursor)) ||
@@ -245,7 +254,7 @@ export function parseAnalyticsDashboardRequest(value: unknown): ParseResult<Anal
         search.length > SEARCH_TEXT_MAX_LENGTH ||
         typeof attention !== "boolean" ||
         typeof notified !== "boolean" ||
-        typeof multiStaff !== "boolean" ||
+        (minStaff !== null && !isMinStaff(minStaff)) ||
         (billing !== null && !oneOf(billing, SHOP_BILLING_FILTERS))
       )
         return invalid;
@@ -259,7 +268,7 @@ export function parseAnalyticsDashboardRequest(value: unknown): ParseResult<Anal
           billing !== null ||
           attention ||
           notified ||
-          multiStaff)
+          minStaff !== null)
       )
         return invalid;
       return {
@@ -274,7 +283,7 @@ export function parseAnalyticsDashboardRequest(value: unknown): ParseResult<Anal
           billing: billing as ShopBillingFilter | null,
           attention,
           notified,
-          multiStaff,
+          minStaff,
         },
       };
     }
@@ -283,15 +292,15 @@ export function parseAnalyticsDashboardRequest(value: unknown): ParseResult<Anal
       const search = value.search ?? "";
       const billing = value.billing ?? null;
       const notified = value.notified ?? false;
-      const multiStaff = value.multiStaff ?? false;
+      const minStaff = value.minStaff ?? null;
       if (
-        !hasOnly(value, ["endpoint", "cursor", "limit", "search", "billing", "notified", "multiStaff"]) ||
+        !hasOnly(value, ["endpoint", "cursor", "limit", "search", "billing", "notified", "minStaff"]) ||
         !page ||
         (page.cursor !== null && !CREATION_TIME_CURSOR_PATTERN.test(page.cursor)) ||
         typeof search !== "string" ||
         search.length > SEARCH_TEXT_MAX_LENGTH ||
         typeof notified !== "boolean" ||
-        typeof multiStaff !== "boolean" ||
+        (minStaff !== null && !isMinStaff(minStaff)) ||
         (billing !== null && !oneOf(billing, SHOP_BILLING_FILTERS))
       )
         return invalid;
@@ -303,7 +312,7 @@ export function parseAnalyticsDashboardRequest(value: unknown): ParseResult<Anal
           search: search.trim(),
           billing: billing as ShopBillingFilter | null,
           notified,
-          multiStaff,
+          minStaff,
         },
       };
     }
@@ -386,9 +395,9 @@ export function normalizeBrowserRequestInput(
   for (const [key, input] of params) {
     if (key === "__proto__" || Object.hasOwn(value, key)) return invalid;
     value[key] =
-      key === "limit" || key === "rangeDays"
+      key === "limit" || key === "rangeDays" || key === "minStaff"
         ? Number(input)
-        : (key === "attention" || key === "notified" || key === "multiStaff") && (input === "true" || input === "false")
+        : (key === "attention" || key === "notified") && (input === "true" || input === "false")
           ? input === "true"
           : input;
   }

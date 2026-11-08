@@ -30,7 +30,18 @@ export function QueryError({ error, onRetry }: { error: unknown; onRetry?: () =>
 export function analyticsErrorMessage(error: unknown) {
   return error instanceof AnalyticsApiError ? error.message : "読み込めませんでした。もう一度お試しください。";
 }
-export function Panel({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
+export function Panel({
+  title,
+  aside,
+  description,
+  children,
+}: {
+  title: string;
+  /** 見出しの横に並べる件数などの要約。 */
+  aside?: ReactNode;
+  description?: string;
+  children: ReactNode;
+}) {
   return (
     <Stack
       gap={4}
@@ -42,9 +53,12 @@ export function Panel({ title, description, children }: { title: string; descrip
       minW={0}
     >
       <Box>
-        <Heading as="h2" size="md">
-          {title}
-        </Heading>
+        <Flex align="baseline" columnGap={3} rowGap={1} wrap="wrap">
+          <Heading as="h2" size="md">
+            {title}
+          </Heading>
+          {aside}
+        </Flex>
         {description && (
           <Text fontSize="sm" color="gray.600" mt={1}>
             {description}

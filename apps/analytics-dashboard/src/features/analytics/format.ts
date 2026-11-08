@@ -1,5 +1,7 @@
 import { getDeadlineCutoff } from "@convex/_lib/dateFormat";
+import { MIN_STAFF_OPTIONS } from "@convex/analyticsDashboard/schemas";
 import type {
+  AnalyticsEngagedCountsDto,
   AnalyticsShopAttention,
   OrganizationBillingSummaryDto,
   ShopBillingFilter,
@@ -12,8 +14,45 @@ export const METRICS = [
   { key: "confirmed", label: "確定した店舗", description: "シフトの確定・再確定があった店舗" },
 ] as const;
 
+/**
+ * 日次分析で記録する、日の終わりまでの直近14日に通知を受け付けた組織・店舗。
+ * 管理者を含めた人数を一覧の人数の絞り込みと同じ区分で数え、人数は翌朝の集計時点の値。
+ */
+export const ENGAGED_METRICS = MIN_STAFF_OPTIONS.flatMap((minStaff) =>
+  (
+    [
+      { target: "organizations", unit: "組織" },
+      { target: "shops", unit: "店舗" },
+    ] as const
+  ).map(({ target, unit }) => ({
+    key: `min${minStaff}-${target}`,
+    minStaff,
+    target,
+    unit,
+    label: `通知あり・${minStaff}名以上の${unit}`,
+  })),
+);
+export function engagedCount(
+  engaged: AnalyticsEngagedCountsDto | null,
+  metric: (typeof ENGAGED_METRICS)[number],
+): number | null {
+  return engaged ? engaged[`min${metric.minStaff}`][metric.target] : null;
+}
+
 export function formatCount(value: number | null | undefined) {
   return value == null ? "—" : new Intl.NumberFormat("ja-JP").format(value);
+}
+/**
+ * 一覧の行の人数を合計する。数を確認できない行や読み込んでいない続きがある場合は、合計を下限として扱う。
+ */
+export function sumCounts(values: (number | null)[], incomplete: boolean) {
+  return {
+    total: values.reduce<number>((sum, value) => sum + (value ?? 0), 0),
+    isLowerBound: incomplete || values.some((value) => value === null),
+  };
+}
+export function formatTotal({ total, isLowerBound }: { total: number; isLowerBound: boolean }, unit: string) {
+  return `${formatCount(total)}${unit}${isLowerBound ? "以上" : ""}`;
 }
 export function formatDate(value: string | number | null | undefined) {
   if (value == null || value === "") return "記録なし";
@@ -62,8 +101,9 @@ export function dayShopsPath(date: string, metric: string) {
 export function rangeShopsPath(from: string, to: string, metric: string) {
   return `/shops?${new URLSearchParams({ from, to, metric })}`;
 }
+/** 契約状況カードの組織数と一覧の件数を合わせるため、通知と人数の既定の絞り込みを外して開く。 */
 export function billingOrganizationsPath(billing: ShopBillingFilter) {
-  return `/organizations?${new URLSearchParams({ billing })}`;
+  return `/organizations?${new URLSearchParams({ billing, notified: "0", minStaff: "0" })}`;
 }
 export function lineStatusLabel(status: string) {
   return (
