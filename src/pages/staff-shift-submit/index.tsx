@@ -3,7 +3,11 @@ import { LuTriangleAlert, LuWifiOff } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { StaffFeatureRequestAction } from "@/src/components/features/FeatureRequestDialog";
-import { StaffAccessBoundary, type StaffAccessState } from "@/src/components/features/StaffAccess";
+import {
+  StaffAccessBoundary,
+  type StaffAccessState,
+  useStaffLinkInvalidMeasurement,
+} from "@/src/components/features/StaffAccess";
 import { StaffSubmit, SubmitUnavailableView } from "@/src/components/features/StaffSubmit";
 import { FullPageSpinner } from "@/src/components/templates/FullPageSpinner";
 import { StaffCenteredContent, StaffLayout } from "@/src/components/templates/StaffLayout";
@@ -84,6 +88,7 @@ function ShiftSubmitContent({ session }: { session: { sessionToken: string; recr
     accessKind: "submit",
     recruitmentId: session.recruitmentId as Id<"recruitments">,
   });
+  useStaffLinkInvalidMeasurement(data?.status === "unavailable" ? data.reason : null, "submit");
   if (data === undefined) return <FullPageSpinner />;
   if (data.status === "unavailable") {
     return <SubmitUnavailableView reason={data.reason} />;

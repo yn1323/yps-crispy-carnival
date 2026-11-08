@@ -61,6 +61,8 @@ async function expectDocumentMeasurement(
     .toEqual([
       {
         app_environment: "preview",
+        // Playwrightのchromiumはinstall済みPWAではないため、通常のbrowser表示になる。
+        display_mode: "browser",
         event: "page_view",
         page_location: `${origin}${pagePath}`,
         release_id: MEASUREMENT_CONTRACT_RELEASE,

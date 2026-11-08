@@ -87,7 +87,7 @@ repository artifactでは、複数組織、複数店舗、複数管理者（招�
 
 | 機能 | 概要 | 主な画面 |
 |---|---|---|
-| [Dashboardの課金案内](trial-ending-dashboard-callout.md) | 課金情報と契約操作は「プランと支払い」へ集約し、Dashboardには支払い失敗後の再契約案内だけを表示する | Dashboard、プランと支払い |
+| [Dashboardの課金案内](trial-ending-dashboard-callout.md) | 課金情報と契約操作は「プランと支払い」へ集約し、Dashboardには未契約Trialの終了前案内（終了14日前から）と支払い失敗後の再契約案内だけを表示する | Dashboard、プランと支払い |
 | [店舗・組織削除](data-deletion.md) | 店舗・組織の論理削除と、session・token・LINE連携・未送信通知を止める永続cleanup。業務識別情報（氏名・店舗名など）は保持し、個人情報の完全消去とは扱わない | 店舗詳細、組織設定 |
 | [アカウント削除](account-deletion.md) | strict再認証を経たアカウント削除依頼。所属構成に応じて本人所属の終了または組織全体の終了を行い、cleanup完了後にClerkユーザーを削除する | アカウント設定、`/account-deletion-accepted` |
 
@@ -98,7 +98,7 @@ repository artifactでは、複数組織、複数店舗、複数管理者（招�
 | [公開サイト](public-pages.md) | TOP、機能紹介、無料トライアル条件、記事、登録不要のシフトボードデモ、特定商取引法表記。認証・Convex不要の静的生成 | `/`、`/features`、`/articles`、`/demo/shiftboard`、`/commercial-transactions` |
 | [ヘルプセンター](help-center.md) | FAQと使い方を共通のMDX形式で管理し、やりたいことと検索から探せるようにする | `/help`、`/help/tasks/:taskId`、`/help/:slug` |
 | [問い合わせ](contact.md) | 未ログイン可の問い合わせフォーム。Turnstile・レート制限後にResendでメール送信し、Slackへ社内通知する | `/contact` |
-| [全ページのWeb計測](web-measurement.md) | 同意・認証・route種別にかかわらずGTMからGA・Clarityを起動し、有限route familyのpage viewとWeb Vitalsを送る | 全ページ |
+| [全ページのWeb計測](web-measurement.md) | 同意・認証・route種別にかかわらずGTMからGA・Clarityを起動し、有限route familyのpage view、主な操作の成功、画面に出たエラー、Web Vitalsを、画面が持つ管理者・店舗・募集のIDと一緒に送る | 全ページ |
 | [要望受付](feature-requests.md) | 管理ユーザーと提出中スタッフがヘッダーから200文字以内の要望を送る | 認証済みヘッダー、提出画面ヘッダー |
 
 ### 3.7 内部分析（利用者非公開）
@@ -153,7 +153,7 @@ repository artifactでは、複数組織、複数店舗、複数管理者（招�
 |---|---|
 | スタッフ提出・閲覧magic link | 24時間（既定） |
 | スタッフsession | 14日 |
-| LINE連携URL | 72時間。同一人物への再発行で旧tokenを失効 |
+| LINE連携URL | 72時間（延長しない）。管理者の再発行とシフト連絡先メールの変更で旧tokenを失効。メール経由の発行は48時間以上有効な同一scopeのtokenを使い回す |
 | 法務同意token | 30日 |
 | 管理者招待 | 7日・一回限り。再送で旧URLを失効 |
 | Stripe Customer Portal URL | 都度発行の一時URL（恒久保存しない） |

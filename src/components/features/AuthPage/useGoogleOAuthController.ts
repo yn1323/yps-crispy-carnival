@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import { withOpenExternalBrowser } from "@/convex/_lib/lineUrl";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import { getClerkErrorMessage } from "./errorPresentation";
 import { type ResettableOAuthAttempt, resetOAuthAttempts } from "./resetOAuthAttempts";
 import { isLineInAppBrowser } from "./script";
@@ -53,6 +54,7 @@ export function useGoogleOAuthController({
       if (!isResourceLoaded || !authenticateWithRedirect || !signIn || !signUp) return;
 
       const oauthAttemptGeneration = ++oauthAttemptGenerationRef.current;
+      trackProductEvent({ kind: "auth_method_select", method: "google" });
       onErrorMessage(undefined);
       try {
         await resetOAuthAttempts({ signIn, signUp });

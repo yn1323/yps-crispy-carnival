@@ -3,8 +3,10 @@ import QRCode from "qrcode";
 import type { ReactNode, Ref } from "react";
 import { useEffect, useRef, useState } from "react";
 import { LuCheck, LuCopy, LuRefreshCw } from "react-icons/lu";
+import { withOpenExternalBrowser } from "@/convex/_lib/lineUrl";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { Tooltip } from "@/src/components/ui/tooltip";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import { STAFF_ADDITION_EMAIL_NOTICE, STAFF_ADDITION_EMAIL_NOTICE_HREF } from "../staffAdditionCopy";
 
 type Props = {
@@ -41,7 +43,9 @@ export function StaffRegistrationLinkPanel({
   const [qrSvg, setQrSvg] = useState<string | null>(null);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const copied = registrationUrl !== null && copiedUrl === registrationUrl;
+  // LINEで共有されるリンクは端末の既定ブラウザで開かせる。QRはカメラで読むため元のURLのままにする。
+  const shareUrl = registrationUrl ? withOpenExternalBrowser(registrationUrl) : null;
+  const copied = shareUrl !== null && copiedUrl === shareUrl;
 
   useEffect(() => {
     if (!registrationUrl) {
@@ -69,13 +73,14 @@ export function StaffRegistrationLinkPanel({
   );
 
   const handleCopy = async () => {
-    if (!registrationUrl) return;
+    if (!shareUrl) return;
     try {
-      await navigator.clipboard.writeText(registrationUrl);
-      setCopiedUrl(registrationUrl);
+      await navigator.clipboard.writeText(shareUrl);
+      trackProductEvent({ kind: "share", method: "copy", contentType: "staff_registration_link" });
+      setCopiedUrl(shareUrl);
       if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current);
       copyResetTimerRef.current = setTimeout(() => {
-        setCopiedUrl((current) => (current === registrationUrl ? null : current));
+        setCopiedUrl((current) => (current === shareUrl ? null : current));
         copyResetTimerRef.current = null;
       }, 1500);
     } catch {
@@ -151,7 +156,7 @@ export function StaffRegistrationLinkPanel({
             flex={1}
             minW={0}
           >
-            {registrationUrl}
+            {shareUrl}
           </Code>
           <Tooltip content={copied ? "コピーしました" : "リンクをコピー"}>
             <IconButton

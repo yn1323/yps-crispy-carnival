@@ -8,6 +8,7 @@ import type { PreviousWeeklyPattern } from "./types";
 
 const pattern: PreviousWeeklyPattern = {
   sourceWeekStart: "2026-04-06",
+  notes: [],
   days: [
     { weekday: 1, startTime: "09:00", endTime: "17:00" },
     { weekday: 3, startTime: "10:00", endTime: "18:00" },
@@ -44,7 +45,7 @@ describe("buildEntriesFromPreviousWeeklyPattern", () => {
   it("前回時間が今回の募集時間外なら範囲内へ丸める", () => {
     const entries = buildEntriesFromPreviousWeeklyPattern(
       ["2026-04-13"],
-      { sourceWeekStart: "2026-04-06", days: [{ weekday: 1, startTime: "08:00", endTime: "23:00" }] },
+      { sourceWeekStart: "2026-04-06", notes: [], days: [{ weekday: 1, startTime: "08:00", endTime: "23:00" }] },
       { startTime: "09:00", endTime: "22:00" },
     );
 
@@ -54,7 +55,7 @@ describe("buildEntriesFromPreviousWeeklyPattern", () => {
   it("丸め後に無効な時間帯になる日は休みにする", () => {
     const entries = buildEntriesFromPreviousWeeklyPattern(
       ["2026-04-13"],
-      { sourceWeekStart: "2026-04-06", days: [{ weekday: 1, startTime: "07:00", endTime: "08:00" }] },
+      { sourceWeekStart: "2026-04-06", notes: [], days: [{ weekday: 1, startTime: "07:00", endTime: "08:00" }] },
       { startTime: "09:00", endTime: "22:00" },
     );
 
@@ -88,6 +89,7 @@ describe("buildEntriesFromPreviousWeeklyPatternForShiftTypes", () => {
       ["2026-04-13", "2026-04-14", "2026-04-15"],
       {
         sourceWeekStart: "2026-04-06",
+        notes: [],
         days: [
           { weekday: 1, startTime: "09:00", endTime: "17:00" },
           { weekday: 1, startTime: "17:00", endTime: "22:00" },

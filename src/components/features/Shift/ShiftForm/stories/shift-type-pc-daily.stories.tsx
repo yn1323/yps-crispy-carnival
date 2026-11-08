@@ -4,8 +4,10 @@ import { ShiftForm } from "..";
 import {
   desktopGlobals,
   fullscreenParameters,
+  hideDateNotes,
   shiftFormDecorators,
   shiftTypeArgs,
+  shiftTypeDateNotesArgs,
   shiftTypeValidationWarningArgs,
 } from "./shared";
 
@@ -62,5 +64,44 @@ export const Interactive: Story = {
     await expect((await canvas.findAllByText("2人")).length).toBeGreaterThan(0);
     await userEvent.click(await findVisibleByLabelText(canvas, "田中 太郎 早番 勤務あり"));
     await expect(await findVisibleByLabelText(canvas, "田中 太郎 早番 勤務なし")).toBeInTheDocument();
+  },
+};
+
+export const WithDateNotes: Story = {
+  args: shiftTypeDateNotesArgs,
+  globals: desktopGlobals,
+};
+
+export const DateNotesInteractive: Story = {
+  args: shiftTypeDateNotesArgs,
+  globals: desktopGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    // 希望とメモは別の列にし、メモ列を希望列の右に置く。
+    const headers = Array.from(canvasElement.querySelectorAll<HTMLElement>("thead tr:first-child th")).map(
+      (cell) => cell.textContent,
+    );
+    await expect(headers.slice(0, 3)).toEqual(["スタッフ", "希望", "連絡事項"]);
+    // 左の3見出しは人数の行まで結合し、「人数」の見出しは置かない。
+    const mergedHeaders = Array.from(canvasElement.querySelectorAll<HTMLTableCellElement>("thead tr:first-child th"));
+    await expect(mergedHeaders.slice(0, 3).map((cell) => cell.rowSpan)).toEqual([2, 2, 2]);
+    await expect(canvas.queryByText("人数", { exact: true })).not.toBeInTheDocument();
+    await expect(await canvas.findByText("17時以降なら入れます")).toHaveAttribute("data-clarity-mask", "true");
+
+    const rows = Array.from(canvasElement.querySelectorAll<HTMLElement>("tbody tr"));
+    const heights = new Set(rows.map((row) => Math.round(row.getBoundingClientRect().height)));
+    await expect(heights.size).toBe(1);
+
+    // 連絡事項を非表示にしたときだけ、連絡事項がある人の名前セルの右端にアイコンを置き、ホバーで本文を表示する。
+    await expect(canvas.queryByRole("button", { name: "連絡事項1件" })).not.toBeInTheDocument();
+    await hideDateNotes(canvasElement);
+    const noteIcons = await canvas.findAllByRole("button", { name: "連絡事項1件" });
+    await expect(noteIcons).toHaveLength(2);
+    await expect(noteIcons[0].closest("td")).toBe(noteIcons[0].closest("tr")?.querySelector("td"));
+    await userEvent.hover(noteIcons[0]);
+    const tooltip = await within(document.body).findByRole("tooltip");
+    await expect(tooltip).toHaveTextContent(/^連絡事項/);
+    await expect(tooltip).not.toHaveTextContent("5/21(木)");
   },
 };

@@ -123,6 +123,7 @@ describe("希望シフト回収シナリオ", () => {
       recruitmentId,
       acceptedLegal: true,
       submission: { kind: "time", requests: [] },
+      dateNotes: [{ date: recruitmentInput.periodStart, note: "テスト期間のため休みたいです" }],
     });
     await staff.submitShiftRequests({
       sessionToken: verified.sessionToken,
@@ -131,6 +132,7 @@ describe("希望シフト回収シナリオ", () => {
         kind: "time",
         requests: [{ date: recruitmentInput.periodStart, startTime: "12:00", endTime: "20:00" }],
       },
+      dateNotes: [{ date: recruitmentInput.periodStart, note: "12時以降なら入れます" }],
     });
 
     // Assert: 提出集計、シフト表、催促対象が提出状態を正しく反映する。
@@ -145,6 +147,13 @@ describe("希望シフト回収シナリオ", () => {
     expect(board?.requestedSlots).toEqual([
       { staffId: ids.submittedStaffId, date: recruitmentInput.periodStart, startTime: "12:00", endTime: "20:00" },
     ]);
+    const dateNotes = await asManager.getShiftBoardDateNotes(recruitmentId);
+    expect(new Set(dateNotes?.map((entry) => `${entry.staffId}:${entry.date}:${entry.note}`))).toEqual(
+      new Set([
+        `${ids.submittedStaffId}:${recruitmentInput.periodStart}:12時以降なら入れます`,
+        `${ids.allOffStaffId}:${recruitmentInput.periodStart}:テスト期間のため休みたいです`,
+      ]),
+    );
 
     const reminderData = await t.query(internal.notification.reminderQueries.getReminderEmailData, { recruitmentId });
     expect(reminderData?.staffEntries.map((staff) => staff.staffId)).toEqual([ids.unsubmittedStaffId]);
@@ -661,6 +670,10 @@ describe("希望シフト回収シナリオ", () => {
           { date: addDays(workedWeekInput.periodStart, 2), startTime: "12:00", endTime: "20:00" },
         ],
       },
+      dateNotes: [
+        { date: workedWeekInput.periodStart, note: "17時以降なら入れます" },
+        { date: addDays(workedWeekInput.periodStart, 4), note: "金曜は休みたいです" },
+      ],
     });
     await staff.submitShiftRequests({
       sessionToken: "scenario-reuse-all-off-session",
@@ -668,7 +681,7 @@ describe("希望シフト回収シナリオ", () => {
       submission: { kind: "time", requests: [] },
     });
 
-    // Assert: 次の募集では全休み週を飛ばし、シフトあり週の曜日パターンが返る。
+    // Assert: 次の募集では全休み週を飛ばし、シフトあり週の曜日パターンと、休みの日を含むメモが返る。
     const currentPageResult = await staff.getSubmissionPageData({
       sessionToken: "scenario-reuse-current-session",
       recruitmentId: currentRecruitmentId,
@@ -680,6 +693,10 @@ describe("希望シフト回収シナリオ", () => {
       days: [
         { weekday: 1, startTime: "10:00", endTime: "18:00" },
         { weekday: 3, startTime: "12:00", endTime: "20:00" },
+      ],
+      notes: [
+        { weekday: 1, note: "17時以降なら入れます" },
+        { weekday: 5, note: "金曜は休みたいです" },
       ],
     });
 

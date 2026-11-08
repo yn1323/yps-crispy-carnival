@@ -16,6 +16,8 @@ export const UnauthenticatedBoundary = ({ children }: Props) => {
 
   return (
     <ErrorBoundary
+      // 未認証はログインへ戻すだけで、それ以外は外側のboundaryが表示して数える。
+      errorSurface={null}
       fallback={(error) => {
         if (isUnauthenticatedError(error)) {
           return <Navigate to="/login" search={{ redirect }} replace />;

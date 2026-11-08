@@ -82,6 +82,7 @@ const safeConvexErrorCodes = new Map<string, string>([
   ["RATE_LIMITED", "rate_limited"],
   ["USAGE_LIMIT_EXCEEDED", "usage_limit_exceeded"],
   ["USAGE_LIMIT_EVALUATION_UNAVAILABLE", "usage_limit_evaluation_unavailable"],
+  ["LINE_LINKED_TO_OTHER_PERSON", "line_linked_to_other_person"],
 ]);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

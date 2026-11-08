@@ -33,8 +33,11 @@ export class StaffSubmitPage {
     await expect(this.submitButton()).toBeVisible({ timeout: STAFF_SUBMIT_DATA_TIMEOUT });
   }
 
+  /** 日付の行全体に重ねた切替ボタンを押す。休みの日は出勤希望に、日付選択の出勤日は休みに切り替わる。 */
   async toggleDay(dateText: string) {
-    await this.page.getByText(dateText, { exact: true }).locator("..").click();
+    await this.page
+      .getByRole("button", { name: new RegExp(`^${escapeRegExp(dateText)}を(出勤希望にする|休みにする)$`) })
+      .click();
   }
 
   async expectSchedule(deadlineText: string, includedDateText: string, excludedDateText: string) {
@@ -64,6 +67,25 @@ export class StaffSubmitPage {
 
   async submit() {
     await this.page.getByRole("button", { name: "希望シフトを提出", exact: true }).click();
+  }
+
+  /** 日付の右のメモボタンからDialogを開いてメモを書く。送信は提出ボタンで行う。 */
+  async writeDateNote(dateText: string, note: string) {
+    await this.page.getByRole("button", { name: `${dateText}の連絡事項を書く`, exact: true }).click();
+    const dialog = this.page.getByRole("dialog", { name: `${dateText}の連絡事項` });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("textbox").fill(note);
+    await dialog.getByRole("button", { name: "OK", exact: true }).click();
+    await expect(dialog).toBeHidden();
+    await this.expectDateNote(dateText, note);
+  }
+
+  async expectDateNote(dateText: string, note: string) {
+    await expect(
+      this.page.getByRole("button", {
+        name: new RegExp(`^${escapeRegExp(dateText)}の連絡事項：\\s*${escapeRegExp(note)}$`),
+      }),
+    ).toBeVisible({ timeout: STAFF_SUBMIT_DATA_TIMEOUT });
   }
 
   async resubmit() {
@@ -116,4 +138,8 @@ export class StaffSubmitPage {
       exact: true,
     });
   }
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

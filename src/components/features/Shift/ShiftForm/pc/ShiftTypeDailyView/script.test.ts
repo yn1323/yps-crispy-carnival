@@ -56,7 +56,7 @@ describe("buildShiftTypeDailyViewModel", () => {
     ]);
     expect(Object.keys(viewModel.optionColumns[0]).sort()).toEqual(["color", "countLabel", "key", "name", "timeLabel"]);
     expect(viewModel.minimumTableWidth).toBe(670);
-    expect(viewModel.columnWidths).toEqual({ staff: 220, request: 150, option: 150 });
+    expect(viewModel.columnWidths).toEqual({ staff: 220, request: 150, note: null, option: 150 });
     expect(viewModel.rows.map(({ key }) => key)).toEqual(["staff-submitted", "staff-unsubmitted"]);
     expect(viewModel.rows[0].warningMessages).toEqual(["必要人数を下回っています"]);
     expect(viewModel.rows[0].requestBadges.map(({ key, label }) => ({ key, label }))).toEqual([
@@ -119,5 +119,25 @@ describe("buildShiftTypeDailyViewModel", () => {
         color: "gray.700",
       },
     ]);
+  });
+
+  it("メモがある募集では希望列の右にメモ列を足し、表の最小幅も広げる", () => {
+    const base = {
+      submissionPattern,
+      shifts: [],
+      staffs,
+      selectedDate: "2026-06-01",
+      holidays: [],
+      isConfirmedDisplay: false,
+      warningMessagesByStaffId: new Map(),
+    };
+    const withoutNotes = buildShiftTypeDailyViewModel(base);
+    const withNotes = buildShiftTypeDailyViewModel({ ...base, hasDateNotes: true });
+
+    expect(withoutNotes.requestHeaderLabel).toBe("希望");
+    expect(withNotes.requestHeaderLabel).toBe("希望");
+    expect(withNotes.columnWidths.request).toBe(150);
+    expect(withNotes.columnWidths.note).toBe(200);
+    expect(withNotes.minimumTableWidth - withoutNotes.minimumTableWidth).toBe(200);
   });
 });

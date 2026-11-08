@@ -10,6 +10,7 @@ import {
 import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { getConvexErrorMessage } from "@/src/lib/convex/error";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import type { AddStaffFormData } from "../AddStaffForm";
 import type { StaffInvitationMethod } from "./StaffInvitationDialog";
 
@@ -79,6 +80,7 @@ export function useStaffInvitation(
     try {
       const requestId = crypto.randomUUID();
       await addStaffs({ entries: data.entries, requestId });
+      trackProductEvent({ kind: "staff_add", method: "manual", count: data.entries.length });
       closeDialogSession();
       showSuccessToast({
         title: "スタッフを追加しました",
@@ -235,6 +237,7 @@ export function useStaffInvitation(
       setIsConfirmingRegistrationLinkRotation(false);
 
       if (result.status === "rotated") {
+        trackProductEvent({ kind: "manage_action", target: "staff", action: "rotate_link" });
         showSuccessToast({ title: "登録リンクを再発行しました" });
       }
     } catch (error) {
@@ -253,6 +256,7 @@ export function useStaffInvitation(
       setAddingOrganizationPersonId(personId);
       try {
         await addOrganizationPersonToShop({ personId, requestId: crypto.randomUUID() });
+        trackProductEvent({ kind: "staff_add", method: "existing_person", count: 1 });
         if (isReadOnlyRef.current || !showOrganizationPeopleAdditionRef.current) return;
         closeDialogSession();
         showSuccessToast({

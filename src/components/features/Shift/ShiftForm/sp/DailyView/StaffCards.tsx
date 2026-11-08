@@ -1,5 +1,6 @@
 import { Box, Flex } from "@chakra-ui/react";
 import { IssueDot, issueToneEmphasis, resolveIssueTone, StaffWarningIcon } from "../../components";
+import { ShiftDateNoteBlock, ShiftStaffNoteIcon } from "../../dateNotes";
 import type { SPDailyCardViewModel } from "./script";
 
 const STRIPE_STYLE = {
@@ -50,6 +51,8 @@ type DailyCardProps = {
   onTap: () => void;
   hasError?: boolean;
   warningMessages?: string[];
+  note?: string;
+  noteDate: string;
 };
 
 export const SPDailyCard = ({
@@ -60,6 +63,8 @@ export const SPDailyCard = ({
   onTap,
   hasError = false,
   warningMessages = [],
+  note,
+  noteDate,
 }: DailyCardProps) => {
   const tone = resolveIssueTone(hasError, false);
   const emphasis = issueToneEmphasis(tone);
@@ -97,7 +102,8 @@ export const SPDailyCard = ({
         <Box textStyle="sm" fontWeight={600} color="gray.800" flex={1}>
           {staffName}
         </Box>
-        <StaffWarningIcon messages={warningMessages} />
+        <StaffWarningIcon messages={warningMessages} openOn="tap" />
+        <ShiftStaffNoteIcon notes={note ? [{ date: noteDate, note }] : []} openOn="tap" />
         {viewModel.showRequestMismatch && (
           <Box
             textStyle="2xs"
@@ -158,6 +164,7 @@ export const SPDailyCard = ({
           />
         ))}
       </Box>
+      {note && <ShiftDateNoteBlock note={note} />}
     </Box>
   );
 };
@@ -171,6 +178,8 @@ export const SPOffCard = ({
   isReadOnly,
   hasError = false,
   warningMessages = [],
+  note,
+  noteDate,
 }: {
   staffId: string;
   staffName: string;
@@ -180,6 +189,8 @@ export const SPOffCard = ({
   isReadOnly: boolean;
   hasError?: boolean;
   warningMessages?: string[];
+  note?: string;
+  noteDate: string;
 }) => {
   const tone = resolveIssueTone(hasError, false);
   const emphasis = issueToneEmphasis(tone);
@@ -201,9 +212,6 @@ export const SPOffCard = ({
       }
       data-tour={`shift-row-${staffId}`}
       w="100%"
-      display="flex"
-      alignItems="center"
-      gap="10px"
       p="10px 12px"
       bg={emphasis?.bg ?? "white"}
       borderWidth={emphasis ? "2px" : "1px"}
@@ -216,20 +224,24 @@ export const SPOffCard = ({
       _active={isReadOnly ? undefined : { bg: tone ? "red.100" : "gray.100", transitionDuration: "0ms" }}
       _focusVisible={isReadOnly ? undefined : { outline: "2px solid", outlineColor: "teal.600", outlineOffset: "1px" }}
     >
-      {tone && <IssueDot tone={tone} />}
-      <Avatar name={staffName} size={24} />
-      <Box textStyle="sm" fontWeight={600} color="gray.600" flex={1}>
-        {staffName}
-      </Box>
-      <StaffWarningIcon messages={warningMessages} />
-      <Box textStyle="2xs" fontWeight={600} style={{ color: labelTone === "warning" ? "#b45309" : "#a1a1aa" }}>
-        {label}
-      </Box>
-      {!isReadOnly && (
-        <Box fontSize="lg" color="gray.400" lineHeight={1} ml="4px">
-          ＋
+      <Flex align="center" gap="10px">
+        {tone && <IssueDot tone={tone} />}
+        <Avatar name={staffName} size={24} />
+        <Box textStyle="sm" fontWeight={600} color="gray.600" flex={1}>
+          {staffName}
         </Box>
-      )}
+        <StaffWarningIcon messages={warningMessages} openOn="tap" />
+        <ShiftStaffNoteIcon notes={note ? [{ date: noteDate, note }] : []} openOn="tap" />
+        <Box textStyle="2xs" fontWeight={600} style={{ color: labelTone === "warning" ? "#b45309" : "#a1a1aa" }}>
+          {label}
+        </Box>
+        {!isReadOnly && (
+          <Box fontSize="lg" color="gray.400" lineHeight={1} ml="4px">
+            ＋
+          </Box>
+        )}
+      </Flex>
+      {note && <ShiftDateNoteBlock note={note} />}
     </Box>
   );
 };

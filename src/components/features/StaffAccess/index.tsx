@@ -15,4 +15,5 @@ export function StaffAccessBoundary({ token, accessKind, children }: Props) {
 
 export type { StaffAccessKind, StaffLinkUnavailableReason } from "@/src/domains/staffAccess";
 export { getStoredSession, type SessionInfo } from "./sessionStorage";
+export { useStaffLinkInvalidMeasurement } from "./useStaffLinkInvalidMeasurement";
 export type StaffAccessState = StaffSessionState;

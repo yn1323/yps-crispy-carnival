@@ -157,6 +157,10 @@ function ProTrialNotice() {
       </Flex>
       {/* 料金を読んで試そうと決めた人が、末尾まで戻らずに登録できるようにする。 */}
       <SignupButton measurementCtaId="pricing_signup" />
+      {/* 2つ目以降の組織はFreeで始まるため、組織ごとに無料期間があると誤解させない。 */}
+      <Text color="gray.600" fontSize="sm">
+        無料トライアルは最初の1組織のみ対象
+      </Text>
     </Stack>
   );
 }

@@ -1,4 +1,6 @@
 import {
+  type AppErrorSurface,
+  type AppTimingPhase,
   buildWebVitalEvent,
   getMeasurementPagePath,
   getViewportClass,
@@ -11,9 +13,12 @@ import {
   type PublicCtaId,
   serializeWebMeasurementEvent,
   type WebMeasurementContext,
+  type WebMeasurementIdentity,
 } from "@/src/domains/webMeasurement";
 import { initGTM, isGtmInitialized, isValidGtmId, pushGtmEvent, resetGTM, stopGTM } from "@/src/lib/gtm";
+import { isCurrentWindowStandaloneWebApp } from "@/src/lib/pwaDisplayMode";
 import reportWebVitals, { type WebVitalsReporter } from "@/src/reportWebVitals";
+import { classifyAppError } from "./appError";
 
 export type WebMeasurementRuntimeConfig = {
   environment: string;
@@ -38,6 +43,11 @@ let documentContext: DocumentMeasurementContext | null = null;
 let lastPageViewPathname: string | null = null;
 let lastPageLocation: string | null = null;
 let webVitalsStarted = false;
+let identity: WebMeasurementIdentity = {};
+type ManagerIdentity = NonNullable<WebMeasurementIdentity["manager"]>;
+let managerOrganization: Pick<ManagerIdentity, "organizationId" | "organizationPlan"> | null = null;
+let managerShopId: string | null = null;
+const sentAppTimingPhases = new Set<AppTimingPhase>();
 const deployMeasurementEnvironments = new Set(["develop", "preview", "production"]);
 
 function normalizeSampleRate(value: number): number {
@@ -52,6 +62,23 @@ export function isWebMeasurementRuntimeEnabled(config: WebMeasurementRuntimeConf
     releaseId !== "unknown" &&
     releaseId !== "local"
   );
+}
+
+function getSerializationContext(context: WebMeasurementContext): WebMeasurementContext {
+  const manager = identity.manager && {
+    ...identity.manager,
+    ...managerOrganization,
+    ...(managerShopId ? { shopId: managerShopId } : {}),
+  };
+  return { ...context, identity: { ...identity, manager } };
+}
+
+function getDisplayMode(): WebMeasurementContext["displayMode"] {
+  try {
+    return isCurrentWindowStandaloneWebApp() ? "standalone" : "browser";
+  } catch {
+    return undefined;
+  }
 }
 
 export function hasActiveWebMeasurement(): boolean {
@@ -82,6 +109,7 @@ export function initializeDocumentWebMeasurement(
       context: {
         environment: normalizeWebMeasurementEnvironment(config.environment),
         releaseId: normalizeReleaseId(config.releaseId),
+        displayMode: getDisplayMode(),
       },
       documentRouteFamily: isNotFoundDocument ? "not_found" : getWebMeasurementRouteFamily(initialDocumentPathname),
       isNotFoundDocument,
@@ -130,7 +158,7 @@ export function trackPageView(pathname: string): boolean {
         // 初回はGA4がdocument.referrerを使う。SPA遷移では直前の画面を参照元にする。
         ...(lastPageLocation ? { pageReferrer: lastPageLocation } : {}),
       },
-      documentContext.context,
+      getSerializationContext(documentContext.context),
     ),
   );
   if (sent) {
@@ -146,7 +174,7 @@ export function trackPublicCta(ctaId: PublicCtaId, pathname = window.location.pa
   return pushGtmEvent(
     serializeWebMeasurementEvent(
       { kind: "public_cta", ctaId, routeFamily: getWebMeasurementRouteFamily(pathname) },
-      documentContext.context,
+      getSerializationContext(documentContext.context),
     ),
   );
 }
@@ -154,12 +182,68 @@ export function trackPublicCta(ctaId: PublicCtaId, pathname = window.location.pa
 export function trackProductEvent(input: ProductMeasurementInput, pathname = window.location.pathname): boolean {
   if (!documentContext || !isGtmInitialized()) return false;
 
-  return pushGtmEvent(
-    serializeWebMeasurementEvent(
-      { ...input, routeFamily: getWebMeasurementRouteFamily(pathname) },
-      documentContext.context,
-    ),
-  );
+  try {
+    return pushGtmEvent(
+      serializeWebMeasurementEvent(
+        { ...input, routeFamily: getWebMeasurementRouteFamily(pathname) },
+        getSerializationContext(documentContext.context),
+      ),
+    );
+  } catch {
+    // 計測の失敗を、呼び出し元の操作やエラー表示へ伝播させない。
+    return false;
+  }
+}
+
+/** AuthGuardが確定した管理者を、以後の管理画面のイベントへ付ける。 */
+export function setManagerMeasurementIdentity(manager: Pick<ManagerIdentity, "userId"> | null): void {
+  identity = { ...identity, manager: manager ?? undefined };
+}
+
+/** 画面がserverで検証した組織scopeを、以後の管理画面のイベントへ付ける。 */
+export function setManagerMeasurementOrganization(
+  organization: Required<Pick<ManagerIdentity, "organizationId" | "organizationPlan">> | null,
+): void {
+  managerOrganization = organization;
+}
+
+/** 画面が操作対象にしている店舗scopeを、以後の管理画面のイベントへ付ける。 */
+export function setManagerMeasurementShop(shopId: string | null): void {
+  managerShopId = shopId;
+}
+
+/** 検証済みのスタッフsessionの募集を、以後のスタッフ画面のイベントへ付ける。 */
+export function setStaffMeasurementIdentity(staff: WebMeasurementIdentity["staff"] | null): void {
+  identity = { ...identity, staff: staff ?? undefined };
+}
+
+/** 画面に表示したエラーを、messageを含めずに送る。 */
+export function trackAppError(surface: AppErrorSurface, error: unknown): boolean {
+  if (!documentContext || !isGtmInitialized()) return false;
+
+  try {
+    const { source, errorCode } = classifyAppError(error, surface);
+    return trackProductEvent({ kind: "app_error", surface, source, ...(errorCode ? { errorCode } : {}) });
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * documentの開始から各段階までの時間を、Web Vitalsのsampling対象documentで一度だけ送る。
+ * 初回表示の遅さの原因を、Clerkの読み込み、ユーザー情報の取得、画面表示に分けて見るために使う。
+ */
+export function trackAppTiming(phase: AppTimingPhase): boolean {
+  if (!documentContext || !isGtmInitialized() || !webVitalsStarted || sentAppTimingPhases.has(phase)) return false;
+  if (typeof performance === "undefined" || typeof performance.now !== "function") return false;
+
+  sentAppTimingPhases.add(phase);
+  return trackProductEvent({
+    kind: "app_timing",
+    phase,
+    durationMs: performance.now(),
+    documentRouteFamily: documentContext.documentRouteFamily,
+  });
 }
 
 export function stopDocumentWebMeasurement(): void {
@@ -168,6 +252,10 @@ export function stopDocumentWebMeasurement(): void {
   lastPageViewPathname = null;
   lastPageLocation = null;
   webVitalsStarted = false;
+  identity = {};
+  managerOrganization = null;
+  managerShopId = null;
+  sentAppTimingPhases.clear();
 }
 
 export function resetWebMeasurementForTests(): void {
@@ -176,4 +264,8 @@ export function resetWebMeasurementForTests(): void {
   lastPageViewPathname = null;
   lastPageLocation = null;
   webVitalsStarted = false;
+  identity = {};
+  managerOrganization = null;
+  managerShopId = null;
+  sentAppTimingPhases.clear();
 }

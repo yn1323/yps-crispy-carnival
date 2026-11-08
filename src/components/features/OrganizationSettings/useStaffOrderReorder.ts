@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { toaster } from "@/src/components/ui/toaster";
+import { trackAppError, trackProductEvent } from "@/src/lib/webMeasurement";
 import { orderPeopleByPersonIds, reorderStaffOrderPersonIds } from "./staffOrder";
 import type { OrganizationPersonView } from "./types";
 
@@ -83,7 +84,9 @@ export function useStaffOrderReorder(people: readonly OrganizationPersonView[], 
         };
         localOrderRef.current = savedOrder;
         setLocalOrder(savedOrder);
-      } catch {
+        trackProductEvent({ kind: "manage_action", target: "staff", action: "reorder" });
+      } catch (error) {
+        trackAppError("toast", error);
         localOrderRef.current = previousOrder;
         setLocalOrder(previousOrder);
         toaster.create({

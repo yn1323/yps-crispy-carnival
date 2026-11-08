@@ -11,6 +11,7 @@ const baseEntry: DayEntry = {
 
 const previousWeeklyPattern: PreviousWeeklyPattern = {
   sourceWeekStart: "2026-04-06",
+  notes: [],
   days: [{ weekday: 3, startTime: "10:00", endTime: "18:00" }],
 };
 

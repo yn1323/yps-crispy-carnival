@@ -163,10 +163,10 @@ describe("development seed rebuild", () => {
     expect(actors).not.toHaveProperty("primaryAuthTokenIdentifier");
     expect(preflight.scenarioKeys).toEqual(DEVELOPMENT_SEED_SCENARIO_KEYS);
     expect(verification).toEqual({
-      contractVersion: "development-seed-v5",
-      contractFingerprint: "991596b8",
+      contractVersion: "development-seed-v6",
+      contractFingerprint: "1b3a2634",
       scenarioCount: 9,
-      tableCount: 57,
+      tableCount: 58,
       organizationCount: 9,
       shopCount: 12,
       staffCount: 169,

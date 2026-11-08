@@ -5,7 +5,14 @@ import { StaffCenteredContent } from "@/src/components/templates/StaffLayout";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
 
-export type LineCallbackStatus = "loading" | "ok" | "needs_follow" | "expired" | "rate_limited" | "error";
+export type LineCallbackStatus =
+  | "loading"
+  | "ok"
+  | "needs_follow"
+  | "expired"
+  | "rate_limited"
+  | "linked_to_other_staff"
+  | "error";
 
 type Props = {
   status: LineCallbackStatus;
@@ -47,6 +54,12 @@ const COPY: Record<
     tone: "warning",
     title: "アクセスが集中しています",
     description: "少し時間をおいてから、再度お試しください。",
+  },
+  linked_to_other_staff: {
+    icon: LuCircleAlert,
+    tone: "danger",
+    title: "LINE連携を完了できませんでした",
+    description: "このLINEアカウントは、すでにほかのスタッフに連携されています。\nシフト作成担当者に連絡してください。",
   },
   error: {
     icon: LuCircleAlert,

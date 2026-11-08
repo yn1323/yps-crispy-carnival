@@ -10,6 +10,12 @@ const pageView = {
   release_id: "release-1",
   route_area: "public",
   route_family: "home",
+  user_id: undefined,
+  organization_id: undefined,
+  shop_id: undefined,
+  organization_plan: undefined,
+  recruitment_id: undefined,
+  display_mode: undefined,
 } as const;
 
 describe("GTM transport", () => {

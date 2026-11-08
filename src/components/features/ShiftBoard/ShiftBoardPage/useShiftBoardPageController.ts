@@ -7,7 +7,7 @@ import {
   parseShiftAssignmentValidationError,
   validateShiftAssignments,
 } from "@/convex/shiftBoard/validation";
-import type { ReminderStatus } from "@/src/components/features/Shift/ShiftForm";
+import type { ReminderStatus, ShiftDateNote } from "@/src/components/features/Shift/ShiftForm";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useDialog } from "@/src/components/ui/Dialog";
 import { toaster } from "@/src/components/ui/toaster";
@@ -28,6 +28,7 @@ import { useDeadlineActive } from "@/src/hooks/useDeadlineActive";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { getConvexErrorCode } from "@/src/lib/convex/error";
+import { trackAppError, trackProductEvent } from "@/src/lib/webMeasurement";
 import { useManagerShopScope } from "@/src/providers/ManagerShopScopeProvider";
 import type { ShiftBoardData } from "../types";
 import { buildShiftData } from "./buildShiftData";
@@ -96,13 +97,21 @@ export type ShiftBoardExportData = {
   };
   staffs: { id: string; name: string; isRemoved: boolean }[];
   assignments: { staffId: string; date: string; startTime: string; endTime: string; optionId: string | null }[];
+  dateNotes: ShiftDateNote[];
 };
+
+/** 取得中の日付メモ。出力ボタンを押した時点のメモを出力へ渡すため、取得中は出力を止める。 */
+export type ShiftBoardDateNotes = readonly ShiftDateNote[] | "loading";
+const EMPTY_DATE_NOTES: readonly ShiftDateNote[] = [];
 
 export const useShiftBoardPageController = (
   data: ShiftBoardData,
   recruitmentId: Id<"recruitments">,
   onExport?: (data: ShiftBoardExportData) => void,
+  dateNotes: ShiftBoardDateNotes = EMPTY_DATE_NOTES,
 ): ShiftBoardPageViewProps => {
+  const isDateNotesLoading = dateNotes === "loading";
+  const loadedDateNotes = isDateNotesLoading ? EMPTY_DATE_NOTES : dateNotes;
   const managerShopScope = useManagerShopScope();
   const expectedEditVersion = useRef(data.recruitment.editVersion ?? 0).current;
   const [hasStaleError, setHasStaleError] = useState(false);
@@ -262,6 +271,9 @@ export const useShiftBoardPageController = (
   // サーバー側バリデーションエラー（二重防御）をエラー一覧UIへマップする。
   // 構造化エラーでなければ従来通りtoastにフォールバックする
   const handleMutationError = useCallback((error: unknown) => {
+    if (getConvexErrorCode(error) === "RECRUITMENT_CHANGED" || parseShiftAssignmentValidationError(error)) {
+      trackAppError("section", error);
+    }
     if (getConvexErrorCode(error) === "RECRUITMENT_CHANGED") {
       setHasStaleError(true);
       return true;
@@ -340,7 +352,10 @@ export const useShiftBoardPageController = (
     }
     hasAttemptedConfirmRef.current = true;
     const issues = revalidate(shiftsRef.current);
-    if (issues.length > 0) return;
+    if (issues.length > 0) {
+      trackProductEvent({ kind: "shift_confirm_blocked", reason: issues[0]?.code, count: issues.length });
+      return;
+    }
     confirmModal.open();
   }, [isPastShiftNow, isReadOnly, readOnlyReason, revalidate, confirmModal]);
 
@@ -377,6 +392,9 @@ export const useShiftBoardPageController = (
         setValidationWarnings([]);
       }
       confirmModal.close();
+      if (result?.status !== "no_changes") {
+        trackProductEvent({ kind: "shift_confirm", intent: isConfirmed ? "resend" : "confirm" });
+      }
       if (result?.status === "no_changes") {
         toaster.create({ title: "前回の通知から変更されたスタッフはいません", type: "info" });
         return;
@@ -397,6 +415,7 @@ export const useShiftBoardPageController = (
     try {
       const saved = await persistCurrentShifts();
       if (!saved) return;
+      trackProductEvent({ kind: "manage_action", target: "shift", action: "save" });
       showSuccessToast({ title: "下書きを保存しました" });
     } catch (error) {
       handleMutationError(error);
@@ -452,6 +471,7 @@ export const useShiftBoardPageController = (
     try {
       const saved = await persistCurrentShifts();
       if (!saved) return;
+      trackProductEvent({ kind: "manage_action", target: "shift", action: "save" });
       showSuccessToast({ title: "下書きを保存しました" });
       blocker.proceed?.();
     } catch (error) {
@@ -464,7 +484,7 @@ export const useShiftBoardPageController = (
 
   const handleOpenExport = useCallback(() => {
     if (!exportOrganizationId) return;
-    if (!isFormInitializedRef.current) {
+    if (!isFormInitializedRef.current || isDateNotesLoading) {
       toaster.create({ title: "シフト表の読み込みが完了してから出力してください", type: "info" });
       return;
     }
@@ -505,8 +525,19 @@ export const useShiftBoardPageController = (
         endTime,
         optionId: optionId ?? null,
       })),
+      dateNotes: loadedDateNotes.map(({ staffId, date, note }) => ({ staffId, date, note })),
     });
-  }, [exportOrganizationId, isConfirming, isSavingAndLeaving, isSavingDraft, onExport, data, buildSaveAssignments]);
+  }, [
+    exportOrganizationId,
+    isConfirming,
+    isSavingAndLeaving,
+    isSavingDraft,
+    isDateNotesLoading,
+    loadedDateNotes,
+    onExport,
+    data,
+    buildSaveAssignments,
+  ]);
 
   return {
     viewModel: {
@@ -517,7 +548,9 @@ export const useShiftBoardPageController = (
       isReadOnly,
       readOnlyReason,
       exportAction:
-        exportOrganizationId && onExport ? { isDisabled: isSavingDraft || isConfirming || isSavingAndLeaving } : null,
+        exportOrganizationId && onExport
+          ? { isDisabled: isSavingDraft || isConfirming || isSavingAndLeaving || isDateNotesLoading }
+          : null,
       showTimeInputGuide: data.submissionPattern.kind === "time",
       shiftForm: {
         shopId: data.shopId,
@@ -533,6 +566,7 @@ export const useShiftBoardPageController = (
         reminderStatus,
         validationIssues,
         validationWarnings,
+        dateNotes: loadedDateNotes,
       },
       confirmDialog: {
         isOpen: confirmModal.isOpen,
@@ -540,6 +574,7 @@ export const useShiftBoardPageController = (
         submitLabel: isConfirmed ? "変更があるスタッフに通知" : "シフトを確定して通知",
         staffCount: staffs.length,
         warnings: displayWarnings,
+        unsubmittedNames,
       },
       unsubmittedDialog: {
         isOpen: unsubmittedDialog.isOpen,

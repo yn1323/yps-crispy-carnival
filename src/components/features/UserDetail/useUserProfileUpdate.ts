@@ -4,6 +4,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import type { PersonProfileFormData } from "@/src/components/shared/PersonProfileForm";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import type { UserDetailData } from "./types";
 
 export function useUserProfileUpdate({
@@ -28,6 +29,7 @@ export function useUserProfileUpdate({
         requestId: crypto.randomUUID(),
         expectedOrganizationId,
       });
+      trackProductEvent({ kind: "manage_action", target: "staff", action: "update_profile" });
       showSuccessToast({ title: "ユーザー情報を更新しました" });
       return true;
     } catch (error) {

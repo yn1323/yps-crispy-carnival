@@ -5,6 +5,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import type {
   ManagerSettingsConfirmation,
   ManagerSettingsInvitation,
@@ -45,14 +46,17 @@ export function useManagerSettingsController({
         if (current.kind === "resend") {
           const args = { invitationId: current.invitation.invitationId, requestId: current.requestId };
           await resendForOrganization({ organizationId, ...args });
+          trackProductEvent({ kind: "manage_action", target: "manager", action: "resend_invite" });
           showSuccessToast({ title: "再送を受け付けました" });
         } else if (current.kind === "revoke") {
           const args = { invitationId: current.invitation.invitationId, requestId: current.requestId };
           await revokeForOrganization({ organizationId, ...args });
+          trackProductEvent({ kind: "manage_action", target: "manager", action: "revoke_invite" });
           showSuccessToast({ title: "招待を取り消しました" });
         } else {
           const args = { personId: current.manager.personId, requestId: current.requestId };
           await removeManagerRoleForOrganization({ organizationId, ...args });
+          trackProductEvent({ kind: "manage_action", target: "manager", action: "remove_role" });
           showSuccessToast({
             title: "管理者権限を外しました",
             description: "人物情報とスタッフとしての店舗所属は維持しています。",

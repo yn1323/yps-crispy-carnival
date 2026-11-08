@@ -2,6 +2,7 @@ import { api } from "@/convex/_generated/api";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import type { LegalReconsentDocumentLinks } from "../LegalReconsentBanner";
 import { LegalReconsentView } from "./LegalReconsentView";
 
@@ -17,6 +18,7 @@ export function LegalReconsent({ status }: Props) {
   const { run: handleAccept, isRunning: isSubmitting } = useSingleFlight(async () => {
     try {
       await acceptManagerLegalConsent({ acceptedLegal: true });
+      trackProductEvent({ kind: "manage_action", target: "account", action: "legal_consent" });
       showSuccessToast({ title: "同意を記録しました" });
     } catch (error) {
       showErrorToast(error);

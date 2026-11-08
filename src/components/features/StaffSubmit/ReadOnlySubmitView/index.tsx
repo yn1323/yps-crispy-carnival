@@ -19,6 +19,10 @@ export const ReadOnlySubmitView = ({ data, headerAction }: Props) => {
   const dates = useMemo(() => getDateRange(data.periodStart, data.periodEnd), [data.periodStart, data.periodEnd]);
 
   const entries = useMemo(() => buildInitialEntries(dates, data), [dates, data]);
+  const noteByDate = useMemo(
+    () => new Map((data.existingDateNotes ?? []).map(({ date, note }) => [date, note])),
+    [data.existingDateNotes],
+  );
 
   return (
     <SubmitPageLayout>
@@ -56,7 +60,7 @@ export const ReadOnlySubmitView = ({ data, headerAction }: Props) => {
       <SubmitPageContent>
         <VStack px={4} py={3} gap={2}>
           {entries.map((entry) => (
-            <ReadOnlyDay key={entry.date} entry={entry} data={data} />
+            <ReadOnlyDay key={entry.date} entry={entry} data={data} note={noteByDate.get(entry.date)} />
           ))}
         </VStack>
       </SubmitPageContent>
@@ -64,10 +68,10 @@ export const ReadOnlySubmitView = ({ data, headerAction }: Props) => {
   );
 };
 
-const ReadOnlyDay = ({ entry, data }: { entry: DayEntry; data: SubmissionData }) => {
+const ReadOnlyDay = ({ entry, data, note }: { entry: DayEntry; data: SubmissionData; note?: string }) => {
   const isShopClosed = data.shopClosedDates.includes(entry.date);
   if (data.submissionPattern.kind === "dateOnly") {
-    return <DateOnlySubmissionDayCard entry={entry} isReadOnly isShopClosed={isShopClosed} />;
+    return <DateOnlySubmissionDayCard entry={entry} isReadOnly isShopClosed={isShopClosed} note={note} />;
   }
   if (data.submissionPattern.kind === "shiftType") {
     return (
@@ -76,6 +80,7 @@ const ReadOnlyDay = ({ entry, data }: { entry: DayEntry; data: SubmissionData })
         options={data.submissionPattern.options}
         isReadOnly
         isShopClosed={isShopClosed}
+        note={note}
       />
     );
   }
@@ -88,6 +93,7 @@ const ReadOnlyDay = ({ entry, data }: { entry: DayEntry; data: SubmissionData })
       onClear={() => {}}
       isReadOnly
       isShopClosed={isShopClosed}
+      note={note}
     />
   );
 };

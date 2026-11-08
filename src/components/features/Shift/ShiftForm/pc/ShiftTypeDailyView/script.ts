@@ -44,6 +44,8 @@ export type ShiftTypeDailyViewModel = {
   columnWidths: {
     staff: number;
     request: number;
+    /** メモがない募集ではメモ列を出さない。 */
+    note: number | null;
     option: number;
   };
   optionColumns: ShiftTypeDailyOptionColumnViewModel[];
@@ -52,6 +54,8 @@ export type ShiftTypeDailyViewModel = {
 
 const STAFF_COLUMN_WIDTH = 220;
 const REQUEST_COLUMN_WIDTH = 150;
+// 時間指定の日別表示のメモ列とそろえる。
+const NOTE_COLUMN_WIDTH = 200;
 const OPTION_COLUMN_WIDTH = 150;
 
 export const buildShiftTypeDailyViewModel = ({
@@ -62,6 +66,7 @@ export const buildShiftTypeDailyViewModel = ({
   holidays,
   isConfirmedDisplay,
   warningMessagesByStaffId,
+  hasDateNotes = false,
 }: {
   submissionPattern: ShiftSubmissionPattern;
   shifts: ShiftData[];
@@ -70,6 +75,7 @@ export const buildShiftTypeDailyViewModel = ({
   holidays: string[];
   isConfirmedDisplay: boolean;
   warningMessagesByStaffId: ReadonlyMap<string, string[]>;
+  hasDateNotes?: boolean;
 }): ShiftTypeDailyViewModel => {
   const presentation = buildShiftTypeDailyPresentation({
     submissionPattern,
@@ -79,13 +85,20 @@ export const buildShiftTypeDailyViewModel = ({
     isConfirmedDisplay,
   });
 
+  const noteColumnWidth = hasDateNotes ? NOTE_COLUMN_WIDTH : null;
+
   return {
     isShopClosedDate: holidays.includes(selectedDate),
     requestHeaderLabel: isConfirmedDisplay ? "確定" : "希望",
-    minimumTableWidth: STAFF_COLUMN_WIDTH + REQUEST_COLUMN_WIDTH + presentation.options.length * OPTION_COLUMN_WIDTH,
+    minimumTableWidth:
+      STAFF_COLUMN_WIDTH +
+      REQUEST_COLUMN_WIDTH +
+      (noteColumnWidth ?? 0) +
+      presentation.options.length * OPTION_COLUMN_WIDTH,
     columnWidths: {
       staff: STAFF_COLUMN_WIDTH,
       request: REQUEST_COLUMN_WIDTH,
+      note: noteColumnWidth,
       option: OPTION_COLUMN_WIDTH,
     },
     optionColumns: presentation.options.map(({ key, name, timeLabel, countLabel, color }) => ({

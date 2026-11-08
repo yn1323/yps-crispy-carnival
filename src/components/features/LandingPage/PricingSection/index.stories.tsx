@@ -28,6 +28,7 @@ export const Desktop: Story = {
     await expect(trialNotice.getByText("クレジットカード不要")).toBeInTheDocument();
     await expect(trialNotice.getByText("利用人数50名・5店舗・管理者5名まで")).toBeInTheDocument();
     await expect(trialNotice.getByRole("link", { name: "無料ではじめる" })).toHaveAttribute("href", "/signup");
+    await expect(trialNotice.getByText("無料トライアルは最初の1組織のみ対象")).toBeInTheDocument();
     await expect(canvas.getByText("/ 1か月")).toBeInTheDocument();
   },
 };

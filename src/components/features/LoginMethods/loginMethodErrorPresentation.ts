@@ -1,4 +1,5 @@
 import { getClerkErrorMessage } from "@/src/components/features/AuthPage/errorPresentation";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 
 const IDENTIFIER_COLLISION_MESSAGE = "このメールアドレスに変更できません。\n別のメールアドレスを入力してください。";
 
@@ -8,7 +9,9 @@ export function getLoginMethodAccountErrorMessage(error: unknown): string {
 }
 
 export function getPasswordChangeErrorMessage(error: unknown): string {
-  switch (getClerkErrorCode(error)) {
+  const code = getClerkErrorCode(error);
+  trackProductEvent({ kind: "auth_error", errorCode: code || undefined });
+  switch (code) {
     case "form_password_incorrect":
     case "form_password_or_identifier_incorrect":
       return "現在のパスワードが正しくありません。\n入力内容を確認してください。";

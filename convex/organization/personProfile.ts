@@ -4,6 +4,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { resolveOrganizationPersonEmail } from "../_lib/personIdentity";
 import { normalizeEmail } from "../_lib/validation";
+import { revokeOrganizationPersonLineTokens } from "../line/service";
 import { getBusinessNotificationOrigin } from "../notificationOutbox/origin";
 
 type OrganizationPersonProfileMutationCtx = MutationCtx;
@@ -125,6 +126,9 @@ export async function updateOrganizationPersonProfile(
   }
 
   if (emailChanged) {
+    // 変更前の宛先へ送ったLINE連携URLを失効させる。メール経由の発行は有効tokenを使い回すため、
+    // 誤った宛先に届いたURLを変更後の宛先への案内で使い回さないようにする。
+    await revokeOrganizationPersonLineTokens(ctx, { organizationPersonId: person._id, occurredAt: updatedAt });
     const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: args.notificationShopId });
     for (const staff of activeStaffs) {
       await ctx.scheduler.runAfter(

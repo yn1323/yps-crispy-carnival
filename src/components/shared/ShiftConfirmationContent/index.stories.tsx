@@ -54,8 +54,35 @@ const warnings = [
   },
 ];
 
+const unsubmittedNames = ["山田太郎", "佐藤花子"];
+
+const manyUnsubmittedNames = ["山田太郎", "佐藤花子", "田中次郎", "小林大輔", "高橋健太", "中村真理", "渡辺優子"];
+
 export const Default: Story = {
   args: baseArgs,
+};
+
+export const WithUnsubmitted: Story = {
+  args: {
+    ...baseArgs,
+    unsubmittedNames,
+  },
+};
+
+export const WithManyUnsubmitted: Story = {
+  args: {
+    ...baseArgs,
+    unsubmittedNames: manyUnsubmittedNames,
+  },
+};
+
+// 確定後は提出リンクが閉じているため、未提出者の注意を出さない。
+export const ResendWithUnsubmitted: Story = {
+  args: {
+    ...baseArgs,
+    isResend: true,
+    unsubmittedNames,
+  },
 };
 
 export const WithWarnings: Story = {
@@ -95,12 +122,37 @@ export const ModalWithWarnings: Story = {
   ),
 };
 
+export const ModalWithUnsubmittedAndWarnings: Story = {
+  name: "Modal With Unsubmitted And Warnings",
+  args: {
+    ...baseArgs,
+    warnings,
+    unsubmittedNames,
+  },
+  parameters: {
+    layout: "fullscreen",
+  },
+  render: (args) => (
+    <Dialog
+      title="このシフトをスタッフに通知しますか？"
+      isOpen
+      onOpenChange={() => {}}
+      onClose={() => {}}
+      onSubmit={() => {}}
+      submitLabel="シフトを確定して通知"
+    >
+      <ConfirmShiftContent {...args} />
+    </Dialog>
+  ),
+};
+
 export const SPModalWithWarnings: Story = {
   name: "SP Modal With Warnings",
   tags: ["vrt-mobile2"],
   args: {
     ...baseArgs,
     warnings,
+    unsubmittedNames,
   },
   parameters: {
     layout: "fullscreen",

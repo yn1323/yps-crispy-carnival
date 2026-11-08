@@ -37,7 +37,7 @@ export function HelpIndex({ metas = helpIndexMetas, tasks = HELP_TASKS }: HelpIn
 
   useEffect(() => {
     if (!normalizedQuery) return;
-    // 検索語は送らず、結果の有無だけを送る。
+    // 検索語は氏名や連絡先を含み得るため渡さず、結果の有無だけを送る。
     const timer = window.setTimeout(
       () => trackProductEvent({ kind: "help_search", hasResults }),
       HELP_SEARCH_MEASUREMENT_DELAY_MS,
