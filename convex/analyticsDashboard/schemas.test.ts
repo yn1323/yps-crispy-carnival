@@ -156,6 +156,25 @@ describe("Analytics BFFの入力契約", () => {
       ok: false,
     });
   });
+  it("分析用JSONの元データは、pathの店舗IDか組織IDだけで受け付ける", () => {
+    expect(normalizeBrowserRequestInput("shopExport", new URLSearchParams(), { shopId: "shop" })).toEqual({
+      ok: true,
+      value: { endpoint: "shopExport", shopId: "shop" },
+    });
+    expect(
+      normalizeBrowserRequestInput("organizationExport", new URLSearchParams(), { organizationId: "organization" }),
+    ).toEqual({ ok: true, value: { endpoint: "organizationExport", organizationId: "organization" } });
+    for (const request of [
+      { endpoint: "shopExport" },
+      { endpoint: "shopExport", shopId: "shop/other" },
+      { endpoint: "shopExport", shopId: "shop", includeNames: true },
+      { endpoint: "organizationExport", organizationId: "organization", shopId: "shop" },
+    ])
+      expect(parseAnalyticsDashboardRequest(request)).toEqual({ ok: false });
+    expect(normalizeBrowserRequestInput("shopExport", new URLSearchParams("shopId=other"), { shopId: "shop" })).toEqual(
+      { ok: false },
+    );
+  });
   it("専用要望更新はIDとboolean以外を受け付けない", () => {
     expect(parseFeatureRequestUpdate({ endpoint: "setFeatureRequestDeleted", id: "request", isDeleted: true })).toEqual(
       { ok: true, value: { endpoint: "setFeatureRequestDeleted", id: "request", isDeleted: true } },

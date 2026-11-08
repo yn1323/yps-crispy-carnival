@@ -78,6 +78,9 @@ export type NotificationSearchRequest = Pagination & {
 export type NotificationSummaryRequest = { endpoint: "notificationSummary" };
 export type StaffTimelineRequest = { endpoint: "staffTimeline"; shopId: string; staffId: string };
 export type OrganizationEventsRequest = Pagination & { endpoint: "organizationEvents"; shopId: string };
+/** 分析用JSONの元データ。仮名への置き換えはブラウザで行う。 */
+export type ShopExportRequest = { endpoint: "shopExport"; shopId: string };
+export type OrganizationExportRequest = { endpoint: "organizationExport"; organizationId: string };
 /** tokenはbearer capabilityのため、BFFのPOST bodyだけで受け取りURLへ載せない。 */
 export type MagicLinkLookupRequest = { endpoint: "magicLinkLookup"; token: string };
 export type FeatureRequestUpdateRequest = { endpoint: "setFeatureRequestDeleted"; id: string; isDeleted: boolean };
@@ -93,7 +96,9 @@ export type AnalyticsDashboardRequest =
   | NotificationSummaryRequest
   | StaffTimelineRequest
   | OrganizationEventsRequest
-  | MagicLinkLookupRequest;
+  | MagicLinkLookupRequest
+  | ShopExportRequest
+  | OrganizationExportRequest;
 export type AnalyticsDashboardEndpoint = AnalyticsDashboardRequest["endpoint"];
 type ParseResult<T> = { ok: true; value: T } | { ok: false };
 const invalid = { ok: false } as const;
@@ -343,6 +348,14 @@ export function parseAnalyticsDashboardRequest(value: unknown): ParseResult<Anal
         MAGIC_LINK_TOKEN_PATTERN.test(value.token)
         ? { ok: true, value: { endpoint: "magicLinkLookup", token: value.token } }
         : invalid;
+    case "shopExport":
+      return hasOnly(value, ["endpoint", "shopId"]) && validId(value.shopId)
+        ? { ok: true, value: { endpoint: "shopExport", shopId: value.shopId } }
+        : invalid;
+    case "organizationExport":
+      return hasOnly(value, ["endpoint", "organizationId"]) && validId(value.organizationId)
+        ? { ok: true, value: { endpoint: "organizationExport", organizationId: value.organizationId } }
+        : invalid;
     case "organizationEvents": {
       const page = pagination(value, ORGANIZATION_EVENTS_MAX_PAGE_SIZE);
       return hasOnly(value, ["endpoint", "shopId", "cursor", "limit"]) && page && validId(value.shopId)
@@ -365,7 +378,7 @@ export function parseFeatureRequestUpdate(value: unknown): ParseResult<FeatureRe
 export function normalizeBrowserRequestInput(
   endpoint: AnalyticsDashboardEndpoint,
   params: URLSearchParams,
-  pathIds: { shopId?: string; staffId?: string; recruitmentId?: string } = {},
+  pathIds: { shopId?: string; staffId?: string; recruitmentId?: string; organizationId?: string } = {},
 ): ParseResult<AnalyticsDashboardRequest> {
   // tokenをURLのqueryで受け取らないよう、ブラウザのGET入力からはマジックリンク検索を組み立てない。
   if (endpoint === "magicLinkLookup") return invalid;

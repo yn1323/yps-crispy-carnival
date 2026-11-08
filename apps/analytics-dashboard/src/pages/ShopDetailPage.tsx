@@ -18,6 +18,7 @@ import {
   staffPath,
 } from "@/features/analytics/format";
 import { AnalyticsPageLoading, Details, IdText, MoreButton, Panel, QueryError } from "@/features/analytics/PageState";
+import { AnalysisExportStatus, useAnalysisExport } from "@/features/export/useAnalysisExport";
 
 function eventChange(row: OrganizationEventDto) {
   if (row.fromState === null && row.toState === null) return null;
@@ -131,6 +132,7 @@ export function ShopDetailPage({ shopId, navigate }: { shopId: string; navigate:
   });
   const first = query.data?.pages[0];
   useReportAnalyticsEnvironment(first?.env.label);
+  const analysisExport = useAnalysisExport();
   const data = query.error instanceof AnalyticsApiError && query.error.status === 404 ? undefined : first?.data;
   const staff = query.data?.pages.flatMap((page) => page.data.staff) ?? [];
   if (!data && query.isPending)
@@ -154,15 +156,26 @@ export function ShopDetailPage({ shopId, navigate }: { shopId: string; navigate:
         description={`現在の情報・${formatDateTime(data.asOf)}時点`}
         breadcrumbs={[{ label: "店舗", href: "/shops" }, { label: data.shop.name }]}
         action={
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => navigate(`/notifications?${new URLSearchParams({ shopId })}`)}
-          >
-            この店舗の通知を調べる
-          </Button>
+          <Flex gap={2} wrap="wrap">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => navigate(`/notifications?${new URLSearchParams({ shopId })}`)}
+            >
+              この店舗の通知を調べる
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={analysisExport.isRunning}
+              onClick={() => void analysisExport.start(async () => ({ scope: { kind: "shop" }, shopIds: [shopId] }))}
+            >
+              分析用JSONを保存
+            </Button>
+          </Flex>
         }
       />
+      <AnalysisExportStatus state={analysisExport.state} onClose={analysisExport.close} />
       {query.error && <QueryError error={query.error} onRetry={() => void query.refetch()} />}
       <Panel title="店舗情報">
         <Details

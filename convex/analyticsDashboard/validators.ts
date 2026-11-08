@@ -483,3 +483,101 @@ export const magicLinkLookupResponseValidator = v.object({
     }),
   ),
 });
+
+const exportSubmissionPatternValidator = v.union(
+  v.object({ kind: v.literal("time"), startTime: v.string(), endTime: v.string() }),
+  v.object({ kind: v.literal("dateOnly") }),
+  v.object({
+    kind: v.literal("shiftType"),
+    options: v.array(v.object({ startTime: v.string(), endTime: v.string() })),
+  }),
+);
+export const shopExportResponseValidator = v.union(
+  v.object({
+    kind: v.literal("shopExport"),
+    asOf: v.number(),
+    shop: v.object({
+      shopId: v.string(),
+      name: v.string(),
+      organizationId: v.string(),
+      organizationName: v.string(),
+      registeredAt: v.number(),
+      regularClosedDays: v.array(v.string()),
+      submissionPattern: exportSubmissionPatternValidator,
+    }),
+    usage: v.object({
+      analyticsStartedAt: nullableNumber,
+      staffCount: nullableNumber,
+      lastActivityDate: nullableString,
+      lastNotifiedAt: nullableNumber,
+      attention: v.array(v.union(v.literal("shift_ended"), v.literal("inactive"))),
+      activeDays: v.array(v.object({ date: v.string(), submitted: v.boolean(), confirmed: v.boolean() })),
+    }),
+    members: v.array(
+      v.object({
+        personKey: v.string(),
+        isManager: v.boolean(),
+        excludedFromShift: v.boolean(),
+        accountLinked: v.boolean(),
+        lineStatus: staffRowValidator.fields.lineStatus,
+        joinedAt: v.number(),
+      }),
+    ),
+    membersTruncated: v.boolean(),
+    recruitments: v.array(
+      v.object({
+        periodStart: v.string(),
+        periodEnd: v.string(),
+        deadline: v.string(),
+        createdAt: v.number(),
+        status: v.union(v.literal("open"), v.literal("confirmed")),
+        confirmedAt: nullableNumber,
+        confirmedBeforeStart: v.union(v.boolean(), v.null()),
+        submissionPattern: exportSubmissionPatternValidator,
+        shopClosedDateCount: v.number(),
+        editCount: v.number(),
+        reminderScheduledAt: nullableNumber,
+        reminderSentAt: nullableNumber,
+        draftSavedAt: nullableNumber,
+        stats: v.union(v.object({ submittedCount: v.number(), shiftTargetCount: v.number() }), v.null()),
+        submissions: v.array(
+          v.object({
+            personKey: nullableString,
+            firstSubmittedAt: v.number(),
+            lastSubmittedAt: v.number(),
+            firstSubmittedByDeadline: v.boolean(),
+            needsResubmission: v.boolean(),
+            assigned: v.union(v.boolean(), v.null()),
+          }),
+        ),
+        submissionsTruncated: v.boolean(),
+        assignment: v.object({
+          assignedStaffCount: v.number(),
+          assignmentCount: v.number(),
+          isTruncated: v.boolean(),
+        }),
+      }),
+    ),
+    recruitmentsTruncated: v.boolean(),
+  }),
+  v.null(),
+);
+export const organizationExportResponseValidator = v.union(
+  v.object({
+    kind: v.literal("organizationExport"),
+    asOf: v.number(),
+    organization: v.object({
+      organizationId: v.string(),
+      name: v.string(),
+      registeredAt: v.number(),
+      billing: nullableBillingSummary,
+      peopleCount: nullableNumber,
+      activeManagerCount: nullableNumber,
+      shopCount: nullableNumber,
+      lastNotifiedAt: nullableNumber,
+    }),
+    shops: v.array(v.object({ shopId: v.string(), name: v.string() })),
+    shopsTruncated: v.boolean(),
+  }),
+  v.null(),
+);

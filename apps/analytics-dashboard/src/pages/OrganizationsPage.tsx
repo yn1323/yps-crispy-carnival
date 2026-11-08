@@ -19,6 +19,7 @@ import { compareSortValues, fetchListPages, LIST_PAGE_SIZE } from "@/features/an
 import { MultiStaffToggle } from "@/features/analytics/MultiStaffToggle";
 import { NotifiedSelect } from "@/features/analytics/NotifiedSelect";
 import { AnalyticsPageLoading, MoreButton, Panel, QueryError } from "@/features/analytics/PageState";
+import { AnalysisExportStatus, useAnalysisExport } from "@/features/export/useAnalysisExport";
 
 type OrganizationFilters = {
   search: string;
@@ -127,6 +128,43 @@ export function OrganizationsPage({ navigate }: { navigate: (path: string) => vo
     );
   }, [query.data?.pages, sort]);
   const setFilters = (next: Partial<OrganizationFilters>) => navigate(filtersPath({ ...filters, ...next }));
+  const analysisExport = useAnalysisExport();
+  // 自動で読む上限に達して続きがある場合も、条件に合う全組織を読み切ってから出力する。
+  const exportOrganizations = () =>
+    void analysisExport.start(async (signal) => {
+      let pages = query.data?.pages ?? [];
+      if (query.hasNextPage) {
+        let result = await query.fetchNextPage();
+        while (result.hasNextPage && !signal.aborted) result = await query.fetchNextPage();
+        pages = result.data?.pages ?? pages;
+      }
+      signal.throwIfAborted();
+      return {
+        scope: {
+          kind: "organizationList",
+          filters: {
+            hasNameSearch: filters.search !== "",
+            billing: filters.billing,
+            notified: filters.notified,
+            multiStaff: filters.multiStaff,
+          },
+        },
+        organizationIds: [...new Set(pages.flatMap((page) => page.rows).map((row) => row.organizationId))],
+      };
+    });
+  const exportOrganization = (organizationId: string) =>
+    void analysisExport.start(async () => ({ scope: { kind: "organization" }, organizationIds: [organizationId] }));
+  const exportButton = (row: AnalyticsOrganizationListRowDto) => (
+    <Button
+      size="xs"
+      variant="outline"
+      aria-label={`${row.name}の分析用JSONを保存`}
+      disabled={analysisExport.isRunning}
+      onClick={() => exportOrganization(row.organizationId)}
+    >
+      JSON
+    </Button>
+  );
   return (
     <Stack gap={6}>
       <PageHeading
@@ -208,6 +246,20 @@ export function OrganizationsPage({ navigate }: { navigate: (path: string) => vo
             title={filters.billing ? `契約が「${BILLING_FILTER_LABELS[filters.billing]}」の組織` : "現在の組織一覧"}
             description={`${formatDateTime(first.data.asOf)}時点。絞り込みと並べ替えは全組織が対象です。利用人数はプラン上限と同じ数え方で、管理者を含み、複数店舗に所属する人も1人と数えます。`}
           >
+            <Flex justify="space-between" align="center" gap={3} wrap="wrap">
+              <Text fontSize="xs" color="gray.600">
+                条件に合う全組織と各組織の全店舗を、組織・店舗・人物を仮名にした分析用JSONで保存できます。行の「JSON」はその組織だけを保存します。
+              </Text>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={analysisExport.isRunning || (rows.length === 0 && !query.hasNextPage)}
+                onClick={exportOrganizations}
+              >
+                分析用JSONを保存
+              </Button>
+            </Flex>
+            <AnalysisExportStatus state={analysisExport.state} onClose={analysisExport.close} />
             <DataTable
               rows={rows}
               sort={sort}
@@ -254,6 +306,7 @@ export function OrganizationsPage({ navigate }: { navigate: (path: string) => vo
                   sortable: true,
                   render: (row) => formatDate(row.registeredAt),
                 },
+                { key: "export", header: "分析用", render: exportButton },
               ]}
               renderMobileRow={(row) => (
                 <Stack gap={2}>
@@ -264,9 +317,12 @@ export function OrganizationsPage({ navigate }: { navigate: (path: string) => vo
                   </Text>
                   <ShopLinks row={row} />
                   <Text fontSize="sm">最終通知：{formatDateTime(row.lastNotifiedAt)}</Text>
-                  <Text fontSize="xs" color="gray.600">
-                    登録：{formatDate(row.registeredAt)}
-                  </Text>
+                  <Flex justify="space-between" align="center" gap={2}>
+                    <Text fontSize="xs" color="gray.600">
+                      登録：{formatDate(row.registeredAt)}
+                    </Text>
+                    {exportButton(row)}
+                  </Flex>
                 </Stack>
               )}
             />

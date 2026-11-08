@@ -24,6 +24,7 @@ import { compareSortValues, fetchListPages, LIST_PAGE_SIZE } from "@/features/an
 import { MultiStaffToggle } from "@/features/analytics/MultiStaffToggle";
 import { NotifiedSelect } from "@/features/analytics/NotifiedSelect";
 import { AnalyticsPageLoading, MoreButton, Panel, QueryError } from "@/features/analytics/PageState";
+import { AnalysisExportStatus, useAnalysisExport } from "@/features/export/useAnalysisExport";
 
 type ShopScope = { from: string; to: string; metric: AnalyticsMetric };
 type ShopFilters = {
@@ -154,6 +155,34 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
   }, [query.data?.pages, sort]);
   const scopeStatus = first?.data.scopeStatus;
   const setFilters = (next: Partial<ShopFilters>) => navigate(filtersPath({ ...filters, ...next }));
+  const analysisExport = useAnalysisExport();
+  // 自動で読む上限に達して続きがある場合も、条件に合う全店舗を読み切ってから出力する。
+  const exportShops = () =>
+    void analysisExport.start(async (signal) => {
+      let pages = query.data?.pages ?? [];
+      if (query.hasNextPage) {
+        let result = await query.fetchNextPage();
+        while (result.hasNextPage && !signal.aborted) result = await query.fetchNextPage();
+        pages = result.data?.pages ?? pages;
+      }
+      signal.throwIfAborted();
+      const loaded = [...new Map(pages.flatMap((page) => page.rows).map((row) => [row.shopId, row])).values()];
+      return {
+        scope: {
+          kind: "shopList",
+          filters: {
+            hasNameSearch: filters.search !== "",
+            billing: filters.billing,
+            attention: filters.attention,
+            notified: filters.notified,
+            multiStaff: filters.multiStaff,
+            activity: filters.scope,
+          },
+        },
+        shopIds: loaded.filter((row) => !row.isDeleted).map((row) => row.shopId),
+        deletedShopCount: loaded.filter((row) => row.isDeleted).length,
+      };
+    });
   return (
     <Stack gap={6}>
       <PageHeading
@@ -295,6 +324,20 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
               </Alert.Root>
             ) : (
               <>
+                <Flex justify="space-between" align="center" gap={3} wrap="wrap">
+                  <Text fontSize="xs" color="gray.600">
+                    条件に合う全店舗を、組織・店舗・人物を仮名にした分析用JSONで保存できます。
+                  </Text>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={analysisExport.isRunning || (rows.length === 0 && !query.hasNextPage)}
+                    onClick={exportShops}
+                  >
+                    分析用JSONを保存
+                  </Button>
+                </Flex>
+                <AnalysisExportStatus state={analysisExport.state} onClose={analysisExport.close} />
                 <DataTable
                   rows={rows}
                   sort={sort}

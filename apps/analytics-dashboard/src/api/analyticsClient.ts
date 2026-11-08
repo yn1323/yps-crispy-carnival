@@ -11,10 +11,12 @@ import type {
   NotificationSearchResponse,
   NotificationSummaryResponse,
   OrganizationEventsResponse,
+  OrganizationExportResponse,
   OrganizationsResponse,
   OverviewResponse,
   ShopBillingFilter,
   ShopDetailResponse,
+  ShopExportResponse,
   ShopsResponse,
   StaffDetailResponse,
   StaffTimelineResponse,
@@ -194,5 +196,16 @@ export function lookupMagicLink(token: string) {
     "/api/analytics/magic-links/lookup",
     {},
     { endpoint: "magicLinkLookup", token },
+  );
+}
+/** 分析用JSONの元データ。多数の店舗を続けて読むため、rate limitでは待って同じ要求を再開する。 */
+export function fetchShopExport(shopId: string, signal?: AbortSignal) {
+  return fetchListEndpoint<ShopExportResponse>(`/api/analytics/export/shops/${encodeURIComponent(shopId)}`, {}, signal);
+}
+export function fetchOrganizationExport(organizationId: string, signal?: AbortSignal) {
+  return fetchListEndpoint<OrganizationExportResponse>(
+    `/api/analytics/export/organizations/${encodeURIComponent(organizationId)}`,
+    {},
+    signal,
   );
 }
