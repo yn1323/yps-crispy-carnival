@@ -121,7 +121,7 @@ export function OrganizationRecruitmentManagement({
           shopId: targetShop.shopId,
           expectedOrganizationId: requestedOrganizationId,
         });
-        trackProductEvent({ kind: "recruitment_create" });
+        trackProductEvent({ kind: "recruitment_create", shopId: targetShop.shopId });
         if (activeInteractionScopeKeyRef.current !== requestedInteractionScopeKey) return;
         createDialog.close();
         showSuccessToast({

@@ -158,7 +158,8 @@ export type ProductMeasurementInput =
   | { kind: "promotion_code_apply"; result: PromotionCodeResult }
   | { kind: "staff_add"; method: StaffAddMethod; count: number }
   | { kind: "share"; method: ShareMethod; contentType: ShareContentType }
-  | { kind: "recruitment_create" }
+  /** 作成した店舗。一覧の絞り込みと作成先が異なるため、画面のscopeより優先する。 */
+  | { kind: "recruitment_create"; shopId: string }
   | { kind: "shift_confirm"; intent: ShiftConfirmIntent }
   | { kind: "shift_confirm_blocked"; reason?: string; count: number }
   | { kind: "trial_notice_view"; stage: TrialNoticeStage }
@@ -352,14 +353,18 @@ function toBooleanString(value: boolean): BooleanString {
   return value ? "true" : "false";
 }
 
-function serializeIdentity(routeArea: WebMeasurementRouteArea, context: WebMeasurementContext): SerializedIdentity {
+function serializeIdentity(
+  routeArea: WebMeasurementRouteArea,
+  context: WebMeasurementContext,
+  operatedShopId?: string,
+): SerializedIdentity {
   const manager = routeArea === "manager" ? context.identity?.manager : undefined;
   const staff = routeArea === "staff" ? context.identity?.staff : undefined;
   const organizationPlan = manager?.organizationPlan;
   return {
     user_id: normalizeMeasurementId(manager?.userId),
     organization_id: normalizeMeasurementId(manager?.organizationId),
-    shop_id: normalizeMeasurementId(manager?.shopId),
+    shop_id: normalizeMeasurementId(manager && (operatedShopId ?? manager.shopId)),
     organization_plan: organizationPlan && organizationPlans.has(organizationPlan) ? organizationPlan : undefined,
     recruitment_id: normalizeMeasurementId(staff?.recruitmentId),
     display_mode: context.displayMode,
@@ -514,7 +519,7 @@ export function serializeWebMeasurementEvent(
   const routeArea = getWebMeasurementRouteArea(event.routeFamily);
   const route = {
     ...base,
-    ...serializeIdentity(routeArea, context),
+    ...serializeIdentity(routeArea, context, event.kind === "recruitment_create" ? event.shopId : undefined),
     route_area: routeArea,
     route_family: event.routeFamily,
   } as const;

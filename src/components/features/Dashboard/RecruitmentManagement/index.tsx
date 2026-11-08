@@ -136,7 +136,8 @@ export function RecruitmentManagement({
     if (isReadOnly) return;
     try {
       await createRecruitment(formData);
-      trackProductEvent({ kind: "recruitment_create" });
+      const createdShopId = managerShopScope?.shopId ?? selectedShop?.shopId;
+      if (createdShopId) trackProductEvent({ kind: "recruitment_create", shopId: createdShopId });
       createDialog.close();
       showSuccessToast({
         title: "シフト提出依頼をスタッフに送りました",

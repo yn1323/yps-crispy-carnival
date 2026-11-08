@@ -69,7 +69,7 @@ ApplicationがdataLayerへ追加するイベントは次に限定する。  `web
 | `onboarding_view` / `onboarding_dismiss` | Dashboardのオンボーディングを表示したとき、閉じたとき | `stage`（`create_recruitment`、`submit_self`、`review_submission`、`add_staff`） |
 | `staff_add` | スタッフの追加に成功したとき | `method`（`manual`、`existing_person`、`request_approve`）、`count` |
 | `share` | スタッフの参加用リンクをコピーしたとき | `method`（`copy`）、`content_type`（`staff_registration_link`） |
-| `recruitment_create` | シフト募集の作成に成功したとき | なし |
+| `recruitment_create` | シフト募集の作成に成功したとき | なし。`shop_id`は一覧の絞り込みではなく作成した店舗にする |
 | `shift_confirm` | シフトの確定、または変更の再通知に成功したとき（変更なしの再通知は除く） | `intent`（`confirm`、`resend`） |
 | `shift_confirm_blocked` | 確定前の検証で確定を止めたとき | `reason`（最初の検証エラーのcode）、`count`（エラー件数） |
 | `shift_export` | シフト表のPDFまたはExcelを生成して保存を始めたとき | `format`（`pdf`、`xlsx`） |

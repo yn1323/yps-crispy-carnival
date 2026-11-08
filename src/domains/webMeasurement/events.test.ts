@@ -213,6 +213,14 @@ describe("Web計測event serializer", () => {
     });
   });
 
+  it("募集作成は画面の店舗scopeではなく作成した店舗を付ける", () => {
+    const payload = serializeWebMeasurementEvent(
+      { kind: "recruitment_create", shopId: "shopCreated", routeFamily: "shift_management" },
+      { ...context, identity: { manager: { userId: "user_2abc", organizationId: "org123", shopId: "shopFiltered" } } },
+    );
+    expect(payload).toMatchObject({ event: "recruitment_create", shop_id: "shopCreated", organization_id: "org123" });
+  });
+
   it("識別子は所属する画面の区分だけに付け、値がないkeyも毎回上書きする", () => {
     const identityContext = {
       ...context,
