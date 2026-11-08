@@ -43,12 +43,16 @@ export type AnalyticsShopsRequest = Pagination & {
   /** 現在の店舗だけに使う絞り込み。実績の内訳とは併用しない。 */
   billing: ShopBillingFilter | null;
   attention: boolean;
+  /** 直近14日に、取消以外の通知を受け付けた店舗だけにする。 */
+  notified: boolean;
 };
 /** 現在の組織一覧。名称は組織名または店舗名の部分一致で照合する。 */
 export type AnalyticsOrganizationsRequest = Pagination & {
   endpoint: "organizations";
   search: string;
   billing: ShopBillingFilter | null;
+  /** 直近14日に、取消以外の通知を受け付けた組織だけにする。 */
+  notified: boolean;
 };
 export type AnalyticsShopRequest = Pagination & { endpoint: "shop"; shopId: string };
 export type AnalyticsStaffRequest = Pagination & { endpoint: "staff"; shopId: string; staffId: string };
@@ -210,13 +214,26 @@ export function parseAnalyticsDashboardRequest(value: unknown): ParseResult<Anal
       const metric = value.metric ?? null;
       const billing = value.billing ?? null;
       const attention = value.attention ?? false;
+      const notified = value.notified ?? false;
       if (
-        !hasOnly(value, ["endpoint", "cursor", "limit", "search", "from", "to", "metric", "billing", "attention"]) ||
+        !hasOnly(value, [
+          "endpoint",
+          "cursor",
+          "limit",
+          "search",
+          "from",
+          "to",
+          "metric",
+          "billing",
+          "attention",
+          "notified",
+        ]) ||
         !page ||
         (page.cursor !== null && !CREATION_TIME_CURSOR_PATTERN.test(page.cursor)) ||
         typeof search !== "string" ||
         search.length > SEARCH_TEXT_MAX_LENGTH ||
         typeof attention !== "boolean" ||
+        typeof notified !== "boolean" ||
         (billing !== null && !oneOf(billing, SHOP_BILLING_FILTERS))
       )
         return invalid;
@@ -228,7 +245,8 @@ export function parseAnalyticsDashboardRequest(value: unknown): ParseResult<Anal
           !isShopScopeRange(from, to) ||
           !oneOf(metric, metrics) ||
           billing !== null ||
-          attention)
+          attention ||
+          notified)
       )
         return invalid;
       return {
@@ -242,6 +260,7 @@ export function parseAnalyticsDashboardRequest(value: unknown): ParseResult<Anal
           metric: metric as AnalyticsMetric | null,
           billing: billing as ShopBillingFilter | null,
           attention,
+          notified,
         },
       };
     }
@@ -249,12 +268,14 @@ export function parseAnalyticsDashboardRequest(value: unknown): ParseResult<Anal
       const page = pagination(value);
       const search = value.search ?? "";
       const billing = value.billing ?? null;
+      const notified = value.notified ?? false;
       if (
-        !hasOnly(value, ["endpoint", "cursor", "limit", "search", "billing"]) ||
+        !hasOnly(value, ["endpoint", "cursor", "limit", "search", "billing", "notified"]) ||
         !page ||
         (page.cursor !== null && !CREATION_TIME_CURSOR_PATTERN.test(page.cursor)) ||
         typeof search !== "string" ||
         search.length > SEARCH_TEXT_MAX_LENGTH ||
+        typeof notified !== "boolean" ||
         (billing !== null && !oneOf(billing, SHOP_BILLING_FILTERS))
       )
         return invalid;
@@ -265,6 +286,7 @@ export function parseAnalyticsDashboardRequest(value: unknown): ParseResult<Anal
           ...page,
           search: search.trim(),
           billing: billing as ShopBillingFilter | null,
+          notified,
         },
       };
     }
@@ -341,7 +363,7 @@ export function normalizeBrowserRequestInput(
     value[key] =
       key === "limit" || key === "rangeDays"
         ? Number(input)
-        : key === "attention" && (input === "true" || input === "false")
+        : (key === "attention" || key === "notified") && (input === "true" || input === "false")
           ? input === "true"
           : input;
   }

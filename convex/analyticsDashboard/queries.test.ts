@@ -1,5 +1,5 @@
 import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { addDays, jstDayRangeMs } from "../_lib/dateFormat";
@@ -7,6 +7,7 @@ import { seedStaff } from "../_test/scenarioBuilders";
 import { seedOrganizationMembership, seedShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { ANALYTICS_DEFINITION_VERSION, emptyAnalyticsResultCounts } from "../analytics/model";
+import { DAY_MS } from "../constants";
 import type { ShopBillingFilter, ShopsResponse } from "./dto";
 import { LIST_PAGE_LIMIT, SHOP_LIST_STAFF_SCAN_LIMIT } from "./queryHelpers";
 import {
@@ -23,9 +24,9 @@ import { ANALYTICS_DASHBOARD_MAX_SCAN_ROWS } from "./schemas";
 
 const AS_OF = jstDayRangeMs("2026-09-09").startMs + 12 * 60 * 60 * 1000;
 const PAGE = { cursor: null, limit: 50, asOf: AS_OF };
-const CURRENT = { from: null, to: null, metric: null, billing: null, attention: false };
+const CURRENT = { from: null, to: null, metric: null, billing: null, attention: false, notified: false };
 function dayScope(date: string, to = date) {
-  return { from: date, to, metric: "submitted" as const, billing: null, attention: false };
+  return { from: date, to, metric: "submitted" as const, billing: null, attention: false, notified: false };
 }
 async function seedRecruitment(
   ctx: MutationCtx,
@@ -213,6 +214,7 @@ describe("analyticsDashboardの日次結果", () => {
       staffCount: null,
       latestShift: null,
       lastActivityDate: null,
+      lastNotifiedAt: null,
       billing: null,
       attention: [],
     });
@@ -270,6 +272,7 @@ describe("analyticsDashboardの問い合わせ境界", () => {
       staffCount: 3,
       latestShift: null,
       lastActivityDate: null,
+      lastNotifiedAt: null,
       billing: null,
       attention: [],
     });
@@ -839,7 +842,7 @@ describe("analyticsDashboardの組織一覧", () => {
       return { organizationId, mainShopId, branchShopId, otherOrganizationId: otherShop.organizationId };
     });
     const list = async (filter: { search?: string; billing?: ShopBillingFilter }) =>
-      await t.query(getOrganizationsRef, { ...PAGE, search: "", billing: null, ...filter });
+      await t.query(getOrganizationsRef, { ...PAGE, search: "", billing: null, notified: false, ...filter });
 
     const all = await list({});
     expect(all.rows.map((row) => row.organizationId)).toEqual([ids.otherOrganizationId, ids.organizationId]);
@@ -851,6 +854,7 @@ describe("analyticsDashboardの組織一覧", () => {
       peopleCount: 3,
       activeManagerCount: 1,
       shopCount: 2,
+      lastNotifiedAt: null,
       shops: [
         { shopId: ids.mainShopId, name: "本店" },
         { shopId: ids.branchShopId, name: "駅前店" },
@@ -863,5 +867,91 @@ describe("analyticsDashboardの組織一覧", () => {
     expect((await list({ search: "閉じた" })).rows).toEqual([]);
     expect((await list({ billing: "paid" })).rows.map((row) => row.organizationId)).toEqual([ids.organizationId]);
     expect((await list({ billing: "free" })).rows).toEqual([]);
+  });
+});
+
+describe("analyticsDashboardの直近14日に通知した組織・店舗", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("取消以外の通知を最後に受け付けた時刻を返し、直近14日にある店舗と組織だけに絞り込める", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(AS_OF - 30 * DAY_MS);
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => ({
+      sent: await seedShop(ctx, "送信店舗"),
+      failed: await seedShop(ctx, "失敗店舗"),
+      cancelled: await seedShop(ctx, "取消店舗"),
+      old: await seedShop(ctx, "古い通知店舗"),
+      silent: await seedShop(ctx, "通知なし店舗"),
+      organizationWide: await seedShop(ctx, "組織宛店舗"),
+    }));
+    const notify = async (
+      shopId: Id<"shops">,
+      status: Doc<"notificationOutbox">["status"],
+      at: number,
+      target: "shop" | "organization" = "shop",
+    ) => {
+      vi.setSystemTime(at);
+      await t.run(async (ctx) => {
+        const shop = await ctx.db.get(shopId);
+        if (!shop) throw new Error("missing fixture shop");
+        await ctx.db.insert("notificationOutbox", {
+          channel: "email",
+          status,
+          dedupeKey: `email:analytics-notified:${shopId}:${status}:${at}`,
+          ...(target === "shop" ? { shopId } : {}),
+          organizationId: shop.organizationId,
+          purpose: "business",
+          notificationContext: "notification.sendRecruitmentNotificationEmails",
+          deliverySuppressed: false,
+          payload: {
+            kind: "email",
+            from: "シフトリ <noreply@example.com>",
+            to: "staff@example.com",
+            subject: "シフト募集のお知らせ",
+            html: "<p>募集</p>",
+            context: "notification.sendRecruitmentNotificationEmails",
+          },
+          attemptCount: 1,
+          nextRunAt: at,
+          createdAt: at,
+          updatedAt: at,
+        });
+      });
+    };
+    await notify(ids.old, "sent", AS_OF - 15 * DAY_MS);
+    await notify(ids.sent, "sent", AS_OF - 13 * DAY_MS);
+    await notify(ids.failed, "failed", AS_OF - DAY_MS);
+    await notify(ids.cancelled, "cancelled", AS_OF - DAY_MS);
+    await notify(ids.organizationWide, "sent", AS_OF - DAY_MS, "organization");
+    const organizationOf = async (shopId: Id<"shops">) =>
+      await t.run(async (ctx) => (await ctx.db.get(shopId))?.organizationId);
+    const organizationWideId = await organizationOf(ids.organizationWide);
+
+    const all = await t.query(getShopsRef, { ...PAGE, search: "", ...CURRENT });
+    const lastNotified = new Map(all.rows.map((row) => [row.shopId, row.lastNotifiedAt]));
+    expect(Object.fromEntries(lastNotified)).toEqual({
+      [ids.sent]: expect.closeTo(AS_OF - 13 * DAY_MS, 0),
+      [ids.failed]: expect.closeTo(AS_OF - DAY_MS, 0),
+      [ids.cancelled]: null,
+      [ids.old]: expect.closeTo(AS_OF - 15 * DAY_MS, 0),
+      [ids.silent]: null,
+      [ids.organizationWide]: null,
+    });
+    const shops = await t.query(getShopsRef, { ...PAGE, search: "", ...CURRENT, notified: true });
+    expect(shops.rows.map((row) => row.shopId).sort()).toEqual([ids.sent, ids.failed].sort());
+    const organizations = await t.query(getOrganizationsRef, { ...PAGE, search: "", billing: null, notified: true });
+    expect(organizations.rows.find((row) => row.organizationId === organizationWideId)?.lastNotifiedAt).toBeCloseTo(
+      AS_OF - DAY_MS,
+      0,
+    );
+    expect(organizations.rows.map((row) => row.organizationId).sort()).toEqual(
+      [await organizationOf(ids.sent), await organizationOf(ids.failed), organizationWideId].sort(),
+    );
+    await expect(
+      t.query(getShopsRef, { ...PAGE, search: "", ...dayScope("2026-09-08"), notified: true }),
+    ).rejects.toThrow("invalid_request");
   });
 });

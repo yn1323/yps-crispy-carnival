@@ -117,6 +117,7 @@ const shopListRowValidator = shopRowValidator.extend({
   staffCount: nullableNumber,
   latestShift: v.union(v.object({ periodStart: v.string(), periodEnd: v.string() }), v.null()),
   lastActivityDate: nullableString,
+  lastNotifiedAt: nullableNumber,
   billing: nullableBillingSummary,
   attention: v.array(v.union(v.literal("shift_ended"), v.literal("inactive"))),
 });
@@ -141,6 +142,7 @@ const organizationListRowValidator = v.object({
   peopleCount: nullableNumber,
   activeManagerCount: nullableNumber,
   shopCount: nullableNumber,
+  lastNotifiedAt: nullableNumber,
   shops: v.array(v.object({ shopId: v.string(), name: v.string() })),
 });
 export const organizationsResponseValidator = v.object({

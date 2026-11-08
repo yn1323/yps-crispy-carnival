@@ -48,6 +48,7 @@ describe("Analyticsの日次利用と問い合わせシナリオ", () => {
       metric: null,
       billing: null,
       attention: false,
+      notified: false,
       asOf: startAt,
     });
     expect(shops.rows.map((row) => row.shopId)).toEqual([ids.shopId]);
@@ -95,7 +96,15 @@ describe("Analyticsの日次利用と問い合わせシナリオ", () => {
       counts: { registered: 0, submitted: 1, confirmed: 1 },
     });
     expect(overview.period).toMatchObject({ status: "partial", counts: { registered: 0, submitted: 1, confirmed: 1 } });
-    const scopeArgs = { cursor: null, limit: 50, search: "", billing: null, attention: false, asOf: nextMorning };
+    const scopeArgs = {
+      cursor: null,
+      limit: 50,
+      search: "",
+      billing: null,
+      attention: false,
+      notified: false,
+      asOf: nextMorning,
+    };
     const submittedShops = await t.query(getShopsRef, {
       ...scopeArgs,
       from: dateJST(startAt),
