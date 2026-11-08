@@ -26,12 +26,14 @@ containerの構成は[ga4-gtm-container.json](ga4-gtm-container.json)を正本�
 | 種類 | 内容 |
 |---|---|
 | Google tag | `GA4 - Google tag`。`send_page_view`を`false`、`page_location`をアプリが送る集計用URLにする。アプリの最初の`page_view`で、1ページにつき1回だけ発火する |
-| GA4 イベントタグ | `page_view`、`select_content`、`setup_complete`、`section_view`、`shift_export`、`help_search`、`plan_checkout_start`、`security_check_issue`、`web_vital`の9つ。同名のカスタムイベントで発火する |
+| GA4 イベントタグ | アプリが送るイベントごとに一つ。同名のカスタムイベントで発火する。イベントの一覧は[全ページのWeb計測](../features/web-measurement.md#event-contract)を正本とする |
 | トリガー | すべて`Page Hostname`が`shiftori.app`のときだけ発火する。developとpreviewの計測を本番のpropertyへ混ぜないためである |
 | 変数 | 測定IDの定数、dataLayerの各パラメータ、`page_location`を決めるJavaScript変数 |
 | Clarity | インポート対象外。既存のMicrosoft Clarityタグをそのまま残す |
 
 イベントタグは、イベントごとに必要なパラメータだけを送る。  GTMのdataLayerは前のイベントの値を保持するため、一つのタグで全イベントを送ると、別のイベントの値が混ざるからである。
+
+`web_vital`以外のイベントタグは、共通のパラメータに加えて`user_id`、`organization_id`、`shop_id`、`recruitment_id`を送り、user propertyとして`organization_plan`と`display_mode`を設定する。  `user_id`はGA4のユーザーIDとして扱われる。  アプリは値のない画面でもこれらのkeyを`undefined`で上書きするため、前の画面の識別子は残らない。
 
 Google tagと各イベントタグの`page_location`は、アプリが直前の`page_view`で送った集計用URLを使う。  Google tagを`gtm.js`ではなく最初の`page_view`で起動するのは、セッション開始などの自動イベントにも集計用URLを使うためである。  そのため、`page_view`を送らないOAuthとLINE連携のcallback画面ではGA4を起動しない。  アプリが`page_location`を送らない旧版のタブでも、queryとhashを除き、`route_family`がIDを含む画面なら固定path、`not_found`と静的404なら`/404`にする。  そのため、アプリのリリースより先にcontainerを公開しても、IDや未知URLのpathはGA4へ送られない。
 
@@ -69,32 +71,62 @@ Google tagと各イベントタグの`page_location`は、アプリが直前の`
 
 ### カスタム定義
 
-「カスタム定義」で、次のイベントスコープのカスタムディメンションを登録する。  ディメンション名はパラメータ名と同じにする。
+「カスタム定義」で、次のイベントスコープのカスタムディメンションを登録する。  ディメンション名はパラメータ名と同じにする。  同じ意味のパラメータは複数のイベントで同じ名前を使い、登録数を抑えている（イベントスコープの上限は50件）。
 
 | パラメータ | 用途 |
 |---|---|
 | `route_family` | 画面の種類 |
 | `route_area` | 見込み客、登録・ログイン、管理者、スタッフ、その他の区分 |
 | `content_id` | 選択されたCTA |
+| `content_type` | 選択・共有された内容の種類 |
 | `setup_kind` | 初回登録か、追加組織か |
-| `submission_pattern` | 初期設定で選んだ希望シフトの集め方 |
+| `submission_pattern` | 希望シフトの集め方 |
 | `section` | 表示されたsection |
 | `format` | シフト出力の形式 |
 | `has_results` | ヘルプ検索の結果の有無 |
+| `search_term` | 結果が0件だったヘルプ検索語 |
 | `plan` | 申込みを始めたプラン |
-| `reason` | セキュリティ確認が終わらなかった、または失敗した理由 |
-| `error_code` | セキュリティ確認のTurnstile error code |
+| `reason` | セキュリティ確認の失敗、確定を止めた検証、スタッフのリンクを使えない理由 |
+| `error_code` | Turnstile、Clerk、Convexのerror code |
 | `release_id` | リリースごとの比較 |
-| `document_route_family` | Web Vitalsを測った画面 |
+| `document_route_family` | Web Vitalsと表示時間を測った画面 |
 | `metric_name` | Web Vitalsの指標 |
 | `metric_rating` | Web Vitalsの評価 |
 | `viewport_class` | Web Vitalsを測った画面幅 |
+| `organization_id` | 管理画面で選択中の組織 |
+| `shop_id` | 管理画面で選択中の店舗 |
+| `recruitment_id` | スタッフ画面の募集 |
+| `method` | 認証方法、スタッフの追加方法、共有方法 |
+| `stage` | デモ、オンボーディング、トライアル終了の案内の段階 |
+| `result` | コードの確認結果、Stripeから戻ったときの結果 |
+| `intent` | シフトの確定か、再通知か |
+| `target` | `manage_action`の対象 |
+| `action` | `manage_action`とホーム画面追加案内の操作 |
+| `is_resubmit` | 希望シフトの再提出か |
+| `used_previous_pattern` | 前回の提出内容を使ったか |
+| `days_before_deadline` | 提出期限までの日数の区分 |
+| `has_date_notes` | 日付ごとの連絡事項があるか |
+| `access_kind` | スタッフのリンクが提出用か閲覧用か |
+| `error_surface` | エラーを表示した場所 |
+| `error_source` | エラーの出どころ |
+| `phase` | 表示時間の段階 |
 
-`metric_value`は、単位が「標準」のイベントスコープのカスタム指標として登録する。
+`metric_value`と`count`は、単位が「標準」のイベントスコープのカスタム指標として登録する。  `metric_value`はWeb Vitalsの値と`app_timing`のmsの両方に使う。
+
+次の2つは、ユーザースコープのカスタムディメンションとして登録する。
+
+| ユーザープロパティ | 用途 |
+|---|---|
+| `organization_plan` | 管理者が選択中の組織のプラン |
+| `display_mode` | ホーム画面から起動したか、ブラウザで開いたか |
+
+`user_id`はカスタム定義に登録しない。  GA4のユーザーIDとして扱われ、「レポート用識別子」を「ブレンド」にしておくと、同じ管理者の端末をまたいだ利用を一人として数える。
 
 ### キーイベント
 
 `setup_complete`をキーイベントにする。  集客レポートで、チャネルごとの初期設定の完了数を見られるようになる。  GA4では届いたイベントにだけスターを付けられるため、GTMの公開後に`setup_complete`が1件届いてから登録する。
+
+アプリの反映後、`generate_lead`、`staff_add`、`shift_confirm`、`shift_submit`が1件ずつ届いてから、同じようにキーイベントにする。  問い合わせ、スタッフの追加、シフトの確定、スタッフの提出という、利用の節目を集客と並べて見るためである。
 
 ### 除外する参照
 
@@ -131,6 +163,9 @@ GTMの公開後と、アプリの反映後に、GA4の「DebugView」または�
 - 画面を移動するたびに`page_view`が1件だけ増え、`route_family`、`route_area`、`page_location`が付いている。
 - `page_location`にqueryが含まれず、店舗、募集、人物のIDが`:shopId`などに置き換わっている。  存在しないURLでは`/404`になっている。
 - TOPのCTA、料金section、ヘルプ検索で、それぞれ`select_content`、`section_view`、`help_search`が届く。
+- 管理画面のイベントに`user_id`、`organization_id`、`shop_id`が付き、スタッフ画面や公開画面のイベントには付かない。
+- スタッフの提出画面のイベントに`recruitment_id`が付き、URLのtokenが含まれない。
+- エラーのtoastを出すと`app_error`が届き、エラーのmessageが含まれない。
 - `scroll`以外に`form_start`などの拡張計測イベントが届かない。
 
 確認した日時、GTMのバージョン、アプリのリリースは[リリース状態](release-status.md)へ記録する。
@@ -146,6 +181,11 @@ GA4の「探索」で次のレポートを作る。
 | 管理者の画面利用 | 自由形式。行は`route_family`、列は「デバイス カテゴリ」、値は「イベント数」と「アクティブ ユーザー」。フィルタは`route_area = manager`の`page_view` |
 | スタッフの提出の完了率 | ファネルデータ探索。ステップは`staff_submit`と`staff_submit_completed`の`page_view`。内訳は「デバイス カテゴリ」 |
 | 機能の使われ方 | 自由形式。行はイベント名と`format`、`has_results`、`plan` |
+| 管理画面の操作 | 自由形式。行は`target`と`action`、値は「イベント数」と「総ユーザー数」。フィルタはイベント名`manage_action` |
+| 組織ごとの利用 | 自由形式。行は`organization_id`、列はイベント名。フィルタは`route_area = manager` |
+| 画面に出たエラー | 自由形式。行は`route_family`と`error_source`、`error_code`、列は`error_surface`。フィルタはイベント名`app_error` |
+| スタッフのリンクが使えない理由 | 自由形式。行は`reason`、列は`access_kind`。フィルタはイベント名`staff_link_invalid` |
+| 管理画面の初回表示の遅さ | 自由形式。行は`phase`、列は「デバイス カテゴリ」、値は`metric_value`の平均。フィルタはイベント名`app_timing`と`document_route_family` |
 
 GA4の件数は広告ブロッカーなどで欠ける。  毎週、`setup_complete`の件数を[analytics-dashboard](../features/analytics-dashboard.md)の新規登録店舗数と比べ、割合が大きく変わったら計測の欠損を先に疑う。
 
