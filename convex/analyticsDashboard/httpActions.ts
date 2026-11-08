@@ -100,6 +100,7 @@ async function dispatchQuery(
         billing: input.billing,
         attention: input.attention,
         notified: input.notified,
+        multiStaff: input.multiStaff,
         asOf,
       });
     case "organizations":
@@ -109,6 +110,7 @@ async function dispatchQuery(
         search: input.search,
         billing: input.billing,
         notified: input.notified,
+        multiStaff: input.multiStaff,
         asOf,
       });
     case "shop":

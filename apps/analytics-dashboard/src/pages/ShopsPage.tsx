@@ -20,6 +20,7 @@ import {
   shopPath,
 } from "@/features/analytics/format";
 import { compareSortValues, fetchListPages, LIST_PAGE_SIZE } from "@/features/analytics/listPages";
+import { MultiStaffToggle } from "@/features/analytics/MultiStaffToggle";
 import { NotifiedSelect } from "@/features/analytics/NotifiedSelect";
 import { AnalyticsPageLoading, MoreButton, Panel, QueryError } from "@/features/analytics/PageState";
 
@@ -30,6 +31,7 @@ type ShopFilters = {
   billing: ShopBillingFilter | null;
   attention: boolean;
   notified: boolean;
+  multiStaff: boolean;
 };
 
 /** 絞り込みはURLを正本にし、日次分析のカードやグラフから同じ条件で開けるようにする。 */
@@ -48,6 +50,7 @@ function readFilters(search: string): ShopFilters {
     billing: !scope && billing && billing in BILLING_FILTER_LABELS ? (billing as ShopBillingFilter) : null,
     attention: !scope && params.get("attention") === "1",
     notified: !scope && params.get("notified") === "1",
+    multiStaff: !scope && params.get("multiStaff") === "1",
   };
 }
 function filtersPath(filters: ShopFilters) {
@@ -63,6 +66,7 @@ function filtersPath(filters: ShopFilters) {
     if (filters.billing) params.set("billing", filters.billing);
     if (filters.attention) params.set("attention", "1");
     if (filters.notified) params.set("notified", "1");
+    if (filters.multiStaff) params.set("multiStaff", "1");
   }
   if (filters.search) params.set("q", filters.search);
   return params.size ? `/shops?${params}` : "/shops";
@@ -75,6 +79,7 @@ function requestParams(filters: ShopFilters): ShopSearchParams {
         billing: filters.billing,
         attention: filters.attention || undefined,
         notified: filters.notified || undefined,
+        multiStaff: filters.multiStaff || undefined,
       };
 }
 function scopeLabel(scope: ShopScope) {
@@ -239,12 +244,23 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
               onChange={(notified) => setFilters({ search: input.trim(), notified })}
             />
           )}
+          {!scoped && (
+            <MultiStaffToggle
+              value={filters.multiStaff}
+              onChange={(multiStaff) => setFilters({ search: input.trim(), multiStaff })}
+            />
+          )}
           <Button type="submit">絞り込む</Button>
         </Flex>
       </form>
       {filters.notified && (
         <Text color="gray.600" fontSize="sm">
           直近14日に通知を受け付けた店舗です。送信に失敗した通知も含め、取り消した通知は含めません。
+        </Text>
+      )}
+      {filters.multiStaff && (
+        <Text color="gray.600" fontSize="sm">
+          管理者を含むスタッフが2名以上の店舗です。管理者だけの店舗を除き、スタッフが多くて数を確認できない店舗は含めます。
         </Text>
       )}
       {query.error && <QueryError error={query.error} onRetry={() => void query.refetch()} />}

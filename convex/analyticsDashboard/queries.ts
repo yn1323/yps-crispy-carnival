@@ -186,6 +186,7 @@ export const getShops = internalQuery({
     billing: v.union(shopBillingFilterValidator, v.null()),
     attention: v.boolean(),
     notified: v.boolean(),
+    multiStaff: v.boolean(),
   },
   returns: shopsResponseValidator,
   handler: async (ctx, args): Promise<ShopsResponse> => {
@@ -196,7 +197,12 @@ export const getShops = internalQuery({
     if (
       args.search.length > SEARCH_TEXT_MAX_LENGTH ||
       (!scope && (args.from !== null || args.to !== null || args.metric !== null)) ||
-      (scope && (!isShopScopeRange(scope.from, scope.to) || args.billing !== null || args.attention || args.notified))
+      (scope &&
+        (!isShopScopeRange(scope.from, scope.to) ||
+          args.billing !== null ||
+          args.attention ||
+          args.notified ||
+          args.multiStaff))
     )
       throw new Error("invalid_request");
     const search = args.search.trim().toLocaleLowerCase("ja");
@@ -227,8 +233,9 @@ export const getShops = internalQuery({
       billing: args.billing,
       attention: args.attention,
       notifiedSince: recentNotificationSince(args.notified, args.asOf),
+      multiStaff: args.multiStaff,
     };
-    // 名称・契約・要注意・通知・実績の条件は、表示中のページでなく全店舗に対して照合する。
+    // 名称・契約・要注意・通知・人数・実績の条件は、表示中のページでなく全店舗に対して照合する。
     // 店舗は論理削除だけのため、実績の内訳では削除済み店舗も店舗tableから辿れる。
     const { rows, pageInfo } = await scanNewestFirst(
       ctx,
@@ -278,6 +285,7 @@ export const getOrganizations = internalQuery({
     search: v.string(),
     billing: v.union(shopBillingFilterValidator, v.null()),
     notified: v.boolean(),
+    multiStaff: v.boolean(),
   },
   returns: organizationsResponseValidator,
   handler: async (ctx, args): Promise<OrganizationsResponse> => {
@@ -286,6 +294,7 @@ export const getOrganizations = internalQuery({
       search: args.search.trim().toLocaleLowerCase("ja"),
       billing: args.billing,
       notifiedSince: recentNotificationSince(args.notified, args.asOf),
+      multiStaff: args.multiStaff,
     };
     const { rows, pageInfo } = await scanNewestFirst(
       ctx,

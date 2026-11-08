@@ -16,10 +16,16 @@ import {
   shopPath,
 } from "@/features/analytics/format";
 import { compareSortValues, fetchListPages, LIST_PAGE_SIZE } from "@/features/analytics/listPages";
+import { MultiStaffToggle } from "@/features/analytics/MultiStaffToggle";
 import { NotifiedSelect } from "@/features/analytics/NotifiedSelect";
 import { AnalyticsPageLoading, MoreButton, Panel, QueryError } from "@/features/analytics/PageState";
 
-type OrganizationFilters = { search: string; billing: ShopBillingFilter | null; notified: boolean };
+type OrganizationFilters = {
+  search: string;
+  billing: ShopBillingFilter | null;
+  notified: boolean;
+  multiStaff: boolean;
+};
 
 /** 絞り込みはURLを正本にし、日次分析の契約状況カードから同じ条件で開けるようにする。 */
 function readFilters(search: string): OrganizationFilters {
@@ -29,12 +35,14 @@ function readFilters(search: string): OrganizationFilters {
     search: params.get("q") ?? "",
     billing: billing && billing in BILLING_FILTER_LABELS ? (billing as ShopBillingFilter) : null,
     notified: params.get("notified") === "1",
+    multiStaff: params.get("multiStaff") === "1",
   };
 }
 function filtersPath(filters: OrganizationFilters) {
   const params = new URLSearchParams();
   if (filters.billing) params.set("billing", filters.billing);
   if (filters.notified) params.set("notified", "1");
+  if (filters.multiStaff) params.set("multiStaff", "1");
   if (filters.search) params.set("q", filters.search);
   return params.size ? `/organizations?${params}` : "/organizations";
 }
@@ -96,6 +104,7 @@ export function OrganizationsPage({ navigate }: { navigate: (path: string) => vo
             search: filters.search,
             billing: filters.billing,
             notified: filters.notified || undefined,
+            multiStaff: filters.multiStaff || undefined,
             cursor,
             limit: LIST_PAGE_SIZE,
           },
@@ -170,12 +179,21 @@ export function OrganizationsPage({ navigate }: { navigate: (path: string) => vo
             value={filters.notified}
             onChange={(notified) => setFilters({ search: input.trim(), notified })}
           />
+          <MultiStaffToggle
+            value={filters.multiStaff}
+            onChange={(multiStaff) => setFilters({ search: input.trim(), multiStaff })}
+          />
           <Button type="submit">絞り込む</Button>
         </Flex>
       </form>
       {filters.notified && (
         <Text color="gray.600" fontSize="sm">
           直近14日に、組織または所属店舗の通知を受け付けた組織です。送信に失敗した通知も含め、取り消した通知は含めません。
+        </Text>
+      )}
+      {filters.multiStaff && (
+        <Text color="gray.600" fontSize="sm">
+          管理者を含む利用人数が2名以上の組織です。管理者だけの組織を除きます。
         </Text>
       )}
       {query.error && <QueryError error={query.error} onRetry={() => void query.refetch()} />}
