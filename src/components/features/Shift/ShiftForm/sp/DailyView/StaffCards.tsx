@@ -1,4 +1,4 @@
-import { Box, Flex } from "@chakra-ui/react";
+import { Box, Flex, Text } from "@chakra-ui/react";
 import { IssueDot, issueToneEmphasis, resolveIssueTone, StaffWarningIcon } from "../../components";
 import { ShiftDateNoteBlock, ShiftStaffNoteIcon } from "../../dateNotes";
 import type { SPDailyCardViewModel } from "./script";
@@ -47,7 +47,6 @@ type DailyCardProps = {
   staffId: string;
   staffName: string;
   viewModel: SPDailyCardViewModel;
-  showRestLabel: boolean;
   onTap: () => void;
   hasError?: boolean;
   warningMessages?: string[];
@@ -59,7 +58,6 @@ export const SPDailyCard = ({
   staffId,
   staffName,
   viewModel,
-  showRestLabel,
   onTap,
   hasError = false,
   warningMessages = [],
@@ -73,7 +71,7 @@ export const SPDailyCard = ({
     <Box
       role="button"
       tabIndex={0}
-      aria-label={`${staffName}の勤務を編集`}
+      aria-label={`${staffName}の勤務を${viewModel.hasAssignment ? "編集" : "追加"}`}
       onClick={onTap}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
@@ -87,7 +85,7 @@ export const SPDailyCard = ({
       bg={emphasis?.bg ?? "white"}
       borderRadius="lg"
       borderWidth={emphasis ? "2px" : "1px"}
-      borderColor={emphasis?.border ?? (viewModel.showRequestMismatch ? "orange.200" : "gray.200")}
+      borderColor={emphasis?.border ?? "gray.200"}
       px={3}
       py="10px"
       cursor="pointer"
@@ -104,25 +102,14 @@ export const SPDailyCard = ({
         </Box>
         <StaffWarningIcon messages={warningMessages} openOn="tap" />
         <ShiftStaffNoteIcon notes={note ? [{ date: noteDate, note }] : []} openOn="tap" />
-        {viewModel.showRequestMismatch && (
-          <Box
-            textStyle="2xs"
-            fontWeight={700}
-            px={2}
-            py="1px"
-            style={{ color: "#b45309", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 999 }}
-          >
-            希望あり
-          </Box>
-        )}
         {viewModel.assignedTimeLabel && (
           <Box textStyle="caption" fontWeight={700} color="teal.700" fontVariantNumeric="tabular-nums">
             {viewModel.assignedTimeLabel}
           </Box>
         )}
-        {showRestLabel && (
-          <Box textStyle="2xs" color="gray.400">
-            休み
+        {!viewModel.hasAssignment && (
+          <Box textStyle="2xs" fontWeight={600} color="gray.400">
+            勤務なし
           </Box>
         )}
       </Flex>
@@ -137,7 +124,24 @@ export const SPDailyCard = ({
             w={`${bar.widthPercentage}%`}
             border="1.5px dashed #a1a1aa"
             borderRadius="md"
-          />
+            display="flex"
+            alignItems="center"
+            px="6px"
+            overflow="hidden"
+          >
+            {bar.label && (
+              <Text
+                textStyle="2xs"
+                fontWeight={600}
+                color="gray.500"
+                whiteSpace="nowrap"
+                fontVariantNumeric="tabular-nums"
+                truncate
+              >
+                {bar.label}
+              </Text>
+            )}
+          </Box>
         ))}
         {viewModel.workBars.map((bar) => (
           <Box

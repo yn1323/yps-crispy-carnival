@@ -307,8 +307,31 @@ describe("buildSPDailyCardViewModel", () => {
     const viewModel = buildSPDailyCardViewModel(shift, { start: 9, end: 17, unit: 30 });
 
     expect(viewModel.assignedTimeLabel).toBe("09:00–17:00");
-    expect(viewModel.requestedBars).toEqual([{ key: "09:00-17:00-0", leftPercentage: 0, widthPercentage: 100 }]);
+    expect(viewModel.requestedBars).toEqual([
+      { key: "09:00-17:00-0", leftPercentage: 0, widthPercentage: 100, label: null },
+    ]);
     expect(viewModel.workBars.map(({ key }) => key)).toEqual(["work-1", "work-2"]);
     expect(viewModel.breakBars).toEqual([{ key: "break-12:00-13:00", leftPercentage: 37.5, widthPercentage: 12.5 }]);
+  });
+
+  it("勤務を外しても希望シフトの時間を点線の中に残す", () => {
+    const shift: ShiftData = {
+      id: "shift-1",
+      staffId: "staff-1",
+      staffName: "田中",
+      date: "2026-06-01",
+      requestedTime: { start: "09:00", end: "13:00" },
+      positions: [],
+    };
+
+    const viewModel = buildSPDailyCardViewModel(shift, { start: 9, end: 17, unit: 30 });
+
+    expect(viewModel.hasAssignment).toBe(false);
+    expect(viewModel.hasRequest).toBe(true);
+    expect(viewModel.assignedTimeLabel).toBeNull();
+    expect(viewModel.requestedBars).toEqual([
+      { key: "09:00-13:00-0", leftPercentage: 0, widthPercentage: 50, label: "希望：09:00-13:00" },
+    ]);
+    expect(viewModel.workBars).toEqual([]);
   });
 });
