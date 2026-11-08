@@ -5,6 +5,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { AppFeatureRequestShop } from "@/src/components/features/FeatureRequestDialog/appScope";
 import { ErrorBoundary } from "@/src/components/ui/ErrorBoundary";
+import { setManagerMeasurementOrganization } from "@/src/lib/webMeasurement";
 import type { AppOrganizationState } from "./AppOrganizationStateView";
 
 const PAGE_SIZE = 50;
@@ -128,6 +129,18 @@ function VerifiedOrganizationScope({
   useEffect(() => {
     if (organizations.status === "CanLoadMore") organizations.loadMore(PAGE_SIZE);
   }, [organizations.loadMore, organizations.status]);
+
+  // 計測にも、serverで検証した組織scopeを付ける。
+  const verifiedOrganizationId = organization?.organizationId;
+  const verifiedOrganizationPlan = organization?.organizationPlan;
+  useEffect(() => {
+    if (!verifiedOrganizationId || !verifiedOrganizationPlan) return;
+    setManagerMeasurementOrganization({
+      organizationId: verifiedOrganizationId,
+      organizationPlan: verifiedOrganizationPlan,
+    });
+    return () => setManagerMeasurementOrganization(null);
+  }, [verifiedOrganizationId, verifiedOrganizationPlan]);
 
   if (organization === undefined) return renderState({ kind: "loading" });
   if (organization === null) return renderState({ kind: "error", reason: "inaccessible" });

@@ -1,7 +1,7 @@
 import { useAuth } from "@clerk/react";
 import { Navigate, useMatches, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "convex/react";
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useAtom, useSetAtom } from "jotai";
 import { useEffect } from "react";
 import { api } from "@/convex/_generated/api";
 import { FullPageSpinner } from "@/src/components/templates/FullPageSpinner";
@@ -25,7 +25,6 @@ export const AuthGuard = ({ children }: Props) => {
   const location = useRouterState({ select: (state) => state.location });
   const [user, setUser] = useAtom(userAtom);
   const setSelectedShop = useSetAtom(selectedShopAtom);
-  const selectedShop = useAtomValue(selectedShopAtom);
   const currentUser = useQuery(api.dashboard.queries.getCurrentUser, isSignedIn ? {} : "skip");
   const isAccountDeleted = Boolean(currentUser && "accountDeleted" in currentUser);
   const accountDeletionRequested = Boolean(
@@ -62,19 +61,10 @@ export const AuthGuard = ({ children }: Props) => {
 
   const isUserContextReady = Boolean(userId && currentUser && !isAccountDeleted) && user.authId === userId;
 
-  // 画面が持つClerkのuser IDと選択中の店舗だけを計測へ渡す。DBから計測専用の値は取得しない。
+  // 画面が持つClerkのuser IDだけを計測へ渡す。組織と店舗は、画面が使うscopeのproviderが渡す。
   useEffect(() => {
-    if (!isUserContextReady || !userId) {
-      setManagerMeasurementIdentity(null);
-      return;
-    }
-    setManagerMeasurementIdentity({
-      userId,
-      organizationId: selectedShop?.organizationId,
-      shopId: selectedShop?.shopId,
-      organizationPlan: selectedShop?.organizationPlan,
-    });
-  }, [isUserContextReady, selectedShop, userId]);
+    setManagerMeasurementIdentity(isUserContextReady && userId ? { userId } : null);
+  }, [isUserContextReady, userId]);
 
   useEffect(() => () => setManagerMeasurementIdentity(null), []);
 

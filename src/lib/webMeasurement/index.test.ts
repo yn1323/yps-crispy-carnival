@@ -8,6 +8,8 @@ import {
   isWebMeasurementRuntimeEnabled,
   resetWebMeasurementForTests,
   setManagerMeasurementIdentity,
+  setManagerMeasurementOrganization,
+  setManagerMeasurementShop,
   setStaffMeasurementIdentity,
   stopDocumentWebMeasurement,
   trackAppError,
@@ -212,7 +214,9 @@ describe("Web計測runtime", () => {
       initialDocumentPathname: "/dashboard",
       viewportWidth: 1280,
     });
-    setManagerMeasurementIdentity({ userId: "user_2abc", organizationId: "org123", shopId: "shop456" });
+    setManagerMeasurementIdentity({ userId: "user_2abc" });
+    setManagerMeasurementOrganization({ organizationId: "org123", organizationPlan: "pro" });
+    setManagerMeasurementShop("shop456");
     setStaffMeasurementIdentity({ recruitmentId: "recruitment789" });
 
     trackProductEvent({ kind: "manage_action", target: "shift", action: "save" }, "/shifts/recruitment789/board");
@@ -221,6 +225,7 @@ describe("Web計測runtime", () => {
       user_id: "user_2abc",
       organization_id: "org123",
       shop_id: "shop456",
+      organization_plan: "pro",
       recruitment_id: undefined,
       display_mode: "browser",
     });

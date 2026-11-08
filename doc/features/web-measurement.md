@@ -137,12 +137,13 @@ Event unionとserializerは`src/domains/webMeasurement/`を正本とする。  �
 | パラメータ | 値 | 付ける画面 |
 |---|---|---|
 | `user_id` | ClerkのユーザーID | `route_area`が`manager`の画面 |
-| `organization_id`、`shop_id` | 選択中の店舗のConvex ID | `route_area`が`manager`の画面 |
-| `organization_plan`（user property） | 選択中の店舗の組織のプラン | `route_area`が`manager`の画面 |
+| `organization_id` | 画面が検証した組織のConvex ID | `route_area`が`manager`の画面 |
+| `shop_id` | 画面が操作している店舗のConvex ID | 店舗を対象にする`manager`の画面 |
+| `organization_plan`（user property） | 画面が検証した組織のプラン | `route_area`が`manager`の画面 |
 | `recruitment_id` | 検証済みのスタッフsessionの募集ID | `route_area`が`staff`の画面 |
 | `display_mode`（user property） | `standalone`（ホーム画面から起動）または`browser` | 全画面 |
 
-管理者の値は、`AuthGuard`がユーザー情報を確定してから付ける。  そのため、ログイン直後の最初の`page_view`には付かない。  スタッフの値は、tokenの検証が成功してから付ける。  URLのtokenとsession tokenは送らない。
+管理者の値は、`AuthGuard`がユーザー情報を確定してから付ける。  そのため、ログイン直後の最初の`page_view`には付かない。  組織は`AppOrganizationScopeProvider`、店舗は`ManagerShopScopeProvider`が渡す値を使い、保存済みの店舗選択は使わない。  スタッフの値は、tokenの検証が成功してから付ける。  URLのtokenとsession tokenは送らない。
 
 GTMのdataLayerは前のpushの値を保持するため、識別子のkeyは毎回置き、値がない画面では`undefined`で上書きする。  `users`テーブルのIDやスタッフ個人のIDは画面に届いていないため送らない。  IDの形をしていない値は送らない。
 

@@ -17,7 +17,6 @@ const mocks = vi.hoisted(() => ({
   useQuery: vi.fn(),
   useRouterState: vi.fn(),
   useAtom: vi.fn(),
-  useAtomValue: vi.fn(() => null),
   useSetAtom: vi.fn(),
   setSelectedShop: vi.fn(),
   setUser: vi.fn(),
@@ -65,7 +64,6 @@ vi.mock("convex/react", () => ({
 vi.mock("jotai", async (importOriginal) => ({
   ...(await importOriginal<typeof import("jotai")>()),
   useAtom: mocks.useAtom,
-  useAtomValue: mocks.useAtomValue,
   useSetAtom: mocks.useSetAtom,
 }));
 

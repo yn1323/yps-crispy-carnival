@@ -44,6 +44,9 @@ let lastPageViewPathname: string | null = null;
 let lastPageLocation: string | null = null;
 let webVitalsStarted = false;
 let identity: WebMeasurementIdentity = {};
+type ManagerIdentity = NonNullable<WebMeasurementIdentity["manager"]>;
+let managerOrganization: Pick<ManagerIdentity, "organizationId" | "organizationPlan"> | null = null;
+let managerShopId: string | null = null;
 const sentAppTimingPhases = new Set<AppTimingPhase>();
 const deployMeasurementEnvironments = new Set(["develop", "preview", "production"]);
 
@@ -62,7 +65,12 @@ export function isWebMeasurementRuntimeEnabled(config: WebMeasurementRuntimeConf
 }
 
 function getSerializationContext(context: WebMeasurementContext): WebMeasurementContext {
-  return { ...context, identity };
+  const manager = identity.manager && {
+    ...identity.manager,
+    ...managerOrganization,
+    ...(managerShopId ? { shopId: managerShopId } : {}),
+  };
+  return { ...context, identity: { ...identity, manager } };
 }
 
 function getDisplayMode(): WebMeasurementContext["displayMode"] {
@@ -187,9 +195,21 @@ export function trackProductEvent(input: ProductMeasurementInput, pathname = win
   }
 }
 
-/** AuthGuardが確定した管理者と選択中の店舗を、以後の管理画面のイベントへ付ける。 */
-export function setManagerMeasurementIdentity(manager: WebMeasurementIdentity["manager"] | null): void {
+/** AuthGuardが確定した管理者を、以後の管理画面のイベントへ付ける。 */
+export function setManagerMeasurementIdentity(manager: Pick<ManagerIdentity, "userId"> | null): void {
   identity = { ...identity, manager: manager ?? undefined };
+}
+
+/** 画面がserverで検証した組織scopeを、以後の管理画面のイベントへ付ける。 */
+export function setManagerMeasurementOrganization(
+  organization: Required<Pick<ManagerIdentity, "organizationId" | "organizationPlan">> | null,
+): void {
+  managerOrganization = organization;
+}
+
+/** 画面が操作対象にしている店舗scopeを、以後の管理画面のイベントへ付ける。 */
+export function setManagerMeasurementShop(shopId: string | null): void {
+  managerShopId = shopId;
 }
 
 /** 検証済みのスタッフsessionの募集を、以後のスタッフ画面のイベントへ付ける。 */
@@ -233,6 +253,8 @@ export function stopDocumentWebMeasurement(): void {
   lastPageLocation = null;
   webVitalsStarted = false;
   identity = {};
+  managerOrganization = null;
+  managerShopId = null;
   sentAppTimingPhases.clear();
 }
 
@@ -243,5 +265,7 @@ export function resetWebMeasurementForTests(): void {
   lastPageLocation = null;
   webVitalsStarted = false;
   identity = {};
+  managerOrganization = null;
+  managerShopId = null;
   sentAppTimingPhases.clear();
 }
