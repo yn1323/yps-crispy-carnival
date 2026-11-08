@@ -69,6 +69,7 @@ import type * as analytics_registry from "../analytics/registry.js";
 import type * as analytics_reset from "../analytics/reset.js";
 import type * as analytics_runs from "../analytics/runs.js";
 import type * as analyticsDashboard_dto from "../analyticsDashboard/dto.js";
+import type * as analyticsDashboard_exportQueries from "../analyticsDashboard/exportQueries.js";
 import type * as analyticsDashboard_httpActions from "../analyticsDashboard/httpActions.js";
 import type * as analyticsDashboard_investigationQueries from "../analyticsDashboard/investigationQueries.js";
 import type * as analyticsDashboard_mutations from "../analyticsDashboard/mutations.js";
@@ -351,6 +352,7 @@ declare const fullApi: ApiFromModules<{
   "analytics/reset": typeof analytics_reset;
   "analytics/runs": typeof analytics_runs;
   "analyticsDashboard/dto": typeof analyticsDashboard_dto;
+  "analyticsDashboard/exportQueries": typeof analyticsDashboard_exportQueries;
   "analyticsDashboard/httpActions": typeof analyticsDashboard_httpActions;
   "analyticsDashboard/investigationQueries": typeof analyticsDashboard_investigationQueries;
   "analyticsDashboard/mutations": typeof analyticsDashboard_mutations;

@@ -45,6 +45,8 @@ export type AnalyticsShopsRequest = Pagination & {
   attention: boolean;
   /** 直近14日に、取消以外の通知を受け付けた店舗だけにする。 */
   notified: boolean;
+  /** 管理者を含むスタッフが2名以上の店舗だけにする。 */
+  multiStaff: boolean;
 };
 /** 現在の組織一覧。名称は組織名または店舗名の部分一致で照合する。 */
 export type AnalyticsOrganizationsRequest = Pagination & {
@@ -53,6 +55,8 @@ export type AnalyticsOrganizationsRequest = Pagination & {
   billing: ShopBillingFilter | null;
   /** 直近14日に、取消以外の通知を受け付けた組織だけにする。 */
   notified: boolean;
+  /** 管理者を含む利用人数が2名以上の組織だけにする。 */
+  multiStaff: boolean;
 };
 export type AnalyticsShopRequest = Pagination & { endpoint: "shop"; shopId: string };
 export type AnalyticsStaffRequest = Pagination & { endpoint: "staff"; shopId: string; staffId: string };
@@ -74,6 +78,9 @@ export type NotificationSearchRequest = Pagination & {
 export type NotificationSummaryRequest = { endpoint: "notificationSummary" };
 export type StaffTimelineRequest = { endpoint: "staffTimeline"; shopId: string; staffId: string };
 export type OrganizationEventsRequest = Pagination & { endpoint: "organizationEvents"; shopId: string };
+/** 分析用JSONの元データ。仮名への置き換えはブラウザで行う。 */
+export type ShopExportRequest = { endpoint: "shopExport"; shopId: string };
+export type OrganizationExportRequest = { endpoint: "organizationExport"; organizationId: string };
 /** tokenはbearer capabilityのため、BFFのPOST bodyだけで受け取りURLへ載せない。 */
 export type MagicLinkLookupRequest = { endpoint: "magicLinkLookup"; token: string };
 export type FeatureRequestUpdateRequest = { endpoint: "setFeatureRequestDeleted"; id: string; isDeleted: boolean };
@@ -89,7 +96,9 @@ export type AnalyticsDashboardRequest =
   | NotificationSummaryRequest
   | StaffTimelineRequest
   | OrganizationEventsRequest
-  | MagicLinkLookupRequest;
+  | MagicLinkLookupRequest
+  | ShopExportRequest
+  | OrganizationExportRequest;
 export type AnalyticsDashboardEndpoint = AnalyticsDashboardRequest["endpoint"];
 type ParseResult<T> = { ok: true; value: T } | { ok: false };
 const invalid = { ok: false } as const;
@@ -215,6 +224,7 @@ export function parseAnalyticsDashboardRequest(value: unknown): ParseResult<Anal
       const billing = value.billing ?? null;
       const attention = value.attention ?? false;
       const notified = value.notified ?? false;
+      const multiStaff = value.multiStaff ?? false;
       if (
         !hasOnly(value, [
           "endpoint",
@@ -227,6 +237,7 @@ export function parseAnalyticsDashboardRequest(value: unknown): ParseResult<Anal
           "billing",
           "attention",
           "notified",
+          "multiStaff",
         ]) ||
         !page ||
         (page.cursor !== null && !CREATION_TIME_CURSOR_PATTERN.test(page.cursor)) ||
@@ -234,6 +245,7 @@ export function parseAnalyticsDashboardRequest(value: unknown): ParseResult<Anal
         search.length > SEARCH_TEXT_MAX_LENGTH ||
         typeof attention !== "boolean" ||
         typeof notified !== "boolean" ||
+        typeof multiStaff !== "boolean" ||
         (billing !== null && !oneOf(billing, SHOP_BILLING_FILTERS))
       )
         return invalid;
@@ -246,7 +258,8 @@ export function parseAnalyticsDashboardRequest(value: unknown): ParseResult<Anal
           !oneOf(metric, metrics) ||
           billing !== null ||
           attention ||
-          notified)
+          notified ||
+          multiStaff)
       )
         return invalid;
       return {
@@ -261,6 +274,7 @@ export function parseAnalyticsDashboardRequest(value: unknown): ParseResult<Anal
           billing: billing as ShopBillingFilter | null,
           attention,
           notified,
+          multiStaff,
         },
       };
     }
@@ -269,13 +283,15 @@ export function parseAnalyticsDashboardRequest(value: unknown): ParseResult<Anal
       const search = value.search ?? "";
       const billing = value.billing ?? null;
       const notified = value.notified ?? false;
+      const multiStaff = value.multiStaff ?? false;
       if (
-        !hasOnly(value, ["endpoint", "cursor", "limit", "search", "billing", "notified"]) ||
+        !hasOnly(value, ["endpoint", "cursor", "limit", "search", "billing", "notified", "multiStaff"]) ||
         !page ||
         (page.cursor !== null && !CREATION_TIME_CURSOR_PATTERN.test(page.cursor)) ||
         typeof search !== "string" ||
         search.length > SEARCH_TEXT_MAX_LENGTH ||
         typeof notified !== "boolean" ||
+        typeof multiStaff !== "boolean" ||
         (billing !== null && !oneOf(billing, SHOP_BILLING_FILTERS))
       )
         return invalid;
@@ -287,6 +303,7 @@ export function parseAnalyticsDashboardRequest(value: unknown): ParseResult<Anal
           search: search.trim(),
           billing: billing as ShopBillingFilter | null,
           notified,
+          multiStaff,
         },
       };
     }
@@ -331,6 +348,14 @@ export function parseAnalyticsDashboardRequest(value: unknown): ParseResult<Anal
         MAGIC_LINK_TOKEN_PATTERN.test(value.token)
         ? { ok: true, value: { endpoint: "magicLinkLookup", token: value.token } }
         : invalid;
+    case "shopExport":
+      return hasOnly(value, ["endpoint", "shopId"]) && validId(value.shopId)
+        ? { ok: true, value: { endpoint: "shopExport", shopId: value.shopId } }
+        : invalid;
+    case "organizationExport":
+      return hasOnly(value, ["endpoint", "organizationId"]) && validId(value.organizationId)
+        ? { ok: true, value: { endpoint: "organizationExport", organizationId: value.organizationId } }
+        : invalid;
     case "organizationEvents": {
       const page = pagination(value, ORGANIZATION_EVENTS_MAX_PAGE_SIZE);
       return hasOnly(value, ["endpoint", "shopId", "cursor", "limit"]) && page && validId(value.shopId)
@@ -353,7 +378,7 @@ export function parseFeatureRequestUpdate(value: unknown): ParseResult<FeatureRe
 export function normalizeBrowserRequestInput(
   endpoint: AnalyticsDashboardEndpoint,
   params: URLSearchParams,
-  pathIds: { shopId?: string; staffId?: string; recruitmentId?: string } = {},
+  pathIds: { shopId?: string; staffId?: string; recruitmentId?: string; organizationId?: string } = {},
 ): ParseResult<AnalyticsDashboardRequest> {
   // tokenをURLのqueryで受け取らないよう、ブラウザのGET入力からはマジックリンク検索を組み立てない。
   if (endpoint === "magicLinkLookup") return invalid;
@@ -363,7 +388,7 @@ export function normalizeBrowserRequestInput(
     value[key] =
       key === "limit" || key === "rangeDays"
         ? Number(input)
-        : (key === "attention" || key === "notified") && (input === "true" || input === "false")
+        : (key === "attention" || key === "notified" || key === "multiStaff") && (input === "true" || input === "false")
           ? input === "true"
           : input;
   }

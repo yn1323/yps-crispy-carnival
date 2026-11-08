@@ -9,7 +9,7 @@ export type AnalyticsRouteMatch =
 function parseRoute(
   endpoint: AnalyticsDashboardEndpoint,
   url: URL,
-  pathIds: { shopId?: string; staffId?: string; recruitmentId?: string } = {},
+  pathIds: { shopId?: string; staffId?: string; recruitmentId?: string; organizationId?: string } = {},
 ): AnalyticsRouteMatch {
   const parsed = normalizeBrowserRequestInput(endpoint, url.searchParams, pathIds);
   return parsed.ok
@@ -27,6 +27,13 @@ export function matchAnalyticsRoute(url: URL): AnalyticsRouteMatch {
   ]).get(url.pathname);
   if (endpoint) return parseRoute(endpoint, url);
   try {
+    const exportTarget = /^\/api\/analytics\/export\/(shops|organizations)\/([^/]+)$/.exec(url.pathname);
+    if (exportTarget) {
+      const id = decodeURIComponent(exportTarget[2]);
+      return exportTarget[1] === "shops"
+        ? parseRoute("shopExport", url, { shopId: id })
+        : parseRoute("organizationExport", url, { organizationId: id });
+    }
     const organizationEvents = /^\/api\/analytics\/shops\/([^/]+)\/organization-events$/.exec(url.pathname);
     if (organizationEvents)
       return parseRoute("organizationEvents", url, { shopId: decodeURIComponent(organizationEvents[1]) });

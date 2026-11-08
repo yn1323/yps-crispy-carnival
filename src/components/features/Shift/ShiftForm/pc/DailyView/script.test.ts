@@ -31,6 +31,26 @@ describe("buildShiftPopoverViewModel", () => {
     ]);
   });
 
+  it("希望時間がない日は、提出済みなら休み、未提出ならなしと表示する", () => {
+    const shift: ShiftData = {
+      id: "shift-1",
+      staffId: "staff-1",
+      staffName: "田中",
+      date: "2026-06-01",
+      requestedTime: null,
+      positions: [
+        { id: "work-1", positionId: "default", positionName: "勤務", color: "#000", start: "10:00", end: "16:30" },
+      ],
+    };
+
+    expect(buildShiftPopoverViewModel({ shift, isStaffSubmitted: true, isReadOnly: false }).requestLabel).toBe(
+      "希望：休み",
+    );
+    expect(buildShiftPopoverViewModel({ shift, isStaffSubmitted: false, isReadOnly: false }).requestLabel).toBe(
+      "希望：なし",
+    );
+  });
+
   it("読み取り専用では希望と削除操作を表示しない", () => {
     const shift: ShiftData = {
       id: "shift-1",

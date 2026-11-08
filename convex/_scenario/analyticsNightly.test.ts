@@ -49,6 +49,7 @@ describe("Analyticsの日次利用と問い合わせシナリオ", () => {
       billing: null,
       attention: false,
       notified: false,
+      multiStaff: false,
       asOf: startAt,
     });
     expect(shops.rows.map((row) => row.shopId)).toEqual([ids.shopId]);
@@ -103,6 +104,7 @@ describe("Analyticsの日次利用と問い合わせシナリオ", () => {
       billing: null,
       attention: false,
       notified: false,
+      multiStaff: false,
       asOf: nextMorning,
     };
     const submittedShops = await t.query(getShopsRef, {

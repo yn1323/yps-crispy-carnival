@@ -7,9 +7,11 @@ import type {
   NotificationSearchResponse,
   NotificationSummaryResponse,
   OrganizationEventsResponse,
+  OrganizationExportResponse,
   OrganizationsResponse,
   OverviewResponse,
   ShopDetailResponse,
+  ShopExportResponse,
   ShopsResponse,
   StaffDetailResponse,
   StaffTimelineResponse,
@@ -26,6 +28,8 @@ import type {
   NotificationSearchRequest,
   NotificationSummaryRequest,
   OrganizationEventsRequest,
+  OrganizationExportRequest,
+  ShopExportRequest,
   StaffTimelineRequest,
 } from "./schemas";
 
@@ -70,6 +74,13 @@ export const getOrganizationEventsRef = queryRef<
 export const getMagicLinkLookupRef = queryRef<QueryArgs<MagicLinkLookupRequest>, MagicLinkLookupResponse>(
   "analyticsDashboard/investigationQueries:getMagicLinkLookup",
 );
+export const getShopExportRef = queryRef<QueryArgs<ShopExportRequest>, ShopExportResponse | null>(
+  "analyticsDashboard/exportQueries:getShopExport",
+);
+export const getOrganizationExportRef = queryRef<
+  QueryArgs<OrganizationExportRequest>,
+  OrganizationExportResponse | null
+>("analyticsDashboard/exportQueries:getOrganizationExport");
 export const setFeatureRequestDeletedRef = makeFunctionReference<
   "mutation",
   { id: string; isDeleted: boolean },

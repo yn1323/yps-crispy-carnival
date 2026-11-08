@@ -1,6 +1,6 @@
 import { Alert, Badge, Field, Flex, HStack, Text, VisuallyHidden, VStack } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useId, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { LuTrash2 } from "react-icons/lu";
 import { IconButton } from "@/src/components/ui/Button";
@@ -51,6 +51,7 @@ export const ShiftEditSheet = ({
   onShiftUpdate,
   onShiftDelete,
 }: ShiftEditSheetProps) => {
+  const workTimeLabelId = useId();
   const timeOptions = useMemo(() => generateTimeOptions(timeRange), [timeRange]);
   const editState = useMemo(() => getSPShiftEditState(shift), [shift]);
   const initialStart = editState.kind === "editable" ? editState.initialStart : "";
@@ -79,10 +80,13 @@ export const ShiftEditSheet = ({
   const dateLabel = formatDateWithWeekday(selectedDate);
 
   const requestTimes = shift?.requestedTimes ?? (shift?.requestedTime ? [shift.requestedTime] : []);
+  // 提出済みで希望時間がない日は休み希望。未提出は希望自体がないため「なし」のまま。
   const requestLabel =
     requestTimes.length > 0
       ? `希望：${requestTimes.map((request) => formatShiftClockTimeRange(request.start, request.end)).join(" / ")}`
-      : "希望：なし";
+      : staff.isSubmitted
+        ? "希望：休み"
+        : "希望：なし";
 
   const currentShift: ShiftData = useMemo(
     () =>
@@ -168,39 +172,44 @@ export const ShiftEditSheet = ({
             </Alert.Content>
           </Alert.Root>
         ) : (
-          <HStack gap={2} align="start">
-            <Field.Root invalid={!!errors.startTime}>
-              <Field.Label>
-                <VisuallyHidden>開始時間</VisuallyHidden>
-              </Field.Label>
-              <Select
-                items={getStartOptions(timeOptions, endTime)}
-                value={startTime}
-                onChange={(v) => setValue("startTime", v, { shouldValidate: true })}
-                size="sm"
-                usePortal={false}
-                invalid={!!errors.startTime}
-              />
-              {errors.startTime && <Field.ErrorText>{errors.startTime.message}</Field.ErrorText>}
-            </Field.Root>
-            <Text fontSize="sm" color="gray.400" pt={2}>
-              ~
+          <VStack role="group" aria-labelledby={workTimeLabelId} gap={1.5} align="stretch">
+            <Text id={workTimeLabelId} textStyle="sm" fontWeight="medium" color="gray.700">
+              勤務時間
             </Text>
-            <Field.Root invalid={!!errors.endTime}>
-              <Field.Label>
-                <VisuallyHidden>終了時間</VisuallyHidden>
-              </Field.Label>
-              <Select
-                items={getEndOptions(timeOptions, startTime)}
-                value={endTime}
-                onChange={(v) => setValue("endTime", v, { shouldValidate: true })}
-                size="sm"
-                usePortal={false}
-                invalid={!!errors.endTime}
-              />
-              {errors.endTime && <Field.ErrorText>{errors.endTime.message}</Field.ErrorText>}
-            </Field.Root>
-          </HStack>
+            <HStack gap={2} align="start">
+              <Field.Root invalid={!!errors.startTime}>
+                <Field.Label>
+                  <VisuallyHidden>開始時間</VisuallyHidden>
+                </Field.Label>
+                <Select
+                  items={getStartOptions(timeOptions, endTime)}
+                  value={startTime}
+                  onChange={(v) => setValue("startTime", v, { shouldValidate: true })}
+                  size="sm"
+                  usePortal={false}
+                  invalid={!!errors.startTime}
+                />
+                {errors.startTime && <Field.ErrorText>{errors.startTime.message}</Field.ErrorText>}
+              </Field.Root>
+              <Text fontSize="sm" color="gray.400" pt={2}>
+                ~
+              </Text>
+              <Field.Root invalid={!!errors.endTime}>
+                <Field.Label>
+                  <VisuallyHidden>終了時間</VisuallyHidden>
+                </Field.Label>
+                <Select
+                  items={getEndOptions(timeOptions, startTime)}
+                  value={endTime}
+                  onChange={(v) => setValue("endTime", v, { shouldValidate: true })}
+                  size="sm"
+                  usePortal={false}
+                  invalid={!!errors.endTime}
+                />
+                {errors.endTime && <Field.ErrorText>{errors.endTime.message}</Field.ErrorText>}
+              </Field.Root>
+            </HStack>
+          </VStack>
         )}
 
         {currentShift.positions.length > 0 && (
