@@ -43,16 +43,19 @@ export type AnalyticsShopsRequest = Pagination & {
   /** 現在の店舗だけに使う絞り込み。実績の内訳とは併用しない。 */
   billing: ShopBillingFilter | null;
   attention: boolean;
-  /** 直近14日に、取消以外の通知を受け付けた店舗だけにする。 */
-  notified: boolean;
+  /**
+   * 直近14日に、取消以外の通知を受け付けた店舗だけにする。
+   * BFFとConvexは別々に反映されるため、絞り込まない場合は項目自体を送らず、反映前のConvexとも一覧を読めるようにする。
+   */
+  notified?: boolean;
 };
 /** 現在の組織一覧。名称は組織名または店舗名の部分一致で照合する。 */
 export type AnalyticsOrganizationsRequest = Pagination & {
   endpoint: "organizations";
   search: string;
   billing: ShopBillingFilter | null;
-  /** 直近14日に、取消以外の通知を受け付けた組織だけにする。 */
-  notified: boolean;
+  /** 直近14日に、取消以外の通知を受け付けた組織だけにする。絞り込まない場合は店舗一覧と同じく送らない。 */
+  notified?: boolean;
 };
 export type AnalyticsShopRequest = Pagination & { endpoint: "shop"; shopId: string };
 export type AnalyticsStaffRequest = Pagination & { endpoint: "staff"; shopId: string; staffId: string };
@@ -260,7 +263,7 @@ export function parseAnalyticsDashboardRequest(value: unknown): ParseResult<Anal
           metric: metric as AnalyticsMetric | null,
           billing: billing as ShopBillingFilter | null,
           attention,
-          notified,
+          ...(notified ? { notified } : {}),
         },
       };
     }
@@ -286,7 +289,7 @@ export function parseAnalyticsDashboardRequest(value: unknown): ParseResult<Anal
           ...page,
           search: search.trim(),
           billing: billing as ShopBillingFilter | null,
-          notified,
+          ...(notified ? { notified } : {}),
         },
       };
     }

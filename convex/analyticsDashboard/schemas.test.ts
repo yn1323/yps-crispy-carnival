@@ -124,7 +124,6 @@ describe("Analytics BFFの入力契約", () => {
         metric: "confirmed",
         billing: null,
         attention: false,
-        notified: false,
       },
     });
     expect(
@@ -139,6 +138,18 @@ describe("Analytics BFFの入力契約", () => {
     expect(
       normalizeBrowserRequestInput("organizations", new URLSearchParams({ billing: "trial", notified: "true" })),
     ).toMatchObject({ ok: true, value: { billing: "trial", notified: true } });
+  });
+  it("通知で絞り込まない一覧はnotifiedを送らず、項目を知らない反映前のConvexとも読める", () => {
+    for (const [endpoint, params] of [
+      ["shops", { notified: "false" }],
+      ["shops", {}],
+      ["organizations", { notified: "false" }],
+      ["organizations", {}],
+    ] as const) {
+      const parsed = normalizeBrowserRequestInput(endpoint, new URLSearchParams(params));
+      expect(parsed.ok).toBe(true);
+      expect(parsed.ok && parsed.value).not.toHaveProperty("notified");
+    }
   });
   it("マジックリンク検索はPOST bodyのtokenだけで受け付け、ブラウザのURL入力からは組み立てない", () => {
     expect(parseAnalyticsDashboardRequest({ endpoint: "magicLinkLookup", token: "abcdefgh-1234" })).toEqual({

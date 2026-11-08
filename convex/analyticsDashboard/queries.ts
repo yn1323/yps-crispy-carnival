@@ -138,8 +138,8 @@ export const getOverview = internalQuery({
   },
 });
 
-/** 「通知あり」の絞り込みで、通知の受付を確認する起点。直近14日を要求時刻から遡る。 */
-function recentNotificationSince(notified: boolean, asOf: number): number | null {
+/** 「通知あり」の絞り込みで、通知の受付を確認する起点。直近14日を要求時刻から遡る。省略時は絞り込まない。 */
+function recentNotificationSince(notified: boolean | undefined, asOf: number): number | null {
   return notified ? asOf - RECENT_NOTIFICATION_DAYS * DAY_MS : null;
 }
 
@@ -185,7 +185,7 @@ export const getShops = internalQuery({
     metric: v.union(analyticsMetricValidator, v.null()),
     billing: v.union(shopBillingFilterValidator, v.null()),
     attention: v.boolean(),
-    notified: v.boolean(),
+    notified: v.optional(v.boolean()),
   },
   returns: shopsResponseValidator,
   handler: async (ctx, args): Promise<ShopsResponse> => {
@@ -277,7 +277,7 @@ export const getOrganizations = internalQuery({
     asOf: v.number(),
     search: v.string(),
     billing: v.union(shopBillingFilterValidator, v.null()),
-    notified: v.boolean(),
+    notified: v.optional(v.boolean()),
   },
   returns: organizationsResponseValidator,
   handler: async (ctx, args): Promise<OrganizationsResponse> => {
