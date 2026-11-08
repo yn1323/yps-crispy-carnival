@@ -6,6 +6,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
 import { useShopQuery } from "@/src/hooks/useShopQuery";
+import { trackAppError } from "@/src/lib/webMeasurement";
 
 export type OrganizationPersonCandidate = {
   personId: Id<"organizationPeople">;
@@ -223,6 +224,10 @@ class CandidateQueryErrorBoundary extends Component<ErrorBoundaryProps, { hasErr
 
   static getDerivedStateFromError() {
     return { hasError: true };
+  }
+
+  componentDidCatch(error: Error) {
+    trackAppError("section", error);
   }
 
   render() {

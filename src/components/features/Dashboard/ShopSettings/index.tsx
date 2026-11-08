@@ -5,6 +5,7 @@ import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedba
 import { useDialog } from "@/src/components/ui/Dialog";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import { ShopSettingsView } from "./ShopSettingsView";
 
 export type ShopSettingsData = {
@@ -31,6 +32,7 @@ export function ShopSettings({ shop, isReadOnly = false, children }: Props) {
     if (isReadOnly) return;
     try {
       await updateShopSettings(data);
+      trackProductEvent({ kind: "manage_action", target: "organization", action: "update_shop" });
       dialog.close();
       showSuccessToast({ title: "店舗設定を更新しました" });
     } catch (error) {

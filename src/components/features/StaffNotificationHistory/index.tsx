@@ -20,6 +20,7 @@ export function StaffNotificationHistory({
 }: Props) {
   return (
     <ErrorBoundary
+      errorSurface="section"
       key={`${shopId}:${staffId}:${enabled}`}
       fallback={<StaffNotificationHistoryView items={[]} isError lineConnectionStatus={lineConnectionStatus} />}
     >

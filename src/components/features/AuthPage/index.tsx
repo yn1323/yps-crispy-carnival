@@ -1,7 +1,8 @@
 import { useAuth } from "@clerk/react";
 import { Navigate } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { normalizeAuthRedirect } from "@/src/lib/auth/redirect";
+import { trackAppTiming } from "@/src/lib/webMeasurement";
 import { AuthLoadingView } from "./AuthLoadingView";
 import { ForgotPasswordFlow } from "./ForgotPasswordFlow";
 import { LoginFlow } from "./LoginFlow";
@@ -16,6 +17,10 @@ export type AuthPageProps = {
 export function AuthPage({ mode, redirect }: AuthPageProps) {
   const { isLoaded, isSignedIn } = useAuth();
   const redirectTo = useMemo(() => normalizeAuthRedirect(redirect), [redirect]);
+
+  useEffect(() => {
+    if (isLoaded) trackAppTiming("clerk_loaded");
+  }, [isLoaded]);
 
   if (!isLoaded) {
     return <AuthLoadingView mode={mode} />;

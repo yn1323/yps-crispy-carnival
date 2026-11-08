@@ -28,6 +28,7 @@ import { useDeadlineActive } from "@/src/hooks/useDeadlineActive";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { getConvexErrorCode } from "@/src/lib/convex/error";
+import { trackAppError, trackProductEvent } from "@/src/lib/webMeasurement";
 import { useManagerShopScope } from "@/src/providers/ManagerShopScopeProvider";
 import type { ShiftBoardData } from "../types";
 import { buildShiftData } from "./buildShiftData";
@@ -270,6 +271,9 @@ export const useShiftBoardPageController = (
   // サーバー側バリデーションエラー（二重防御）をエラー一覧UIへマップする。
   // 構造化エラーでなければ従来通りtoastにフォールバックする
   const handleMutationError = useCallback((error: unknown) => {
+    if (getConvexErrorCode(error) === "RECRUITMENT_CHANGED" || parseShiftAssignmentValidationError(error)) {
+      trackAppError("section", error);
+    }
     if (getConvexErrorCode(error) === "RECRUITMENT_CHANGED") {
       setHasStaleError(true);
       return true;
@@ -348,7 +352,10 @@ export const useShiftBoardPageController = (
     }
     hasAttemptedConfirmRef.current = true;
     const issues = revalidate(shiftsRef.current);
-    if (issues.length > 0) return;
+    if (issues.length > 0) {
+      trackProductEvent({ kind: "shift_confirm_blocked", reason: issues[0]?.code, count: issues.length });
+      return;
+    }
     confirmModal.open();
   }, [isPastShiftNow, isReadOnly, readOnlyReason, revalidate, confirmModal]);
 
@@ -385,6 +392,9 @@ export const useShiftBoardPageController = (
         setValidationWarnings([]);
       }
       confirmModal.close();
+      if (result?.status !== "no_changes") {
+        trackProductEvent({ kind: "shift_confirm", intent: isConfirmed ? "resend" : "confirm" });
+      }
       if (result?.status === "no_changes") {
         toaster.create({ title: "前回の通知から変更されたスタッフはいません", type: "info" });
         return;
@@ -405,6 +415,7 @@ export const useShiftBoardPageController = (
     try {
       const saved = await persistCurrentShifts();
       if (!saved) return;
+      trackProductEvent({ kind: "manage_action", target: "shift", action: "save" });
       showSuccessToast({ title: "下書きを保存しました" });
     } catch (error) {
       handleMutationError(error);
@@ -460,6 +471,7 @@ export const useShiftBoardPageController = (
     try {
       const saved = await persistCurrentShifts();
       if (!saved) return;
+      trackProductEvent({ kind: "manage_action", target: "shift", action: "save" });
       showSuccessToast({ title: "下書きを保存しました" });
       blocker.proceed?.();
     } catch (error) {

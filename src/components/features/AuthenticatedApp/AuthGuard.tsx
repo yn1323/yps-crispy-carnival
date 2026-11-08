@@ -1,11 +1,12 @@
 import { useAuth } from "@clerk/react";
 import { Navigate, useMatches, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "convex/react";
-import { useAtom, useSetAtom } from "jotai";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useEffect } from "react";
 import { api } from "@/convex/_generated/api";
 import { FullPageSpinner } from "@/src/components/templates/FullPageSpinner";
 import { normalizeAuthRedirect } from "@/src/lib/auth/redirect";
+import { setManagerMeasurementIdentity, trackAppTiming } from "@/src/lib/webMeasurement";
 import { selectedShopAtom } from "@/src/stores/shop";
 import { EMPTY_USER, userAtom } from "@/src/stores/user";
 import { MOBILE_APP_NAVIGATION_HEIGHT } from "./AppPrimaryNavigation";
@@ -24,6 +25,7 @@ export const AuthGuard = ({ children }: Props) => {
   const location = useRouterState({ select: (state) => state.location });
   const [user, setUser] = useAtom(userAtom);
   const setSelectedShop = useSetAtom(selectedShopAtom);
+  const selectedShop = useAtomValue(selectedShopAtom);
   const currentUser = useQuery(api.dashboard.queries.getCurrentUser, isSignedIn ? {} : "skip");
   const isAccountDeleted = Boolean(currentUser && "accountDeleted" in currentUser);
   const accountDeletionRequested = Boolean(
@@ -59,6 +61,34 @@ export const AuthGuard = ({ children }: Props) => {
   }, [isAccountDeleted, setSelectedShop, setUser]);
 
   const isUserContextReady = Boolean(userId && currentUser && !isAccountDeleted) && user.authId === userId;
+
+  // 画面が持つClerkのuser IDと選択中の店舗だけを計測へ渡す。DBから計測専用の値は取得しない。
+  useEffect(() => {
+    if (!isUserContextReady || !userId) {
+      setManagerMeasurementIdentity(null);
+      return;
+    }
+    setManagerMeasurementIdentity({
+      userId,
+      organizationId: selectedShop?.organizationId,
+      shopId: selectedShop?.shopId,
+      organizationPlan: selectedShop?.organizationPlan,
+    });
+  }, [isUserContextReady, selectedShop, userId]);
+
+  useEffect(() => () => setManagerMeasurementIdentity(null), []);
+
+  useEffect(() => {
+    if (isLoaded) trackAppTiming("clerk_loaded");
+  }, [isLoaded]);
+
+  useEffect(() => {
+    if (currentUser !== undefined) trackAppTiming("user_loaded");
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (isUserContextReady) trackAppTiming("app_ready");
+  }, [isUserContextReady]);
 
   // ログアウト・セッション失効時は userAtom が残っていても必ずログインへ戻す。
   // （queryは未認証時にthrowせず空を返すため、エラー経由のリダイレクトは発生しない）

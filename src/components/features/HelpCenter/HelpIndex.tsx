@@ -37,9 +37,9 @@ export function HelpIndex({ metas = helpIndexMetas, tasks = HELP_TASKS }: HelpIn
 
   useEffect(() => {
     if (!normalizedQuery) return;
-    // 検索語は送らず、結果の有無だけを送る。
+    // 検索語は結果が0件のときだけ渡し、個人や連絡先を含み得る語はserializerで落とす。
     const timer = window.setTimeout(
-      () => trackProductEvent({ kind: "help_search", hasResults }),
+      () => trackProductEvent({ kind: "help_search", hasResults, searchTerm: normalizedQuery }),
       HELP_SEARCH_MEASUREMENT_DELAY_MS,
     );
     return () => window.clearTimeout(timer);

@@ -7,6 +7,7 @@ import { EditRecruitmentDialog } from "@/src/components/features/EditRecruitment
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useDialog } from "@/src/components/ui/Dialog";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import { OrganizationRecruitmentPastConnection } from "./OrganizationRecruitmentPastConnection";
 import type { OrganizationRecruitmentManagementProps, OrganizationRecruitmentShopMetadata } from "./types";
 
@@ -120,6 +121,7 @@ export function OrganizationRecruitmentManagement({
           shopId: targetShop.shopId,
           expectedOrganizationId: requestedOrganizationId,
         });
+        trackProductEvent({ kind: "recruitment_create" });
         if (activeInteractionScopeKeyRef.current !== requestedInteractionScopeKey) return;
         createDialog.close();
         showSuccessToast({
@@ -170,6 +172,7 @@ export function OrganizationRecruitmentManagement({
         shopId: deleteTarget.shop.shopId,
         expectedOrganizationId: requestedOrganizationId,
       });
+      trackProductEvent({ kind: "manage_action", target: "recruitment", action: "delete" });
       if (activeInteractionScopeKeyRef.current !== requestedInteractionScopeKey) return;
       deleteDialog.close();
       setDeleteTarget(null);

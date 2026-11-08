@@ -2,6 +2,7 @@ import { useMutation } from "convex/react";
 import { type ReactNode, useEffect, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { showErrorToast } from "@/src/components/shared/feedback";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import type { Recruitment, Staff } from "../types";
 import { DashboardOnboardingView } from "./DashboardOnboardingView";
 import {
@@ -62,9 +63,15 @@ export function DashboardOnboarding({
     dismissOnboarding({}).catch(showErrorToast);
   }, [autoDismissed, dismissOnboarding, isDismissed, pendingStaffRequestCount]);
 
+  const visibleStage = visibleState?.stage;
+  useEffect(() => {
+    if (visibleStage) trackProductEvent({ kind: "onboarding_view", stage: visibleStage });
+  }, [visibleStage]);
+
   const handleDismiss = async (stage: DashboardOnboardingStage) => {
     try {
       await dismissOnboarding({});
+      trackProductEvent({ kind: "onboarding_dismiss", stage });
       setDismissedStages((current) => (current.includes(stage) ? current : [...current, stage]));
     } catch (error) {
       showErrorToast(error);

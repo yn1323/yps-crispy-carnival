@@ -1,8 +1,10 @@
 import { toaster } from "@/src/components/ui/toaster";
 import { getConvexErrorMessage } from "@/src/lib/convex/error";
+import { trackAppError } from "@/src/lib/webMeasurement";
 import { getUserFacingErrorMessage } from "./presentation";
 
 export function showErrorToast(error: unknown): void {
+  trackAppError("toast", error);
   toaster.create({
     title: getUserFacingErrorMessage(getConvexErrorMessage(error)),
     type: "error",

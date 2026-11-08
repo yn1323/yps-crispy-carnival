@@ -9,6 +9,7 @@ import { showErrorToast } from "@/src/components/shared/feedback";
 import { StaffNarrowContent } from "@/src/components/templates/StaffLayout";
 import { Empty } from "@/src/components/ui/Empty";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import { ReissueForm } from "./ReissueForm";
 
 type Props = {
@@ -32,6 +33,7 @@ export function StaffShiftReissue({ recruitmentId, periodLabel }: Props) {
         email: values.email,
         recruitmentId,
       });
+      trackProductEvent({ kind: "staff_link_reissue" });
       setIsDone(true);
     } catch (error) {
       showErrorToast(error);

@@ -5,6 +5,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import { selectedShopAtom } from "@/src/stores/shop";
 import type { ShopDetailData } from "./types";
 
@@ -38,6 +39,7 @@ export function useShopDeletionController(input: Input) {
         expectedOrganizationId: latest.expectedOrganizationId,
       });
       deleteRequestIdsRef.current.delete(latest.shop.id);
+      trackProductEvent({ kind: "manage_action", target: "organization", action: "delete_shop" });
       if (latest.clearLegacySelectedShop !== false && selectedShop?.shopId === latest.shop.id) setSelectedShop(null);
       showSuccessToast({ title: "店舗の削除を受け付けました" });
       latest.onDeleted();

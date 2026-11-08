@@ -6,6 +6,7 @@ import type { ShopFormData } from "@/src/components/features/ShopForm";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useDialog } from "@/src/components/ui/Dialog";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import type { ShopDetailData } from "./types";
 
 export function useShopSettingsController(shop: ShopDetailData, expectedOrganizationId: Id<"organizations">) {
@@ -28,6 +29,7 @@ export function useShopSettingsController(shop: ShopDetailData, expectedOrganiza
         expectedOrganizationId,
         ...data,
       });
+      trackProductEvent({ kind: "manage_action", target: "organization", action: "update_shop" });
       dialog.close();
       showSuccessToast({ title: "店舗設定を更新しました" });
       return true;

@@ -3,6 +3,8 @@ import { Component, type ErrorInfo, type ReactNode } from "react";
 import { LuTriangleAlert } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
+import type { AppErrorSurface } from "@/src/domains/webMeasurement";
+import { trackAppError } from "@/src/lib/webMeasurement";
 
 const FALLBACK_DESCRIPTION = "一時的な問題が発生しました。\nページを再読み込みしてください。";
 const NETWORK_ERROR_DESCRIPTION = "通信が不安定なようです。\nページを再読み込みしてください。";
@@ -17,6 +19,8 @@ type Props = {
   children: ReactNode;
   fallback?: ReactNode | ((error: Error) => ReactNode);
   onError?: (error: Error, errorInfo: ErrorInfo) => void;
+  /** fallbackを表示する場所。外側のboundaryへ委ねるだけのboundaryは`null`にして二重に数えない。 */
+  errorSurface?: AppErrorSurface | null;
 };
 
 type State = { error: Error | null };
@@ -66,6 +70,8 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
+    const { errorSurface = "screen" } = this.props;
+    if (errorSurface) trackAppError(errorSurface, error);
     this.props.onError?.(error, errorInfo);
   }
 

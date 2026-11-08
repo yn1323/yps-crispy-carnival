@@ -14,6 +14,8 @@ export type ShiftDateNoteInput = { date: string; note: string };
 export type SubmitShiftPayload = {
   submission: SubmitShiftSelectionInput;
   dateNotes: ShiftDateNoteInput[];
+  /** 計測だけに使う。前回の提出内容を反映したときだけ`true`を置き、mutationへは渡さない。 */
+  usedPreviousPattern?: true;
 };
 
 export const buildSubmissionInput = (

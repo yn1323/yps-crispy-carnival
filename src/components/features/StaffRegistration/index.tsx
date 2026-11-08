@@ -4,6 +4,7 @@ import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedba
 import { VERIFICATION_REQUIRED_MESSAGE } from "@/src/components/shared/TurnstileWidget";
 import { TURNSTILE_SITE_KEY } from "@/src/configs/publicEnv";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import { StaffRegistrationFlow } from "./StaffRegistrationFlow";
 import { submitStaffRegistrationRequest } from "./submitStaffRegistrationRequest";
 import type { StaffRegistrationPageData } from "./types";
@@ -47,6 +48,7 @@ export function StaffRegistration({ token, data }: Props) {
           turnstileToken,
           requestId: crypto.randomUUID(),
         });
+        trackProductEvent({ kind: "staff_register_submit" });
         setSubmitted(true);
         showSuccessToast({ title: "スタッフ登録申請を受け付けました" });
       } catch (error) {

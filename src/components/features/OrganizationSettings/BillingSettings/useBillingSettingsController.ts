@@ -5,6 +5,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { toaster } from "@/src/components/ui/toaster";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import type { OrganizationBillingView } from "../types";
 
 type Input = {
@@ -33,6 +34,7 @@ export function useBillingSettingsController(input: Input) {
     try {
       const requestId = crypto.randomUUID();
       await updateBillingEmailForOrganization({ organizationId: latest.organizationId, email, requestId });
+      trackProductEvent({ kind: "manage_action", target: "organization", action: "update_billing_email" });
       showSuccessToast({ title: "請求通知先メールアドレスを変更しました" });
       setIsBillingEmailOpen(false);
     } catch (error) {
