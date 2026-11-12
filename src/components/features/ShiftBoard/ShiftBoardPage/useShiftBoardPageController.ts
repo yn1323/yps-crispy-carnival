@@ -576,7 +576,7 @@ export const useShiftBoardPageController = (
       confirmDialog: {
         isOpen: confirmModal.isOpen,
         title: isConfirmed ? "確定シフトをもう一度通知しますか？" : "このシフトをスタッフに通知しますか？",
-        submitLabel: isConfirmed ? "変更があるスタッフに通知" : "シフトを確定して通知",
+        submitLabel: isConfirmed ? "変更があるスタッフに通知" : "確定",
         staffCount: staffs.length,
         warnings: displayWarnings,
         unsubmittedNames,

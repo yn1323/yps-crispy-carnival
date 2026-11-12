@@ -15,7 +15,7 @@ export class ShiftBoardPage {
     const dialog = this.page.getByRole("dialog");
     await expect(dialog).toBeVisible();
     await expect(dialog.getByText(`対象：${staffCount}名`)).toBeVisible();
-    await dialog.getByRole("button", { name: /確定して通知する|シフトを確定して通知/ }).click();
+    await dialog.getByRole("button", { name: "確定", exact: true }).click();
     await expect(this.page.getByText("シフトを確定しました")).toBeVisible();
   }
 
@@ -30,7 +30,7 @@ export class ShiftBoardPage {
     const dialog = this.page.getByRole("dialog", { name: "このシフトをスタッフに通知しますか？" });
     await expect(dialog).toBeVisible();
     await expect(dialog.getByText(`対象：${staffCount}名`)).toBeVisible();
-    await dialog.getByRole("button", { name: "シフトを確定して通知", exact: true }).click();
+    await dialog.getByRole("button", { name: "確定", exact: true }).click();
     await expect(this.page.getByText("シフトを確定しました")).toBeVisible();
     await expect(this.page.getByRole("button", { name: "保存・再送・出力", exact: true })).toBeVisible();
   }
