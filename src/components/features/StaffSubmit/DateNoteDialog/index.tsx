@@ -66,6 +66,8 @@ function DateNoteDialogContent({
           <Text w="full" textAlign="right" fontSize="xs" color="fg.muted" fontVariantNumeric="tabular-nums">
             {note.length}/{SHIFT_DATE_NOTE_MAX_LENGTH}
           </Text>
+          {/* 幅360pxでは文字数と同じ行に収まらないため、補足は1行独立させる。 */}
+          <Field.HelperText>個人情報や機密情報の入力はお控えください</Field.HelperText>
         </Field.Root>
       </form>
     </Dialog>
