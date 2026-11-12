@@ -452,6 +452,38 @@ describe("shiftBoard/queries", () => {
     expect(result?.staffs.map((s) => s._id)).toEqual([includedStaffId]);
   });
 
+  it("有効な管理者のスタッフだけをisManagerで返す", async () => {
+    const t = convexTest(schema, modules);
+    const { shopId, recruitmentId, managerStaffId, staffId } = await t.run(async (ctx) => {
+      const { shopId, userId } = await seedManagerShop(ctx, { subject: "manager_flag", shopName: "テスト店舗" });
+      const managerStaffId = await seedStaff(ctx, { shopId, name: "管理者", userId });
+      const staffId = await seedStaff(ctx, { shopId, name: "通常スタッフ", email: "normal@example.com" });
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: "2026-04-01",
+        periodEnd: "2026-04-07",
+        deadline: "2026-03-28",
+        shopClosedDates: [],
+        status: "open",
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      return { shopId, recruitmentId, managerStaffId, staffId };
+    });
+
+    const result = await t.withIdentity({ subject: "manager_flag" }).query(api.shiftBoard.queries.getShiftBoardData, {
+      shopId,
+      expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
+      recruitmentId,
+      refreshDayKey: QUERY_REFRESH_DAY_KEY,
+    });
+
+    expect(result?.staffs.map((staff) => [staff._id, staff.isManager])).toEqual([
+      [managerStaffId, true],
+      [staffId, false],
+    ]);
+  });
+
   it("JST日付を跨いで過去募集になると削除済み割当スタッフをtombstoneで返す", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(Date.parse("2026-07-20T14:59:59.000Z"));
@@ -517,6 +549,7 @@ describe("shiftBoard/queries", () => {
       isSubmitted: true,
       createdAt: expect.any(Number),
       wasSubmittedAtDraft: false,
+      isManager: false,
     });
     expect(current?.staffs.map((staff) => staff._id)).not.toContain(ids.staffId);
     expect(past?.shiftAssignments).toHaveLength(1);
@@ -568,6 +601,7 @@ describe("shiftBoard/queries", () => {
         isSubmitted: true,
         createdAt: expect.any(Number),
         wasSubmittedAtDraft: false,
+        isManager: false,
       },
     ]);
   });

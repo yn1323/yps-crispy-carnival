@@ -381,3 +381,53 @@ export const RecruitmentNotificationSendingBehavior: Story = {
     await expect(sendButton).toBeDisabled();
   },
 };
+
+export const ShiftExcludedManager: Story = {
+  args: {
+    data: { ...data, isSelf: true, managerRole: "active" },
+    membership: { ...membership, excludedFromShift: true },
+  },
+};
+
+export const ShiftExcludedManagerMobile: Story = {
+  ...ShiftExcludedManager,
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+};
+
+function ShiftTargetChangeBehaviorStory() {
+  const [excludedFromShift, setExcludedFromShift] = useState(false);
+
+  return (
+    <UserShopDetailView
+      data={data}
+      membership={{ ...membership, excludedFromShift }}
+      isStoreReadOnly={false}
+      notificationHistory={notificationHistory("unlinked")}
+      state={baseState}
+      actions={{
+        ...baseActions,
+        onChangeShiftTarget: (isShiftTarget) => setExcludedFromShift(!isShiftTarget),
+      }}
+    />
+  );
+}
+
+export const ShiftTargetChangeBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <ShiftTargetChangeBehaviorStory />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const target = canvas.getByRole("radio", { name: /参加する/ });
+    const excluded = canvas.getByRole("radio", { name: /参加しない/ });
+
+    await expect(target).toBeChecked();
+    // 表の列見出しにも同じ選択肢名が出るため、radioを包むlabelを押す。
+    const excludedCard = excluded.closest("label");
+    if (!excludedCard) throw new Error("「参加しない」の選択肢が見つかりません");
+    await userEvent.click(excludedCard);
+
+    await expect(excluded).toBeChecked();
+    await expect(canvas.getByText("シフトに参加しない設定のため、シフトの通知は届きません")).toBeInTheDocument();
+  },
+};

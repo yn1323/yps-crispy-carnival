@@ -1,7 +1,7 @@
-import { Box, Flex, Icon, Stack, Text } from "@chakra-ui/react";
+import { Box, Flex, Icon, Link, Stack, Text } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 import type { IconType } from "react-icons/lib";
-import { LuCalendarX, LuClock, LuFileX, LuTriangleAlert, LuUserX } from "react-icons/lu";
+import { LuCalendarX, LuClock, LuExternalLink, LuFileX, LuTriangleAlert, LuUserX } from "react-icons/lu";
 import {
   ASSIGNMENT_WARNING_SUMMARY_TITLE,
   getAssignmentWarningSettingText,
@@ -18,6 +18,8 @@ type Props = {
   warnings?: DisplayIssue[];
   /** 初回確定でだけ表示する。確定後は提出リンクが閉じているため、再通知では扱わない。 */
   unsubmittedNames?: string[];
+  /** 未提出のスタッフに管理者が含まれる場合に、シフト対象から外す方法のヘルプを案内する。 */
+  hasUnsubmittedManager?: boolean;
   isResend?: boolean;
   notificationDescription?: string;
 };
@@ -27,6 +29,7 @@ export const ConfirmShiftContent = ({
   periodLabel,
   warnings = [],
   unsubmittedNames = [],
+  hasUnsubmittedManager = false,
   isResend = false,
   notificationDescription = "メール・LINEで通知します",
 }: Props) => {
@@ -53,6 +56,7 @@ export const ConfirmShiftContent = ({
             countLabel={`${unsubmittedNames.length}名`}
           >
             <UnsubmittedNameBadges names={unsubmittedNames} />
+            {hasUnsubmittedManager && <ShiftExclusionHelp />}
           </SummaryRow>
         </SummarySection>
       )}
@@ -100,6 +104,31 @@ const UnsubmittedNameBadges = ({ names }: { names: string[] }) => (
       </Box>
     ))}
   </Flex>
+);
+
+// 確定の操作を離れずに読めるよう、ヘルプは別タブで開く。
+const SHIFT_EXCLUSION_HELP_HREF = "/help/exclude-from-shift";
+const SHIFT_EXCLUSION_HELP_TITLE = "スタッフ・管理者をシフトに表示しない";
+
+const ShiftExclusionHelp = () => (
+  <Box mt={2} fontSize="xs" lineHeight="tall" color="gray.600">
+    <Text>シフト表に参加しない管理者を対象から外せます</Text>
+    <Link
+      href={SHIFT_EXCLUSION_HELP_HREF}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`${SHIFT_EXCLUSION_HELP_TITLE}（別タブで開きます）`}
+      display="inline-flex"
+      alignItems="center"
+      gap={1}
+      color="teal.700"
+      fontWeight={600}
+      textDecoration="underline"
+    >
+      {SHIFT_EXCLUSION_HELP_TITLE}
+      <LuExternalLink aria-hidden="true" focusable="false" />
+    </Link>
+  </Box>
 );
 
 const SummarySection = ({ title, children }: { title: string; children: ReactNode }) => (
