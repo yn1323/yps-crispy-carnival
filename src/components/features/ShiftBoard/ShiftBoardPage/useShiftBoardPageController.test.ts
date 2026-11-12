@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { getShiftBoardReadOnlyReason, resolveReminderStatus } from "./useShiftBoardPageController";
+import type { Id } from "@/convex/_generated/dataModel";
+import type { ShiftBoardData } from "../types";
+import {
+  getShiftBoardReadOnlyReason,
+  hasUnsubmittedManager,
+  resolveReminderStatus,
+} from "./useShiftBoardPageController";
 
 describe("getShiftBoardReadOnlyReason", () => {
   it("上限超過は確定した超過として案内する", () => {
@@ -62,5 +68,21 @@ describe("resolveReminderStatus", () => {
         isReminderScheduleActive: false,
       }),
     ).toEqual({ kind: "unconfirmed" });
+  });
+});
+
+describe("hasUnsubmittedManager", () => {
+  const staff = (overrides: Partial<ShiftBoardData["staffs"][number]>): ShiftBoardData["staffs"][number] => ({
+    _id: "staff" as Id<"staffs">,
+    name: "スタッフ",
+    isSubmitted: false,
+    wasSubmittedAtDraft: false,
+    isManager: false,
+    ...overrides,
+  });
+
+  it("未提出の管理者がいる場合だけtrueを返す", () => {
+    expect(hasUnsubmittedManager([staff({ isManager: true })])).toBe(true);
+    expect(hasUnsubmittedManager([staff({ isManager: true, isSubmitted: true }), staff({})])).toBe(false);
   });
 });

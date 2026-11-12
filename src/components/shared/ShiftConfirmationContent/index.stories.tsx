@@ -1,5 +1,6 @@
 import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import { Dialog } from "@/src/components/ui/Dialog";
 import { ConfirmShiftContent } from ".";
 
@@ -66,6 +67,22 @@ export const WithUnsubmitted: Story = {
   args: {
     ...baseArgs,
     unsubmittedNames,
+  },
+};
+
+export const WithUnsubmittedManager: Story = {
+  args: {
+    ...baseArgs,
+    unsubmittedNames,
+    hasUnsubmittedManager: true,
+  },
+  play: async ({ canvasElement }) => {
+    const link = within(canvasElement).getByRole("link", {
+      name: "スタッフ・管理者をシフトに表示しない（別タブで開きます）",
+    });
+
+    await expect(link).toHaveAttribute("href", "/help/exclude-from-shift");
+    await expect(link).toHaveAttribute("target", "_blank");
   },
 };
 

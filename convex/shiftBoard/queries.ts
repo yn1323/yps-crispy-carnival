@@ -53,6 +53,8 @@ const shiftBoardDataValidator = v.object({
       isSubmitted: v.boolean(),
       createdAt: v.number(),
       wasSubmittedAtDraft: v.boolean(),
+      // 有効な管理者かどうか。未提出の管理者へシフト対象外の設定を案内するために使う。
+      isManager: v.boolean(),
     }),
   ),
   positions: v.array(v.object({ _id: v.id("positions"), name: v.string(), color: v.string(), isDefault: v.boolean() })),
@@ -149,6 +151,21 @@ export const getShiftBoardData = managerQuery({
       organizationId: shop.organizationId,
       shopId: shop._id,
     });
+    const managerStaffIds = new Set(
+      (
+        await Promise.all(
+          activeShiftTargetStaffs.map(async (staff) => {
+            const members = await ctx.db
+              .query("organizationMembers")
+              .withIndex("by_organizationId_and_personId", (q) =>
+                q.eq("organizationId", shop.organizationId).eq("personId", staff.organizationPersonId),
+              )
+              .take(2);
+            return members.length === 1 && members[0].status === "active" ? staff._id : null;
+          }),
+        )
+      ).filter((staffId) => staffId !== null),
+    );
     let exportStaffOrder = activeShiftTargetStaffs.map((staff) => staff._id);
     if (orderScope.mode === "ordered") {
       const entries = await ctx.db
@@ -175,18 +192,8 @@ export const getShiftBoardData = managerQuery({
       const targets = new Set(exportStaffOrder);
       exportStaffOrder = entries.map((entry) => entry.staffId).filter((id) => targets.has(id));
     } else {
-      const ranked = await Promise.all(
-        activeShiftTargetStaffs.map(async (staff, index) => {
-          const members = await ctx.db
-            .query("organizationMembers")
-            .withIndex("by_organizationId_and_personId", (q) =>
-              q.eq("organizationId", shop.organizationId).eq("personId", staff.organizationPersonId),
-            )
-            .take(2);
-          return { id: staff._id, index, isManager: members.length === 1 && members[0].status === "active" };
-        }),
-      );
-      exportStaffOrder = ranked
+      exportStaffOrder = activeShiftTargetStaffs
+        .map((staff, index) => ({ id: staff._id, index, isManager: managerStaffIds.has(staff._id) }))
         .sort((a, b) => Number(b.isManager) - Number(a.isManager) || a.index - b.index)
         .map(({ id }) => id);
     }
@@ -242,6 +249,7 @@ export const getShiftBoardData = managerQuery({
             createdAt: s._creationTime,
             wasSubmittedAtDraft:
               draftSavedAt !== null && firstSubmittedAt !== null ? firstSubmittedAt <= draftSavedAt : false,
+            isManager: managerStaffIds.has(s._id),
           };
         }),
         ...historicalRemovedStaffs.map((staff) => ({
@@ -251,6 +259,7 @@ export const getShiftBoardData = managerQuery({
           isSubmitted: true,
           createdAt: staff._creationTime,
           wasSubmittedAtDraft: false,
+          isManager: false,
         })),
       ],
       positions: positions.map((p) => ({ _id: p._id, name: p.name, color: p.color, isDefault: p.isDefault })),

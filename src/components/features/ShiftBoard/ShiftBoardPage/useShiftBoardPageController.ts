@@ -38,6 +38,11 @@ import { visibleAssignmentWarnings } from "./warningVisibility";
 const PAST_SHIFT_SAVE_ERROR = "過去のシフトは保存できません";
 const PAST_SHIFT_NOTIFY_ERROR = "過去のシフトはスタッフに通知できません";
 
+/** 未提出のスタッフに有効な管理者が含まれるか。シフト対象から外す方法を確定時に案内するために使う。 */
+export function hasUnsubmittedManager(staffs: ShiftBoardData["staffs"]): boolean {
+  return staffs.some((staff) => staff.isManager === true && !staff.isSubmitted && !staff.isRemoved);
+}
+
 export function getShiftBoardReadOnlyReason(reason: ShiftBoardData["businessWriteBlockReason"]): string {
   switch (reason) {
     case "paymentResultPending":
@@ -575,6 +580,7 @@ export const useShiftBoardPageController = (
         staffCount: staffs.length,
         warnings: displayWarnings,
         unsubmittedNames,
+        hasUnsubmittedManager: hasUnsubmittedManager(data.staffs),
       },
       unsubmittedDialog: {
         isOpen: unsubmittedDialog.isOpen,

@@ -28,6 +28,8 @@ export type ShiftBoardData = {
     isSubmitted: boolean;
     createdAt?: number;
     wasSubmittedAtDraft: boolean;
+    /** 有効な管理者かどうか。未提出の管理者へシフト対象外の設定を案内するために使う。 */
+    isManager?: boolean;
   }>;
   requestedSlots: Array<{
     staffId: Id<"staffs">;
