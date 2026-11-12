@@ -90,6 +90,7 @@ export function UserShopDetailView({
       <UserShopDetailPageSection>
         <UserShopSettingsSection
           membership={membership}
+          isManager={data.managerRole === "active"}
           isStoreReadOnly={isStoreReadOnly}
           storeDisabledReason={storeDisabledReason}
           isChangingShiftTarget={state.membership.isChangingShiftTarget}

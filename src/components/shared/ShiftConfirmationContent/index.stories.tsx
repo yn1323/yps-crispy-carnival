@@ -1,5 +1,6 @@
 import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import { Dialog } from "@/src/components/ui/Dialog";
 import { ConfirmShiftContent } from ".";
 
@@ -69,6 +70,22 @@ export const WithUnsubmitted: Story = {
   },
 };
 
+export const WithUnsubmittedManager: Story = {
+  args: {
+    ...baseArgs,
+    unsubmittedNames,
+    hasUnsubmittedManager: true,
+  },
+  play: async ({ canvasElement }) => {
+    const link = within(canvasElement).getByRole("link", {
+      name: "スタッフ・管理者をシフトに表示しない（別タブで開きます）",
+    });
+
+    await expect(link).toHaveAttribute("href", "/help/exclude-from-shift");
+    await expect(link).toHaveAttribute("target", "_blank");
+  },
+};
+
 export const WithManyUnsubmitted: Story = {
   args: {
     ...baseArgs,
@@ -115,7 +132,7 @@ export const ModalWithWarnings: Story = {
       onOpenChange={() => {}}
       onClose={() => {}}
       onSubmit={() => {}}
-      submitLabel="シフトを確定して通知"
+      submitLabel="確定"
     >
       <ConfirmShiftContent {...args} />
     </Dialog>
@@ -139,7 +156,7 @@ export const ModalWithUnsubmittedAndWarnings: Story = {
       onOpenChange={() => {}}
       onClose={() => {}}
       onSubmit={() => {}}
-      submitLabel="シフトを確定して通知"
+      submitLabel="確定"
     >
       <ConfirmShiftContent {...args} />
     </Dialog>
@@ -167,7 +184,7 @@ export const SPModalWithWarnings: Story = {
       onOpenChange={() => {}}
       onClose={() => {}}
       onSubmit={() => {}}
-      submitLabel="シフトを確定して通知"
+      submitLabel="確定"
     >
       <ConfirmShiftContent {...args} />
     </Dialog>

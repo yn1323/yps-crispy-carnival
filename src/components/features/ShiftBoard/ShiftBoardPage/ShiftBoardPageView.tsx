@@ -163,6 +163,7 @@ export const ShiftBoardPageView = ({ viewModel, intents, layout = "legacy", head
           periodLabel={viewModel.periodLabel}
           warnings={confirmDialog.warnings}
           unsubmittedNames={confirmDialog.unsubmittedNames}
+          hasUnsubmittedManager={confirmDialog.hasUnsubmittedManager}
           isResend={viewModel.isConfirmed}
         />
       </Dialog>

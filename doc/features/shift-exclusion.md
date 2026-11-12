@@ -6,8 +6,10 @@ LINE連携依頼や規約同意など、シフト以外の通知は従来どお�
 
 ## 切り替え方法・挙動
 
-- Dashboardまたは組織設定のユーザー一覧からスタッフ詳細ページを開き、対象店舗を選んで「このユーザーをシフト対象とする」トグルで切り替える（管理者本人も対象外にできる）
-- トグルは先に表示を切り替え、更新に失敗した場合は元へ戻す。切り替え直後から最低1000msは再操作を無効にする
+- Dashboardまたは組織設定のユーザー一覧からスタッフ詳細ページを開き、対象店舗を選んで「シフトへの参加」の2択（「参加する」「参加しない」）で切り替える（管理者本人も対象外にできる）
+- 2択の下に、シフト対象かどうかで届く通知を◯と✗の一覧で示す。管理者には、対象外でも届き続ける「管理者へのお知らせ」（シフト確定の催促、スタッフ登録申請、送れなかった通知）の行を加える
+- 選択は先に表示を切り替え、更新に失敗した場合は元へ戻す。切り替え直後から最低1000msは再操作を無効にする
+- 初回の確定Dialogでは、未提出のスタッフに有効な管理者が含まれる場合に、ヘルプ「スタッフ・管理者をシフトに表示しない」（`/help/exclude-from-shift`）へのリンクを表示する
 - 対象外スタッフは行に「シフト対象外」バッジが付き、「募集中のシフトを再送する」「確定シフトを再送する」が無効になる
 - 対象外スタッフは以下から除外される:
   - シフトボード（ShiftForm）・スタッフ向け確定シフト表示
@@ -26,7 +28,7 @@ LINE連携依頼や規約同意など、シフト以外の通知は従来どお�
 - `convex/staff/mutations.ts` — `setShiftExclusion`（フラグ切り替え＋対象外時にセッション/マジックリンク失効）
 - `convex/_lib/functions.ts` — `staffSessionQuery` / `staffSessionMutation` で対象外を弾く
 - `convex/staffAuth/mutations.ts` — `verifyToken`（マジックリンク→セッション発行）/ `requestReissue` で対象外を弾く
-- `convex/shiftBoard/queries.ts` / `convex/shiftView/queries.ts` — シフト表示から除外
+- `convex/shiftBoard/queries.ts` / `convex/shiftView/queries.ts` — シフト表示から除外。シフト表には、有効な管理者かどうか（`isManager`）を返す
 - `convex/notification/queries.ts` / `convex/notification/reminderQueries.ts` — 各シフト関連通知の対象から除外
 - `convex/dashboard/queries.ts` — `getTotalStaffCount`（提出率の母数から除外）/ `responseCount` クランプ / `getDashboardStaffs`（フラグ露出）
 
@@ -34,7 +36,9 @@ LINE連携依頼や規約同意など、シフト以外の通知は従来どお�
 
 - `src/components/features/Dashboard/types.ts` — `Staff.excludedFromShift`
 - `src/components/shared/StaffListRow/` — Dashboard、組織設定、店舗詳細で共有するスタッフ行と状態バッジ
-- `src/components/features/UserShopDetail/` — シフト対象トグル、楽観更新、通知操作の無効化
+- `src/components/features/UserShopDetail/` — シフト対象の2択、届く通知の一覧、楽観更新、通知操作の無効化
+- `src/components/shared/ShiftConfirmationContent/` — 確定Dialogの、未提出の管理者向けヘルプリンク
+- `src/components/features/HelpCenter/content/guides/exclude-from-shift.mdx` — 対象から外す手順のヘルプ
 - `src/components/features/Dashboard/StaffManagement/` — スタッフ詳細ページへの遷移
 
 ## API 一覧

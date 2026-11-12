@@ -232,6 +232,7 @@ export const DateNoteInteractive: Story = {
     const input = await screen.findByPlaceholderText("17時以降なら入れます");
     await expect(input).toHaveAttribute("data-clarity-mask", "true");
     await expect(input).toHaveAttribute("maxLength", "100");
+    await expect(input).toHaveAccessibleDescription("個人情報や機密情報の入力はお控えください");
     await userEvent.type(input, "17時以降なら入れます");
     await expect(await screen.findByText("11/100")).toBeInTheDocument();
     await userEvent.click(await screen.findByRole("button", { name: "OK" }));
