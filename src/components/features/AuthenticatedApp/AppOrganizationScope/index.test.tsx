@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   organizationListRef: Symbol("listMyOrganizationContexts"),
@@ -31,6 +31,7 @@ vi.mock("@/convex/_generated/api", () => ({
 }));
 
 import { AppOrganizationScopeProvider, resolveAppOrganizationErrorReason, useAppOrganizationScope } from ".";
+import { APP_ORGANIZATION_HINT_STORAGE_KEY } from "./organizationHint";
 
 const renderState = (state: { kind: string; reason?: string }) => (
   <div data-testid="organization-state">{state.reason ?? state.kind}</div>
@@ -51,6 +52,12 @@ beforeEach(() => {
   mocks.useQuery.mockReset();
   mocks.loadOrganizations.mockReset();
   mocks.loadShops.mockReset();
+  window.localStorage.clear();
+  vi.spyOn(console, "error").mockImplementation(() => undefined);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe("AppOrganizationScopeProvider", () => {
@@ -157,7 +164,7 @@ describe("AppOrganizationScopeProvider", () => {
     expect(screen.getByTestId("scope").textContent).toBe("A組織:A店,B店;orgs:A組織,B組織");
   });
 
-  it("組織contextの確定前はactive店舗queryを開始せず、所属失効時は子treeを閉じる", () => {
+  it("組織contextの確定を待たずactive店舗queryを開始し、確定前は子treeを開かず、所属失効時は閉じる", () => {
     let organization:
       | {
           organizationId: string;
@@ -187,7 +194,11 @@ describe("AppOrganizationScopeProvider", () => {
     const { rerender } = render(view());
 
     expect(screen.getByTestId("organization-state").textContent).toBe("loading");
-    expect(mocks.usePaginatedQuery).toHaveBeenCalledWith(mocks.shopsRef, "skip", { initialNumItems: 50 });
+    expect(mocks.usePaginatedQuery).toHaveBeenCalledWith(
+      mocks.shopsRef,
+      { organizationId: "organization-a" },
+      { initialNumItems: 50 },
+    );
     expect(screen.queryByTestId("scope")).toBeNull();
 
     organization = {
@@ -268,6 +279,122 @@ describe("AppOrganizationScopeProvider", () => {
 
     expect(screen.getByTestId("scope").textContent).toBe("A組織:A店;orgs:organizations-loading");
     await waitFor(() => expect(mocks.loadOrganizations).toHaveBeenCalledWith(50));
+  });
+
+  describe("前回の組織の保存hint", () => {
+    const verifiedOrganization = { organizationId: "organization-b", organizationName: "B組織" };
+
+    function mockPaginatedQueries() {
+      mocks.usePaginatedQuery.mockImplementation((reference) =>
+        reference === mocks.organizationListRef
+          ? {
+              results: [{ organizationId: "organization-a", organizationName: "A組織" }],
+              status: "Exhausted",
+              loadMore: mocks.loadOrganizations,
+            }
+          : {
+              results: [{ shopId: "shop-b", shopName: "B店" }],
+              status: "Exhausted",
+              loadMore: mocks.loadShops,
+            },
+      );
+    }
+
+    const view = (requestedOrganizationId: string | undefined, onResolved: (organizationId: string) => void) => (
+      <AppOrganizationScopeProvider
+        requestedOrganizationId={requestedOrganizationId}
+        onCanonicalOrganizationResolved={onResolved}
+        renderState={renderState}
+      >
+        <ScopeConsumer />
+      </AppOrganizationScopeProvider>
+    );
+
+    it("検証した組織を保存する", async () => {
+      mocks.useQuery.mockReturnValue(verifiedOrganization);
+      mockPaginatedQueries();
+
+      render(view("organization-b", vi.fn()));
+
+      await waitFor(() =>
+        expect(window.localStorage.getItem(APP_ORGANIZATION_HINT_STORAGE_KEY)).toBe("organization-b"),
+      );
+    });
+
+    it("org未指定時は保存hintで検証と店舗一覧を同時に開始し、検証とURL反映が済むまで子treeを開かない", async () => {
+      window.localStorage.setItem(APP_ORGANIZATION_HINT_STORAGE_KEY, "organization-b");
+      let organization: typeof verifiedOrganization | undefined;
+      mocks.useQuery.mockImplementation(() => organization);
+      mockPaginatedQueries();
+      const onResolved = vi.fn();
+
+      const { rerender } = render(view(undefined, onResolved));
+
+      expect(mocks.useQuery).toHaveBeenCalledWith(mocks.organizationContextRef, { organizationId: "organization-b" });
+      expect(mocks.usePaginatedQuery).toHaveBeenCalledWith(
+        mocks.shopsRef,
+        { organizationId: "organization-b" },
+        { initialNumItems: 50 },
+      );
+      expect(mocks.usePaginatedQuery).not.toHaveBeenCalledWith(mocks.organizationListRef, {}, { initialNumItems: 1 });
+      expect(screen.getByTestId("organization-state").textContent).toBe("loading");
+      expect(onResolved).not.toHaveBeenCalled();
+
+      organization = verifiedOrganization;
+      rerender(view(undefined, onResolved));
+
+      await waitFor(() => expect(onResolved).toHaveBeenCalledWith("organization-b"));
+      expect(screen.queryByTestId("scope")).toBeNull();
+
+      rerender(view("organization-b", onResolved));
+      expect(screen.getByTestId("scope").textContent).toBe("B組織:B店;orgs:A組織");
+    });
+
+    it("保存hintの組織を開けない場合はエラーにせずhintを破棄し、canonicalな組織解決へ戻る", async () => {
+      window.localStorage.setItem(APP_ORGANIZATION_HINT_STORAGE_KEY, "organization-revoked");
+      mocks.useQuery.mockReturnValue(null);
+      mockPaginatedQueries();
+      const onResolved = vi.fn();
+
+      render(view(undefined, onResolved));
+
+      await waitFor(() => expect(onResolved).toHaveBeenCalledWith("organization-a"));
+      expect(mocks.usePaginatedQuery).toHaveBeenCalledWith(mocks.organizationListRef, {}, { initialNumItems: 1 });
+      expect(window.localStorage.getItem(APP_ORGANIZATION_HINT_STORAGE_KEY)).toBeNull();
+      expect(screen.getByTestId("organization-state").textContent).toBe("loading");
+      expect(screen.queryByTestId("scope")).toBeNull();
+    });
+
+    it("保存hintのqueryがNot foundをthrowした場合もhintを破棄し、canonicalな組織解決へ戻る", async () => {
+      window.localStorage.setItem(APP_ORGANIZATION_HINT_STORAGE_KEY, "organization-revoked");
+      mocks.useQuery.mockReturnValue(undefined);
+      mocks.usePaginatedQuery.mockImplementation((reference) => {
+        if (reference === mocks.shopsRef) throw new Error("Not found");
+        return {
+          results: [{ organizationId: "organization-a", organizationName: "A組織" }],
+          status: "Exhausted",
+          loadMore: mocks.loadOrganizations,
+        };
+      });
+      const onResolved = vi.fn();
+
+      render(view(undefined, onResolved));
+
+      await waitFor(() => expect(onResolved).toHaveBeenCalledWith("organization-a"));
+      expect(window.localStorage.getItem(APP_ORGANIZATION_HINT_STORAGE_KEY)).toBeNull();
+      expect(screen.getByTestId("organization-state").textContent).toBe("loading");
+    });
+
+    it("URLで明示した組織を開けない場合は、保存hintと同じ組織でもエラーを表示してhintを破棄する", async () => {
+      window.localStorage.setItem(APP_ORGANIZATION_HINT_STORAGE_KEY, "organization-revoked");
+      mocks.useQuery.mockReturnValue(null);
+      mockPaginatedQueries();
+
+      render(view("organization-revoked", vi.fn()));
+
+      expect(screen.getByTestId("organization-state").textContent).toBe("inaccessible");
+      await waitFor(() => expect(window.localStorage.getItem(APP_ORGANIZATION_HINT_STORAGE_KEY)).toBeNull());
+    });
   });
 });
 

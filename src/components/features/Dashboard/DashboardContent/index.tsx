@@ -1,4 +1,5 @@
 import { type ComponentProps, memo, useCallback, useLayoutEffect, useMemo, useState } from "react";
+import type { RegularClosedDay } from "@/convex/shop/schemas";
 import { DashboardAnnouncement } from "../DashboardAnnouncement";
 import {
   type DashboardNotificationFailure,
@@ -27,7 +28,7 @@ import type {
   Staff,
   StaffRegistrationRequest,
 } from "../types";
-import { DashboardContentView } from "./DashboardContentView";
+import { DashboardContentSkeleton, DashboardContentView } from "./DashboardContentView";
 import { DashboardQueryStageBoundary } from "./DashboardQueryStageBoundary";
 import { type DashboardQueryStage, resolveDashboardQueryStage, unavailableDashboardQueryStage } from "./queryStage";
 
@@ -37,6 +38,7 @@ const EMPTY_RECRUITMENTS: Recruitment[] = [];
 const EMPTY_STAFFS: Staff[] = [];
 const EMPTY_STAFF_REGISTRATION_REQUESTS: StaffRegistrationRequest[] = [];
 const EMPTY_NOTIFICATION_FAILURES: DashboardNotificationFailure[] = [];
+const EMPTY_REGULAR_CLOSED_DAYS: RegularClosedDay[] = [];
 const LOADING_DASHBOARD_QUERY_STAGE = { status: "loading" } as const;
 
 type DashboardQueryStageSnapshot<T> = {
@@ -45,7 +47,11 @@ type DashboardQueryStageSnapshot<T> = {
 };
 
 type Props = {
-  shop: ShopSettingsData | null;
+  /**
+   * `undefined`は店舗情報の取得中、`null`は店舗の未作成を表す。
+   * 取得中も募集やスタッフのqueryは店舗scopeだけで開始できるため、表示をSkeletonにしたまま購読を先に始める。
+   */
+  shop: ShopSettingsData | null | undefined;
   isReadOnly?: boolean;
   managerProfileDefaults?: {
     name: string;
@@ -227,7 +233,7 @@ export const DashboardContent = ({
       context={operationContextData?.selectedShop}
     >
       {({ content: announcementContent }) => {
-        if (!shop) {
+        if (shop === null) {
           return (
             <Setup
               managerProfileDefaults={managerProfileDefaults}
@@ -242,7 +248,7 @@ export const DashboardContent = ({
             <RecruitmentQuerySource
               key={`recruitment:${sourceIdentity}`}
               onStageChange={reportRecruitmentStage}
-              regularClosedDays={shop.regularClosedDays}
+              regularClosedDays={shop?.regularClosedDays ?? EMPTY_REGULAR_CLOSED_DAYS}
               shopTarget={recruitmentShopTarget}
               data={recruitmentData}
               isReadOnly={isReadOnly}
@@ -274,19 +280,23 @@ export const DashboardContent = ({
               failures={usesInjectedData ? (notificationFailures ?? EMPTY_NOTIFICATION_FAILURES) : undefined}
               isReadOnly={isReadOnly}
             />
-            <DashboardContentView
-              taskScopeKey={sourceIdentity}
-              isReadOnly={isReadOnly}
-              managerLegalConsentStatus={managerLegalConsentStatus}
-              isDashboardOnboardingDismissed={isDashboardOnboardingDismissed}
-              announcementContent={announcementContent ?? undefined}
-              operationContextData={operationContextData}
-              navigation={navigation}
-              recruitment={recruitmentStage}
-              staff={staffStage}
-              registrationRequests={registrationRequestStage}
-              notificationFailures={notificationFailureStage}
-            />
+            {shop === undefined ? (
+              <DashboardContentSkeleton />
+            ) : (
+              <DashboardContentView
+                taskScopeKey={sourceIdentity}
+                isReadOnly={isReadOnly}
+                managerLegalConsentStatus={managerLegalConsentStatus}
+                isDashboardOnboardingDismissed={isDashboardOnboardingDismissed}
+                announcementContent={announcementContent ?? undefined}
+                operationContextData={operationContextData}
+                navigation={navigation}
+                recruitment={recruitmentStage}
+                staff={staffStage}
+                registrationRequests={registrationRequestStage}
+                notificationFailures={notificationFailureStage}
+              />
+            )}
           </>
         );
       }}

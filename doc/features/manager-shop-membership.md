@@ -18,6 +18,8 @@
 - `shops.organizationId`が店舗の組織を表し、管理者APIは認証済み利用者の組織所属と選択店舗をサーバー側で検証する。
 - `getMyShops`は利用可能な非削除店舗を組織名、所属状態付きで返し、`removed`になった人物へ当該組織の店舗を返さない。
 - `/dashboard`は`org`で検証した一つの組織だけを表示し、`shop`はその組織の非削除店舗から選ぶ。  URLで有効な店舗、現在組織の保存済みhint、店舗一覧の先頭の順に解決し、名称や人物情報はbrowser storageへ保存しない。
+- URLに`org`がない場合は、前回検証できた組織の保存済みhint、所属組織の先頭の順に解決し、URLを正規化する。  hintはserverの検証を通るまで子画面へ渡さず、開けなくなったhintはエラーを表示せずに破棄して所属組織の先頭へ戻る。  保存するのは組織IDだけである。
+- 認証済み画面は、組織の検証と店舗一覧を同時に開始する。  `/dashboard`は、店舗情報の取得中も募集、スタッフ、登録申請、通知のqueryを同時に開始し、店舗情報が揃うまではSkeletonだけを表示する。  各queryの権限はserverが個別に検証するため、開始順を認可の根拠にしない。
 - `/manage`と`/manage/organization`は、検証済みの`org`を組織authorityとして使う。  組織全体のread/writeに先頭店舗やHome店舗を要求せず、canonicalな組織所属がない利用者を旧`shopMembers`だけで通さない。
 - 管理者一覧、管理者招待、課金画面は認証済み管理者へ公開する。  direct accessとpublic mutation/actionは同じ認証、組織境界、管理者状態、契約状態をserver-sideで確認する。
 - `/dashboard`の店舗query・mutationは、画面で解決した`shopId`と`expectedOrganizationId`を同時に渡す。  URLと保存済み店舗を認可根拠にせず、管理者APIが店舗所属と組織所属の一致を再検証する。

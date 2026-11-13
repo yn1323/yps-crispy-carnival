@@ -330,6 +330,24 @@ describe("DashboardContent production composition", () => {
     ).toBe(false);
   });
 
+  it("店舗情報の取得中はSkeletonを表示したままquery ownerをmountし、取得後もremountしない", async () => {
+    const { rerender } = render(
+      <DashboardContent shop={undefined} operationContextData={operationContextData("shop-1")} />,
+    );
+
+    expect(screen.getByText("ダッシュボード読込中")).not.toBeNull();
+    expect(screen.queryByRole("region", { name: "production dashboard composition" })).toBeNull();
+    expect(screen.queryByText("初期設定")).toBeNull();
+    for (const kind of sourceKinds) expect(probes.mounts[kind]).toBe(1);
+
+    rerender(<DashboardContent shop={shop} operationContextData={operationContextData("shop-1")} />);
+
+    for (const kind of sourceKinds) {
+      expect((await screen.findByTestId(`${kind}-ready`)).textContent).toBe(`${kind}:mount-1:value-1`);
+    }
+    expect(screen.queryByText("ダッシュボード読込中")).toBeNull();
+  });
+
   it("shopがnullから同じ店舗へ戻る場合も以前のready stageを再利用しない", async () => {
     const { rerender } = renderDashboard("shop-1");
     await screen.findByTestId("recruitment-ready");
