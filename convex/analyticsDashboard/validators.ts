@@ -522,6 +522,8 @@ export const shopExportResponseValidator = v.union(
     }),
     members: v.array(
       v.object({
+        staffId: v.string(),
+        userId: nullableString,
         personKey: v.string(),
         isManager: v.boolean(),
         excludedFromShift: v.boolean(),
@@ -549,6 +551,7 @@ export const shopExportResponseValidator = v.union(
         stats: v.union(v.object({ submittedCount: v.number(), shiftTargetCount: v.number() }), v.null()),
         submissions: v.array(
           v.object({
+            staffId: nullableString,
             personKey: nullableString,
             firstSubmittedAt: v.number(),
             lastSubmittedAt: v.number(),

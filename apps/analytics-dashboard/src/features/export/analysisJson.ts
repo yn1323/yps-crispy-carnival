@@ -10,10 +10,11 @@ import type {
 import { SUBMISSION_PATTERN_LABELS } from "@/features/analytics/format";
 
 /**
- * 外部のAIに読ませる分析用JSON。実名、メールアドレス、自由記述、内部IDを入れない。
- * 仮名はファイルごとに振り、実名との対応表は画面にだけ表示する。
+ * 外部のAIに読ませる分析用JSON。実名、メールアドレス、自由記述を入れない。
+ * 組織・店舗・スタッフ・ユーザーはDBのIDで出力し、別のファイルやConvex Dashboardと照合できるようにする。
+ * 組織名・店舗名との対応表は画面にだけ表示する。
  */
-export const ANALYSIS_SCHEMA_VERSION = 1;
+export const ANALYSIS_SCHEMA_VERSION = 2;
 
 export type AnalysisScope =
   | {
@@ -48,8 +49,8 @@ export type AnalysisSource = {
   skipped: SkippedTarget[];
 };
 export type AnalysisMapping = {
-  organizations: Array<{ label: string; name: string }>;
-  shops: Array<{ label: string; name: string; organizationLabel: string; shopId: string }>;
+  organizations: Array<{ organizationId: string; name: string }>;
+  shops: Array<{ shopId: string; name: string; organizationId: string }>;
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -57,10 +58,14 @@ const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
 const DEFINITIONS = {
   timezone: "日時はJST（+09:00）、日付はJSTの暦日です。",
-  "organizations[].label / shops[].label":
-    "組織・店舗の仮名です。組織はファイル内で登録の古い順にA、B…、店舗は所属組織の文字に組織内の登録順の文字を続けます。ファイルごとに振るため、別のファイルの同じ仮名は同じ対象とは限りません。",
-  person:
-    "人物の仮名です。メールアドレスが同じ人は、店舗・組織をまたいで同じ番号です。ファイルごとに振ります。nullは現在在籍していないスタッフです。",
+  "organizations[].organizationId / shops[].shopId":
+    "組織・店舗のDB上のIDです。別のファイルでも同じIDは同じ対象です。shops[].organizationIdは所属組織のIDです。組織・店舗は登録の古い順に並べています。",
+  staffId:
+    "スタッフのDB上のIDです。店舗ごとに振られるため、同じ人でも店舗が違えば別のIDです。submissionsのnullは現在在籍していないスタッフです。",
+  "members[].userId":
+    "ログイン用アカウントのDB上のIDです。同じアカウントなら店舗・組織をまたいで同じIDです。アカウント未連携のスタッフはnullです。",
+  personKey:
+    "同じ人物を店舗・組織をまたいで照合するキーです。メールアドレスが同じスタッフのうち最も古いスタッフのIDで、別のファイルでも同じ値です。submissionsのnullは現在在籍していないスタッフです。",
   "submissionPattern.time": "時間指定。スタッフが日付ごとに開始・終了時刻を提出します。",
   "submissionPattern.dateOnly": "日付選択。スタッフは出勤できる日付だけを選びます。",
   "submissionPattern.shiftType":
@@ -100,17 +105,6 @@ function toJstIso(ms: number | null) {
 function daysBetween(from: string, to: string) {
   return Math.round((dateToUtcMs(to) - dateToUtcMs(from)) / DAY_MS);
 }
-/** 0→A、25→Z、26→AA。 */
-function alphabetLabel(index: number) {
-  let value = index + 1;
-  let label = "";
-  while (value > 0) {
-    const remainder = (value - 1) % 26;
-    label = String.fromCharCode(65 + remainder) + label;
-    value = Math.floor((value - 1) / 26);
-  }
-  return label;
-}
 function pattern(value: ExportSubmissionPatternDto) {
   const label = SUBMISSION_PATTERN_LABELS[value.kind];
   switch (value.kind) {
@@ -137,7 +131,6 @@ export function buildAnalysisJson(source: AnalysisSource): { json: unknown; mapp
   const orderedOrganizations = [...organizationIds].sort(
     (left, right) => registeredAt(left) - registeredAt(right) || left.localeCompare(right),
   );
-  const organizationLabel = new Map(orderedOrganizations.map((id, index) => [id, alphabetLabel(index)]));
   const orderedShops = [...source.shops].sort(
     (left, right) =>
       orderedOrganizations.indexOf(left.shop.organizationId) -
@@ -146,26 +139,19 @@ export function buildAnalysisJson(source: AnalysisSource): { json: unknown; mapp
       left.shop.shopId.localeCompare(right.shop.shopId),
   );
   const shopCountByOrganization = new Map<string, number>();
-  const shopLabel = new Map<string, string>();
-  for (const row of orderedShops) {
-    const index = shopCountByOrganization.get(row.shop.organizationId) ?? 0;
-    shopCountByOrganization.set(row.shop.organizationId, index + 1);
-    shopLabel.set(row.shop.shopId, `${organizationLabel.get(row.shop.organizationId)}-${alphabetLabel(index)}店舗`);
-  }
-  const personLabel = new Map<string, string>();
   for (const row of orderedShops)
-    for (const member of row.members)
-      if (!personLabel.has(member.personKey))
-        personLabel.set(member.personKey, `人物${String(personLabel.size + 1).padStart(3, "0")}`);
-  const person = (key: string | null) => (key === null ? null : (personLabel.get(key) ?? null));
+    shopCountByOrganization.set(
+      row.shop.organizationId,
+      (shopCountByOrganization.get(row.shop.organizationId) ?? 0) + 1,
+    );
+  const personKeys = new Set(orderedShops.flatMap((row) => row.members.map((member) => member.personKey)));
 
-  const organizations = orderedOrganizations.map((id) => {
-    const summary = summaries.get(id);
-    const label = `${organizationLabel.get(id)}組織`;
-    if (!summary) return { label, isSummaryAvailable: false };
+  const organizations = orderedOrganizations.map((organizationId) => {
+    const summary = summaries.get(organizationId);
+    if (!summary) return { organizationId, isSummaryAvailable: false };
     const organization = summary.organization;
     return {
-      label,
+      organizationId,
       isSummaryAvailable: true,
       registeredOn: dateJST(organization.registeredAt),
       billing: organization.billing && {
@@ -178,7 +164,7 @@ export function buildAnalysisJson(source: AnalysisSource): { json: unknown; mapp
       managerCount: organization.activeManagerCount,
       shopCount: organization.shopCount,
       lastNotifiedAt: toJstIso(organization.lastNotifiedAt),
-      shopsInFile: shopCountByOrganization.get(id) ?? 0,
+      shopsInFile: shopCountByOrganization.get(organizationId) ?? 0,
       shopsTruncated: summary.shopsTruncated,
     };
   });
@@ -186,8 +172,8 @@ export function buildAnalysisJson(source: AnalysisSource): { json: unknown; mapp
   const shops = orderedShops.map((row) => {
     const members = row.members;
     return {
-      label: shopLabel.get(row.shop.shopId),
-      organization: `${organizationLabel.get(row.shop.organizationId)}組織`,
+      shopId: row.shop.shopId,
+      organizationId: row.shop.organizationId,
       registeredOn: dateJST(row.shop.registeredAt),
       settings: {
         submissionPattern: pattern(row.shop.submissionPattern),
@@ -242,7 +228,8 @@ export function buildAnalysisJson(source: AnalysisSource): { json: unknown; mapp
           },
           assignment: recruitment.assignment,
           submissions: recruitment.submissions.map((submission) => ({
-            person: person(submission.personKey),
+            staffId: submission.staffId,
+            personKey: submission.personKey,
             firstSubmittedAt: toJstIso(submission.firstSubmittedAt),
             lastSubmittedAt: toJstIso(submission.lastSubmittedAt),
             firstSubmittedByDeadline: submission.firstSubmittedByDeadline,
@@ -253,7 +240,9 @@ export function buildAnalysisJson(source: AnalysisSource): { json: unknown; mapp
       }),
       recruitmentsTruncated: row.recruitmentsTruncated,
       members: members.map((member) => ({
-        person: person(member.personKey),
+        staffId: member.staffId,
+        userId: member.userId,
+        personKey: member.personKey,
         isManager: member.isManager,
         excludedFromShift: member.excludedFromShift,
         accountLinked: member.accountLinked,
@@ -277,7 +266,7 @@ export function buildAnalysisJson(source: AnalysisSource): { json: unknown; mapp
       counts: {
         organizations: organizations.length,
         shops: shops.length,
-        people: personLabel.size,
+        people: personKeys.size,
         skippedOrganizations: source.skipped.filter((item) => item.target === "organization").length,
         skippedShops: source.skipped.filter((item) => item.target === "shop").length,
       },
@@ -286,15 +275,14 @@ export function buildAnalysisJson(source: AnalysisSource): { json: unknown; mapp
       shops,
     },
     mapping: {
-      organizations: orderedOrganizations.map((id) => ({
-        label: `${organizationLabel.get(id)}組織`,
-        name: nameById.get(id) ?? "確認できません",
+      organizations: orderedOrganizations.map((organizationId) => ({
+        organizationId,
+        name: nameById.get(organizationId) ?? "確認できません",
       })),
       shops: orderedShops.map((row) => ({
-        label: shopLabel.get(row.shop.shopId) ?? "",
-        name: row.shop.name,
-        organizationLabel: `${organizationLabel.get(row.shop.organizationId)}組織`,
         shopId: row.shop.shopId,
+        name: row.shop.name,
+        organizationId: row.shop.organizationId,
       })),
     },
   };
