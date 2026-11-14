@@ -98,6 +98,19 @@ tokenは同一originのPOST bodyだけで送り、URL、React Queryのcache、�
 店舗詳細の組織の操作履歴は、組織の監査ログを新しい順に表示します。  
 操作者と対象は現在の人物名・店舗名・招待名で表示し、変更前後の値は組織名と契約状態の変化だけに限ります。
 
+## 分析用JSON
+
+組織一覧、組織一覧の各行、店舗一覧、店舗詳細から、利用状況をJSONで保存できます。外部のAIに読ませて傾向を調べるためのファイルで、自動では送信しません。  
+一覧からの出力は、表示中のページではなく絞り込み条件に合う全件が対象です。
+
+組織、店舗、スタッフ、ユーザーは、DBのIDで出力します。別のファイルやConvex Dashboardと照合できます。  
+スタッフIDは店舗ごとのIDです。ユーザーIDはログイン用アカウントのIDで、アカウント未連携のスタッフでは`null`です。  
+同じ人物を店舗・組織をまたいで照合するために、メールアドレスが同じスタッフのうち最も古いスタッフのIDを`personKey`として添えます。  
+組織名、店舗名、人物名、メールアドレス、パターン名、日付メモなどの自由記述は含めません。現在在籍していないスタッフの提出は、スタッフIDを出さずに数えます。
+
+保存後の画面に、IDと組織名・店舗名の対応表を表示します。対応表はファイル、URL、localStorageに残さず、画面を離れると消えます。  
+スタッフの名前は対応表に出しません。スタッフ詳細で確認します。
+
 ## 問い合わせと要望
 
 店舗・スタッフ・募集の現在情報はcanonicalな業務tableを有界pageで読みます。  
@@ -139,6 +152,8 @@ Convex HTTP Actionはcredential、固定request schema、bodyとresponseの大�
 | `GET` | `/api/analytics/shops/:shopId/cycles/:recruitmentId` | 募集詳細 |
 | `GET` | `/api/analytics/shops/:shopId/staff/:staffId/timeline` | スタッフの行動の履歴 |
 | `GET` | `/api/analytics/shops/:shopId/organization-events` | 所属組織の操作履歴 |
+| `GET` | `/api/analytics/export/shops/:shopId` | 分析用JSONの元になる1店舗のデータ |
+| `GET` | `/api/analytics/export/organizations/:organizationId` | 分析用JSONの元になる組織の概要と店舗ID |
 | `GET` | `/api/analytics/notifications` | 通知の検索 |
 | `GET` | `/api/analytics/notifications/summary` | 通知の状態 |
 | `GET` | `/api/requests` | 要望一覧 |
@@ -162,9 +177,9 @@ JSONL出力は表示対象期間の日次集計とmetadataだけです。店舗I
 
 ## 関連ファイル
 
-- `apps/analytics-dashboard/src/pages/`、`apps/analytics-dashboard/src/features/requests/`
+- `apps/analytics-dashboard/src/pages/`、`apps/analytics-dashboard/src/features/requests/`、`apps/analytics-dashboard/src/features/export/`
 - `apps/analytics-dashboard/src/features/notifications/`、`apps/analytics-dashboard/src/features/activity/`
 - `apps/analytics-dashboard/src/server/analyticsRoutes.ts`、`apps/analytics-dashboard/src/server/analyticsProxy.ts`
-- `convex/analyticsDashboard/queries.ts`、`convex/analyticsDashboard/investigationQueries.ts`、`convex/analyticsDashboard/mutations.ts`
+- `convex/analyticsDashboard/queries.ts`、`convex/analyticsDashboard/investigationQueries.ts`、`convex/analyticsDashboard/exportQueries.ts`、`convex/analyticsDashboard/mutations.ts`
 - `convex/analyticsDashboard/httpActions.ts`、`convex/analyticsDashboard/schemas.ts`、`convex/analyticsDashboard/notificationCategories.ts`
 - [分析KPI蓄積基盤](analytics.md)、[要望受付](feature-requests.md)、[Analytics運用](../manual/analytics-rollout.md)

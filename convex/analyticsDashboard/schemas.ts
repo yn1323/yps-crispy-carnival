@@ -84,7 +84,7 @@ export type NotificationSearchRequest = Pagination & {
 export type NotificationSummaryRequest = { endpoint: "notificationSummary" };
 export type StaffTimelineRequest = { endpoint: "staffTimeline"; shopId: string; staffId: string };
 export type OrganizationEventsRequest = Pagination & { endpoint: "organizationEvents"; shopId: string };
-/** 分析用JSONの元データ。仮名への置き換えはブラウザで行う。 */
+/** 分析用JSONの元データ。 */
 export type ShopExportRequest = { endpoint: "shopExport"; shopId: string };
 export type OrganizationExportRequest = { endpoint: "organizationExport"; organizationId: string };
 /** tokenはbearer capabilityのため、BFFのPOST bodyだけで受け取りURLへ載せない。 */
