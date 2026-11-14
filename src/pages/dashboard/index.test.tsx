@@ -45,6 +45,8 @@ vi.mock("@/src/components/features/Dashboard", () => ({
   DashboardSkeleton: () => <output data-testid="home-loading">ホームを読み込み中</output>,
   Dashboard: (props: Record<string, unknown>) => {
     mocks.dashboardProps = props;
+    // 本物のDashboardは、店舗情報の取得中はquery sourceだけをmountしてSkeletonを表示する。
+    if (props.shop === undefined) return <output data-testid="home-loading">ホームを読み込み中</output>;
     const operationContextData = props.operationContextData as { selectedShop: { organizationId: string } } | undefined;
     const navigation = props.navigation as
       | {
@@ -266,6 +268,41 @@ describe("DashboardRoutePage", () => {
     expect(screen.getByTestId("home-animation")).toBe(initialAnimation);
     expect(screen.queryByTestId("home-loading")).toBeNull();
     expect(screen.getByRole("region", { name: "接続済みホーム" })).not.toBeNull();
+  });
+
+  it("店舗情報の取得中もDashboardをmountし、募集やスタッフのqueryを店舗情報と同時に開始できるようにする", () => {
+    mocks.useShopQuery.mockReturnValue(undefined);
+
+    renderPage();
+
+    expect(screen.getByTestId("home-loading")).not.toBeNull();
+    expect(screen.getByTestId("manager-scope").getAttribute("data-shop-id")).toBe("shop-b");
+    expect(mocks.dashboardProps).toMatchObject({ shop: undefined, isReadOnly: true });
+    expect(mocks.dashboardProps?.operationContextData).toMatchObject({
+      selectedShop: { shopId: "shop-b", organizationId: "organization-a" },
+    });
+  });
+
+  it("店舗情報の取得中は、支払い・トライアル・操作制限の案内を表示しない", () => {
+    mocks.useShopQuery.mockReturnValue({
+      ...shop,
+      canWriteBusinessData: false,
+      businessWriteBlockReason: "usageLimitExceeded",
+      paymentFailure: { terminationPending: false, canStartPaidPlan: true },
+    });
+    mocks.useQuery.mockImplementation((reference) => {
+      if (reference === mocks.currentUserQuery) {
+        return { isNewUser: false, name: "管理者", email: "manager@example.com" };
+      }
+      if (reference === mocks.consentQuery) return undefined;
+      throw new Error("unexpected query");
+    });
+
+    renderPage();
+
+    expect(screen.getByTestId("home-loading")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "有料プランを契約する" })).toBeNull();
+    expect(screen.queryByText(/プラン上限を超過/)).toBeNull();
   });
 
   it("候補外shopをcanonical先頭店舗へreplaceし、同じorg・shop scopeでDashboardを接続する", async () => {

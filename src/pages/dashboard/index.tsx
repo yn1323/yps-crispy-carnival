@@ -148,42 +148,44 @@ function ConnectedDashboard({
     [navigate, organizationId],
   );
 
-  if (shop === undefined || currentUser === undefined || managerLegalConsentStatus === undefined) {
-    return <DashboardPageStateView state={{ kind: "loading" }} />;
-  }
-
   if (shop === null || !selectedShop) {
     return <DashboardPageStateView state={{ kind: "inaccessible" }} onReload={() => window.location.reload()} />;
   }
 
-  const isReadOnly = !shop.canWriteBusinessData;
+  // 募集やスタッフのqueryは店舗情報の結果を引数に使わないため、取得中もDashboardをmountして同時に開始する。
+  // 取得中のDashboardはSkeletonだけを表示する。
+  const loadedShop =
+    shop !== undefined && currentUser !== undefined && managerLegalConsentStatus !== undefined ? shop : undefined;
+  const isReadOnly = loadedShop ? !loadedShop.canWriteBusinessData : true;
   return (
     <Stack gap={5}>
-      {shop.paymentFailure && (
+      {loadedShop?.paymentFailure && (
         <OrganizationPaymentFailureAlert
-          canStartPaidPlan={shop.paymentFailure.canStartPaidPlan}
-          terminationPending={shop.paymentFailure.terminationPending}
+          canStartPaidPlan={loadedShop.paymentFailure.canStartPaidPlan}
+          terminationPending={loadedShop.paymentFailure.terminationPending}
           startPaidPlanDisabledReason={
-            shop.paymentFailure.canStartPaidPlan
+            loadedShop.paymentFailure.canStartPaidPlan
               ? undefined
               : "現在は有料プランを契約できません。「プランと支払い」で契約状態を確認してください。"
           }
           onStartPaidPlan={navigation.onOpenBillingSettings}
         />
       )}
-      <TrialEndingNotice
-        notice={shop.trialEnding ?? null}
-        organizationId={organizationId}
-        onOpenBillingSettings={navigation.onOpenBillingSettings}
-      />
-      {isReadOnly && (
+      {loadedShop && (
+        <TrialEndingNotice
+          notice={loadedShop.trialEnding ?? null}
+          organizationId={organizationId}
+          onOpenBillingSettings={navigation.onOpenBillingSettings}
+        />
+      )}
+      {loadedShop && isReadOnly && (
         <DashboardReadOnlyNotice
           organizationId={organizationId}
-          businessWriteBlockReason={shop.businessWriteBlockReason}
+          businessWriteBlockReason={loadedShop.businessWriteBlockReason}
         />
       )}
       <Dashboard
-        shop={shop}
+        shop={loadedShop}
         currentUser={currentUser && "accountDeleted" in currentUser ? null : currentUser}
         managerLegalConsentStatus={managerLegalConsentStatus}
         isReadOnly={isReadOnly}
