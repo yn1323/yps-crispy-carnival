@@ -415,14 +415,17 @@ export type MagicLinkLookupResponse = {
 };
 /**
  * 分析用JSONの元データ。人物名、メールアドレス、パターン名、日付メモなどの自由記述を型に持たない。
- * 店舗名・組織名は画面の対応表だけに使い、ブラウザで仮名へ置き換えてからファイルにする。
+ * 店舗名・組織名は画面の対応表だけに使い、ファイルには組織・店舗・スタッフ・ユーザーをDBのIDで出力する。
  */
 export type ExportSubmissionPatternDto =
   | { kind: "time"; startTime: string; endTime: string }
   | { kind: "dateOnly" }
   | { kind: "shiftType"; options: Array<{ startTime: string; endTime: string }> };
 export type ShopExportMemberDto = {
-  /** 同じメールアドレスを持つ最も古いスタッフのID。ブラウザで仮名へ置き換え、ファイルには入れない。 */
+  staffId: string;
+  /** アカウント連携済みの人物のユーザーID。未連携はnull。 */
+  userId: string | null;
+  /** 同じメールアドレスを持つ最も古いスタッフのID。店舗・組織をまたいで同じ人物を照合する。 */
   personKey: string;
   isManager: boolean;
   excludedFromShift: boolean;
@@ -431,7 +434,8 @@ export type ShopExportMemberDto = {
   joinedAt: number;
 };
 export type ShopExportSubmissionDto = {
-  /** 現在の有効なスタッフでなければnull。 */
+  /** 現在の有効なスタッフでなければ、staffIdとpersonKeyはnull。 */
+  staffId: string | null;
   personKey: string | null;
   firstSubmittedAt: number;
   lastSubmittedAt: number;

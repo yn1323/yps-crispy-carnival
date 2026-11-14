@@ -1,12 +1,18 @@
 import { usePaginatedQuery, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
-import { createContext, type ReactNode, useContext, useEffect } from "react";
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { AppFeatureRequestShop } from "@/src/components/features/FeatureRequestDialog/appScope";
 import { ErrorBoundary } from "@/src/components/ui/ErrorBoundary";
 import { setManagerMeasurementOrganization } from "@/src/lib/webMeasurement";
 import type { AppOrganizationState } from "./AppOrganizationStateView";
+import {
+  clearAppOrganizationHint,
+  readAppOrganizationHint,
+  resolveBrowserLocalStorage,
+  writeAppOrganizationHint,
+} from "./organizationHint";
 
 const PAGE_SIZE = 50;
 
@@ -46,18 +52,49 @@ export function AppOrganizationScopeProvider({
   renderState,
   children,
 }: Props) {
+  // URLに組織がない起動では、前回の組織を候補にして組織解決の往復を省く。
+  // 候補はserverの検証を通り、URLへ反映されるまで子treeへ公開しない。
+  const [organizationHint, setOrganizationHint] = useState(() => readAppOrganizationHint(resolveBrowserLocalStorage()));
+  const hintedOrganizationId = requestedOrganizationId === undefined ? organizationHint : undefined;
+  const organizationId = requestedOrganizationId ?? hintedOrganizationId;
+
+  const rememberOrganization = useCallback(
+    (verifiedOrganizationId: Id<"organizations">) => {
+      writeAppOrganizationHint(resolveBrowserLocalStorage(), verifiedOrganizationId);
+      setOrganizationHint(verifiedOrganizationId);
+      if (requestedOrganizationId === undefined) onCanonicalOrganizationResolved(verifiedOrganizationId);
+    },
+    [onCanonicalOrganizationResolved, requestedOrganizationId],
+  );
+  const forgetOrganization = useCallback((inaccessibleOrganizationId: string) => {
+    const storage = resolveBrowserLocalStorage();
+    if (readAppOrganizationHint(storage) === inaccessibleOrganizationId) clearAppOrganizationHint(storage);
+    setOrganizationHint((current) => (current === inaccessibleOrganizationId ? undefined : current));
+  }, []);
+
   return (
     <ErrorBoundary
-      key={requestedOrganizationId ?? "canonical-organization"}
-      fallback={(error) =>
-        renderState({
-          kind: "error",
-          reason: resolveAppOrganizationErrorReason(error, requestedOrganizationId !== undefined),
-        })
-      }
+      key={organizationId ?? "canonical-organization"}
+      fallback={(error) => {
+        const reason = resolveAppOrganizationErrorReason(error, organizationId !== undefined);
+        if (hintedOrganizationId && reason === "inaccessible") {
+          return (
+            <InaccessibleOrganizationHint organizationId={hintedOrganizationId} onInaccessible={forgetOrganization}>
+              {renderState({ kind: "loading" })}
+            </InaccessibleOrganizationHint>
+          );
+        }
+        return renderState({ kind: "error", reason });
+      }}
     >
-      {requestedOrganizationId ? (
-        <VerifiedOrganizationScope organizationId={requestedOrganizationId} renderState={renderState}>
+      {organizationId ? (
+        <VerifiedOrganizationScope
+          organizationId={organizationId}
+          source={hintedOrganizationId ? "hint" : "url"}
+          onVerified={rememberOrganization}
+          onInaccessible={forgetOrganization}
+          renderState={renderState}
+        >
           {children}
         </VerifiedOrganizationScope>
       ) : (
@@ -65,6 +102,23 @@ export function AppOrganizationScopeProvider({
       )}
     </ErrorBoundary>
   );
+}
+
+/** 使えなくなった保存hintを破棄し、通常の組織解決へ戻す。 */
+function InaccessibleOrganizationHint({
+  organizationId,
+  onInaccessible,
+  children,
+}: {
+  organizationId: string;
+  onInaccessible: (organizationId: string) => void;
+  children: ReactNode;
+}) {
+  useEffect(() => {
+    onInaccessible(organizationId);
+  }, [onInaccessible, organizationId]);
+
+  return children;
 }
 
 function CanonicalOrganizationResolver({
@@ -100,10 +154,17 @@ function CanonicalOrganizationResolver({
 
 function VerifiedOrganizationScope({
   organizationId,
+  source,
+  onVerified,
+  onInaccessible,
   renderState,
   children,
 }: {
   organizationId: string;
+  /** hintは保存値から選んだ未検証の候補。検証後にURLへ反映されてurlへ変わる。 */
+  source: "url" | "hint";
+  onVerified: (organizationId: Id<"organizations">) => void;
+  onInaccessible: (organizationId: string) => void;
   renderState: (state: AppOrganizationState) => ReactNode;
   children: ReactNode;
 }) {
@@ -116,9 +177,10 @@ function VerifiedOrganizationScope({
     {},
     { initialNumItems: PAGE_SIZE },
   );
+  // 店舗一覧は組織IDだけで開始できるため、組織の検証完了を待たない。権限はserverが同じ組織所属で検証する。
   const shopsQuery = usePaginatedQuery(
     api.appOrganization.queries.listOrganizationShops,
-    organization ? { organizationId: organization.organizationId } : "skip",
+    organization === null ? "skip" : { organizationId: typedOrganizationId },
     { initialNumItems: PAGE_SIZE },
   );
 
@@ -142,8 +204,24 @@ function VerifiedOrganizationScope({
     return () => setManagerMeasurementOrganization(null);
   }, [verifiedOrganizationId, verifiedOrganizationPlan]);
 
+  useEffect(() => {
+    if (verifiedOrganizationId) onVerified(verifiedOrganizationId);
+  }, [onVerified, verifiedOrganizationId]);
+
+  const isInaccessible = organization === null;
+  useEffect(() => {
+    if (isInaccessible) onInaccessible(organizationId);
+  }, [isInaccessible, onInaccessible, organizationId]);
+
   if (organization === undefined) return renderState({ kind: "loading" });
-  if (organization === null) return renderState({ kind: "error", reason: "inaccessible" });
+  if (organization === null) {
+    // 保存hintが使えない場合はエラーにせず、hintの破棄後に通常の組織解決へ戻る。
+    return source === "hint"
+      ? renderState({ kind: "loading" })
+      : renderState({ kind: "error", reason: "inaccessible" });
+  }
+  // 子routeはURLのorgを前提にするため、hintの検証後はURLへの反映を待つ。
+  if (source === "hint") return renderState({ kind: "loading" });
 
   const shops =
     shopsQuery.status === "Exhausted"

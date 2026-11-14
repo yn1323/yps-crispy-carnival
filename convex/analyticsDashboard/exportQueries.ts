@@ -72,6 +72,8 @@ async function exportMembers(ctx: QueryCtx, shopId: Id<"shops">) {
     }
     personKeyByStaffId.set(staff._id, personKey);
     members.push({
+      staffId: staff._id,
+      userId: person.userId ?? null,
       personKey,
       isManager: row.isManager,
       excludedFromShift: row.excludedFromShift,
@@ -125,6 +127,7 @@ async function exportRecruitment(
     draftSavedAt: recruitment.draftSavedAt ?? null,
     stats: stats ? { submittedCount: stats.submittedCount, shiftTargetCount: stats.activeStaffCountSnapshot } : null,
     submissions: submissions.slice(0, EXPORT_SUBMISSION_LIMIT).map((submission) => ({
+      staffId: personKeyByStaffId.has(submission.staffId) ? submission.staffId : null,
       personKey: personKeyByStaffId.get(submission.staffId) ?? null,
       firstSubmittedAt: submission.firstSubmittedAt,
       lastSubmittedAt: submission.submittedAt,

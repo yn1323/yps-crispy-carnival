@@ -366,7 +366,7 @@ export function ShopsPage({ navigate }: { navigate: (path: string) => void }) {
               <>
                 <Flex justify="space-between" align="center" gap={3} wrap="wrap">
                   <Text fontSize="xs" color="gray.600">
-                    条件に合う全店舗を、組織・店舗・人物を仮名にした分析用JSONで保存できます。
+                    条件に合う全店舗を、分析用JSONで保存できます。組織・店舗・スタッフ・ユーザーはDBのIDで出力し、名前は含めません。
                   </Text>
                   <Button
                     size="sm"

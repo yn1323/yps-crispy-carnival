@@ -3,7 +3,7 @@ import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { AnalyticsApiError, fetchOrganizationExport, fetchShopExport } from "@/api/analyticsClient";
 import type { OrganizationExportResponse, ShopExportResponse } from "@/api/analyticsTypes";
 import { shopPath } from "@/features/analytics/format";
-import { analyticsErrorMessage, Panel } from "@/features/analytics/PageState";
+import { analyticsErrorMessage, IdText, Panel } from "@/features/analytics/PageState";
 import { type AnalysisMapping, type AnalysisScope, buildAnalysisJson, type SkippedTarget } from "./analysisJson";
 
 /** rate limit（毎分120回）に余裕を残すため、同時に読む件数を絞る。 */
@@ -62,7 +62,7 @@ function download(json: unknown, fileName: string) {
 }
 
 /**
- * 分析用JSONを組み立てて保存する。取得したデータと実名の対応表はこのhookの状態だけに持ち、
+ * 分析用JSONを組み立てて保存する。取得したデータとIDと名称の対応表はこのhookの状態だけに持ち、
  * 画面を離れると破棄する。
  */
 export function useAnalysisExport() {
@@ -201,7 +201,7 @@ export function AnalysisExportStatus({
     );
   return (
     <Panel
-      title="仮名と実名の対応表"
+      title="IDと名称の対応表"
       description={`${state.fileName}を保存しました（店舗${state.counts.shops}件・人物${state.counts.people}人${state.counts.skipped > 0 ? `・取得できなかった対象${state.counts.skipped}件` : ""}）。この表はファイルに含めず、画面を離れると消えます。`}
     >
       <Flex justify="end">
@@ -213,22 +213,26 @@ export function AnalysisExportStatus({
         <Table.Root size="sm">
           <Table.Header>
             <Table.Row>
-              <Table.ColumnHeader>仮名</Table.ColumnHeader>
-              <Table.ColumnHeader>実名</Table.ColumnHeader>
+              <Table.ColumnHeader>ID</Table.ColumnHeader>
+              <Table.ColumnHeader>名称</Table.ColumnHeader>
             </Table.Row>
           </Table.Header>
           <Table.Body>
             {state.mapping.organizations.map((organization) => (
-              <Fragment key={organization.label}>
+              <Fragment key={organization.organizationId}>
                 <Table.Row bg="gray.50">
-                  <Table.Cell fontWeight="bold">{organization.label}</Table.Cell>
+                  <Table.Cell>
+                    <IdText value={organization.organizationId} />
+                  </Table.Cell>
                   <Table.Cell fontWeight="bold">{organization.name}</Table.Cell>
                 </Table.Row>
                 {state.mapping.shops
-                  .filter((shop) => shop.organizationLabel === organization.label)
+                  .filter((shop) => shop.organizationId === organization.organizationId)
                   .map((shop) => (
-                    <Table.Row key={shop.label}>
-                      <Table.Cell pl={6}>{shop.label}</Table.Cell>
+                    <Table.Row key={shop.shopId}>
+                      <Table.Cell pl={6}>
+                        <IdText value={shop.shopId} />
+                      </Table.Cell>
                       <Table.Cell>
                         <Link href={shopPath(shop.shopId)} color="blue.700">
                           {shop.name}
@@ -242,7 +246,7 @@ export function AnalysisExportStatus({
         </Table.Root>
       </Table.ScrollArea>
       <Text fontSize="xs" color="gray.600">
-        人物の仮名は、メールアドレスが同じ人を店舗・組織をまたいで同じ番号にしています。人物の実名は画面にも表示しません。
+        ファイルの組織・店舗・スタッフ・ユーザーはDBのIDです。スタッフの名前はこの表に出しません。店舗のスタッフ詳細で確認できます。
       </Text>
     </Panel>
   );
