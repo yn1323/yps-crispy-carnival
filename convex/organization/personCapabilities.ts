@@ -2,7 +2,7 @@ import type { OrganizationBillingPolicy } from "../organizationBilling/policy";
 
 export type ManagerRole = "active" | "none";
 
-export const MANAGER_PERSON_REMOVAL_DISABLED_REASON = "先に管理者権限を外してください。";
+export const MANAGER_PERSON_REMOVAL_DISABLED_REASON = "管理者権限を外してから削除してください";
 
 type OrganizationPersonCapabilityInput = {
   managerRole: ManagerRole;

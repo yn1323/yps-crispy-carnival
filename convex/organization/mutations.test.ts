@@ -532,7 +532,7 @@ describe("organization person removal", () => {
           personId: ids.personId,
           requestId: "organization-remove-request",
         }),
-    ).rejects.toThrow("先に管理者権限を外してください。");
+    ).rejects.toThrow("管理者権限を外してから削除してください");
     expect(await readManagerRemovalProtectedState(t)).toEqual(before);
   });
 
@@ -563,7 +563,7 @@ describe("organization person removal", () => {
           requestId: "self-remove-request",
         });
     const before = await readManagerRemovalProtectedState(t);
-    await expect(call()).rejects.toThrow("先に管理者権限を外してください。");
+    await expect(call()).rejects.toThrow("管理者権限を外してから削除してください");
     expect(await readManagerRemovalProtectedState(t)).toEqual(before);
   });
 
@@ -831,7 +831,7 @@ describe("organization person removal", () => {
         personId: ids.personId,
         requestId: "last-manager",
       }),
-    ).rejects.toThrow("先に管理者権限を外してください。");
+    ).rejects.toThrow("管理者権限を外してから削除してください");
   });
 
   it("所属が重複してアクセス不能な管理者を有効な後任として数えない", async () => {
@@ -871,7 +871,7 @@ describe("organization person removal", () => {
           personId: ids.personId,
           requestId: "last-manager-duplicate-successor",
         }),
-    ).rejects.toThrow("先に管理者権限を外してください。");
+    ).rejects.toThrow("管理者権限を外してから削除してください");
     await expect(t.run(async (ctx) => (await ctx.db.get(ids.personId))?.status)).resolves.toBe("active");
     await expect(t.run(async (ctx) => (await ctx.db.get(ids.memberId))?.status)).resolves.toBe("active");
   });
@@ -920,7 +920,7 @@ describe("organization person removal", () => {
           personId: ids.personId,
           requestId: "last-manager-duplicate-user",
         }),
-    ).rejects.toThrow("先に管理者権限を外してください。");
+    ).rejects.toThrow("管理者権限を外してから削除してください");
     await expect(t.run(async (ctx) => (await ctx.db.get(ids.personId))?.status)).resolves.toBe("active");
     await expect(t.run(async (ctx) => (await ctx.db.get(ids.memberId))?.status)).resolves.toBe("active");
   });
