@@ -7,8 +7,8 @@ import { useHideOnScrollDown } from "./useHideOnScrollDown";
 const VIEWPORT_HEIGHT = 800;
 const PAGE_HEIGHT = 4000;
 
-function setPageMetrics(scrollHeight: number): void {
-  Object.defineProperty(window, "innerHeight", { configurable: true, value: VIEWPORT_HEIGHT });
+function setPageMetrics(scrollHeight: number, viewportHeight = VIEWPORT_HEIGHT): void {
+  Object.defineProperty(window, "innerHeight", { configurable: true, value: viewportHeight });
   Object.defineProperty(document.documentElement, "scrollHeight", { configurable: true, value: scrollHeight });
 }
 
@@ -98,6 +98,31 @@ describe("useHideOnScrollDown", () => {
     scrollTo(maxScrollY + 80);
     scrollTo(maxScrollY);
     expect(result.current).toBe(true);
+  });
+
+  it("ツールバーが隠れてスクロール範囲が縮み、下端の位置が戻されても再表示しない", () => {
+    const { result } = renderHook(() => useHideOnScrollDown());
+    const toolbarHeight = 56;
+    const maxScrollY = PAGE_HEIGHT - VIEWPORT_HEIGHT;
+
+    // 素早いスクロールで、ツールバーが隠れ切る前に下端へ達する。
+    scrollTo(maxScrollY);
+    expect(result.current).toBe(true);
+
+    setPageMetrics(PAGE_HEIGHT, VIEWPORT_HEIGHT + 20);
+    scrollTo(maxScrollY - 20);
+    expect(result.current).toBe(true);
+
+    setPageMetrics(PAGE_HEIGHT, VIEWPORT_HEIGHT + toolbarHeight);
+    scrollTo(maxScrollY - toolbarHeight);
+    expect(result.current).toBe(true);
+
+    // 戻された後の下端から利用者が上へスクロールした分は、通常どおり数える。
+    scrollTo(maxScrollY - toolbarHeight - 7);
+    expect(result.current).toBe(true);
+
+    scrollTo(maxScrollY - toolbarHeight - 8);
+    expect(result.current).toBe(false);
   });
 
   it("scroll lock中の位置変化を無視する", () => {
