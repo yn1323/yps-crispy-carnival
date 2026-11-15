@@ -127,12 +127,12 @@ export const ModalWithWarnings: Story = {
   },
   render: (args) => (
     <Dialog
-      title="このシフトをスタッフに通知しますか？"
+      title="シフトを確定しますか？"
       isOpen
       onOpenChange={() => {}}
       onClose={() => {}}
       onSubmit={() => {}}
-      submitLabel="確定"
+      submitLabel="確定する"
     >
       <ConfirmShiftContent {...args} />
     </Dialog>
@@ -151,12 +151,12 @@ export const ModalWithUnsubmittedAndWarnings: Story = {
   },
   render: (args) => (
     <Dialog
-      title="このシフトをスタッフに通知しますか？"
+      title="シフトを確定しますか？"
       isOpen
       onOpenChange={() => {}}
       onClose={() => {}}
       onSubmit={() => {}}
-      submitLabel="確定"
+      submitLabel="確定する"
     >
       <ConfirmShiftContent {...args} />
     </Dialog>
@@ -179,12 +179,12 @@ export const SPModalWithWarnings: Story = {
   },
   render: (args) => (
     <Dialog
-      title="このシフトをスタッフに通知しますか？"
+      title="シフトを確定しますか？"
       isOpen
       onOpenChange={() => {}}
       onClose={() => {}}
       onSubmit={() => {}}
-      submitLabel="確定"
+      submitLabel="確定する"
     >
       <ConfirmShiftContent {...args} />
     </Dialog>

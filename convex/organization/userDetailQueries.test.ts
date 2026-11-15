@@ -807,7 +807,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     expect(result).toMatchObject({
       isSelf: true,
       canRemoveManagerRole: false,
-      managerRoleRemovalDisabledReason: "少なくとも管理者が1名必要です。",
+      managerRoleRemovalDisabledReason: "管理者が2名以上のときに外せます",
       canRemove: false,
       removeDisabledReason: "管理者権限を外してから削除してください",
     });

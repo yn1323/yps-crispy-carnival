@@ -201,7 +201,7 @@ export const DoubleSubmitBehavior: Story = {
   play: async () => {
     const body = within(document.body);
     const dialog = await body.findByRole("alertdialog", { name: "アカウントを削除" });
-    const submit = within(dialog).getByRole("button", { name: "アカウントを削除" });
+    const submit = within(dialog).getByRole("button", { name: "削除する" });
 
     fireEvent.click(submit);
     fireEvent.click(submit);
@@ -223,7 +223,7 @@ export const RunningCloseLockBehavior: Story = {
 
     await expect(within(dialog).queryByRole("button", { name: "閉じる" })).not.toBeInTheDocument();
     await expect(within(dialog).getByRole("button", { name: "キャンセル" })).toBeDisabled();
-    await expect(within(dialog).getByRole("button", { name: "アカウントを削除" })).toBeDisabled();
+    await expect(within(dialog).getByRole("button", { name: "削除する" })).toBeDisabled();
     await expect(body.getByRole("alertdialog", { name: "アカウントを削除" })).toBeInTheDocument();
   },
 };

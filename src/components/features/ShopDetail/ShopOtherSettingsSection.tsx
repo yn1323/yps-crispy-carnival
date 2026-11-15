@@ -30,9 +30,9 @@ export function ShopOtherSettingsSection({ shop, organizationId, onRequestDelete
         headingAs="h3"
         description={
           <>
-            店舗とシフトを削除します。
+            店舗とその店舗のシフトをすべて削除します。
             <br />
-            スタッフは削除されずに残るため、別店舗への付け替えが可能です。
+            スタッフは残るため、別店舗への付け替えが可能です。
             <br />
             登録情報をすべて削除したい場合は
             <Link asChild color="teal.700" fontWeight="semibold" textDecoration="underline" textUnderlineOffset="3px">
@@ -41,9 +41,10 @@ export function ShopOtherSettingsSection({ shop, organizationId, onRequestDelete
                 search={{ org: organizationId }}
                 aria-label="こちら（組織情報を開く）"
               >
-                こちら
+                組織情報
               </RouterLink>
             </Link>
+            から削除してください。
           </>
         }
         descriptionFontSize="xs"

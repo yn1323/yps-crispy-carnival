@@ -164,6 +164,6 @@ export const OpenLeaveOrganizationBehavior: Story = {
     await userEvent.click(canvas.getByRole("button", { name: "削除内容を確認" }));
 
     const dialog = await body.findByRole("alertdialog", { name: "組織から退出してアカウントを削除" });
-    await expect(within(dialog).getByRole("button", { name: "退出して削除" })).toBeEnabled();
+    await expect(within(dialog).getByRole("button", { name: "削除する" })).toBeEnabled();
   },
 };

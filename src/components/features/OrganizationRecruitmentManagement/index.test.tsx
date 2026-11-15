@@ -416,7 +416,7 @@ describe("OrganizationRecruitmentManagement", () => {
     renderFeature({ shops: [shops[0], writableShopB] });
 
     fireEvent.click(screen.getByRole("button", { name: "recruitment-bを削除" }));
-    fireEvent.click(screen.getByRole("button", { name: "この募集を削除" }));
+    fireEvent.click(screen.getByRole("button", { name: "削除する" }));
 
     await waitFor(() =>
       expect(mocks.deleteRecruitment).toHaveBeenCalledExactlyOnceWith({
@@ -530,7 +530,7 @@ describe("OrganizationRecruitmentManagement", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "過去のシフトを見る" }));
     fireEvent.click(screen.getByRole("button", { name: "past-b-recentを削除" }));
-    fireEvent.click(screen.getByRole("button", { name: "この募集を削除" }));
+    fireEvent.click(screen.getByRole("button", { name: "削除する" }));
 
     await waitFor(() =>
       expect(mocks.deleteRecruitment).toHaveBeenCalledExactlyOnceWith({
@@ -624,7 +624,7 @@ describe("OrganizationRecruitmentManagement", () => {
     recruitmentShopById.set(recruitmentB._id, writableShopB);
     const view = renderFeature({ shops: [shops[0], writableShopB] });
     fireEvent.click(screen.getByRole("button", { name: "recruitment-aを削除" }));
-    fireEvent.click(screen.getByRole("button", { name: "この募集を削除" }));
+    fireEvent.click(screen.getByRole("button", { name: "削除する" }));
     await waitFor(() => expect(mocks.deleteRecruitment).toHaveBeenCalledOnce());
 
     view.rerender(

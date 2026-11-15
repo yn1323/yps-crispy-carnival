@@ -100,11 +100,11 @@ export const LateInitialInteractive: Story = {
     await expect(await screen.findByText(/提出期限を過ぎています。/)).toBeInTheDocument();
 
     await userEvent.click(await screen.findByRole("button", { name: "キャンセル" }));
-    await waitFor(() => expect(screen.queryByRole("button", { name: "この内容で提出する" })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("button", { name: "提出する" })).not.toBeInTheDocument());
     await expect(lateInitialSubmitCount).toBe(0);
 
     await userEvent.click(await canvas.findByRole("button", { name: "希望シフトを提出" }));
-    await userEvent.click(await screen.findByRole("button", { name: "この内容で提出する" }));
+    await userEvent.click(await screen.findByRole("button", { name: "提出する" }));
     await waitFor(() => expect(lateInitialSubmitCount).toBe(1));
     // 提出後はダイアログが閉じ切るまで待つ。非同期の submit→close を待たずに play を終えると
     // VRT 撮影時にダイアログの開/閉状態がブレてフレーキーな差分になるため。

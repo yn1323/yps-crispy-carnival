@@ -24,7 +24,7 @@ export const InDialog: Story = {
       isOpen={true}
       onOpenChange={() => {}}
       formId="add-staff-form"
-      submitLabel="スタッフを登録する"
+      submitLabel="登録する"
       onClose={() => {}}
       closeLabel="閉じる"
     >
@@ -58,7 +58,7 @@ export const EmptySubmitShowsError: Story = {
       isOpen={true}
       onOpenChange={() => {}}
       formId="add-staff-form"
-      submitLabel="スタッフを登録する"
+      submitLabel="登録する"
       onClose={() => {}}
       closeLabel="閉じる"
     >
@@ -68,7 +68,7 @@ export const EmptySubmitShowsError: Story = {
   play: async ({ canvasElement }) => {
     const page = within(canvasElement.ownerDocument.body);
 
-    await userEvent.click(await page.findByRole("button", { name: "スタッフを登録する" }));
+    await userEvent.click(await page.findByRole("button", { name: "登録する" }));
 
     await expect(await page.findByText("スタッフ名を1人以上入力してください。")).toBeInTheDocument();
   },
@@ -87,7 +87,7 @@ export const ValidSubmitPassesNormalizedPayload: Story = {
       isOpen={true}
       onOpenChange={() => {}}
       formId="add-staff-form"
-      submitLabel="スタッフを登録する"
+      submitLabel="登録する"
       onClose={() => {}}
       closeLabel="閉じる"
     >
@@ -101,7 +101,7 @@ export const ValidSubmitPassesNormalizedPayload: Story = {
 
     await userEvent.type(nameInput, " 田中 花子 ");
     await userEvent.type(emailInput, " hanako@example.com ");
-    await userEvent.click(await page.findByRole("button", { name: "スタッフを登録する" }));
+    await userEvent.click(await page.findByRole("button", { name: "登録する" }));
 
     await expect(args.onSubmit).toHaveBeenCalledTimes(1);
     await expect(args.onSubmit).toHaveBeenCalledWith(

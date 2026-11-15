@@ -78,7 +78,7 @@ export const EditRecruitmentFlow: Story = {
     await expect(canvas.getByText(formatDateWithWeekday(addDays(editToday, 6)))).toBeVisible();
     await expect(canvas.queryByText("提出状況")).not.toBeInTheDocument();
     await expect(canvas.queryByText("対象外になる日")).not.toBeInTheDocument();
-    await userEvent.click(canvas.getByRole("button", { name: "変更を保存" }));
+    await userEvent.click(canvas.getByRole("button", { name: "保存する" }));
     await within(canvasElement).findByRole("status");
   },
 };
@@ -179,7 +179,7 @@ export const EditRecruitmentConfirmationDeadlineOnly: Story = {
     await expect(canvas.getAllByText("変更前")).toHaveLength(1);
     await expect(canvas.getAllByText("変更後")).toHaveLength(1);
     await expect(canvas.getByText("対象スタッフ全員に変更を通知します")).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "変更を保存" })).toBeEnabled();
+    await expect(canvas.getByRole("button", { name: "保存する" })).toBeEnabled();
   },
 };
 
@@ -195,7 +195,7 @@ export const EditRecruitmentConfirmationUnchanged: Story = {
     await expect(canvas.getByText("変更がないため、通知は送りません。")).toBeVisible();
     await expect(canvas.getByText("現在の自動催促の予定は変わりません。")).toBeVisible();
     await expect(canvas.queryByText("対象スタッフ全員に変更を通知します")).not.toBeInTheDocument();
-    await expect(canvas.getByRole("button", { name: "変更を保存" })).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "保存する" })).toBeDisabled();
   },
 };
 

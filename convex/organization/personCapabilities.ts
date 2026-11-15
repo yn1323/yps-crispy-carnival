@@ -29,7 +29,7 @@ export function deriveOrganizationPersonCapabilities(input: OrganizationPersonCa
     input.managerRole === "none" || canRemoveManagerRole
       ? undefined
       : input.activeManagerCount <= 1
-        ? "少なくとも管理者が1名必要です。"
+        ? "管理者が2名以上のときに外せます"
         : !input.isActiveActor
           ? "現在のアカウント状態では、管理者権限を変更できません。"
           : input.policy?.paidFeatureBlockReason === "paymentResultPending"

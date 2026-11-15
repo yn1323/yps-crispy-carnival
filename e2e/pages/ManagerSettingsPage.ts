@@ -50,7 +50,7 @@ export class ManagerSettingsPage {
     await expect(candidate).toBeChecked();
     await expect(dialog.getByText(seed.candidateEmail, { exact: true })).toBeVisible();
 
-    await dialog.getByRole("button", { name: "管理者として招待する", exact: true }).click();
+    await dialog.getByRole("button", { name: "招待する", exact: true }).click();
 
     await expect(this.page.getByText("送信を受け付けました", { exact: true })).toBeVisible({
       timeout: MANAGER_SETTINGS_TIMEOUT,
@@ -94,7 +94,7 @@ export class ManagerSettingsPage {
         exact: true,
       }),
     ).toBeVisible();
-    await confirmation.getByRole("button", { name: "管理者権限を外す", exact: true }).click();
+    await confirmation.getByRole("button", { name: "外す", exact: true }).click();
 
     await expect(this.page.getByText("管理者権限を外しました", { exact: true })).toBeVisible({
       timeout: MANAGER_SETTINGS_TIMEOUT,
@@ -135,7 +135,7 @@ export class ManagerSettingsPage {
     await expect(
       confirmation.getByText(`${seed.candidateName}さんへの招待を取り消します。`, { exact: true }),
     ).toBeVisible();
-    await confirmation.getByRole("button", { name: "招待を取り消す", exact: true }).click();
+    await confirmation.getByRole("button", { name: "取り消す", exact: true }).click();
 
     await expect(this.page.getByText("招待を取り消しました", { exact: true })).toBeVisible({
       timeout: MANAGER_SETTINGS_TIMEOUT,

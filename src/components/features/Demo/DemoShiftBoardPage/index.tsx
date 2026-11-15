@@ -198,7 +198,7 @@ export const DemoShiftBoardPage = ({ baseDate, headerStart, heading, height = "1
           isOpen={confirmModal.isOpen}
           onOpenChange={confirmModal.onOpenChange}
           onSubmit={handleConfirm}
-          submitLabel={isConfirmed ? "再通知後の画面を見る" : "確定後の画面を見る"}
+          submitLabel="確認する"
           onClose={confirmModal.close}
         >
           <ConfirmShiftContent

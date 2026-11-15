@@ -163,10 +163,10 @@ export const SetupModal = ({
           form="setup-step2"
           colorPalette="teal"
           loading={isSubmitting}
-          loadingText="利用開始"
+          loadingText="開始する"
           disabled={isSubmitting || isPromotionCodePending}
         >
-          利用開始
+          開始する
         </Button>
       </>
     );
