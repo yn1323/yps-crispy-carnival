@@ -7,7 +7,7 @@
 
 - 現在の機能概要と関連ファイルは `doc/features/public-pages.md` を参照する。
 - frontmatter、slug、MDX component、目次、画像pathの現在仕様は、対応するschemaと実装を正とする。
-- `$seo-article-writer` は、ユーザーが明示した場合だけ使う。
+- `seo-article-writer` は、ユーザーが `/seo-article-writer` で起動した場合だけ使う。
 - 日本語本文は `japanese-tech-writing` を使い、長い解説に緩急が必要な場合だけ `cognitive-rhythm-writing` を併用する。
 
 このファイルへfrontmatter全項目、現在の記事数、component一覧を複製しない。

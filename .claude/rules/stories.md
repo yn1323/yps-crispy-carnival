@@ -55,7 +55,10 @@ play functionは振る舞い、VRTは見た目で役割を分ける。
 ## VRTの実行と確認
 
 - VRT対象のStory、`parameters`、tagは変更契約に合わせて更新する。
-- 通常の実装作業では、ローカルの`pnpm vrt`、screenshot capture、RegSuit compare、画像差分の目視確認を実行しない。
+- UIの見た目を変えた場合は、変更した箇所が写るStoryまたは画面をブラウザで開き、その箇所だけを目視確認する。
+- 変更していない箇所とほかのStoryは目視確認しない。
+- 開発サーバーが起動しておらず確認できなかった場合は、完了報告で目視確認が未実施であることを示す。
+- 通常の実装作業では、ローカルの`pnpm vrt`、screenshot capture、RegSuit compareを実行しない。
 - VRTのbuild、capture、差分確認、承認、baseline更新はGitHub ActionsのVRT workflowへ委ねる。
 - ユーザーがローカル実行を明示した場合、またはVRT workflow自体を診断する場合だけ、必要なVRT commandをローカルで実行する。
 - 既定方針によりVRTをローカル実行しなかった場合は、完了報告で「VRTはCI確認方針のため未実行」と示し、環境失敗や検証漏れとして扱わない。
