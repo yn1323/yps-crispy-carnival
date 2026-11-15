@@ -59,3 +59,9 @@ export const SuccessfulSubmission: Story = {
     await expect(canvas.findByRole("link", { name: "TOPに戻る" })).resolves.toHaveAttribute("href", "/");
   },
 };
+
+export const SuccessfulSubmissionMobile: Story = {
+  ...SuccessfulSubmission,
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+};

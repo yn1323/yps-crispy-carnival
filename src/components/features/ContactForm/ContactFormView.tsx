@@ -13,6 +13,9 @@ import { TurnstileWidget } from "@/src/components/shared/TurnstileWidget";
 import { Button } from "@/src/components/ui/Button";
 import { Input, NativeSelect, Textarea } from "@/src/components/ui/FormControls";
 
+// 問い合わせへの返信に使うアドレス。受信設定や迷惑メールフォルダの確認に使えるよう完了画面へ表示する。
+const SUPPORT_REPLY_EMAIL = "support@shiftori.app";
+
 type ContactFormFields = {
   type: UseFormRegisterReturn<"type">;
   name: UseFormRegisterReturn<"name">;
@@ -62,9 +65,19 @@ export function ContactFormView(props: ContactFormViewProps) {
         <Box bg="teal.500" borderRadius="full" color="white" p={3}>
           <LuCheck aria-hidden size={28} />
         </Box>
-        <Text as="h2" color="gray.950" fontSize="xl" fontWeight="bold">
+        <Text as="h2" color="gray.950" fontSize="xl" fontWeight="bold" wordBreak="auto-phrase">
           お問い合わせを受け付けました
         </Text>
+        <Text color="gray.700" fontSize="sm" lineHeight="tall" wordBreak="auto-phrase">
+          下記メールアドレスから返信します。
+          <br />
+          届かない場合は、迷惑メールフォルダを確認してください。
+        </Text>
+        <Box bg="white" borderRadius="lg" maxW="360px" px={{ base: 3, md: 5 }} py={3} w="full">
+          <Text color="gray.950" fontSize={{ base: "sm", md: "md" }} fontWeight="bold" wordBreak="break-all">
+            {SUPPORT_REPLY_EMAIL}
+          </Text>
+        </Box>
         <Button asChild colorPalette="teal" minW="160px" mt={2}>
           <MeasurementLink href="/">TOPに戻る</MeasurementLink>
         </Button>
