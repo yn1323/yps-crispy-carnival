@@ -460,3 +460,376 @@ describe("buildShiftData", () => {
     expect(buildShiftData(makeData(), [staff], [])).toEqual([]);
   });
 });
+
+describe("buildShiftData: 保存済みの休憩と仮の印", () => {
+  it("保存済みの勤務の休憩と仮の印を読み込む", () => {
+    const shifts = buildShiftData(
+      makeData({
+        shiftAssignments: [
+          {
+            staffId,
+            date,
+            startTime: "10:00",
+            endTime: "18:00",
+            positionId,
+            breaks: [
+              { startTime: "15:00", endTime: "15:15" },
+              { startTime: "12:00", endTime: "13:00" },
+            ],
+            isProvisional: true,
+          },
+        ],
+      }),
+      [staff],
+      [date],
+    );
+
+    expect(shifts).toEqual([
+      {
+        id: `shift-${staffId}-${date}`,
+        staffId,
+        staffName: staff.name,
+        date,
+        requestedTime: null,
+        requestedTimes: undefined,
+        requestedShiftTypeOptionIds: undefined,
+        positions: [
+          {
+            id: `seg-${staffId}-${date}-0`,
+            positionId,
+            positionName: "ホール",
+            color: "#0d9488",
+            start: "10:00",
+            end: "18:00",
+            shiftTypeOptionId: undefined,
+          },
+        ],
+        breaks: [
+          { start: "12:00", end: "13:00" },
+          { start: "15:00", end: "15:15" },
+        ],
+        isProvisional: true,
+      },
+    ]);
+  });
+
+  it("同じ日に勤務が複数ある場合は、それぞれの休憩をその日の休憩として開始順にまとめる", () => {
+    const shifts = buildShiftData(
+      makeData({
+        shiftAssignments: [
+          {
+            staffId,
+            date,
+            startTime: "15:00",
+            endTime: "19:00",
+            positionId: secondPositionId,
+            breaks: [{ startTime: "17:00", endTime: "17:15" }],
+          },
+          {
+            staffId,
+            date,
+            startTime: "09:00",
+            endTime: "13:00",
+            positionId,
+            breaks: [{ startTime: "11:00", endTime: "11:30" }],
+          },
+        ],
+      }),
+      [staff],
+      [date],
+    );
+
+    expect(shifts.map((shift) => shift.breaks)).toEqual([
+      [
+        { start: "11:00", end: "11:30" },
+        { start: "17:00", end: "17:15" },
+      ],
+    ]);
+  });
+
+  it("時間指定で隣り合う保存済みの勤務を一本で表示しても、休憩を落とさない", () => {
+    const shifts = buildShiftData(
+      makeData({
+        shiftAssignments: [
+          {
+            staffId,
+            date,
+            startTime: "14:00",
+            endTime: "18:00",
+            positionId,
+            breaks: [{ startTime: "16:00", endTime: "16:15" }],
+          },
+          {
+            staffId,
+            date,
+            startTime: "09:00",
+            endTime: "14:00",
+            positionId,
+            breaks: [{ startTime: "12:00", endTime: "13:00" }],
+          },
+        ],
+      }),
+      [staff],
+      [date],
+    );
+
+    expect(shifts.map((shift) => shift.positions.map((position) => [position.start, position.end]))).toEqual([
+      [["09:00", "18:00"]],
+    ]);
+    expect(shifts.map((shift) => shift.breaks)).toEqual([
+      [
+        { start: "12:00", end: "13:00" },
+        { start: "16:00", end: "16:15" },
+      ],
+    ]);
+  });
+
+  it("仮の印は、その日の保存済みの勤務がすべて仮のときだけ付ける", () => {
+    const shifts = buildShiftData(
+      makeData({
+        shiftAssignments: [
+          { staffId, date, startTime: "09:00", endTime: "12:00", positionId, isProvisional: true },
+          { staffId, date, startTime: "13:00", endTime: "18:00", positionId, isProvisional: true },
+          { staffId: secondStaffId, date, startTime: "09:00", endTime: "12:00", positionId, isProvisional: true },
+          { staffId: secondStaffId, date, startTime: "13:00", endTime: "18:00", positionId },
+          { staffId, date: secondDate, startTime: "09:00", endTime: "12:00", positionId, isProvisional: false },
+        ],
+      }),
+      [staff, secondStaff],
+      [date, secondDate],
+    );
+
+    expect(shifts.map((shift) => [shift.staffId, shift.date, Object.hasOwn(shift, "isProvisional")])).toEqual([
+      [staffId, date, true],
+      [staffId, secondDate, false],
+      [secondStaffId, date, false],
+      [secondStaffId, secondDate, false],
+    ]);
+    expect(shifts[0].isProvisional).toBe(true);
+  });
+
+  it("店休日は、保存済みの勤務に休憩と仮の印があっても空セルにする", () => {
+    const shifts = buildShiftData(
+      makeData({
+        recruitment: { shopClosedDates: [date] },
+        shiftAssignments: [
+          {
+            staffId,
+            date,
+            startTime: "10:00",
+            endTime: "18:00",
+            positionId,
+            breaks: [{ startTime: "12:00", endTime: "13:00" }],
+            isProvisional: true,
+          },
+        ],
+      }),
+      [staff],
+      [date],
+    );
+
+    expect(shifts).toStrictEqual([
+      {
+        id: `shift-${staffId}-${date}`,
+        staffId,
+        staffName: staff.name,
+        date,
+        requestedTime: null,
+        positions: [],
+      },
+    ]);
+  });
+
+  it("休憩も仮の印もない保存済みの勤務には、項目を足さない", () => {
+    const shifts = buildShiftData(
+      makeData({
+        shiftAssignments: [{ staffId, date, startTime: "10:00", endTime: "18:00", positionId, breaks: [] }],
+      }),
+      [staff],
+      [date],
+      { breakRule: null },
+    );
+
+    expect(shifts).toHaveLength(1);
+    expect(shifts[0].positions).toHaveLength(1);
+    expect(Object.hasOwn(shifts[0], "breaks")).toBe(false);
+    expect(Object.hasOwn(shifts[0], "isProvisional")).toBe(false);
+  });
+});
+
+describe("buildShiftData: 休憩の決まりの初期値", () => {
+  const breakRule = { minWorkMinutes: 360, breakMinutes: 60 };
+  const shiftTypePattern: ShiftBoardData["submissionPattern"] = {
+    kind: "shiftType",
+    options: [
+      { id: "early", name: "早番", startTime: "09:00", endTime: "17:00", sortOrder: 0 },
+      { id: "short", name: "短時間", startTime: "17:00", endTime: "21:00", sortOrder: 1 },
+    ],
+  };
+
+  it("時間指定の希望から作った勤務の候補に、決まりの休憩を勤務の中央へ入れる", () => {
+    const shifts = buildShiftData(
+      makeData({ requestedSlots: [{ staffId, date, startTime: "10:00", endTime: "18:00" }] }),
+      [staff],
+      [date],
+      { breakRule },
+    );
+
+    expect(
+      shifts.map((shift) => [shift.positions.map((position) => [position.start, position.end]), shift.breaks]),
+    ).toEqual([[[["10:00", "18:00"]], [{ start: "13:30", end: "14:30" }]]]);
+    expect(Object.hasOwn(shifts[0], "isProvisional")).toBe(false);
+  });
+
+  it("パターン選択の希望から作った勤務の候補に、決まりの休憩を入れる", () => {
+    const shifts = buildShiftData(
+      makeData({
+        submissionPattern: shiftTypePattern,
+        requestedSlots: [{ staffId, date, startTime: "09:00", endTime: "17:00", optionId: "early" }],
+      }),
+      [staff],
+      [date],
+      { breakRule },
+    );
+
+    expect(
+      shifts.map((shift) => [shift.positions.map((position) => position.shiftTypeOptionId), shift.breaks]),
+    ).toEqual([[["early"], [{ start: "12:30", end: "13:30" }]]]);
+  });
+
+  it("希望が複数ある日は、最も長い希望の中央へ入れる", () => {
+    const shifts = buildShiftData(
+      makeData({
+        requestedSlots: [
+          { staffId, date, startTime: "09:00", endTime: "11:00" },
+          { staffId, date, startTime: "12:00", endTime: "19:00" },
+        ],
+      }),
+      [staff],
+      [date],
+      { breakRule },
+    );
+
+    expect(shifts.map((shift) => shift.breaks)).toEqual([[{ start: "15:00", end: "16:00" }]]);
+  });
+
+  it("決まりの長さに届かない希望には入れない", () => {
+    const shifts = buildShiftData(
+      makeData({
+        submissionPattern: shiftTypePattern,
+        requestedSlots: [{ staffId, date, startTime: "17:00", endTime: "21:00", optionId: "short" }],
+      }),
+      [staff],
+      [date],
+      { breakRule },
+    );
+
+    expect(shifts).toHaveLength(1);
+    expect(shifts[0].positions).toHaveLength(1);
+    expect(Object.hasOwn(shifts[0], "breaks")).toBe(false);
+  });
+
+  it("保存済みの勤務には、休憩がなくても決まりを当てない", () => {
+    const shifts = buildShiftData(
+      makeData({
+        requestedSlots: [{ staffId, date, startTime: "10:00", endTime: "18:00" }],
+        shiftAssignments: [{ staffId, date, startTime: "10:00", endTime: "18:00", positionId }],
+      }),
+      [staff],
+      [date],
+      { breakRule },
+    );
+
+    expect(shifts).toHaveLength(1);
+    expect(shifts[0].positions).toHaveLength(1);
+    expect(Object.hasOwn(shifts[0], "breaks")).toBe(false);
+  });
+
+  it("保存済みの勤務の休憩は、決まりと違っていてもそのまま使う", () => {
+    const shifts = buildShiftData(
+      makeData({
+        shiftAssignments: [
+          {
+            staffId,
+            date,
+            startTime: "10:00",
+            endTime: "18:00",
+            positionId,
+            breaks: [{ startTime: "11:00", endTime: "11:15" }],
+          },
+        ],
+      }),
+      [staff],
+      [date],
+      { breakRule },
+    );
+
+    expect(shifts.map((shift) => shift.breaks)).toEqual([[{ start: "11:00", end: "11:15" }]]);
+  });
+
+  it("日付選択の希望から作った勤務の候補には当てない", () => {
+    const shifts = buildShiftData(
+      makeData({ submissionPattern: { kind: "dateOnly" }, requestedDates: [{ staffId, date }] }),
+      [staff],
+      [date],
+      { breakRule },
+    );
+
+    expect(shifts).toHaveLength(1);
+    expect(shifts[0].positions).toMatchObject([{ start: "05:30", end: "22:30" }]);
+    expect(Object.hasOwn(shifts[0], "breaks")).toBe(false);
+  });
+
+  it("希望も勤務もない日と、下書き保存後に候補へ出さない希望の日には当てない", () => {
+    const shifts = buildShiftData(
+      makeData({
+        recruitment: { draftSavedAt: 1_000 },
+        staffs: [
+          { _id: staffId, name: staff.name, isSubmitted: true, wasSubmittedAtDraft: true },
+          { _id: secondStaffId, name: secondStaff.name, isSubmitted: false, wasSubmittedAtDraft: false },
+        ],
+        requestedSlots: [{ staffId, date, startTime: "10:00", endTime: "18:00" }],
+      }),
+      [staff, secondStaff],
+      [date],
+      { breakRule },
+    );
+
+    expect(shifts.map((shift) => [shift.staffId, shift.positions.length, Object.hasOwn(shift, "breaks")])).toEqual([
+      [staffId, 0, false],
+      [secondStaffId, 0, false],
+    ]);
+  });
+
+  it.each([
+    ["optionsを渡さない", undefined],
+    ["休憩の決まりがnull", { breakRule: null }],
+    ["休憩の決まりが未指定", {}],
+  ])("%s場合は、希望から作った勤務の候補に休憩を入れない", (_label, options) => {
+    const data = makeData({ requestedSlots: [{ staffId, date, startTime: "10:00", endTime: "18:00" }] });
+    const shifts =
+      options === undefined ? buildShiftData(data, [staff], [date]) : buildShiftData(data, [staff], [date], options);
+
+    expect(shifts).toStrictEqual([
+      {
+        id: `shift-${staffId}-${date}`,
+        staffId,
+        staffName: staff.name,
+        date,
+        requestedTime: { start: "10:00", end: "18:00" },
+        requestedTimes: [{ start: "10:00", end: "18:00" }],
+        requestedShiftTypeOptionIds: undefined,
+        positions: [
+          {
+            id: `seg-${staffId}-${date}-0`,
+            positionId,
+            positionName: "ホール",
+            color: "#0d9488",
+            start: "10:00",
+            end: "18:00",
+          },
+        ],
+      },
+    ]);
+  });
+});

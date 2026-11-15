@@ -8,6 +8,7 @@ import { getSubmissionPatternTimeRange, submissionPatternValidator } from "../_l
 import { timeToMinutes } from "../_lib/time";
 import { SHIFT_ASSIGNMENT_LIMIT, SHIFT_BOARD_STAFF_LIMIT, SHIFT_BOARD_TIME_UNIT_MINUTES } from "../constants";
 import { getActiveRecruitmentInShop } from "../recruitment/service";
+import { listActivePositions } from "../shiftSetup/service";
 import { isShiftTargetStaff } from "../staff/service";
 
 const shiftViewDataValidator = v.object({
@@ -60,10 +61,7 @@ export const getShiftViewData = staffSessionQuery({
         .query("shiftAssignments")
         .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
         .take(SHIFT_ASSIGNMENT_LIMIT + 1),
-      ctx.db
-        .query("positions")
-        .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
-        .take(50),
+      listActivePositions(ctx, shop._id),
     ]);
     if (assignments.length > SHIFT_ASSIGNMENT_LIMIT) {
       throw new Error("Shift assignment scope exceeds the supported limit");
@@ -90,6 +88,7 @@ export const getShiftViewData = staffSessionQuery({
         endTime: a.endTime,
         positionId: a.positionId,
         ...(a.optionId !== undefined ? { optionId: a.optionId } : {}),
+        ...(a.breaks ? { breaks: a.breaks } : {}),
       })),
       shopClosedDates: recruitment.shopClosedDates,
       submissionPattern,

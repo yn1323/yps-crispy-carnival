@@ -1,17 +1,10 @@
 import { Provider } from "jotai";
 import type { ReactNode } from "react";
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
-import type {
-  PositionType,
-  RequiredStaffingData,
-  ShiftData,
-  SortMode,
-  StaffType,
-  TimeRange,
-  ViewMode,
-} from "@/src/domains/shift/types";
+import type { PositionType, ShiftData, SortMode, StaffType, TimeRange, ViewMode } from "@/src/domains/shift/types";
 import { DEFAULT_TIME_PATTERN } from "@/src/domains/shop/submissionPattern";
 import { useShiftFormInit } from "../hooks/useShiftFormInit";
+import type { ShiftFormStaffing } from "../stores";
 
 export const mockStaffs: StaffType[] = [
   { id: "staff1", name: "Aさん", isSubmitted: true },
@@ -439,20 +432,6 @@ export const mockDateOnlyShifts: ShiftData[] = [
   dateOnlyShift({ staffId: "staff5", staffName: "鈴木 次郎", date: "2026-06-03", requested: false, assigned: true }),
 ];
 
-export const mockRequiredStaffing: RequiredStaffingData[] = [
-  {
-    dayOfWeek: 3,
-    slots: [
-      { hour: 10, position: "シフト", requiredCount: 3 },
-      { hour: 14, position: "シフト", requiredCount: 5 },
-    ],
-  },
-  {
-    dayOfWeek: 4,
-    slots: [{ hour: 9, position: "シフト", requiredCount: 3 }],
-  },
-];
-
 type JotaiStoryWrapperProps = {
   children: ReactNode;
   overrides?: {
@@ -466,7 +445,8 @@ type JotaiStoryWrapperProps = {
     isReadOnly?: boolean;
     currentStaffId?: string;
     allShifts?: ShiftData[];
-    requiredStaffing?: RequiredStaffingData[];
+    staffing?: ShiftFormStaffing;
+    initialDetailMode?: boolean;
     submissionPattern?: ShiftSubmissionPattern;
     initialViewMode?: ViewMode;
     initialSortMode?: SortMode;
@@ -491,7 +471,8 @@ function JotaiInitializer({
     isReadOnly: overrides?.isReadOnly,
     currentStaffId: overrides?.currentStaffId,
     allShifts: overrides?.allShifts,
-    requiredStaffing: overrides?.requiredStaffing,
+    staffing: overrides?.staffing,
+    initialDetailMode: overrides?.initialDetailMode,
     submissionPattern: overrides?.submissionPattern ?? DEFAULT_TIME_PATTERN,
     initialViewMode: overrides?.initialViewMode,
     initialSortMode: overrides?.initialSortMode,

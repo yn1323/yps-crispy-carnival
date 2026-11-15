@@ -11,23 +11,35 @@ import type { ShiftBoardData } from "../types";
 const mocks = vi.hoisted(() => ({
   saveReference: Symbol("save"),
   confirmReference: Symbol("confirm"),
+  overrideReference: Symbol("setDayTemplateOverride"),
   save: vi.fn(),
+  setDayTemplateOverride: vi.fn(),
+  navigate: vi.fn(),
+  convexQuery: vi.fn(),
   export: vi.fn(),
   confirm: vi.fn(),
   toast: vi.fn(),
   blocker: { status: "idle", reset: vi.fn(), proceed: vi.fn() },
 }));
 
-vi.mock("@tanstack/react-router", () => ({ useBlocker: () => mocks.blocker }));
+vi.mock("@tanstack/react-router", () => ({ useBlocker: () => mocks.blocker, useNavigate: () => mocks.navigate }));
+vi.mock("convex/react", () => ({ useConvex: () => ({ query: mocks.convexQuery }) }));
 vi.mock("@/convex/_generated/api", () => ({
   api: {
     shiftBoard: {
       mutations: { saveShiftAssignments: mocks.saveReference, confirmRecruitment: mocks.confirmReference },
+      queries: { getProvisionalAssignments: Symbol("getProvisionalAssignments") },
     },
+    shiftSetup: { mutations: { setDayTemplateOverride: mocks.overrideReference } },
   },
 }));
 vi.mock("@/src/hooks/useShopMutation", () => ({
-  useShopMutation: (reference: unknown) => (reference === mocks.saveReference ? mocks.save : mocks.confirm),
+  useShopMutation: (reference: unknown) => {
+    if (reference === mocks.saveReference) return mocks.save;
+    if (reference === mocks.confirmReference) return mocks.confirm;
+    if (reference === mocks.overrideReference) return mocks.setDayTemplateOverride;
+    throw new Error("unexpected mutation reference");
+  },
 }));
 vi.mock("@/src/components/shared/feedback", () => ({ showErrorToast: vi.fn(), showSuccessToast: vi.fn() }));
 vi.mock("@/src/components/ui/toaster", () => ({ toaster: { create: mocks.toast } }));
@@ -88,6 +100,7 @@ function renderInitialized(currentData: ShiftBoardData = data) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  window.localStorage.clear();
   mocks.save.mockResolvedValue(null);
   mocks.confirm.mockResolvedValue(null);
   vi.spyOn(window, "open").mockReturnValue(null);
@@ -303,5 +316,77 @@ describe("シフトボードからの出力", () => {
     expect(result.current.viewModel.shiftForm.dateNotes).toEqual([dateNote]);
     act(() => result.current.intents.onOpenExport());
     expect(mocks.export).toHaveBeenCalledWith(expect.objectContaining({ dateNotes: [dateNote] }));
+  });
+
+  it("勤務のポジションと休憩、店舗のポジションの一覧を出力へ渡す", () => {
+    const kitchenId = "position-b" as Id<"positions">;
+    const { result } = renderInitialized({
+      ...data,
+      positions: [...data.positions, { _id: kitchenId, name: "キッチン", color: "#f97316", isDefault: false }],
+      shiftAssignments: [
+        {
+          staffId,
+          date: "2099-01-20",
+          startTime: "09:00",
+          endTime: "13:00",
+          positionId,
+          breaks: [{ startTime: "11:00", endTime: "11:15" }],
+        },
+        { staffId, date: "2099-01-20", startTime: "13:00", endTime: "17:00", positionId: kitchenId },
+      ],
+    });
+
+    act(() => result.current.intents.onOpenExport());
+
+    expect(mocks.export).toHaveBeenCalledTimes(1);
+    expect(mocks.export.mock.calls[0][0].assignments).toEqual([
+      {
+        staffId,
+        date: "2099-01-20",
+        startTime: "09:00",
+        endTime: "13:00",
+        optionId: null,
+        positionId,
+        breaks: [{ startTime: "11:00", endTime: "11:15" }],
+      },
+      {
+        staffId,
+        date: "2099-01-20",
+        startTime: "13:00",
+        endTime: "17:00",
+        optionId: null,
+        positionId: kitchenId,
+        breaks: [],
+      },
+    ]);
+    expect(mocks.export.mock.calls[0][0].positions).toEqual([
+      { id: positionId, name: "シフト" },
+      { id: kitchenId, name: "キッチン" },
+    ]);
+  });
+
+  it("出力の「ポジションと休憩も出力する」の初期状態は、ボタンを押した時点のシフト表の表示に合わせる", () => {
+    const { result } = renderInitialized();
+
+    act(() => result.current.intents.onOpenExport());
+    act(() => {
+      result.current.intents.onDetailModeChange(true);
+      result.current.intents.onOpenExport();
+    });
+    act(() => {
+      result.current.intents.onDetailModeChange(false);
+      result.current.intents.onOpenExport();
+    });
+
+    expect(mocks.export.mock.calls.map(([exported]) => exported.includeDetailsByDefault)).toEqual([false, true, false]);
+  });
+
+  it("くわしくで開いたシフト表からの出力は、切り替えなくても「ポジションと休憩も出力する」をオンにする", () => {
+    window.localStorage.setItem("shiftori:shiftBoard:detailMode", "detail");
+    const { result } = renderInitialized();
+
+    act(() => result.current.intents.onOpenExport());
+
+    expect(mocks.export).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ includeDetailsByDefault: true }));
   });
 });

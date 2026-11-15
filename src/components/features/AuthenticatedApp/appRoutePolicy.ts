@@ -202,6 +202,7 @@ function resolveAppRouteSearchPolicy(pathname: string): AppRouteSearchPolicy | n
     /^\/staff\/[^/]+$/i.test(routePathname) ||
     /^\/staff\/[^/]+\/shops\/[^/]+$/i.test(routePathname) ||
     /^\/manage\/shops\/[^/]+$/i.test(routePathname) ||
+    /^\/manage\/shops\/[^/]+\/shift-setup$/i.test(routePathname) ||
     /^\/app\/shifts\/[^/]+\/board$/i.test(routePathname) ||
     /^\/app\/staff\/[^/]+$/i.test(routePathname) ||
     /^\/app\/staff\/[^/]+\/shops\/[^/]+$/i.test(routePathname) ||

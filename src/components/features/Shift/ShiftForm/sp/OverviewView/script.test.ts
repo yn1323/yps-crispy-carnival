@@ -79,8 +79,22 @@ describe("buildOverviewViewModel", () => {
       canOpenDaily: true,
     });
     expect(viewModel.weeks[0].rows[2].staffRows).toEqual([
-      { key: "early-staff", name: "早番スタッフ", assignedTimeLabel: "09:00–18:00" },
-      { key: "late-staff", name: "遅番スタッフ", assignedTimeLabel: "13:00–17:00" },
+      {
+        key: "early-staff",
+        name: "早番スタッフ",
+        assignedTimeLabel: "09:00–18:00",
+        staff: staffs[1],
+        shift: shifts[1],
+        positionMarks: [{ key: "default", positionName: "勤務", color: "#000" }],
+      },
+      {
+        key: "late-staff",
+        name: "遅番スタッフ",
+        assignedTimeLabel: "13:00–17:00",
+        staff: staffs[0],
+        shift: shifts[0],
+        positionMarks: [{ key: "default", positionName: "勤務", color: "#000" }],
+      },
     ]);
     expect(viewModel.weeks[0].rows[3]).toMatchObject({
       iso: "2026-06-04",
@@ -90,6 +104,34 @@ describe("buildOverviewViewModel", () => {
       canOpenDaily: true,
       staffRows: [],
     });
+  });
+
+  it("その日に入っているポジションを、勤務の早い順に重複なく返す", () => {
+    const viewModel = buildOverviewViewModel({
+      dates: ["2026-06-03"],
+      holidays: [],
+      staffs: [staffs[0]],
+      shifts: [
+        {
+          ...shifts[0],
+          positions: [
+            { id: "p3", positionId: "hall", positionName: "ホール", color: "#111", start: "15:00", end: "17:00" },
+            { id: "p2", positionId: "kitchen", positionName: "キッチン", color: "#222", start: "12:00", end: "15:00" },
+            { id: "p1", positionId: "hall", positionName: "ホール", color: "#111", start: "09:00", end: "12:00" },
+            { id: "b1", positionId: "break", positionName: "休憩", color: "#333", start: "08:00", end: "09:00" },
+          ],
+        },
+      ],
+      warningCounts: new Map(),
+      isReadOnly: false,
+    });
+
+    expect(viewModel.weeks[0].rows[2].staffRows.map((row) => row.positionMarks)).toEqual([
+      [
+        { key: "hall", positionName: "ホール", color: "#111" },
+        { key: "kitchen", positionName: "キッチン", color: "#222" },
+      ],
+    ]);
   });
 
   it("読み取り専用では期間内の日付も日別へ移動できない", () => {

@@ -1,4 +1,4 @@
-import type { StaffType } from "@/src/domains/shift/types";
+import type { PositionSegment, ShiftData, StaffType } from "@/src/domains/shift/types";
 
 export type DateInfo = {
   iso: string;
@@ -23,6 +23,12 @@ export type DateOnlyCellViewModel = {
   assigned: boolean;
   requested: boolean;
   isClosed: boolean;
+  /** その日の勤務。くわしく表示でポジションを示すために使う。 */
+  segment: PositionSegment | undefined;
+  /** 休憩のある勤務の日だけ持つ、その日の勤務。休憩の印に渡す。 */
+  breakShift: ShiftData | undefined;
+  /** 前回の勤務を仮で入れた日の勤務かどうか。 */
+  isProvisional: boolean;
 };
 
 export type DateOnlyRequestBadgeViewModel = {

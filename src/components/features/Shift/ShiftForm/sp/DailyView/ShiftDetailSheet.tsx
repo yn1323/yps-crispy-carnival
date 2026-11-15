@@ -1,9 +1,13 @@
-import { Box, Text, VStack } from "@chakra-ui/react";
+import { Box, Flex, Text, VStack } from "@chakra-ui/react";
+import { useAtomValue } from "jotai";
 import { Dialog } from "@/src/components/ui/Dialog";
+import { getEffectiveBreaks } from "@/src/domains/shift/breaks";
 import { formatDateWithWeekday } from "@/src/domains/shift/date";
 import { isLegacyCompatibleWorkPosition } from "@/src/domains/shift/positions";
-import { formatShiftClockTime } from "@/src/domains/shift/time";
+import { formatShiftClockTime, formatShiftClockTimeRange } from "@/src/domains/shift/time";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
+import { PositionMark } from "../../detailParts";
+import { detailModeAtom, usesPositionColorsAtom } from "../../stores";
 
 type ShiftDetailSheetProps = {
   staff: StaffType;
@@ -16,7 +20,17 @@ type ShiftDetailSheetProps = {
 export const ShiftDetailSheet = ({ staff, shift, selectedDate, isOpen, onOpenChange }: ShiftDetailSheetProps) => {
   const dateLabel = formatDateWithWeekday(selectedDate);
 
+  const detailMode = useAtomValue(detailModeAtom);
+  const usesPositionColors = useAtomValue(usesPositionColorsAtom);
+
   const visibleSegments = shift?.positions.filter(isLegacyCompatibleWorkPosition) ?? [];
+  // 休憩は、くわしく表示のときだけ出す。
+  const breakLabels =
+    detailMode && shift
+      ? getEffectiveBreaks({ positions: visibleSegments, breaks: shift.breaks }, { clipToWork: true }).map((range) =>
+          formatShiftClockTimeRange(range.start, range.end),
+        )
+      : [];
 
   return (
     <Dialog
@@ -33,12 +47,32 @@ export const ShiftDetailSheet = ({ staff, shift, selectedDate, isOpen, onOpenCha
               シフト時間
             </Text>
             <VStack gap={2} align="stretch">
-              {visibleSegments.map((seg) => (
-                <Text key={seg.id} fontSize="sm" color="gray.700">
-                  {formatShiftClockTime(seg.start)} - {formatShiftClockTime(seg.end)}
-                </Text>
-              ))}
+              {visibleSegments.map((seg) =>
+                usesPositionColors ? (
+                  <Flex key={seg.id} align="center" gap={3} fontSize="sm" color="gray.700">
+                    <Text fontVariantNumeric="tabular-nums">
+                      {formatShiftClockTime(seg.start)} - {formatShiftClockTime(seg.end)}
+                    </Text>
+                    <PositionMark segment={seg} />
+                  </Flex>
+                ) : (
+                  <Text key={seg.id} fontSize="sm" color="gray.700">
+                    {formatShiftClockTime(seg.start)} - {formatShiftClockTime(seg.end)}
+                  </Text>
+                ),
+              )}
             </VStack>
+          </Box>
+        )}
+
+        {breakLabels.length > 0 && (
+          <Box>
+            <Text fontSize="xs" fontWeight="bold" color="gray.600" mb={2}>
+              休憩
+            </Text>
+            <Text fontSize="sm" color="gray.700" fontVariantNumeric="tabular-nums">
+              {breakLabels.join(" / ")}
+            </Text>
           </Box>
         )}
 

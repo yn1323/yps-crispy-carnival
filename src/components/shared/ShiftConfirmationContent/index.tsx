@@ -151,6 +151,7 @@ const WARNING_SUMMARY_STYLES: Record<WarningSummaryCategoryCode, { icon: IconTyp
   OFF_REQUEST: { icon: LuCalendarX, color: { bg: "red.100", fg: "red.600" } },
   OUTSIDE_REQUESTED_TIME: { icon: LuClock, color: { bg: "orange.100", fg: "orange.600" } },
   NOT_SUBMITTED: { icon: LuUserX, color: { bg: "purple.100", fg: "purple.600" } },
+  POSITION_UNAVAILABLE: { icon: LuTriangleAlert, color: { bg: "orange.100", fg: "orange.600" } },
   OTHER: { icon: LuTriangleAlert, color: { bg: "orange.100", fg: "orange.600" } },
 };
 

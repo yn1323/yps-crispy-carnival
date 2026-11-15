@@ -7,6 +7,7 @@ import {
   LINE_WEBHOOK_MESSAGE_REQUEST_LIMIT,
   MINUTE_MS,
   ORGANIZATION_CREATE_DAILY_LIMIT,
+  SHIFT_SETUP_ASSIST_SHORT_LIMIT,
   STAFF_NOTIFICATION_RESEND_ACTOR_DAILY_LIMIT,
   STAFF_NOTIFICATION_RESEND_ORGANIZATION_DAILY_LIMIT,
   STAFF_NOTIFICATION_RESEND_SCOPE_TARGET_DAILY_LIMIT,
@@ -231,6 +232,15 @@ export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
     rate: 2,
     period: MINUTE_MS,
     capacity: 2,
+  },
+
+  // シフト作成の設定のAIサポート: userId+shopId 単位。
+  // 下書きを見比べるための数回の作り直しは許し、外部のAIへつないだ後の連打を抑える。
+  shiftSetupAssistShort: {
+    kind: "token bucket",
+    rate: SHIFT_SETUP_ASSIST_SHORT_LIMIT,
+    period: MINUTE_MS,
+    capacity: SHIFT_SETUP_ASSIST_SHORT_LIMIT,
   },
 
   // 明示的なアカウント削除受付: issuer+subjectのSHA-256 hash単位。

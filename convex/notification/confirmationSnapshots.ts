@@ -1,7 +1,7 @@
 import { type Infer, v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { normalizeExactAdjacentTimeAssignments } from "../_lib/shiftAssignmentNormalization";
+import { normalizeExactAdjacentTimeAssignments, sortShiftBreaks } from "../_lib/shiftAssignmentNormalization";
 import { shiftConfirmationSnapshotAssignmentValidator } from "../_lib/shiftAssignmentValidators";
 
 export const confirmationSnapshotAssignmentValidator = shiftConfirmationSnapshotAssignmentValidator;
@@ -33,12 +33,22 @@ export function normalizeConfirmationSnapshotAssignments(
       endTime: assignment.endTime,
       positionId: assignment.positionId,
       ...(assignment.optionId ? { optionId: assignment.optionId } : {}),
+      ...snapshotBreaksField(assignment),
     }))
     .sort((a, b) => {
       const aKey = [a.date, a.startTime, a.endTime, a.positionId, a.optionId ?? ""].join("|");
       const bKey = [b.date, b.startTime, b.endTime, b.positionId, b.optionId ?? ""].join("|");
       return aKey.localeCompare(bKey);
     });
+}
+
+// 休憩のない勤務にはfieldを出さない。休憩の導入前に保存したsnapshotのsignatureと同じ文字列を保つためである。
+function snapshotBreaksField(assignment: ConfirmationSnapshotAssignment) {
+  const breaks = sortShiftBreaks(assignment.breaks ?? []).map((item) => ({
+    startTime: item.startTime,
+    endTime: item.endTime,
+  }));
+  return breaks.length > 0 ? { breaks } : {};
 }
 
 export function buildConfirmationSnapshotSignature(assignments: ConfirmationSnapshotAssignment[]): string {
@@ -56,6 +66,7 @@ export function canonicalizeConfirmationSnapshotAssignments(
       positionId: assignment.positionId,
       // signatureのrolling互換はbuild側で維持し、意味比較用のpresenceだけは失わない。
       ...(assignment.optionId !== undefined ? { optionId: assignment.optionId } : {}),
+      ...snapshotBreaksField(assignment),
     }))
     .sort(
       (a, b) =>
@@ -64,7 +75,8 @@ export function canonicalizeConfirmationSnapshotAssignments(
         a.endTime.localeCompare(b.endTime) ||
         String(a.positionId).localeCompare(String(b.positionId)) ||
         Number(a.optionId !== undefined) - Number(b.optionId !== undefined) ||
-        (a.optionId ?? "").localeCompare(b.optionId ?? ""),
+        (a.optionId ?? "").localeCompare(b.optionId ?? "") ||
+        JSON.stringify(a.breaks ?? []).localeCompare(JSON.stringify(b.breaks ?? [])),
     );
 }
 

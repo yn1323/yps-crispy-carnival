@@ -142,3 +142,110 @@ describe("shiftTypeAssignments", () => {
     expect(removed[0].positions).toEqual([]);
   });
 });
+
+describe("toggleShiftTypeAssignment: ポジションの入れ替え", () => {
+  const date = "2026-05-23";
+  const kitchen: PositionType = { id: "kitchen", name: "キッチン", color: "#f97316", isDefault: false };
+
+  const optionSegment = (option: (typeof options)[number], assignedPosition: PositionType) => ({
+    id: `seg-staff1-${date}-${option.id}`,
+    positionId: assignedPosition.id,
+    positionName: assignedPosition.name,
+    color: assignedPosition.color,
+    start: option.startTime,
+    end: option.endTime,
+    shiftTypeOptionId: option.id,
+  });
+
+  // 早番と遅番が、どちらも既定のポジションで入っている日。
+  const assigned = (): ShiftData[] => [
+    shift({
+      requestedShiftTypeOptionIds: ["morning"],
+      positions: [optionSegment(options[0], position), optionSegment(options[2], position)],
+      breaks: [{ start: "11:00", end: "11:30" }],
+    }),
+  ];
+
+  it("勤務のない日には、選んだポジションで勤務パターンを入れる", () => {
+    const result = toggleShiftTypeAssignment({
+      shifts: [],
+      staff,
+      date,
+      option: options[0],
+      position: kitchen,
+      switchPosition: true,
+    });
+
+    expect(result.map((item) => item.positions)).toEqual([[optionSegment(options[0], kitchen)]]);
+  });
+
+  it("入れ替えが有効なとき、別のポジションで入っている勤務パターンだけを選んだポジションへ入れ替える", () => {
+    const shifts = assigned();
+    const result = toggleShiftTypeAssignment({
+      shifts,
+      staff,
+      date,
+      option: options[0],
+      position: kitchen,
+      switchPosition: true,
+    });
+
+    expect(result).toEqual([
+      { ...shifts[0], positions: [optionSegment(options[0], kitchen), optionSegment(options[2], position)] },
+    ]);
+  });
+
+  it("入れ替えが有効でも、同じポジションで入っている勤務パターンを押すと外れる", () => {
+    const shifts = assigned();
+    const result = toggleShiftTypeAssignment({
+      shifts,
+      staff,
+      date,
+      option: options[0],
+      position,
+      switchPosition: true,
+    });
+
+    expect(result).toEqual([{ ...shifts[0], positions: [optionSegment(options[2], position)] }]);
+  });
+
+  it.each([false, undefined])(
+    "入れ替えが無効（%s）なら、別のポジションの勤務パターンを押しても従来どおり外れる",
+    (switchPosition) => {
+      const shifts = assigned();
+      const result = toggleShiftTypeAssignment({
+        shifts,
+        staff,
+        date,
+        option: options[0],
+        position: kitchen,
+        switchPosition,
+      });
+
+      expect(result).toEqual([{ ...shifts[0], positions: [optionSegment(options[2], position)] }]);
+    },
+  );
+
+  it("入れ替えが有効でも、まだ入っていない勤務パターンは選んだポジションで足す", () => {
+    const shifts = assigned();
+    const result = toggleShiftTypeAssignment({
+      shifts,
+      staff,
+      date,
+      option: options[1],
+      position: kitchen,
+      switchPosition: true,
+    });
+
+    expect(result).toEqual([
+      {
+        ...shifts[0],
+        positions: [
+          optionSegment(options[0], position),
+          optionSegment(options[2], position),
+          optionSegment(options[1], kitchen),
+        ],
+      },
+    ]);
+  });
+});

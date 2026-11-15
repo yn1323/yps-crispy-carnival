@@ -1,21 +1,14 @@
 import { Box, Flex, Grid, Heading, useBreakpointValue, VisuallyHidden } from "@chakra-ui/react";
 import { Provider, useAtom, useAtomValue, useSetAtom } from "jotai";
-import type { ReactNode } from "react";
+import type { MutableRefObject, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { AssignmentIssue } from "@/convex/shiftBoard/validation";
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import { FocusedFlowBackButton } from "@/src/components/templates/FocusedFlowHeader";
 import { type DisplayIssue, toDisplayIssues } from "@/src/domains/shift/assignmentIssues";
 import type { AssignmentWarning } from "@/src/domains/shift/assignmentWarnings";
-import type {
-  PositionType,
-  RequiredStaffingData,
-  ShiftData,
-  SortMode,
-  StaffType,
-  TimeRange,
-  ViewMode,
-} from "@/src/domains/shift/types";
+import type { PositionType, ShiftData, SortMode, StaffType, TimeRange, ViewMode } from "@/src/domains/shift/types";
+import { BreakEditorDialog } from "./BreakEditorDialog";
 import {
   ConfirmButton,
   ExportButton,
@@ -26,6 +19,14 @@ import {
   ViewTabs,
 } from "./components";
 import { type ShiftDateNote, ShiftDateNotesProvider } from "./dateNotes";
+import {
+  DetailModeToggle,
+  PositionLegend,
+  type ShiftFormDetailActions,
+  ShiftFormDetailActionsProvider,
+  ToolPalette,
+  useShiftFormDetailActions,
+} from "./detailParts";
 import { useShiftFormInit } from "./hooks/useShiftFormInit";
 import { DailyView } from "./pc/DailyView";
 import { DateOnlyView } from "./pc/DateOnlyView";
@@ -39,11 +40,22 @@ import { SPDateOnlyOverviewView } from "./sp/DateOnlyOverviewView";
 import { SPOverviewView } from "./sp/OverviewView";
 import { SPShiftTypeDailyView } from "./sp/ShiftTypeDailyView";
 import { SPShiftTypeOverviewView } from "./sp/ShiftTypeOverviewView";
-import { selectDateWithDailyStaffOrderAtom, shiftsAtom, viewModeAtom } from "./stores";
+import {
+  applyShiftDraftsAtom,
+  detailModeAtom,
+  detailToggleEnabledAtom,
+  type ShiftFormStaffing,
+  selectDateWithDailyStaffOrderAtom,
+  shiftsAtom,
+  viewModeAtom,
+} from "./stores";
 import { ValidationErrorPanel } from "./ValidationErrorPanel";
 
 export type { ReminderStatus } from "./components";
 export type { ShiftDateNote } from "./dateNotes";
+export type { ShiftFormDetailActions } from "./detailParts";
+export { shouldDefaultToDetailMode } from "./staffingPresentation";
+export type { ShiftFormStaffing } from "./stores";
 
 export type ShiftFormHeader = {
   desktopTitle: string;
@@ -63,12 +75,21 @@ type ShiftFormProps = {
   isReadOnly?: boolean;
   currentStaffId?: string;
   allShifts?: ShiftData[];
-  requiredStaffing?: RequiredStaffingData[];
+  /** 「くわしく」表示で使う店舗の設定（日の型、特別な日、休憩の決まり）。 */
+  staffing?: ShiftFormStaffing;
   submissionPattern: ShiftSubmissionPattern;
   displayMode?: "request" | "confirmed";
   defaultToToday?: boolean;
   initialViewMode?: ViewMode;
   initialSortMode?: SortMode;
+  /** 「くわしく」表示で開くかどうか。省略時はシンプル（従来の画面）で開く。 */
+  initialDetailMode?: boolean;
+  /** 渡した場合だけ「シンプル / くわしく」の切り替えを出し、切り替えを通知する。 */
+  onDetailModeChange?: (isDetailMode: boolean) => void;
+  /** 設定ページへの移動、特別な日、仮の勤務など、画面の外へ出す操作。 */
+  detailActions?: ShiftFormDetailActions;
+  /** 画面の外で組み立てた編集結果（仮の勤務の差し込みなど）を取り込むための受け口。 */
+  applyShiftsRef?: MutableRefObject<((update: (current: ShiftData[]) => ShiftData[]) => void) | null>;
   onShiftsChange?: (shifts: ShiftData[]) => void;
   onViewModeChange?: (mode: ViewMode) => void;
   onSaveDraft?: () => void;
@@ -98,12 +119,15 @@ const ShiftFormInner = ({
   isReadOnly = false,
   currentStaffId,
   allShifts,
-  requiredStaffing,
+  staffing,
   submissionPattern,
   displayMode,
   defaultToToday,
   initialViewMode,
   initialSortMode,
+  initialDetailMode,
+  onDetailModeChange,
+  applyShiftsRef,
   onShiftsChange,
   onViewModeChange,
   onSaveDraft,
@@ -130,12 +154,13 @@ const ShiftFormInner = ({
     isReadOnly,
     currentStaffId,
     allShifts,
-    requiredStaffing,
+    staffing,
     submissionPattern,
     displayMode,
     defaultToToday,
     initialViewMode,
     initialSortMode,
+    initialDetailMode,
     validationIssues,
     validationWarnings,
   });
@@ -147,6 +172,37 @@ const ShiftFormInner = ({
   useEffect(() => {
     onShiftsChangeRef.current?.(shifts);
   }, [shifts]);
+
+  const detailMode = useAtomValue(detailModeAtom);
+  const onDetailModeChangeRef = useRef(onDetailModeChange);
+  onDetailModeChangeRef.current = onDetailModeChange;
+  // 初期値がstoreへ入るまでは通知せず、そのあとで利用者が切り替えたときだけ通知する。
+  // 初期値の反映を通知すると、開いただけで「利用者が選んだ表示」として端末に覚えてしまう。
+  const expectedInitialDetailMode = initialDetailMode ?? false;
+  const isDetailModeSyncedRef = useRef(false);
+  useEffect(() => {
+    if (!isDetailModeSyncedRef.current) {
+      if (detailMode === expectedInitialDetailMode) isDetailModeSyncedRef.current = true;
+      return;
+    }
+    onDetailModeChangeRef.current?.(detailMode);
+  }, [detailMode, expectedInitialDetailMode]);
+
+  // スマートフォンでは「表示設定」メニューの中へ切り替えを出すため、出してよいかをstoreへ伝える。
+  const setDetailToggleEnabled = useSetAtom(detailToggleEnabledAtom);
+  const isDetailToggleEnabled = Boolean(onDetailModeChange);
+  useEffect(() => {
+    setDetailToggleEnabled(isDetailToggleEnabled);
+  }, [isDetailToggleEnabled, setDetailToggleEnabled]);
+
+  const applyShifts = useSetAtom(applyShiftDraftsAtom);
+  useEffect(() => {
+    if (!applyShiftsRef) return;
+    applyShiftsRef.current = applyShifts;
+    return () => {
+      applyShiftsRef.current = null;
+    };
+  }, [applyShifts, applyShiftsRef]);
 
   const [viewMode, setViewMode] = useAtom(viewModeAtom);
   const onViewModeChangeRef = useRef(onViewModeChange);
@@ -194,6 +250,7 @@ const ShiftFormInner = ({
           reminderStatus={reminderStatus}
           onOpenUnsubmittedDetails={onOpenUnsubmittedDetails}
           hideViewTabs={isDateOnlyPattern}
+          showDetailToggle={Boolean(onDetailModeChange)}
           validationIssues={displayIssues}
           onSelectIssue={handleSelectIssue}
           onDismissValidationIssues={onDismissValidationIssues}
@@ -231,6 +288,7 @@ const ShiftFormInner = ({
         unsubmittedNames={unsubmittedNames}
         reminderStatus={reminderStatus}
         onOpenUnsubmittedDetails={onOpenUnsubmittedDetails}
+        showDetailToggle={Boolean(onDetailModeChange)}
         validationIssues={displayIssues}
         onSelectIssue={handleSelectIssue}
         onDismissValidationIssues={onDismissValidationIssues}
@@ -285,6 +343,7 @@ type ShellProps = {
   reminderStatus?: ReminderStatus;
   onOpenUnsubmittedDetails?: () => void;
   hideViewTabs?: boolean;
+  showDetailToggle: boolean;
   validationIssues: DisplayIssue[];
   onSelectIssue: (issue: DisplayIssue) => void;
   onDismissValidationIssues?: () => void;
@@ -307,110 +366,125 @@ const Shell = ({
   reminderStatus,
   onOpenUnsubmittedDetails,
   hideViewTabs,
+  showDetailToggle,
   validationIssues,
   onSelectIssue,
   onDismissValidationIssues,
   header,
   exportAction,
   children,
-}: ShellProps) => (
-  <Flex direction="column" h="100%" minH={0}>
-    {header && compact && (
-      <VisuallyHidden asChild>
-        <Heading as="h1">{header.mobileTitle}</Heading>
-      </VisuallyHidden>
-    )}
-    <Grid
-      templateColumns={header && !compact ? "auto minmax(0, 1fr) auto" : "minmax(0, 1fr) auto"}
-      px={compact ? 3 : 5}
-      bg="white"
-      borderBottomWidth="1px"
-      borderColor="gray.200"
-      alignItems="center"
-      flexShrink={0}
-    >
-      <Flex minW={0} align="center" alignSelf="stretch" gap={header ? { base: 3, lg: 4 } : undefined}>
-        {header && <FocusedFlowBackButton backLabel={header.backLabel} backAriaLabel={header.backAriaLabel} />}
-        {!hideViewTabs && (
-          <ViewTabs value={viewMode} onChange={setViewMode} compactSpacing={compact && Boolean(header)} />
-        )}
-      </Flex>
-      {header && !compact && (
-        <Heading
-          as="h1"
-          alignSelf="stretch"
-          display="flex"
-          alignItems="center"
-          justifyContent="center"
-          minW={0}
-          color="gray.950"
-          fontSize="lg"
-          textAlign="center"
-          truncate
-        >
-          {header.desktopTitle}
-        </Heading>
+}: ShellProps) => {
+  const detailMode = useAtomValue(detailModeAtom);
+  const { provisionalAction } = useShiftFormDetailActions();
+  return (
+    <Flex direction="column" h="100%" minH={0}>
+      {header && compact && (
+        <VisuallyHidden asChild>
+          <Heading as="h1">{header.mobileTitle}</Heading>
+        </VisuallyHidden>
       )}
-      {!isReadOnly || exportAction ? (
-        <Flex justifySelf="end" gap={2} align="center" py={compact ? 1 : 2} flexShrink={0}>
-          {compact && !isReadOnly ? (
-            <ActionsMenu
-              isConfirmed={isConfirmed}
-              isSavingDraft={isSavingDraft}
-              isConfirming={isConfirming}
-              onSaveDraft={onSaveDraft}
-              onConfirm={onConfirm}
-              exportAction={exportAction}
-            />
-          ) : (
-            <>
-              {exportAction && <ExportButton {...exportAction} />}
-              {!isReadOnly && (
-                <>
-                  <SaveButton compact={compact} isSaving={isSavingDraft} onClick={onSaveDraft} />
-                  <ConfirmButton
-                    compact={compact}
-                    isConfirmed={isConfirmed}
-                    isConfirming={isConfirming}
-                    onClick={onConfirm}
-                  />
-                </>
-              )}
-            </>
+      <Grid
+        templateColumns={header && !compact ? "auto minmax(0, 1fr) auto" : "minmax(0, 1fr) auto"}
+        px={compact ? 3 : 5}
+        bg="white"
+        borderBottomWidth="1px"
+        borderColor="gray.200"
+        alignItems="center"
+        flexShrink={0}
+      >
+        <Flex minW={0} align="center" alignSelf="stretch" gap={header ? { base: 3, lg: 4 } : undefined}>
+          {header && <FocusedFlowBackButton backLabel={header.backLabel} backAriaLabel={header.backAriaLabel} />}
+          {!hideViewTabs && (
+            <ViewTabs value={viewMode} onChange={setViewMode} compactSpacing={compact && Boolean(header)} />
           )}
+          {showDetailToggle && !compact && <DetailModeToggle />}
         </Flex>
-      ) : (
-        header && <Box justifySelf="end" minW="44px" />
+        {header && !compact && (
+          <Heading
+            as="h1"
+            alignSelf="stretch"
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            minW={0}
+            color="gray.950"
+            fontSize="lg"
+            textAlign="center"
+            truncate
+          >
+            {header.desktopTitle}
+          </Heading>
+        )}
+        {!isReadOnly || exportAction ? (
+          <Flex justifySelf="end" gap={2} align="center" py={compact ? 1 : 2} flexShrink={0}>
+            {compact && !isReadOnly ? (
+              <ActionsMenu
+                isConfirmed={isConfirmed}
+                isSavingDraft={isSavingDraft}
+                isConfirming={isConfirming}
+                onSaveDraft={onSaveDraft}
+                onConfirm={onConfirm}
+                exportAction={exportAction}
+              />
+            ) : (
+              <>
+                {exportAction && <ExportButton {...exportAction} />}
+                {!isReadOnly && (
+                  <>
+                    <SaveButton compact={compact} isSaving={isSavingDraft} onClick={onSaveDraft} />
+                    <ConfirmButton
+                      compact={compact}
+                      isConfirmed={isConfirmed}
+                      isConfirming={isConfirming}
+                      onClick={onConfirm}
+                    />
+                  </>
+                )}
+              </>
+            )}
+          </Flex>
+        ) : (
+          header && <Box justifySelf="end" minW="44px" />
+        )}
+      </Grid>
+
+      <ToolPalette />
+      <PositionLegend />
+
+      {!isReadOnly && validationIssues.length > 0 && (
+        <ValidationErrorPanel
+          issues={validationIssues}
+          onSelectIssue={onSelectIssue}
+          onDismiss={onDismissValidationIssues}
+          compact={compact}
+          tone="error"
+        />
       )}
-    </Grid>
 
-    {!isReadOnly && validationIssues.length > 0 && (
-      <ValidationErrorPanel
-        issues={validationIssues}
-        onSelectIssue={onSelectIssue}
-        onDismiss={onDismissValidationIssues}
-        compact={compact}
-        tone="error"
-      />
-    )}
-
-    <Flex flex={1} minH={0} direction="column">
-      {children}
+      <Flex flex={1} minH={0} direction="column">
+        {children}
+      </Flex>
+      {!isReadOnly && !isConfirmed && reminderStatus && unsubmittedNames.length > 0 && (
+        <UnsubmittedStrip
+          names={unsubmittedNames}
+          reminderStatus={reminderStatus}
+          onOpenDetails={onOpenUnsubmittedDetails}
+          provisionalAction={detailMode ? provisionalAction : undefined}
+        />
+      )}
     </Flex>
-    {!isReadOnly && !isConfirmed && reminderStatus && unsubmittedNames.length > 0 && (
-      <UnsubmittedStrip
-        names={unsubmittedNames}
-        reminderStatus={reminderStatus}
-        onOpenDetails={onOpenUnsubmittedDetails}
-      />
-    )}
-  </Flex>
-);
+  );
+};
+
+const EMPTY_DETAIL_ACTIONS: ShiftFormDetailActions = {};
 
 export const ShiftForm = (props: ShiftFormProps) => (
   <Provider>
     <ShiftDateNotesProvider notes={props.dateNotes}>
-      <ShiftFormInner {...props} />
+      <ShiftFormDetailActionsProvider actions={props.detailActions ?? EMPTY_DETAIL_ACTIONS}>
+        <ShiftFormInner {...props} />
+        <BreakEditorDialog />
+      </ShiftFormDetailActionsProvider>
     </ShiftDateNotesProvider>
   </Provider>
 );

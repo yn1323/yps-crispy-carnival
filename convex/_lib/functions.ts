@@ -319,6 +319,27 @@ async function resolveManagerMutationInput(
   return { ctx: { user, ...access }, args: {} };
 }
 
+/**
+ * public actionから渡されたtokenIdentifierで、店舗スコープの管理者アクセスを解決する。
+ * actionはctx.dbを持たないため、internal functionの中でmanagerQueryと同じ検証を行うために使う。
+ * 未登録、削除済み、別組織、無効な管理者はすべてnullに寄せる。
+ */
+export async function resolveManagerShopAccessByTokenIdentifier(
+  ctx: DbCtx,
+  args: { tokenIdentifier: string; shopId: Id<"shops">; expectedOrganizationId: Id<"organizations"> },
+): Promise<(ManagerShopAccess & { user: Doc<"users"> }) | null> {
+  const users = await ctx.db
+    .query("users")
+    .withIndex("by_authTokenIdentifier", (q) => q.eq("authTokenIdentifier", args.tokenIdentifier))
+    .take(2);
+  if (users.length !== 1) return null;
+  const user = users[0];
+  if (user.isDeleted) return null;
+  const access = await resolveShopForUser(ctx, user, args.shopId);
+  if (!access || access.organization._id !== args.expectedOrganizationId) return null;
+  return { user, ...access };
+}
+
 export const managerMutation = customMutation(mutation, {
   args: {
     shopId: v.id("shops"),

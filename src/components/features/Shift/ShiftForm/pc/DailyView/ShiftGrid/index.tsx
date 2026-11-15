@@ -8,6 +8,7 @@ import {
   dailySortedStaffsAtom,
   hourWidthAtom,
   issueStaffIdSetForSelectedDateAtom,
+  openBreakEditorForToolAtom,
   selectedDateAtom,
   shiftByStaffIdForSelectedDateAtom,
   shiftConfigAtom,
@@ -16,6 +17,7 @@ import {
 } from "../../../stores";
 import { useDrag } from "../hooks/useDrag";
 import { TimeHeader } from "../TimeHeader";
+import { StaffingTimelineRow } from "./StaffingTimelineRow";
 import { StaffRow } from "./StaffRow";
 
 const STAFF_COL_WIDTH = 200;
@@ -37,6 +39,7 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
   const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
   const setHourWidth = useSetAtom(hourWidthAtom);
   const selectedDate = useAtomValue(selectedDateAtom);
+  const openBreakEditorForTool = useSetAtom(openBreakEditorForToolAtom);
   const dateNotes = useShiftDateNotes();
   const allDateNotes = useAllShiftDateNotes();
   const { timeRange, isReadOnly, currentStaffId } = config;
@@ -74,13 +77,15 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
 
   const handleRowMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement>, staffId: string) => {
+      // 休憩を選んでいる間は、勤務を塗らずに休憩の編集を開く。
+      if (openBreakEditorForTool({ staffId, date: selectedDate })) return;
       const rect = e.currentTarget.getBoundingClientRect();
       const dragStarted = handleMouseDown(e, staffId, rect);
       if (dragStarted) {
         dragRowRectRef.current = rect;
       }
     },
-    [handleMouseDown],
+    [handleMouseDown, openBreakEditorForTool, selectedDate],
   );
 
   const handleRowMouseMoveForCursor = useCallback(
@@ -222,6 +227,7 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
               />
             );
           })}
+          <StaffingTimelineRow leftWidth={STAFF_COL_WIDTH + (dateNotes.hasNotes ? NOTE_COL_WIDTH : 0)} />
         </Box>
       </Box>
     </Flex>

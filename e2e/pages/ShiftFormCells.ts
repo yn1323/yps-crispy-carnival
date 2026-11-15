@@ -22,6 +22,28 @@ export class ShiftFormCells {
     await this.expectDateOnlyAssignment(staffName, dateLabel, !currentlyAssigned);
   }
 
+  /** くわしく表示の「入れるもの」で、これから入れるポジションを選ぶ。 */
+  async selectPositionTool(positionName: string) {
+    const tool = this.page
+      .getByRole("radiogroup", { name: "入れるもの", exact: true })
+      .getByRole("radio", { name: positionName, exact: true });
+    await expect(tool).toBeVisible({ timeout: SHIFT_FORM_DATA_TIMEOUT });
+    await tool.click();
+    await expect(tool).toHaveAttribute("aria-checked", "true");
+  }
+
+  /** 日付選択の週表で、勤務のない日へ選んでいるポジションの勤務を入れる。 */
+  async assignDateOnlyWithPosition(staffName: string, dateLabel: string, positionName: string) {
+    await this.dateOnlyCell(staffName, dateLabel, false).click();
+    await this.expectDateOnlyPosition(staffName, dateLabel, positionName);
+  }
+
+  async expectDateOnlyPosition(staffName: string, dateLabel: string, positionName: string) {
+    await expect(
+      this.page.getByRole("button", { name: `${staffName} ${dateLabel} 勤務あり、${positionName}`, exact: true }),
+    ).toBeVisible({ timeout: SHIFT_FORM_DATA_TIMEOUT });
+  }
+
   async selectDailyDate(isoDate: string) {
     const chip = this.page.getByRole("tablist", { name: "日付選択" }).locator(`[data-date-chip="${isoDate}"]`);
     await expect(chip).toBeVisible({ timeout: SHIFT_FORM_DATA_TIMEOUT });

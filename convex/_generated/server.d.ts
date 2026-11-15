@@ -38,6 +38,7 @@ type Env = {
   readonly DEBUG_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER: string | undefined;
   readonly DEBUG_TRIAL_DURATION_DAYS: string | undefined;
   readonly PROMOTION_COMPLIMENTARY_PRO_CODE: string | undefined;
+  readonly SHIFT_SETUP_ASSIST_MODE: string | undefined;
   readonly STRIPE_PORTAL_CONFIGURATION_ID: string | undefined;
   readonly STRIPE_PRO_PRICE_ID: string | undefined;
   readonly STRIPE_SECRET_KEY: string | undefined;

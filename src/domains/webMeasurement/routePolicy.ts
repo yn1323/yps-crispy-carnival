@@ -170,7 +170,8 @@ export function getWebMeasurementRouteFamily(value: string): WebMeasurementRoute
   if (appPathname === "/manage" || appPathname === "/manage/organization") return "organization_management";
   if (appPathname === "/manage/billing") return "billing";
   if (/^\/manage\/managers(?:\/invite-(?:new|staff))?$/.test(appPathname)) return "manager_management";
-  if (/^\/manage\/shops\/[^/]+$/.test(appPathname)) return "shop_detail";
+  // 「シフト作成の設定」は店舗詳細の下位ページとして、同じ分類と同じ集計用のpathで数える。
+  if (/^\/manage\/shops\/[^/]+(?:\/shift-setup)?$/.test(appPathname)) return "shop_detail";
   if (appPathname === "/shifts") return "shift_management";
   if (/^\/shifts\/[^/]+\/board$/.test(appPathname)) return "shiftboard";
   if (appPathname === "/staff" || appPathname === "/staff/order") return "staff_management";

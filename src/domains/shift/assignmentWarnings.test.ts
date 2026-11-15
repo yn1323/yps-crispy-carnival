@@ -271,3 +271,177 @@ describe("computeAssignmentWarnings", () => {
     ]);
   });
 });
+
+describe("computeAssignmentWarnings: 入れないポジション（POSITION_UNAVAILABLE）", () => {
+  const positions = [
+    { id: "pos1", name: "ホール" },
+    { id: "pos2", name: "キッチン" },
+    { id: "pos3", name: "レジ" },
+  ];
+  // staff1は提出済みでキッチンとレジに入れない。staff2は未提出でキッチンに入れない。staff3は提出済みで全ポジションに入れる。
+  const profiledStaffs = [
+    { id: "staff1", isSubmitted: true, unavailablePositionIds: ["pos2", "pos3"] },
+    { id: "staff2", isSubmitted: false, unavailablePositionIds: ["pos2"] },
+    { id: "staff3", isSubmitted: true },
+  ];
+  const kitchen = (overrides: Partial<PositionSegment> = {}) =>
+    seg({ id: "seg-kitchen", positionId: "pos2", positionName: "キッチン", ...overrides });
+  const requested = { requestedTimes: [{ start: "10:00", end: "18:00" }] };
+
+  const runWithProfiles = (shifts: ShiftData[], pattern: AssignmentWarningPattern = timePattern) =>
+    computeAssignmentWarnings({ shifts, staffs: profiledStaffs, pattern, positions });
+
+  it("入れないポジションへ割り当てると、ポジション名の入った確認事項を出す", () => {
+    expect(runWithProfiles([shift({ ...requested, positions: [kitchen()] })])).toEqual([
+      {
+        code: "POSITION_UNAVAILABLE",
+        date: "2026-01-20",
+        staffId: "staff1",
+        message: "入れないポジションの勤務があります（キッチン）",
+      },
+    ]);
+  });
+
+  it("入れるポジションへの割当では出さない", () => {
+    expect(runWithProfiles([shift({ ...requested, positions: [seg({})] })])).toEqual([]);
+  });
+
+  it("入れないポジションを設定していないスタッフには出さない", () => {
+    expect(runWithProfiles([shift({ staffId: "staff3", ...requested, positions: [kitchen()] })])).toEqual([]);
+  });
+
+  it("ほかのスタッフが入れないポジションは、そのスタッフにだけ当てる", () => {
+    const warnings = runWithProfiles([
+      shift({ id: "shift-1", staffId: "staff1", ...requested, positions: [kitchen()] }),
+      shift({ id: "shift-3", staffId: "staff3", ...requested, positions: [kitchen()] }),
+    ]);
+
+    expect(warnings.map((warning) => [warning.staffId, warning.code])).toEqual([["staff1", "POSITION_UNAVAILABLE"]]);
+  });
+
+  it("同じ日に入れないポジションが複数あれば、重複を除いた名前を1件の確認事項にまとめる", () => {
+    const warnings = runWithProfiles([
+      shift({
+        ...requested,
+        positions: [
+          kitchen({ id: "s1", start: "10:00", end: "12:00" }),
+          seg({ id: "s2", start: "12:00", end: "14:00" }),
+          seg({ id: "s3", positionId: "pos3", positionName: "レジ", start: "14:00", end: "16:00" }),
+          kitchen({ id: "s4", start: "16:00", end: "18:00" }),
+        ],
+      }),
+    ]);
+
+    expect(warnings).toEqual([
+      {
+        code: "POSITION_UNAVAILABLE",
+        date: "2026-01-20",
+        staffId: "staff1",
+        message: "入れないポジションの勤務があります（キッチン・レジ）",
+      },
+    ]);
+  });
+
+  it("未提出の確認事項より先に出し、1セル1件を保つ", () => {
+    const warnings = runWithProfiles([shift({ staffId: "staff2", positions: [kitchen()] })]);
+
+    expect(warnings.map((warning) => warning.code)).toEqual(["POSITION_UNAVAILABLE"]);
+  });
+
+  it("休み希望の確認事項より先に出し、1セル1件を保つ", () => {
+    const warnings = runWithProfiles([shift({ requestedTimes: [], positions: [kitchen()] })]);
+
+    expect(warnings.map((warning) => warning.code)).toEqual(["POSITION_UNAVAILABLE"]);
+  });
+
+  it("希望時間外の確認事項より先に出し、1セル1件を保つ", () => {
+    const warnings = runWithProfiles([shift({ ...requested, positions: [kitchen({ start: "08:00", end: "20:00" })] })]);
+
+    expect(warnings.map((warning) => warning.code)).toEqual(["POSITION_UNAVAILABLE"]);
+  });
+
+  it("パターン選択の募集でも出す", () => {
+    const warnings = runWithProfiles(
+      [
+        shift({
+          requestedShiftTypeOptionIds: ["morning"],
+          positions: [kitchen({ start: "17:00", end: "21:00", shiftTypeOptionId: "late" })],
+        }),
+      ],
+      {
+        kind: "shiftType",
+        options: [
+          { id: "morning", name: "早番" },
+          { id: "late", name: "遅番" },
+        ],
+      },
+    );
+
+    expect(warnings).toEqual([
+      {
+        code: "POSITION_UNAVAILABLE",
+        date: "2026-01-20",
+        staffId: "staff1",
+        message: "入れないポジションの勤務があります（キッチン）",
+      },
+    ]);
+  });
+
+  it("日付選択の募集でも出す", () => {
+    const warnings = runWithProfiles([shift({ requestedTimes: [], positions: [kitchen()] })], { kind: "dateOnly" });
+
+    expect(warnings.map((warning) => warning.code)).toEqual(["POSITION_UNAVAILABLE"]);
+  });
+
+  it("ポジションの一覧を渡さない場合は、勤務が持つポジション名を使う", () => {
+    const warnings = computeAssignmentWarnings({
+      shifts: [shift({ ...requested, positions: [kitchen({ positionName: "厨房" })] })],
+      staffs: profiledStaffs,
+      pattern: timePattern,
+    });
+
+    expect(warnings.map((warning) => warning.message)).toEqual(["入れないポジションの勤務があります（厨房）"]);
+  });
+
+  it("ポジションの一覧にある名前を、勤務が持つ古い名前より優先する", () => {
+    const warnings = runWithProfiles([shift({ ...requested, positions: [kitchen({ positionName: "旧キッチン" })] })]);
+
+    expect(warnings.map((warning) => warning.message)).toEqual(["入れないポジションの勤務があります（キッチン）"]);
+  });
+
+  it("入れるポジションへの割当では、既存の3種類の確認事項が変わらず出る", () => {
+    const warnings = runWithProfiles([
+      shift({ id: "shift-a", staffId: "staff2", date: "2026-01-20", positions: [seg({})] }),
+      shift({ id: "shift-b", staffId: "staff1", date: "2026-01-21", requestedTimes: [], positions: [seg({})] }),
+      shift({
+        id: "shift-c",
+        staffId: "staff1",
+        date: "2026-01-22",
+        ...requested,
+        positions: [seg({ start: "10:00", end: "21:00" })],
+      }),
+      shift({ id: "shift-d", staffId: "staff1", date: "2026-01-23", ...requested, positions: [kitchen()] }),
+    ]);
+
+    expect(warnings).toEqual([
+      { code: "NOT_SUBMITTED", date: "2026-01-20", staffId: "staff2", message: "未提出のまま勤務に入っています" },
+      { code: "OFF_REQUEST", date: "2026-01-21", staffId: "staff1", message: "休み希望の日に勤務が入っています" },
+      {
+        code: "OUTSIDE_REQUESTED_TIME",
+        date: "2026-01-22",
+        staffId: "staff1",
+        message: "希望時間（10:00-18:00）の外に勤務があります",
+      },
+      {
+        code: "POSITION_UNAVAILABLE",
+        date: "2026-01-23",
+        staffId: "staff1",
+        message: "入れないポジションの勤務があります（キッチン）",
+      },
+    ]);
+  });
+
+  it("勤務のないセルには出さない", () => {
+    expect(runWithProfiles([shift({ ...requested, positions: [] })])).toEqual([]);
+  });
+});

@@ -76,6 +76,16 @@ function AppShiftBoardQuery({ organizationId, recruitmentId }: Required<Props>) 
         }
       : "skip",
   );
+  const queriedStaffing = useQuery(
+    api.shiftBoard.queries.getShiftBoardStaffing,
+    shopScope
+      ? {
+          shopId: shopScope.shopId,
+          expectedOrganizationId: organizationDocumentId,
+          recruitmentId: recruitmentDocumentId,
+        }
+      : "skip",
+  );
   const data = useRetainedShiftBoardData(
     `${organizationId}:${shopScope?.shopId ?? "none"}:${recruitmentId}`,
     queriedData,
@@ -91,7 +101,8 @@ function AppShiftBoardQuery({ organizationId, recruitmentId }: Required<Props>) 
       />
     );
   }
-  if (data === undefined) {
+  // 休憩の決まりと表示の初期状態は、編集を始める前に確定させる。編集中に勤務の初期値が変わらないようにするためである。
+  if (data === undefined || queriedStaffing === undefined) {
     return <ShiftoriLoading variant="section" message="Loading..." minH="full" />;
   }
   if (data === null) {
@@ -113,6 +124,7 @@ function AppShiftBoardQuery({ organizationId, recruitmentId }: Required<Props>) 
           data={data}
           onExport={onExport}
           dateNotes={queriedDateNotes === undefined ? "loading" : (queriedDateNotes ?? [])}
+          staffing={queriedStaffing ?? undefined}
           recruitmentId={recruitmentDocumentId}
           layout="app"
           header={{

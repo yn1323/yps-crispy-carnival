@@ -7,7 +7,7 @@ import {
   isSaturday,
   isSunday,
 } from "@/src/domains/shift/date";
-import type { StaffType } from "@/src/domains/shift/types";
+import type { PositionSegment, ShiftData, StaffType } from "@/src/domains/shift/types";
 import { Avatar, StaffWarningIcon } from "../../components";
 import {
   ShiftDateNoteCornerMark,
@@ -17,6 +17,9 @@ import {
   useAllShiftDateNotes,
   type useShiftDateNotes,
 } from "../../dateNotes";
+import { BreakMark, StaffMeta } from "../../detailParts";
+import type { DayStaffingView } from "../../staffingPresentation";
+import { DateStaffingCell, StaffingRowLabel } from "./DateStaffingCell";
 import { buildRowWeekNotes, type DateOnlyRowNote } from "./script";
 import type { DateInfo, DateOnlyColumn, DateOnlyRequestBadgeViewModel, DateOnlyRowViewModel } from "./types";
 import { WeekPeriodBar } from "./WeekPeriodBar";
@@ -27,6 +30,16 @@ const NOTE_COL_WIDTH = 240;
 const DATE_COL_WIDTH = 92;
 // メモ列を置く募集では、メモを読む幅を優先して日付列を詰める。
 const DATE_COL_WIDTH_WITH_NOTES = 64;
+// 勤務のあるセルにポジションと休憩を縦に並べるため、くわしく表示ではセルを高くする。
+const CELL_MIN_HEIGHT = "34px";
+const DETAIL_CELL_MIN_HEIGHT = "40px";
+// くわしく表示では、行を送っても人数と過不足が見えるよう、見出しを上端に留める。
+const STICKY_HEAD_PROPS = {
+  position: "sticky",
+  top: 0,
+  zIndex: 5,
+  boxShadow: "0 2px 4px rgba(0,0,0,0.06)",
+} as const;
 
 type Props = {
   columns: DateOnlyColumn[];
@@ -36,6 +49,12 @@ type Props = {
   sortDate: string;
   isConfirmedDisplay: boolean;
   isReadOnly: boolean;
+  /** くわしく表示かどうか。falseのときは従来の表と同じ内容を出す。 */
+  detailMode: boolean;
+  /** ポジションを塗り分ける表示（くわしく表示で、ポジションが2つ以上）かどうか。 */
+  usesPositionColors: boolean;
+  /** 日付ごとの人数と過不足。くわしく表示のときだけ渡す。 */
+  staffingByDate: ReadonlyMap<string, DayStaffingView> | null;
   onSortDateSelect: (date: string) => void;
   onToggle: (staff: StaffType, date: string) => void;
   dateNotes: ReturnType<typeof useShiftDateNotes>;
@@ -49,6 +68,9 @@ export const DateOnlyTable = ({
   sortDate,
   isConfirmedDisplay,
   isReadOnly,
+  detailMode,
+  usesPositionColors,
+  staffingByDate,
   onSortDateSelect,
   onToggle,
   dateNotes,
@@ -59,9 +81,11 @@ export const DateOnlyTable = ({
   const dateColWidth = hasNotes ? DATE_COL_WIDTH_WITH_NOTES : DATE_COL_WIDTH;
   const tableMinWidth =
     STAFF_COL_WIDTH + REQUEST_COL_WIDTH + (hasNotes ? NOTE_COL_WIDTH : 0) + columns.length * dateColWidth;
+  const leadingHeaderRowSpan = staffingByDate ? 1 : 2;
 
   return (
-    <Box minW={`${tableMinWidth}px`} bg="white" overflow="hidden">
+    // くわしく表示では見出しを上端に留めるため、内側で切り取らない。
+    <Box minW={`${tableMinWidth}px`} bg="white" overflow={detailMode ? "visible" : "hidden"}>
       <WeekPeriodBar periodLabel={periodLabel} />
       <Box as="table" w="100%" style={{ borderCollapse: "separate", borderSpacing: 0, tableLayout: "fixed" }}>
         <Box as="colgroup">
@@ -72,17 +96,18 @@ export const DateOnlyTable = ({
             <Box as="col" key={date.iso} style={{ width: dateColWidth }} />
           ))}
         </Box>
-        <Box as="thead">
+        <Box as="thead" {...(detailMode ? STICKY_HEAD_PROPS : undefined)}>
           <Box as="tr" bg="gray.50">
             {/* 人数の行には日付列の人数だけを置き、左の見出しは2行分を結合する。 */}
-            <StickyHeaderCell left={0} rowSpan={2}>
+            {/* くわしく表示では結合をやめ、人数の行の左に見出しを置く。 */}
+            <StickyHeaderCell left={0} rowSpan={leadingHeaderRowSpan}>
               ユーザー
             </StickyHeaderCell>
-            <StickyHeaderCell left={STAFF_COL_WIDTH} rowSpan={2}>
+            <StickyHeaderCell left={STAFF_COL_WIDTH} rowSpan={leadingHeaderRowSpan}>
               {isConfirmedDisplay ? "確定" : "希望"}
             </StickyHeaderCell>
             {hasNotes && (
-              <StickyHeaderCell left={STAFF_COL_WIDTH + REQUEST_COL_WIDTH} rowSpan={2}>
+              <StickyHeaderCell left={STAFF_COL_WIDTH + REQUEST_COL_WIDTH} rowSpan={leadingHeaderRowSpan}>
                 連絡事項
               </StickyHeaderCell>
             )}
@@ -99,13 +124,25 @@ export const DateOnlyTable = ({
             ))}
           </Box>
           <Box as="tr">
-            {columns.map(({ date, isClosed, assignmentCount }) => (
-              <HeaderCell key={date.iso} muted bg={isClosed ? "gray.100" : "gray.50"}>
-                <Text color={!date.inRange || isClosed ? "gray.400" : "teal.700"} fontWeight={700}>
-                  {!date.inRange ? "—" : isClosed ? "休" : `${assignmentCount}人`}
-                </Text>
-              </HeaderCell>
-            ))}
+            {staffingByDate && (
+              <StickyHeaderCell left={0} colSpan={hasNotes ? 3 : 2}>
+                <StaffingRowLabel />
+              </StickyHeaderCell>
+            )}
+            {columns.map(({ date, isClosed, assignmentCount }) => {
+              const staffingView = staffingByDate?.get(date.iso);
+              return staffingView ? (
+                <HeaderCell key={date.iso} muted bg={staffingView.hasShortage ? "red.50" : "gray.50"} flush>
+                  <DateStaffingCell date={date.iso} view={staffingView} />
+                </HeaderCell>
+              ) : (
+                <HeaderCell key={date.iso} muted bg={isClosed ? "gray.100" : "gray.50"}>
+                  <Text color={!date.inRange || isClosed ? "gray.400" : "teal.700"} fontWeight={700}>
+                    {!date.inRange ? "—" : isClosed ? "休" : `${assignmentCount}人`}
+                  </Text>
+                </HeaderCell>
+              );
+            })}
           </Box>
         </Box>
         <Box as="tbody">
@@ -116,6 +153,7 @@ export const DateOnlyTable = ({
                 isNameMuted={row.isStaffNameMuted}
                 warningMessages={row.warningMessages}
                 weekNotes={buildRowWeekNotes(row.staff.id, columns, allDateNotes.getNote)}
+                detailMode={detailMode}
               />
               <RequestCell badges={row.requestBadges} />
               {hasNotes && (
@@ -135,6 +173,11 @@ export const DateOnlyTable = ({
                   isClosed={cell.isClosed}
                   isSortDate={cell.date.iso === sortDate}
                   isReadOnly={isReadOnly}
+                  detailMode={detailMode}
+                  positionSegment={usesPositionColors ? cell.segment : undefined}
+                  breakShift={detailMode ? cell.breakShift : undefined}
+                  isProvisional={detailMode && cell.isProvisional}
+                  isNarrow={hasNotes}
                   onToggle={() => onToggle(row.staff, cell.date.iso)}
                 />
               ))}
@@ -179,9 +222,20 @@ const HeaderCell = ({
   </Box>
 );
 
-const StickyHeaderCell = ({ children, left, rowSpan }: { children?: ReactNode; left: number; rowSpan?: number }) => (
+const StickyHeaderCell = ({
+  children,
+  left,
+  rowSpan,
+  colSpan,
+}: {
+  children?: ReactNode;
+  left: number;
+  rowSpan?: number;
+  colSpan?: number;
+}) => (
   <chakra.th
     rowSpan={rowSpan}
+    colSpan={colSpan}
     position="sticky"
     left={`${left}px`}
     zIndex={4}
@@ -270,11 +324,13 @@ const StaffCell = ({
   isNameMuted,
   warningMessages,
   weekNotes,
+  detailMode,
 }: {
   staff: StaffType;
   isNameMuted: boolean;
   warningMessages: string[];
   weekNotes: DateOnlyRowNote[];
+  detailMode: boolean;
 }) => (
   <Box
     as="td"
@@ -290,9 +346,19 @@ const StaffCell = ({
   >
     <Flex align="center" gap={3} minW={0}>
       <Avatar staff={staff} size={24} />
-      <Text textStyle="sm" fontWeight={500} color={isNameMuted ? "gray.500" : "gray.800"} flex={1} truncate>
-        {staff.name}
-      </Text>
+      {detailMode ? (
+        // 名前を詰めないよう、熟練度と出勤日数の合計は名前の下の2行目に置く。
+        <Flex direction="column" justify="center" gap="2px" flex={1} minW={0}>
+          <Text textStyle="sm" fontWeight={500} color={isNameMuted ? "gray.500" : "gray.800"} truncate>
+            {staff.name}
+          </Text>
+          <StaffMeta staff={staff} />
+        </Flex>
+      ) : (
+        <Text textStyle="sm" fontWeight={500} color={isNameMuted ? "gray.500" : "gray.800"} flex={1} truncate>
+          {staff.name}
+        </Text>
+      )}
       <StaffWarningIcon messages={warningMessages} />
       <ShiftStaffNoteIcon notes={weekNotes} showDates />
     </Flex>
@@ -381,6 +447,24 @@ const RequestBadge = ({ bg, color, children }: { bg: string; color: string; chil
   </Box>
 );
 
+const COLORED_CELL_STATE_LAYER = {
+  content: '""',
+  position: "absolute",
+  inset: 0,
+  zIndex: -1,
+  borderRadius: "inherit",
+  bg: "blackAlpha.200",
+  opacity: 0,
+  pointerEvents: "none",
+  transitionProperty: "opacity",
+  transitionDuration: "faster",
+} as const;
+
+const PROVISIONAL_OUTLINE_PROPS = {
+  outline: "1.5px dashed rgba(255,255,255,0.9)",
+  outlineOffset: "-4px",
+} as const;
+
 const DateOnlyCell = ({
   note,
   staffName,
@@ -390,6 +474,11 @@ const DateOnlyCell = ({
   isClosed,
   isSortDate,
   isReadOnly,
+  detailMode,
+  positionSegment,
+  breakShift,
+  isProvisional,
+  isNarrow,
   onToggle,
 }: {
   note?: string;
@@ -400,19 +489,34 @@ const DateOnlyCell = ({
   isClosed: boolean;
   isSortDate: boolean;
   isReadOnly: boolean;
+  detailMode: boolean;
+  /** ポジションを塗り分ける表示のときだけ渡す、その日の勤務。 */
+  positionSegment?: PositionSegment;
+  /** くわしく表示で、休憩のある勤務の日だけ渡す。 */
+  breakShift?: ShiftData;
+  /** くわしく表示で、前回の勤務を仮で入れた日だけtrueにする。 */
+  isProvisional: boolean;
+  /** 連絡事項の列があり、日付の列を詰めているかどうか。 */
+  isNarrow: boolean;
   onToggle: () => void;
 }) => {
+  const isAssignedCell = date.inRange && !isClosed && assigned;
+  // ポジションを塗り分ける表示では、勤務のあるセルをポジションの色で塗る。
+  const coloredSegment = isAssignedCell ? positionSegment : undefined;
+  const visibleBreakShift = isAssignedCell ? breakShift : undefined;
   const button = (
     <Box
       as="button"
       aria-label={`${staffName} ${formatDateWithWeekday(date.iso)} ${
         !date.inRange ? "期間外" : assigned ? "勤務あり" : "勤務なし"
-      }${note ? "、連絡事項あり" : ""}`}
+      }${coloredSegment ? `、${coloredSegment.positionName}` : ""}${visibleBreakShift ? "、休憩あり" : ""}${
+        note ? "、連絡事項あり" : ""
+      }`}
       position="relative"
       aria-disabled={isReadOnly || isClosed || !date.inRange}
       onClick={isReadOnly || isClosed || !date.inRange ? undefined : onToggle}
       w="calc(100% - 8px)"
-      minH="34px"
+      minH={detailMode ? DETAIL_CELL_MIN_HEIGHT : CELL_MIN_HEIGHT}
       m="4px"
       display="flex"
       alignItems="center"
@@ -427,23 +531,63 @@ const DateOnlyCell = ({
       cursor={isReadOnly || isClosed || !date.inRange ? "default" : "pointer"}
       transitionProperty="colors"
       transitionDuration="faster"
+      // 仮の勤務は、内側の点線で確定前の候補であることを示す。
+      {...(isProvisional && isAssignedCell ? PROVISIONAL_OUTLINE_PROPS : undefined)}
+      {...(coloredSegment
+        ? {
+            // ポジションの色は店舗ごとに違うため、押せる手掛かりは色を変えず、暗い面を重ねて示す。
+            style: { background: coloredSegment.color, borderColor: coloredSegment.color },
+            isolation: "isolate",
+            overflow: "hidden",
+            _before: COLORED_CELL_STATE_LAYER,
+          }
+        : undefined)}
       _hover={
         isReadOnly || isClosed || !date.inRange
           ? undefined
-          : {
-              bg: assigned ? "teal.600" : "gray.100",
-              borderColor: assigned ? "teal.700" : requested ? "teal.600" : "gray.400",
-              color: assigned ? "white" : "gray.500",
-            }
+          : coloredSegment
+            ? { _before: { opacity: 0.5 } }
+            : {
+                bg: assigned ? "teal.600" : "gray.100",
+                borderColor: assigned ? "teal.700" : requested ? "teal.600" : "gray.400",
+                color: assigned ? "white" : "gray.500",
+              }
       }
       _active={
         isReadOnly || isClosed || !date.inRange
           ? undefined
-          : { bg: assigned ? "teal.600" : "gray.100", transitionDuration: "0ms" }
+          : coloredSegment
+            ? { _before: { opacity: 1, transitionDuration: "0ms" } }
+            : { bg: assigned ? "teal.600" : "gray.100", transitionDuration: "0ms" }
       }
       _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "1px" }}
     >
-      {!date.inRange || isClosed ? "-" : assigned ? "○" : "×"}
+      {detailMode && isAssignedCell ? (
+        <Flex direction="column" align="center" justify="center" gap="2px" minW={0} maxW="100%" px="4px">
+          {coloredSegment ? (
+            // セルをポジションの色で塗っているため、色の丸は添えず、名前だけを出す。
+            <Box as="span" maxW="100%" textStyle={isNarrow ? "2xs" : "xs"} fontWeight={700} truncate>
+              {coloredSegment.positionName}
+            </Box>
+          ) : (
+            <Box as="span" lineHeight={1}>
+              ○
+            </Box>
+          )}
+          {visibleBreakShift && (
+            // 休憩の印は、色の付いた面の上でも見えるよう白い丸に載せる。
+            <Flex as="span" bg="white" borderRadius="full" p="1px">
+              <BreakMark shift={visibleBreakShift} compact />
+            </Flex>
+          )}
+        </Flex>
+      ) : !date.inRange || isClosed ? (
+        "-"
+      ) : assigned ? (
+        "○"
+      ) : (
+        "×"
+      )}
       {note && <ShiftDateNoteCornerMark onFilled={assigned && date.inRange && !isClosed} />}
     </Box>
   );

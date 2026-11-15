@@ -23,6 +23,7 @@ import {
 } from "../constants";
 import { resolveCanonicalStaffScope, resolveStaffLineRecipient } from "../line/service";
 import { type NotificationLineRecipient, toNotificationLineRecipient } from "../notificationOutbox/types";
+import { listActivePositions } from "../shiftSetup/service";
 import { isShiftTargetStaff } from "../staff/service";
 import {
   buildConfirmationSnapshotSignature,
@@ -36,6 +37,8 @@ type AssignmentTime = {
   startTime: string;
   endTime: string;
   optionId?: string;
+  positionName?: string;
+  breaks?: ReadonlyArray<{ startTime: string; endTime: string }>;
 };
 
 type ConfirmationStaffEntry = {
@@ -114,6 +117,12 @@ async function buildConfirmationStaffEntries(
   const submissionPattern = recruitment.submissionPattern;
   const projectedAssignments =
     submissionPattern.kind === "time" ? normalizeExactAdjacentTimeAssignments(assignments) : assignments;
+  // ポジションが1つだけの店舗では、従来どおり時刻だけを伝える。
+  const positions = await listActivePositions(ctx, recruitment.shopId);
+  const positionNameById =
+    positions.length >= 2 ? new Map(positions.map((position) => [position._id, position.name])) : null;
+  // 削除したポジションの勤務は、シフト表と同じく既定のポジションとして伝える。
+  const defaultPositionName = positions.find((position) => position.isDefault)?.name;
 
   const entries = await Promise.all(
     staffs.map(async (staff) => {
@@ -127,10 +136,15 @@ async function buildConfirmationStaffEntries(
       const assignmentsByDate = new Map<string, AssignmentTime[]>();
       for (const assignment of staffAssignments) {
         const items = assignmentsByDate.get(assignment.date) ?? [];
+        const positionName = positionNameById
+          ? (positionNameById.get(assignment.positionId) ?? defaultPositionName)
+          : undefined;
         items.push({
           startTime: assignment.startTime,
           endTime: assignment.endTime,
           ...(assignment.optionId ? { optionId: assignment.optionId } : {}),
+          ...(positionName ? { positionName } : {}),
+          ...(assignment.breaks ? { breaks: assignment.breaks } : {}),
         });
         assignmentsByDate.set(assignment.date, items);
       }
@@ -149,6 +163,7 @@ async function buildConfirmationStaffEntries(
         endTime: assignment.endTime,
         positionId: assignment.positionId,
         ...(assignment.optionId !== undefined ? { optionId: assignment.optionId } : {}),
+        ...(assignment.breaks ? { breaks: assignment.breaks } : {}),
       }));
       const snapshotAssignments =
         submissionPattern.kind === "time"

@@ -109,6 +109,7 @@ export const CSR_SHELL_STATIC_ROUTES = [
 /** Cloudflare Pagesのnamed placeholder。長いpathを先に評価する。 */
 export const CSR_SHELL_DYNAMIC_ROUTES = [
   "/staff/:personId/shops/:shopId",
+  "/manage/shops/:shopId/shift-setup",
   "/manage/shops/:shopId",
   "/shifts/:recruitmentId/board",
   "/shifts/:recruitmentId/export",

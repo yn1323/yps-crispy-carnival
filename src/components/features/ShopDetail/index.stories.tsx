@@ -153,6 +153,7 @@ const meta = {
     isDeleting: false,
     onBack: () => {},
     onOpenUser: () => {},
+    onOpenShiftSetup: () => {},
     onUpdateSettings: () => {},
     onDelete: async () => true,
   },
@@ -382,6 +383,16 @@ export const StaffNavigationBehavior: Story = {
     await waitFor(() => expect(staffButton).toBeVisible());
     await userEvent.click(staffButton);
     await expect(await canvas.findByLabelText("操作結果")).toHaveTextContent("open:person-staff");
+  },
+};
+
+export const ShiftSetupNavigationBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <InteractionHarness />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "シフト作成の設定を開く" }));
+    await expect(await canvas.findByLabelText("操作結果")).toHaveTextContent("open:shift-setup");
   },
 };
 
@@ -779,6 +790,7 @@ function InteractionHarness() {
         isDeleting={false}
         onBack={() => {}}
         onOpenUser={(personId) => setResult(`open:${personId}`)}
+        onOpenShiftSetup={() => setResult("open:shift-setup")}
         onUpdateSettings={(data) =>
           setResult(`update:${data.shopName}|${data.submissionPattern.kind}|${data.regularClosedDays.join(",")}`)
         }
@@ -828,6 +840,7 @@ function SettingsSubmitLockHarness() {
         isDeleting={false}
         onBack={() => {}}
         onOpenUser={() => {}}
+        onOpenShiftSetup={() => {}}
         onUpdateSettings={updateSettings}
         onDelete={async () => false}
       />

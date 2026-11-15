@@ -55,7 +55,7 @@ function resolveAppOrganizationSwitchPath(pathname: string): AppOrganizationSwit
   if (staticPathname === "/manage/managers/invite-staff" || staticPathname === "/manage/managers/invite-new") {
     return "/manage/managers";
   }
-  if (/^\/manage\/shops\/[^/]+$/i.test(routePathname)) return "/manage";
+  if (/^\/manage\/shops\/[^/]+(?:\/shift-setup)?$/i.test(routePathname)) return "/manage";
 
   return null;
 }

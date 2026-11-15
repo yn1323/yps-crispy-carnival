@@ -1,22 +1,36 @@
 import { ConvexError, v } from "convex/values";
-import type { Doc } from "../_generated/dataModel";
-import { isPastShiftPeriod } from "../_lib/dateFormat";
+import type { Doc, Id } from "../_generated/dataModel";
+import type { QueryCtx } from "../_generated/server";
+import { generateDateRange, getWeekday, isPastShiftPeriod } from "../_lib/dateFormat";
 import { managerQuery, organizationQuery } from "../_lib/functions";
 import { getRecruitmentEditVersion, isCurrentSubmission } from "../_lib/recruitmentEditing";
 import { normalizeExactAdjacentTimeAssignments } from "../_lib/shiftAssignmentNormalization";
-import { shiftAssignmentReadValidator } from "../_lib/shiftAssignmentValidators";
+import { shiftAssignmentBreakValidator, shiftBoardAssignmentValidator } from "../_lib/shiftAssignmentValidators";
+import {
+  shiftBreakRuleValidator,
+  shiftDayTemplateSlotValidator,
+  shiftDayTemplateWeekdayValidator,
+} from "../_lib/shiftSetupValidators";
 import { getSubmissionPatternTimeRange, submissionPatternValidator } from "../_lib/submissionPattern";
-import { timeToMinutes } from "../_lib/time";
+import { isSupportedShiftTime, timeToMinutes } from "../_lib/time";
 import {
   SHIFT_ASSIGNMENT_LIMIT,
   SHIFT_BOARD_DATE_NOTE_LIMIT,
   SHIFT_BOARD_SHIFT_REQUEST_LIMIT,
   SHIFT_BOARD_STAFF_LIMIT,
   SHIFT_BOARD_TIME_UNIT_MINUTES,
+  SHIFT_DAY_TEMPLATE_OVERRIDE_PERIOD_LIMIT,
 } from "../constants";
 import { getOrganizationStaffOrderScope } from "../organization/staffOrder";
 import { getOrganizationAccessPolicy } from "../organizationBilling/service";
+import { getDefaultPosition } from "../position/service";
 import { getActiveRecruitmentInShop } from "../recruitment/service";
+import {
+  listActivePositions,
+  listDayTemplates,
+  toDayTemplateSlotsDto,
+  toUnavailablePositionIdsDto,
+} from "../shiftSetup/service";
 import { isShiftTargetStaff } from "../staff/service";
 
 const shiftBoardWriteBlockReasonValidator = v.union(
@@ -68,7 +82,7 @@ const shiftBoardDataValidator = v.object({
     }),
   ),
   requestedDates: v.array(v.object({ staffId: v.id("staffs"), date: v.string() })),
-  shiftAssignments: v.array(shiftAssignmentReadValidator),
+  shiftAssignments: v.array(shiftBoardAssignmentValidator),
   timeRange: v.object({
     start: v.number(),
     end: v.number(),
@@ -111,10 +125,7 @@ export const getShiftBoardData = managerQuery({
         .query("shiftAssignments")
         .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", args.recruitmentId))
         .take(SHIFT_ASSIGNMENT_LIMIT + 1),
-      ctx.db
-        .query("positions")
-        .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
-        .take(50),
+      listActivePositions(ctx, shop._id),
     ]);
     if (shiftAssignments.length > SHIFT_ASSIGNMENT_LIMIT) {
       throw new Error("Shift assignment scope exceeds the supported limit");
@@ -205,8 +216,14 @@ export const getShiftBoardData = managerQuery({
 
     // TimeRange.start/end は「時」の数値を期待（9, 22 等）
     const submissionPattern = recruitment.submissionPattern;
+    // 仮の勤務を入れたあとで提出したスタッフには希望を優先するため、そのスタッフの仮の勤務を返さない。
+    const visibleAssignments = shiftAssignments.filter(
+      (assignment) => !(assignment.isProvisional && submittedStaffIds.has(assignment.staffId)),
+    );
     const projectedAssignments =
-      submissionPattern.kind === "time" ? normalizeExactAdjacentTimeAssignments(shiftAssignments) : shiftAssignments;
+      submissionPattern.kind === "time"
+        ? normalizeExactAdjacentTimeAssignments(visibleAssignments)
+        : visibleAssignments;
     const { startTime: startTimeStr, endTime: endTimeStr } = getSubmissionPatternTimeRange(submissionPattern);
     const editableStartMinutes = timeToMinutes(startTimeStr);
     const editableEndMinutes = timeToMinutes(endTimeStr);
@@ -281,6 +298,8 @@ export const getShiftBoardData = managerQuery({
         endTime: a.endTime,
         positionId: a.positionId,
         ...(a.optionId !== undefined ? { optionId: a.optionId } : {}),
+        ...(a.breaks ? { breaks: a.breaks } : {}),
+        ...(a.isProvisional ? { isProvisional: true } : {}),
       })),
       timeRange: {
         start: startHour,
@@ -335,6 +354,229 @@ export const getShiftBoardDateNotes = managerQuery({
           entry.date <= recruitment.periodEnd,
       )
       .map(({ staffId, date, note }) => ({ staffId, date, note }));
+  },
+});
+
+async function getPreviousConfirmedRecruitment(
+  ctx: QueryCtx,
+  shopId: Id<"shops">,
+  periodStart: string,
+): Promise<Doc<"recruitments"> | null> {
+  return await ctx.db
+    .query("recruitments")
+    .withIndex("by_shopId_and_isDeleted_and_status_and_periodStart", (q) =>
+      q.eq("shopId", shopId).eq("isDeleted", false).eq("status", "confirmed").lt("periodStart", periodStart),
+    )
+    .order("desc")
+    .first();
+}
+
+/**
+ * シフト表の「くわしく」表示に使う、店舗の設定とスタッフの属性を返す。
+ * 割当の下書き保存で再送しないよう、getShiftBoardDataとは別に購読する。
+ */
+export const getShiftBoardStaffing = managerQuery({
+  args: { recruitmentId: v.id("recruitments") },
+  returns: v.union(
+    v.object({
+      breakRule: v.union(shiftBreakRuleValidator, v.null()),
+      dayTemplates: v.array(
+        v.object({
+          _id: v.id("shiftDayTemplates"),
+          name: v.string(),
+          weekdays: v.array(shiftDayTemplateWeekdayValidator),
+          slots: v.array(shiftDayTemplateSlotValidator),
+        }),
+      ),
+      dayTemplateOverrides: v.array(v.object({ date: v.string(), templateId: v.id("shiftDayTemplates") })),
+      // 標準（全ポジション可、熟練度が標準）のスタッフは返さない。
+      staffProfiles: v.array(
+        v.object({
+          staffId: v.id("staffs"),
+          unavailablePositionIds: v.array(v.id("positions")),
+          skillLevel: v.union(v.literal("newcomer"), v.literal("standard"), v.literal("lead")),
+        }),
+      ),
+      hasPreviousConfirmedRecruitment: v.boolean(),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const { shop } = ctx;
+    if (!shop) return null;
+
+    const recruitment = await getActiveRecruitmentInShop(ctx, shop._id, args.recruitmentId);
+    if (!recruitment) return null;
+
+    const [positions, templates, overrides, staffs, previousRecruitment] = await Promise.all([
+      listActivePositions(ctx, shop._id),
+      listDayTemplates(ctx, shop._id),
+      ctx.db
+        .query("shiftDayTemplateOverrides")
+        .withIndex("by_shopId_and_date", (q) =>
+          q.eq("shopId", shop._id).gte("date", recruitment.periodStart).lte("date", recruitment.periodEnd),
+        )
+        .take(SHIFT_DAY_TEMPLATE_OVERRIDE_PERIOD_LIMIT),
+      ctx.db
+        .query("staffs")
+        .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
+        .take(SHIFT_BOARD_STAFF_LIMIT),
+      getPreviousConfirmedRecruitment(ctx, shop._id, recruitment.periodStart),
+    ]);
+    const activePositionIds = new Set(positions.map((position) => position._id));
+    const templateIds = new Set(templates.map((template) => template._id));
+
+    return {
+      breakRule: shop.breakRule ?? null,
+      dayTemplates: templates.map((template) => ({
+        _id: template._id,
+        name: template.name,
+        weekdays: template.weekdays,
+        slots: toDayTemplateSlotsDto(template, activePositionIds),
+      })),
+      // 削除された型を指す特別な日は、曜日の割り当てへ戻ったものとして返さない。
+      dayTemplateOverrides: overrides
+        .filter((override) => templateIds.has(override.templateId))
+        .map((override) => ({ date: override.date, templateId: override.templateId })),
+      staffProfiles: staffs
+        .filter((staff) => staff.organizationId === shop.organizationId && isShiftTargetStaff(staff))
+        .map((staff) => ({
+          staffId: staff._id,
+          unavailablePositionIds: toUnavailablePositionIdsDto(staff, activePositionIds),
+          skillLevel: staff.skillLevel ?? ("standard" as const),
+        }))
+        .filter((profile) => profile.unavailablePositionIds.length > 0 || profile.skillLevel !== "standard"),
+      hasPreviousConfirmedRecruitment: previousRecruitment !== null,
+    };
+  },
+});
+
+/**
+ * 未提出者の「仮の勤務」の候補として、直近に確定した募集の同じ曜日の勤務を返す。
+ * 保存はしない。画面が勤務のない日へ差し込み、担当者が保存したときに仮の勤務として残る。
+ */
+export const getProvisionalAssignments = managerQuery({
+  args: { recruitmentId: v.id("recruitments") },
+  returns: v.union(
+    v.array(
+      v.object({
+        staffId: v.id("staffs"),
+        date: v.string(),
+        startTime: v.string(),
+        endTime: v.string(),
+        positionId: v.id("positions"),
+        optionId: v.optional(v.string()),
+        breaks: v.optional(v.array(shiftAssignmentBreakValidator)),
+      }),
+    ),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const { shop } = ctx;
+    if (!shop) return null;
+
+    const recruitment = await getActiveRecruitmentInShop(ctx, shop._id, args.recruitmentId);
+    if (!recruitment) return null;
+    if (recruitment.status !== "open") return [];
+
+    const previousRecruitment = await getPreviousConfirmedRecruitment(ctx, shop._id, recruitment.periodStart);
+    const pattern = recruitment.submissionPattern;
+    // 募集方式が変わった店舗では、前回の勤務を今回の形へ写せない。
+    if (!previousRecruitment || previousRecruitment.submissionPattern.kind !== pattern.kind) return [];
+
+    const [staffs, submissions, previousAssignments, positions, defaultPosition] = await Promise.all([
+      ctx.db
+        .query("staffs")
+        .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
+        .take(SHIFT_BOARD_STAFF_LIMIT),
+      ctx.db
+        .query("shiftSubmissions")
+        .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", args.recruitmentId))
+        .take(SHIFT_BOARD_STAFF_LIMIT),
+      ctx.db
+        .query("shiftAssignments")
+        .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", previousRecruitment._id))
+        .take(SHIFT_ASSIGNMENT_LIMIT + 1),
+      listActivePositions(ctx, shop._id),
+      getDefaultPosition(ctx, shop._id),
+    ]);
+    if (previousAssignments.length > SHIFT_ASSIGNMENT_LIMIT) {
+      throw new Error("Shift assignment scope exceeds the supported limit");
+    }
+    if (!defaultPosition) return [];
+
+    const submittedStaffIds = new Set(submissions.filter(isCurrentSubmission).map((s) => s.staffId));
+    const unsubmittedStaffIds = new Set(
+      staffs
+        .filter(
+          (staff) =>
+            staff.organizationId === shop.organizationId &&
+            isShiftTargetStaff(staff) &&
+            !submittedStaffIds.has(staff._id),
+        )
+        .map((staff) => staff._id),
+    );
+    const activePositionIds = new Set(positions.map((position) => position._id));
+    const closedDates = new Set(recruitment.shopClosedDates);
+    const { startTime: rangeStart, endTime: rangeEnd } = getSubmissionPatternTimeRange(pattern);
+    const optionById =
+      pattern.kind === "shiftType" ? new Map(pattern.options.map((option) => [option.id, option])) : null;
+
+    // 前回の期間のうち、曜日ごとに最後の日だけを引き継ぎ元にする。
+    const sourceDateByWeekday = new Map<number, string>();
+    for (const date of generateDateRange(previousRecruitment.periodStart, previousRecruitment.periodEnd)) {
+      sourceDateByWeekday.set(getWeekday(date), date);
+    }
+    const previousByStaffDate = new Map<string, Doc<"shiftAssignments">[]>();
+    const sourceAssignments =
+      pattern.kind === "time" ? normalizeExactAdjacentTimeAssignments(previousAssignments) : previousAssignments;
+    for (const assignment of sourceAssignments) {
+      if (!unsubmittedStaffIds.has(assignment.staffId)) continue;
+      const key = `${assignment.staffId}|${assignment.date}`;
+      const items = previousByStaffDate.get(key) ?? [];
+      items.push(assignment);
+      previousByStaffDate.set(key, items);
+    }
+
+    const result: Array<{
+      staffId: Id<"staffs">;
+      date: string;
+      startTime: string;
+      endTime: string;
+      positionId: Id<"positions">;
+      optionId?: string;
+      breaks?: Array<{ startTime: string; endTime: string }>;
+    }> = [];
+    for (const date of generateDateRange(recruitment.periodStart, recruitment.periodEnd)) {
+      if (closedDates.has(date)) continue;
+      const sourceDate = sourceDateByWeekday.get(getWeekday(date));
+      if (!sourceDate) continue;
+      for (const staffId of unsubmittedStaffIds) {
+        for (const source of previousByStaffDate.get(`${staffId}|${sourceDate}`) ?? []) {
+          if (!isSupportedShiftTime(source.startTime) || !isSupportedShiftTime(source.endTime)) continue;
+          if (pattern.kind === "shiftType") {
+            // 今回の募集に同じ勤務パターンが同じ時間で残っている場合だけ引き継ぐ。
+            const option = source.optionId ? optionById?.get(source.optionId) : undefined;
+            if (!option || option.startTime !== source.startTime || option.endTime !== source.endTime) continue;
+          } else if (
+            timeToMinutes(source.startTime) < timeToMinutes(rangeStart) ||
+            timeToMinutes(source.endTime) > timeToMinutes(rangeEnd)
+          ) {
+            continue;
+          }
+          result.push({
+            staffId,
+            date,
+            startTime: source.startTime,
+            endTime: source.endTime,
+            positionId: activePositionIds.has(source.positionId) ? source.positionId : defaultPosition._id,
+            ...(source.optionId !== undefined ? { optionId: source.optionId } : {}),
+            ...(source.breaks ? { breaks: source.breaks } : {}),
+          });
+        }
+      }
+    }
+    return result;
   },
 });
 

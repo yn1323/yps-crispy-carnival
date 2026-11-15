@@ -9,16 +9,19 @@ import type { StaffType } from "@/src/domains/shift/types";
 import { Avatar, DateIssueBadge, dateIssueBorderColor, StaffWarningIcon } from "../../components";
 import { DisplaySettingsMenu } from "../../DisplaySettingsMenu";
 import { ShiftDateNoteBlock, ShiftStaffNoteIcon, useAllShiftDateNotes } from "../../dateNotes";
+import { BreakMark, PositionMark, StaffingSummary, StaffMeta, useDayStaffingView } from "../../detailParts";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
 import {
   dailySortedStaffsAtom,
+  detailModeAtom,
   issueCountByDateAtom,
   selectDateWithDailyStaffOrderAtom,
   selectedDateAtom,
   shiftConfigAtom,
   shiftsForSelectedDateAtom,
   toggleShiftTypeAssignmentAtom,
+  usesPositionColorsAtom,
   warningCountByDateAtom,
   warningMessagesByStaffIdForSelectedDateAtom,
 } from "../../stores";
@@ -40,6 +43,8 @@ export const SPShiftTypeDailyView = () => {
   const issueCounts = useAtomValue(issueCountByDateAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
   const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
+  // 人数と過不足を出す日（くわしく表示の営業日）だけ値が入る。
+  const staffingView = useDayStaffingView(selectedDate);
   // カード下段の本文と名前の右のアイコンは、表示設定に応じてどちらか一方だけが出る。
   const dateNotes = useAllShiftDateNotes();
 
@@ -161,6 +166,13 @@ export const SPShiftTypeDailyView = () => {
         </Flex>
       )}
 
+      {/* くわしく表示では、勤務パターンごとの人数を、必要人数と過不足を含む「人数」に置き換える。 */}
+      {staffingView && (
+        <Box flexShrink={0} maxH="40dvh" overflowY="auto" bg="gray.50" px={3} pt={3}>
+          <StaffingSummary date={selectedDate} defaultExpanded />
+        </Box>
+      )}
+
       <Box flex={1} minH={0} overflow="auto" bg="gray.50" px={3} py={3}>
         {isShopClosedDate ? (
           <Flex minH="240px" align="center" justify="center" direction="column" gap={2} px={4}>
@@ -173,7 +185,7 @@ export const SPShiftTypeDailyView = () => {
           </Flex>
         ) : (
           <Stack gap={2}>
-            <ShiftTypeCountSummary items={viewModel.counts} />
+            {!staffingView && <ShiftTypeCountSummary items={viewModel.counts} />}
             {viewModel.staffCards.map((card) => (
               <StaffShiftTypeCard
                 key={card.staff.id}
@@ -235,40 +247,56 @@ const StaffShiftTypeCard = ({
   note?: string;
   noteDate: string;
   onToggle: (option: ShiftTypeOptionLike) => void;
-}) => (
-  <Box bg="white" borderWidth="1px" borderColor="gray.200" borderRadius="md" px={3} py={3}>
-    <Flex align="center" gap={2}>
-      <Avatar staff={card.staff} size={26} />
-      <Text textStyle="sm" fontWeight={600} color={card.isNameMuted ? "gray.500" : "gray.800"} flex={1} truncate>
-        {card.staff.name}
-      </Text>
-      <StaffWarningIcon messages={warningMessages} openOn="tap" />
-      <ShiftStaffNoteIcon notes={note ? [{ date: noteDate, note }] : []} openOn="tap" />
-      <Flex gap={1} wrap="wrap" justify="flex-end" align="center">
-        <Text textStyle="2xs" color="gray.500" fontWeight={600}>
-          {card.requestSectionLabel}：
-        </Text>
-        {card.requestBadges.map((badge) => (
-          <RequestBadge key={badge.key} bg={badge.bg} color={badge.color}>
-            {badge.label}
-          </RequestBadge>
-        ))}
+}) => {
+  const detailMode = useAtomValue(detailModeAtom);
+  return (
+    <Box bg="white" borderWidth="1px" borderColor="gray.200" borderRadius="md" px={3} py={3}>
+      <Flex align="center" gap={2}>
+        <Avatar staff={card.staff} size={26} />
+        {detailMode ? (
+          // くわしく表示: 名前の下に、熟練度・仮・合計と休憩の印を添える。
+          <Box flex={1} minW={0}>
+            <Text textStyle="sm" fontWeight={600} color={card.isNameMuted ? "gray.500" : "gray.800"} truncate>
+              {card.staff.name}
+            </Text>
+            <Flex align="center" columnGap={2} rowGap="2px" flexWrap="wrap">
+              <StaffMeta staff={card.staff} shift={card.shift} />
+              <BreakMark shift={card.shift} />
+            </Flex>
+          </Box>
+        ) : (
+          <Text textStyle="sm" fontWeight={600} color={card.isNameMuted ? "gray.500" : "gray.800"} flex={1} truncate>
+            {card.staff.name}
+          </Text>
+        )}
+        <StaffWarningIcon messages={warningMessages} openOn="tap" />
+        <ShiftStaffNoteIcon notes={note ? [{ date: noteDate, note }] : []} openOn="tap" />
+        <Flex gap={1} wrap="wrap" justify="flex-end" align="center">
+          <Text textStyle="2xs" color="gray.500" fontWeight={600}>
+            {card.requestSectionLabel}：
+          </Text>
+          {card.requestBadges.map((badge) => (
+            <RequestBadge key={badge.key} bg={badge.bg} color={badge.color}>
+              {badge.label}
+            </RequestBadge>
+          ))}
+        </Flex>
       </Flex>
-    </Flex>
-    <SimpleGrid columns={2} gap={2} mt={3}>
-      {card.options.map((option) => (
-        <ShiftTypeOptionButton
-          key={option.option.id}
-          staffName={card.staff.name}
-          viewModel={option}
-          isReadOnly={isReadOnly}
-          onToggle={() => onToggle(option.option)}
-        />
-      ))}
-    </SimpleGrid>
-    {note && <ShiftDateNoteBlock note={note} />}
-  </Box>
-);
+      <SimpleGrid columns={2} gap={2} mt={3}>
+        {card.options.map((option) => (
+          <ShiftTypeOptionButton
+            key={option.option.id}
+            staffName={card.staff.name}
+            viewModel={option}
+            isReadOnly={isReadOnly}
+            onToggle={() => onToggle(option.option)}
+          />
+        ))}
+      </SimpleGrid>
+      {note && <ShiftDateNoteBlock note={note} />}
+    </Box>
+  );
+};
 
 const RequestBadge = ({ bg, color, children }: { bg: string; color: string; children: ReactNode }) => (
   <Box px={2} py="2px" borderRadius="full" textStyle="2xs" fontWeight={600} style={{ color, background: bg }}>
@@ -286,66 +314,78 @@ const ShiftTypeOptionButton = ({
   viewModel: SPShiftTypeOptionViewModel;
   isReadOnly: boolean;
   onToggle: () => void;
-}) => (
-  <Box
-    as="button"
-    aria-label={`${staffName} ${viewModel.name} ${viewModel.assigned ? "勤務あり" : "勤務なし"}`}
-    aria-disabled={isReadOnly}
-    onClick={isReadOnly ? undefined : onToggle}
-    textAlign="left"
-    px={3}
-    py={2}
-    borderWidth="1px"
-    borderRadius="md"
-    borderColor={viewModel.assigned ? viewModel.color.accent : "gray.200"}
-    bg={viewModel.assigned ? viewModel.color.assignedBg : "white"}
-    color={viewModel.assigned ? viewModel.color.accent : "gray.600"}
-    cursor={isReadOnly ? "default" : "pointer"}
-    position="relative"
-    isolation="isolate"
-    overflow="hidden"
-    transitionProperty="colors"
-    transitionDuration="faster"
-    _before={
-      viewModel.assigned
-        ? {
-            content: '""',
-            position: "absolute",
-            inset: 0,
-            zIndex: -1,
-            borderRadius: "inherit",
-            bg: "blackAlpha.200",
-            opacity: 0,
-            pointerEvents: "none",
-            transitionProperty: "opacity",
-            transitionDuration: "faster",
-          }
-        : undefined
-    }
-    _active={
-      isReadOnly
-        ? undefined
-        : viewModel.assigned
-          ? { _before: { opacity: 1, transitionDuration: "0ms" } }
-          : { bg: "gray.100", transitionDuration: "0ms" }
-    }
-  >
-    <Flex align="center" gap={2}>
-      <Text as="span" fontSize="lg" lineHeight={1} color={viewModel.assigned ? viewModel.color.accent : "gray.400"}>
-        {viewModel.assigned ? "○" : "×"}
-      </Text>
-      <Box minW={0}>
-        <Text textStyle="xs" fontWeight={700} truncate>
-          {viewModel.name}
+}) => {
+  const usesPositionColors = useAtomValue(usesPositionColorsAtom);
+  // ポジションを塗り分ける表示では、入っているポジションをボタンに出す。勤務パターンの色は保つ。
+  const positionSegment = usesPositionColors ? viewModel.segment : undefined;
+  return (
+    <Box
+      as="button"
+      aria-label={`${staffName} ${viewModel.name} ${viewModel.assigned ? "勤務あり" : "勤務なし"}${
+        positionSegment ? `、${positionSegment.positionName}` : ""
+      }`}
+      aria-disabled={isReadOnly}
+      onClick={isReadOnly ? undefined : onToggle}
+      textAlign="left"
+      px={3}
+      py={2}
+      borderWidth="1px"
+      borderRadius="md"
+      borderColor={viewModel.assigned ? viewModel.color.accent : "gray.200"}
+      bg={viewModel.assigned ? viewModel.color.assignedBg : "white"}
+      color={viewModel.assigned ? viewModel.color.accent : "gray.600"}
+      cursor={isReadOnly ? "default" : "pointer"}
+      position="relative"
+      isolation="isolate"
+      overflow="hidden"
+      transitionProperty="colors"
+      transitionDuration="faster"
+      _before={
+        viewModel.assigned
+          ? {
+              content: '""',
+              position: "absolute",
+              inset: 0,
+              zIndex: -1,
+              borderRadius: "inherit",
+              bg: "blackAlpha.200",
+              opacity: 0,
+              pointerEvents: "none",
+              transitionProperty: "opacity",
+              transitionDuration: "faster",
+            }
+          : undefined
+      }
+      _active={
+        isReadOnly
+          ? undefined
+          : viewModel.assigned
+            ? { _before: { opacity: 1, transitionDuration: "0ms" } }
+            : { bg: "gray.100", transitionDuration: "0ms" }
+      }
+    >
+      <Flex align="center" gap={2}>
+        <Text as="span" fontSize="lg" lineHeight={1} color={viewModel.assigned ? viewModel.color.accent : "gray.400"}>
+          {viewModel.assigned ? "○" : "×"}
         </Text>
-        <Text
-          textStyle="2xs"
-          color={viewModel.assigned ? viewModel.color.accent : "gray.500"}
-          fontVariantNumeric="tabular-nums"
-        >
-          {viewModel.timeLabel}
-        </Text>
-      </Box>
-    </Flex>
-  </Box>
-);
+        <Box minW={0}>
+          <Text textStyle="xs" fontWeight={700} truncate>
+            {viewModel.name}
+          </Text>
+          <Text
+            textStyle="2xs"
+            color={viewModel.assigned ? viewModel.color.accent : "gray.500"}
+            fontVariantNumeric="tabular-nums"
+          >
+            {viewModel.timeLabel}
+          </Text>
+          {positionSegment && (
+            <Box mt="2px" color="gray.800">
+              <PositionMark segment={positionSegment} />
+            </Box>
+          )}
+        </Box>
+      </Flex>
+    </Box>
+  );
+};

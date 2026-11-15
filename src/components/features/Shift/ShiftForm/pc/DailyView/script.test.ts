@@ -26,9 +26,37 @@ describe("buildShiftPopoverViewModel", () => {
     expect(viewModel.requestLabel).toBe("希望：09:00〜12:00 / 13:00〜17:00");
     expect(viewModel.showUnsubmittedBadge).toBe(true);
     expect(viewModel.segments).toEqual([
-      { id: "work-1", timeLabel: "09:00〜12:00" },
-      { id: "work-2", timeLabel: "13:00〜17:00" },
+      { id: "work-1", timeLabel: "09:00〜12:00", positionId: "default", positionName: "勤務", color: "#000" },
+      { id: "work-2", timeLabel: "13:00〜17:00", positionId: "default", positionName: "勤務", color: "#000" },
     ]);
+    expect(viewModel.breakLabels).toEqual([]);
+  });
+
+  it("時刻で入れた休憩を、勤務時間の内側だけ開始順に表示値へ変換する", () => {
+    const viewModel = buildShiftPopoverViewModel({
+      shift: {
+        id: "shift-1",
+        staffId: "staff-1",
+        staffName: "佐藤",
+        date: "2026-07-20",
+        requestedTime: null,
+        positions: [
+          { id: "work-1", positionId: "hall", positionName: "ホール", color: "#111", start: "10:00", end: "19:00" },
+        ],
+        breaks: [
+          { start: "16:00", end: "16:15" },
+          { start: "12:00", end: "13:00" },
+          { start: "19:00", end: "19:30" },
+        ],
+      },
+      isStaffSubmitted: true,
+      isReadOnly: false,
+    });
+
+    expect(viewModel.segments).toEqual([
+      { id: "work-1", timeLabel: "10:00〜19:00", positionId: "hall", positionName: "ホール", color: "#111" },
+    ]);
+    expect(viewModel.breakLabels).toEqual(["12:00〜13:00", "16:00〜16:15"]);
   });
 
   it("希望時間がない日は、提出済みなら休み、未提出ならなしと表示する", () => {

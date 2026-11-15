@@ -9,17 +9,19 @@ import { useShiftDateNotes } from "../../dateNotes";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import {
   dailySortedStaffsAtom,
+  detailModeAtom,
   issueCountByDateAtom,
   lockDailyStaffOrderAtom,
   selectedDateAtom,
   shiftConfigAtom,
   shiftsAtom,
   toggleDateOnlyAssignmentAtom,
+  usesPositionColorsAtom,
   validationWarningsAtom,
   warningCountByDateAtom,
 } from "../../stores";
 import { DateOnlyTable } from "./DateOnlyTable";
-import { buildDateOnlyRows, buildDateOnlyWeeks, getSortableDates } from "./script";
+import { buildDateOnlyRows, buildDateOnlyStaffingByDate, buildDateOnlyWeeks, getSortableDates } from "./script";
 import type { DateOnlyColumn } from "./types";
 import { WeekRail } from "./WeekRail";
 
@@ -33,8 +35,10 @@ export const DateOnlyView = () => {
   const sortedStaffs = useAtomValue(dailySortedStaffsAtom);
   const lockDailyStaffOrder = useSetAtom(lockDailyStaffOrderAtom);
   const dateNotes = useShiftDateNotes();
+  const detailMode = useAtomValue(detailModeAtom);
+  const usesPositionColors = useAtomValue(usesPositionColorsAtom);
 
-  const { dates, holidays, isReadOnly } = config;
+  const { dates, holidays, isReadOnly, staffs, positions, submissionPattern, timeRange, staffing } = config;
   const isConfirmedDisplay = config.displayMode === "confirmed";
   const weeks = useMemo(() => buildDateOnlyWeeks(dates), [dates]);
   const [selectedWeekIndex, setSelectedWeekIndex] = useState(0);
@@ -60,6 +64,34 @@ export const DateOnlyView = () => {
   const counts = useMemo(
     () => countDateOnlyAssignmentsByDate(shifts, visibleInRangeDateKeys),
     [shifts, visibleInRangeDateKeys],
+  );
+  // くわしく表示のときだけ、日付ごとの人数と過不足を数える。スタッフ向けの確定シフト表示には出さない。
+  const staffingByDate = useMemo(
+    () =>
+      detailMode && !isConfirmedDisplay
+        ? buildDateOnlyStaffingByDate({
+            dates: visibleInRangeDateKeys,
+            holidays,
+            staffs,
+            shifts,
+            positions,
+            submissionPattern,
+            timeRange,
+            staffing,
+          })
+        : null,
+    [
+      detailMode,
+      holidays,
+      isConfirmedDisplay,
+      positions,
+      shifts,
+      staffing,
+      staffs,
+      submissionPattern,
+      timeRange,
+      visibleInRangeDateKeys,
+    ],
   );
   const warningMessagesByStaffId = useMemo(() => {
     const visibleDateSet = new Set(visibleInRangeDateKeys);
@@ -146,6 +178,9 @@ export const DateOnlyView = () => {
           sortDate={sortDate}
           isConfirmedDisplay={isConfirmedDisplay}
           isReadOnly={isReadOnly}
+          detailMode={detailMode}
+          usesPositionColors={usesPositionColors}
+          staffingByDate={staffingByDate}
           onSortDateSelect={handleSortDateSelect}
           onToggle={handleToggle}
           dateNotes={dateNotes}

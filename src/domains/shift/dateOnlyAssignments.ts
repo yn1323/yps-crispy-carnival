@@ -9,6 +9,8 @@ type ToggleDateOnlyAssignmentParams = {
   date: string;
   timeRange: TimeRange;
   position?: PositionType;
+  // trueの場合、別のポジションで入っている勤務は外さず、選んだポジションへ入れ替える。
+  switchPosition?: boolean;
 };
 
 export const getDateOnlyAssignmentRange = (timeRange: TimeRange): { start: string; end: string } => ({
@@ -40,6 +42,7 @@ export const toggleDateOnlyAssignment = ({
   date,
   timeRange,
   position = DEFAULT_POSITION,
+  switchPosition = false,
 }: ToggleDateOnlyAssignmentParams): ShiftData[] => {
   const targetShift = shifts.find((shift) => shift.staffId === staff.id && shift.date === date);
 
@@ -68,7 +71,23 @@ export const toggleDateOnlyAssignment = ({
   }
 
   if (hasDateOnlyAssignment(targetShift)) {
-    return shifts.map((shift) => (shift.id === targetShift.id ? { ...shift, positions: [] } : shift));
+    // 別のポジションで入っている勤務は外さず、選んだポジションへ入れ替える。
+    const needsSwitch = switchPosition && targetShift.positions.some((segment) => segment.positionId !== position.id);
+    return shifts.map((shift) =>
+      shift.id === targetShift.id
+        ? {
+            ...shift,
+            positions: needsSwitch
+              ? shift.positions.map((segment) => ({
+                  ...segment,
+                  positionId: position.id,
+                  positionName: position.name,
+                  color: position.color,
+                }))
+              : [],
+          }
+        : shift,
+    );
   }
 
   const { start, end } = getDateOnlyAssignmentRange(timeRange);

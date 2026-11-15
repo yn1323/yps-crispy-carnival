@@ -6,6 +6,7 @@ export const ASSIGNMENT_WARNING_TEXTS = {
   OFF_REQUEST: "休み希望の日にシフトを設定",
   OUTSIDE_REQUESTED_TIME: "希望時間外のシフトを設定",
   NOT_SUBMITTED: "未提出のスタッフにシフトを設定",
+  POSITION_UNAVAILABLE: "入れないポジションにシフトを設定",
   OTHER: "その他の確認事項",
 } as const satisfies Record<WarningSummaryCategoryCode, string>;
 

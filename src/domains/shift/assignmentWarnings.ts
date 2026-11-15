@@ -9,7 +9,8 @@ import type { ShiftData } from "./types";
 export type AssignmentWarningCode =
   | "NOT_SUBMITTED" // 未提出スタッフが勤務に入っている
   | "OFF_REQUEST" // 休み希望の日に勤務が入っている
-  | "OUTSIDE_REQUESTED_TIME"; // 希望時間の枠外にはみ出した勤務（時間指定の募集・パターン選択の募集）
+  | "OUTSIDE_REQUESTED_TIME" // 希望時間の枠外にはみ出した勤務（時間指定の募集・パターン選択の募集）
+  | "POSITION_UNAVAILABLE"; // スタッフが入れないポジションの勤務
 
 export type AssignmentWarning = {
   code: AssignmentWarningCode;
@@ -24,8 +25,10 @@ export type AssignmentWarningPattern =
 
 export type AssignmentWarningInput = {
   shifts: ShiftData[];
-  staffs: Array<{ id: string; isSubmitted: boolean }>;
+  staffs: Array<{ id: string; isSubmitted: boolean; unavailablePositionIds?: readonly string[] }>;
   pattern: AssignmentWarningPattern;
+  // ポジション名。入れないポジションの確認事項に使う。
+  positions?: ReadonlyArray<{ id: string; name: string }>;
 };
 
 // 各セル（スタッフ×日付）の「割当」と「希望」を比べ、食い違いを1セルあたり最大1件で収集する。
@@ -36,6 +39,11 @@ export function computeAssignmentWarnings(input: AssignmentWarningInput): Assign
   const optionNameById = new Map(
     input.pattern.kind === "shiftType" ? input.pattern.options.map((option) => [option.id, option.name]) : [],
   );
+
+  const unavailableByStaffId = new Map(
+    input.staffs.map((staff) => [staff.id, new Set(staff.unavailablePositionIds ?? [])]),
+  );
+  const positionNameById = new Map((input.positions ?? []).map((position) => [position.id, position.name]));
 
   const warnings: AssignmentWarning[] = [];
 
@@ -48,6 +56,20 @@ export function computeAssignmentWarnings(input: AssignmentWarningInput): Assign
 
     const add = (code: AssignmentWarningCode, message: string) =>
       warnings.push({ code, date: shift.date, staffId: shift.staffId, message });
+
+    // 入れないポジションは、希望との食い違いより先に知らせる。1セル1件の決まりは保つ。
+    const unavailable = unavailableByStaffId.get(shift.staffId);
+    const unavailableNames = [
+      ...new Set(
+        work
+          .filter((position) => unavailable?.has(position.positionId))
+          .map((position) => positionNameById.get(position.positionId) ?? position.positionName),
+      ),
+    ];
+    if (unavailableNames.length > 0) {
+      add("POSITION_UNAVAILABLE", `入れないポジションの勤務があります（${unavailableNames.join("・")}）`);
+      continue;
+    }
 
     // 未提出は希望データが存在しないため、休み希望・希望時間外とは別カテゴリ
     if (!isSubmittedById.get(shift.staffId)) {

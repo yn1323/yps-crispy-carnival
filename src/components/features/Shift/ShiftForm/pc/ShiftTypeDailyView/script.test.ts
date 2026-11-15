@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
-import { buildShiftTypeDailyViewModel } from "./script";
+import type { DayStaffingView, StaffingSlotView } from "../../staffingPresentation";
+import { buildShiftTypeDailyViewModel, indexStaffingSlotsByOptionKey, summarizeStaffingSlot } from "./script";
 
 const submissionPattern: ShiftSubmissionPattern = {
   kind: "shiftType",
@@ -139,5 +140,150 @@ describe("buildShiftTypeDailyViewModel", () => {
     expect(withNotes.columnWidths.request).toBe(150);
     expect(withNotes.columnWidths.note).toBe(200);
     expect(withNotes.minimumTableWidth - withoutNotes.minimumTableWidth).toBe(200);
+  });
+
+  describe("くわしく表示", () => {
+    const hallEarly = { ...shifts[0].positions[0], positionId: "hall", positionName: "ホール", color: "#2563eb" };
+    const kitchenLate = {
+      id: "position-late",
+      positionId: "kitchen",
+      positionName: "キッチン",
+      color: "#ea580c",
+      start: "13:00",
+      end: "18:00",
+      shiftTypeOptionId: "late",
+    };
+    const detailShift: ShiftData = {
+      ...shifts[0],
+      positions: [hallEarly, kitchenLate],
+      // 早番の時間内にだけ休憩がある。
+      breaks: [{ start: "11:00", end: "11:30" }],
+      isProvisional: true,
+    };
+    const base = {
+      submissionPattern,
+      shifts: [detailShift],
+      staffs: [staffs[0]],
+      selectedDate: "2026-06-01",
+      holidays: [],
+      isConfirmedDisplay: false,
+      warningMessagesByStaffId: new Map<string, string[]>(),
+    };
+
+    it("勤務パターンごとの勤務と、その時間内の休憩をセルへ持たせる", () => {
+      const [row] = buildShiftTypeDailyViewModel({ ...base, detailMode: true, usesPositionColors: true }).rows;
+
+      expect(row.shift).toBe(detailShift);
+      expect(
+        row.cells.map(({ key, segment, breakShift, isProvisional }) => ({
+          key,
+          position: segment?.positionName,
+          breakPositions: breakShift?.positions.map((position) => position.id),
+          isProvisional,
+        })),
+      ).toEqual([
+        { key: "early", position: "ホール", breakPositions: ["position-early"], isProvisional: true },
+        { key: "late", position: "キッチン", breakPositions: undefined, isProvisional: true },
+      ]);
+    });
+
+    it("セルの読み上げにポジションと休憩を足す", () => {
+      const labels = (options: { detailMode: boolean; usesPositionColors: boolean }) =>
+        buildShiftTypeDailyViewModel({ ...base, ...options }).rows[0].cells.map((cell) => cell.ariaLabel);
+
+      expect(labels({ detailMode: true, usesPositionColors: true })).toEqual([
+        "田中 早番 勤務あり、ホール、休憩あり",
+        "田中 遅番 勤務あり、キッチン",
+      ]);
+      // ポジションが1つだけの店舗では、ポジションを読み上げない。
+      expect(labels({ detailMode: true, usesPositionColors: false })).toEqual([
+        "田中 早番 勤務あり、休憩あり",
+        "田中 遅番 勤務あり",
+      ]);
+    });
+
+    it("シンプル表示では読み上げを変えない", () => {
+      const cells = buildShiftTypeDailyViewModel(base).rows[0].cells;
+
+      expect(cells.map((cell) => cell.ariaLabel)).toEqual(["田中 早番 勤務あり", "田中 遅番 勤務あり"]);
+    });
+
+    it("勤務のないセルは、仮の勤務の日でも仮として扱わない", () => {
+      const [row] = buildShiftTypeDailyViewModel({
+        ...base,
+        shifts: [{ ...detailShift, positions: [hallEarly] }],
+        detailMode: true,
+        usesPositionColors: true,
+      }).rows;
+
+      expect(row.cells.map(({ key, isProvisional, ariaLabel }) => ({ key, isProvisional, ariaLabel }))).toEqual([
+        { key: "early", isProvisional: true, ariaLabel: "田中 早番 勤務あり、ホール、休憩あり" },
+        { key: "late", isProvisional: false, ariaLabel: "田中 遅番 勤務なし" },
+      ]);
+    });
+  });
+});
+
+const position = (name: string, count: number, required: number | null) => ({
+  positionId: name,
+  name,
+  color: "#000",
+  count,
+  required,
+  shortage: required === null ? 0 : Math.max(0, required - count),
+});
+
+const slot = (overrides: Partial<StaffingSlotView>): StaffingSlotView => ({
+  id: "shiftType:early",
+  label: "早番",
+  total: 0,
+  positions: [],
+  hasShortage: false,
+  ...overrides,
+});
+
+describe("summarizeStaffingSlot", () => {
+  it("必要人数はポジションごとの設定を足し、内訳をポジション名つきで説明する", () => {
+    expect(
+      summarizeStaffingSlot(
+        slot({ total: 3, positions: [position("ホール", 2, 3), position("キッチン", 1, 1)], hasShortage: true }),
+      ),
+    ).toEqual({ totalLabel: "3/4", title: "早番 ホール 2/3、キッチン 1/1" });
+  });
+
+  it("必要人数を設定していないポジションは、必要の合計に含めない", () => {
+    expect(
+      summarizeStaffingSlot(slot({ total: 3, positions: [position("ホール", 2, 2), position("キッチン", 1, null)] })),
+    ).toEqual({ totalLabel: "3/2", title: "早番 ホール 2/2、キッチン 1" });
+  });
+
+  it("必要人数が1つもない区切りは、人数だけを出す", () => {
+    expect(
+      summarizeStaffingSlot(
+        slot({ total: 2, positions: [position("ホール", 2, null), position("キッチン", 0, null)] }),
+      ),
+    ).toEqual({ totalLabel: "2", title: "早番 ホール 2、キッチン 0" });
+  });
+
+  it("必要人数が0人の設定は、設定ありとして「/0」を出す", () => {
+    expect(summarizeStaffingSlot(slot({ total: 1, positions: [position("ホール", 1, 0)] })).totalLabel).toBe("1/0");
+  });
+});
+
+describe("indexStaffingSlotsByOptionKey", () => {
+  it("勤務パターンの区切りだけを、勤務パターンのIDで引けるようにする", () => {
+    const early = slot({ id: "shiftType:early" });
+    const late = slot({ id: "shiftType:late", label: "遅番" });
+    const view: DayStaffingView = {
+      template: null,
+      isOverridden: false,
+      slots: [early, late, slot({ id: "allDay", label: "1日" })],
+      hasShortage: false,
+    };
+
+    expect([...indexStaffingSlotsByOptionKey(view)]).toEqual([
+      ["early", early],
+      ["late", late],
+    ]);
   });
 });

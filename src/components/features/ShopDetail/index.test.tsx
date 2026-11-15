@@ -19,13 +19,16 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 vi.mock("./ShopDetailView", () => ({
-  ShopDetailView: ({ onBack, onOpenUser }: ComponentProps<typeof ShopDetailView>) => (
+  ShopDetailView: ({ onBack, onOpenUser, onOpenShiftSetup }: ComponentProps<typeof ShopDetailView>) => (
     <>
       <button type="button" onClick={onBack}>
         前の画面に戻る
       </button>
       <button type="button" onClick={() => onOpenUser("person-a")}>
         スタッフ詳細を開く
+      </button>
+      <button type="button" onClick={onOpenShiftSetup}>
+        シフト作成の設定を開く
       </button>
     </>
   ),
@@ -84,6 +87,18 @@ describe("店舗詳細のapp navigation", () => {
     expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({
       to: "/staff/$personId",
       params: { personId: "person-a" },
+      search: { org: organizationId },
+    });
+  });
+
+  it("シフト作成の設定を、表示中の店舗と同じcanonical組織scopeで開く", () => {
+    render(<ShopDetail shop={shop} people={[]} organizationId={organizationId} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "シフト作成の設定を開く" }));
+
+    expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({
+      to: "/manage/shops/$shopId/shift-setup",
+      params: { shopId: "shop-target" },
       search: { org: organizationId },
     });
   });

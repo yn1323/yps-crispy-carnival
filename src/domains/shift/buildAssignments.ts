@@ -1,3 +1,4 @@
+import { getBreaksForSegment, mergeBreaks } from "./breaks";
 import { DEFAULT_POSITION } from "./constants";
 import { isValidIsoDateString } from "./date";
 import { isCanonicalWorkPosition } from "./positions";
@@ -11,6 +12,8 @@ export type ShiftAssignmentDraft<StaffId extends string = string, PositionId ext
   endTime: string;
   optionId?: string;
   positionId?: PositionId;
+  breaks?: Array<{ startTime: string; endTime: string }>;
+  isProvisional?: boolean;
 };
 
 type CanonicalizableTimeAssignment = {
@@ -20,11 +23,34 @@ type CanonicalizableTimeAssignment = {
   endTime: string;
   optionId?: string | null;
   positionId?: string;
+  breaks?: ReadonlyArray<{ startTime: string; endTime: string }>;
+  isProvisional?: boolean;
 };
 
 export type BuildAssignmentsOptions<PositionId extends string = string> = {
   defaultPositionId?: PositionId;
   submissionPatternKind?: "time" | "dateOnly" | "shiftType";
+};
+
+// 隣接する勤務を1件にまとめるとき、休憩を落とさず、仮の印は両方が仮のときだけ残す。
+const mergeAdjacentAssignment = <Assignment extends CanonicalizableTimeAssignment>(
+  previous: Assignment,
+  current: Assignment,
+): Assignment => {
+  const { breaks: _breaks, isProvisional: _isProvisional, ...rest } = previous;
+  // 境目をまたいでいた休憩は、まとめた勤務の中で1件に戻す。
+  const breaks = mergeBreaks(
+    [...(previous.breaks ?? []), ...(current.breaks ?? [])].map((item) => ({
+      start: item.startTime,
+      end: item.endTime,
+    })),
+  ).map((item) => ({ startTime: item.start, endTime: item.end }));
+  return {
+    ...rest,
+    endTime: current.endTime,
+    ...(breaks.length > 0 ? { breaks } : {}),
+    ...(previous.isProvisional && current.isProvisional ? { isProvisional: true } : {}),
+  } as Assignment;
 };
 
 const resolveVirtualDefaultPosition = <Assignment extends CanonicalizableTimeAssignment>(
@@ -99,7 +125,7 @@ export const canonicalizeTimeAssignments = <Assignment extends CanonicalizableTi
         previous.positionId === current.positionId &&
         timeToMinutes(previous.endTime) === timeToMinutes(current.startTime)
       ) {
-        merged[merged.length - 1] = { ...previous, endTime: current.endTime };
+        merged[merged.length - 1] = mergeAdjacentAssignment(previous, current);
         continue;
       }
       merged.push(current);
@@ -117,18 +143,31 @@ export const buildAssignments = <StaffId extends string = string, PositionId ext
 ): ShiftAssignmentDraft<StaffId, PositionId>[] => {
   const assignments = shifts.flatMap((s) => {
     if (closedDateSet.has(s.date)) return [];
-    return s.positions.filter(isCanonicalWorkPosition).map((position) => ({
-      staffId: s.staffId as StaffId,
-      date: s.date,
-      startTime: position.start,
-      endTime: position.end,
-      ...(position.shiftTypeOptionId ? { optionId: position.shiftTypeOptionId } : {}),
-      ...(position.positionId !== DEFAULT_POSITION.id
-        ? { positionId: position.positionId as PositionId }
-        : options.defaultPositionId
-          ? { positionId: options.defaultPositionId }
-          : {}),
-    }));
+    const dayBreaks = s.breaks ?? [];
+    return s.positions.filter(isCanonicalWorkPosition).map((position, index) => {
+      // 時刻を持つ勤務は、その勤務区間の内側に収まる休憩だけを持たせる。
+      // 日付選択の勤務は時刻を持たないため、入力された休憩を最初の勤務へそのまま持たせる。
+      const breaks =
+        options.submissionPatternKind === "dateOnly"
+          ? index === 0
+            ? mergeBreaks(dayBreaks)
+            : []
+          : getBreaksForSegment(position, dayBreaks);
+      return {
+        staffId: s.staffId as StaffId,
+        date: s.date,
+        startTime: position.start,
+        endTime: position.end,
+        ...(position.shiftTypeOptionId ? { optionId: position.shiftTypeOptionId } : {}),
+        ...(position.positionId !== DEFAULT_POSITION.id
+          ? { positionId: position.positionId as PositionId }
+          : options.defaultPositionId
+            ? { positionId: options.defaultPositionId }
+            : {}),
+        ...(breaks.length > 0 ? { breaks: breaks.map((item) => ({ startTime: item.start, endTime: item.end })) } : {}),
+        ...(s.isProvisional ? { isProvisional: true } : {}),
+      };
+    });
   });
 
   if (options.submissionPatternKind === "time") {

@@ -4,13 +4,17 @@ import { type TouchEvent, useCallback, useMemo, useRef, useState } from "react";
 import { useDialog } from "@/src/components/ui/Dialog";
 import type { ShiftData } from "@/src/domains/shift/types";
 import { useAllShiftDateNotes } from "../../dateNotes";
+import { StaffingSummary, useDayStaffingView } from "../../detailParts";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
 import {
+  breakEditorTargetAtom,
   clearShiftDraftPositionsAtom,
   dailySortedStaffsAtom,
   issueCountByDateAtom,
   issueStaffIdSetForSelectedDateAtom,
+  isToolPaletteActiveAtom,
+  openBreakEditorForToolAtom,
   selectDateWithDailyStaffOrderAtom,
   selectedDateAtom,
   shiftByStaffIdForSelectedDateAtom,
@@ -39,6 +43,11 @@ export const SPDailyView = () => {
   const issueStaffIds = useAtomValue(issueStaffIdSetForSelectedDateAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
   const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
+  // 人数と過不足を出す日（くわしく表示の営業日）だけ値が入る。
+  const staffingView = useDayStaffingView(selectedDate);
+  const isToolPaletteActive = useAtomValue(isToolPaletteActiveAtom);
+  const openBreakEditorForTool = useSetAtom(openBreakEditorForToolAtom);
+  const setBreakEditorTarget = useSetAtom(breakEditorTargetAtom);
   // カード下段の本文と名前の右のアイコンは、表示設定に応じてどちらか一方だけが出る。
   const dateNotes = useAllShiftDateNotes();
 
@@ -88,11 +97,13 @@ export const SPDailyView = () => {
   const handleCardTap = useCallback(
     (staffId: string) => {
       if (isShopClosedDate) return;
+      // 休憩を選んでいる間は、編集シートを開かずに休憩の編集を開く。
+      if (openBreakEditorForTool({ staffId, date: selectedDate })) return;
       setSelectedStaffId(staffId);
       if (isReadOnly) detailDialog.open();
       else editDialog.open();
     },
-    [isShopClosedDate, isReadOnly, detailDialog, editDialog],
+    [isShopClosedDate, isReadOnly, detailDialog, editDialog, openBreakEditorForTool, selectedDate],
   );
 
   const handleStaffDialogOpenChange = useCallback(
@@ -110,11 +121,21 @@ export const SPDailyView = () => {
     [clearShiftPositions, selectedDate],
   );
 
-  const renderDailyCard = ({ staff, viewModel }: (typeof rows)[number]) => (
+  // 休憩の編集は共通のDialogに任せる。Dialogを重ねないよう、編集シートを閉じてから開く。
+  const handleEditBreaks = useCallback(() => {
+    if (!selectedStaffId) return;
+    setBreakEditorTarget({ staffId: selectedStaffId, date: selectedDate });
+    editDialog.close();
+    setSelectedStaffId(null);
+  }, [selectedStaffId, selectedDate, setBreakEditorTarget, editDialog]);
+
+  const renderDailyCard = ({ staff, shift, viewModel }: (typeof rows)[number]) => (
     <SPDailyCard
       key={staff.id}
       staffId={staff.id}
       staffName={staff.name}
+      staff={staff}
+      shift={shift}
       viewModel={viewModel}
       onTap={() => handleCardTap(staff.id)}
       hasError={issueStaffIds.has(staff.id)}
@@ -150,6 +171,22 @@ export const SPDailyView = () => {
         dateStripRef={dateStripRef}
         onSelect={selectDate}
       />
+      {/* 人数と過不足。一覧をスクロールしても見えるよう、上端に留める。 */}
+      {staffingView && (
+        <Box
+          position="sticky"
+          top={0}
+          zIndex={2}
+          flexShrink={0}
+          maxH="40dvh"
+          overflowY="auto"
+          bg="gray.50"
+          px={3}
+          pt={3}
+        >
+          <StaffingSummary date={selectedDate} />
+        </Box>
+      )}
       <Box flex={1} minH={0} overflow="auto" bg="gray.50" px={3} py={3} data-tour="shift-grid">
         {isShopClosedDate ? (
           <Flex minH="240px" align="center" justify="center" direction="column" gap={2} px={4}>
@@ -183,6 +220,7 @@ export const SPDailyView = () => {
                       key={staff.id}
                       staffId={staff.id}
                       staffName={staff.name}
+                      staff={staff}
                       label={isReadOnly ? "休み" : "休み希望"}
                       labelTone="muted"
                       onTap={() => handleCardTap(staff.id)}
@@ -209,6 +247,7 @@ export const SPDailyView = () => {
                       key={staff.id}
                       staffId={staff.id}
                       staffName={staff.name}
+                      staff={staff}
                       label="未提出"
                       labelTone="warning"
                       onTap={() => handleCardTap(staff.id)}
@@ -236,6 +275,7 @@ export const SPDailyView = () => {
       )}
       {!isReadOnly && selectedStaff && (
         <ShiftEditSheet
+          key={`${selectedStaff.id}-${selectedDate}`}
           staff={selectedStaff}
           shift={selectedShift}
           positions={positions}
@@ -245,6 +285,7 @@ export const SPDailyView = () => {
           onOpenChange={handleStaffDialogOpenChange}
           onShiftUpdate={handleShiftUpdate}
           onShiftDelete={handleShiftDelete}
+          onEditBreaks={isToolPaletteActive ? handleEditBreaks : undefined}
         />
       )}
     </Flex>

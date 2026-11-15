@@ -1,9 +1,10 @@
 import type { Id } from "@/convex/_generated/dataModel";
+import { mergeBreaks, withInitialBreak } from "@/src/domains/shift/breaks";
 import { canonicalizeTimeAssignments } from "@/src/domains/shift/buildAssignments";
 import { DEFAULT_POSITION } from "@/src/domains/shift/constants";
 import { resolveDisplayShiftLine } from "@/src/domains/shift/resolveDisplayShiftLine";
 import { minutesToTime } from "@/src/domains/shift/time";
-import type { ShiftData, ShiftTimeRange, StaffType } from "@/src/domains/shift/types";
+import type { ShiftBreakRule, ShiftData, ShiftTimeRange, StaffType } from "@/src/domains/shift/types";
 import type { ShiftBoardData } from "../types";
 
 type ShiftRequestRange = { startTime: string; endTime: string; optionId: string | null };
@@ -49,7 +50,12 @@ const getShiftTypeOptionIdForRange = (
 };
 
 /** ConvexデータをShiftForm用の表示データへ決定的に変換する。 */
-export const buildShiftData = (data: ShiftBoardData, staffs: StaffType[], dates: string[]): ShiftData[] => {
+export const buildShiftData = (
+  data: ShiftBoardData,
+  staffs: StaffType[],
+  dates: string[],
+  options: { breakRule?: ShiftBreakRule | null } = {},
+): ShiftData[] => {
   const shopClosedDateSet = new Set(data.recruitment.shopClosedDates);
   const positions = data.positions;
   const defaultPosition = positions.find((position) => position.isDefault);
@@ -80,7 +86,14 @@ export const buildShiftData = (data: ShiftBoardData, staffs: StaffType[], dates:
 
   const assignmentMap = new Map<
     string,
-    Array<{ startTime: string; endTime: string; positionId: Id<"positions">; optionId: string | null }>
+    Array<{
+      startTime: string;
+      endTime: string;
+      positionId: Id<"positions">;
+      optionId: string | null;
+      breaks: ShiftTimeRange[];
+      isProvisional: boolean;
+    }>
   >();
   const displayAssignments =
     data.submissionPattern.kind === "time"
@@ -94,6 +107,8 @@ export const buildShiftData = (data: ShiftBoardData, staffs: StaffType[], dates:
       endTime: assignment.endTime,
       positionId: assignment.positionId,
       optionId: assignment.optionId ?? null,
+      breaks: (assignment.breaks ?? []).map((item) => ({ start: item.startTime, end: item.endTime })),
+      isProvisional: assignment.isProvisional === true,
     });
     assignmentMap.set(key, assignments);
   }
@@ -204,7 +219,8 @@ export const buildShiftData = (data: ShiftBoardData, staffs: StaffType[], dates:
                   ]
                 : [];
 
-      shifts.push({
+      const savedBreaks = mergeBreaks(assignments.flatMap((assignment) => assignment.breaks));
+      const shift: ShiftData = {
         id: `shift-${staff.id}-${date}`,
         staffId: staff.id,
         staffName: staff.name,
@@ -213,7 +229,17 @@ export const buildShiftData = (data: ShiftBoardData, staffs: StaffType[], dates:
         requestedTimes,
         requestedShiftTypeOptionIds,
         positions: positionSegments,
-      });
+        ...(savedBreaks.length > 0 ? { breaks: savedBreaks } : {}),
+        ...(assignments.length > 0 && assignments.every((assignment) => assignment.isProvisional)
+          ? { isProvisional: true }
+          : {}),
+      };
+      // 保存済みの勤務は保存された休憩を正とする。希望から作った勤務の候補にだけ、店舗の休憩の決まりを当てる。
+      shifts.push(
+        assignments.length === 0 && data.submissionPattern.kind !== "dateOnly"
+          ? withInitialBreak(shift, options.breakRule)
+          : shift,
+      );
     }
   }
 

@@ -1,4 +1,5 @@
-import { useBlocker } from "@tanstack/react-router";
+import { useBlocker, useNavigate } from "@tanstack/react-router";
+import { useConvex } from "convex/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -7,7 +8,13 @@ import {
   parseShiftAssignmentValidationError,
   validateShiftAssignments,
 } from "@/convex/shiftBoard/validation";
-import type { ReminderStatus, ShiftDateNote } from "@/src/components/features/Shift/ShiftForm";
+import {
+  type ReminderStatus,
+  type ShiftDateNote,
+  type ShiftFormDetailActions,
+  type ShiftFormStaffing,
+  shouldDefaultToDetailMode,
+} from "@/src/components/features/Shift/ShiftForm";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useDialog } from "@/src/components/ui/Dialog";
 import { toaster } from "@/src/components/ui/toaster";
@@ -23,6 +30,7 @@ import {
   isPastShiftPeriod,
 } from "@/src/domains/shift/date";
 import { isAssignmentsEqual } from "@/src/domains/shift/isAssignmentsEqual";
+import { insertProvisionalAssignments } from "@/src/domains/shift/provisionalAssignments";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { useDeadlineActive } from "@/src/hooks/useDeadlineActive";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
@@ -30,8 +38,9 @@ import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { getConvexErrorCode } from "@/src/lib/convex/error";
 import { trackAppError, trackProductEvent } from "@/src/lib/webMeasurement";
 import { useManagerShopScope } from "@/src/providers/ManagerShopScopeProvider";
-import type { ShiftBoardData } from "../types";
+import type { ShiftBoardData, ShiftBoardStaffingData } from "../types";
 import { buildShiftData } from "./buildShiftData";
+import { readStoredDetailMode, storeDetailMode } from "./detailModeStorage";
 import type { ShiftBoardPageViewProps } from "./types";
 import { visibleAssignmentWarnings } from "./warningVisibility";
 
@@ -101,7 +110,18 @@ export type ShiftBoardExportData = {
     submissionPattern: ShiftBoardData["submissionPattern"];
   };
   staffs: { id: string; name: string; isRemoved: boolean }[];
-  assignments: { staffId: string; date: string; startTime: string; endTime: string; optionId: string | null }[];
+  assignments: {
+    staffId: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    optionId: string | null;
+    positionId: string | null;
+    breaks: { startTime: string; endTime: string }[];
+  }[];
+  positions: { id: string; name: string }[];
+  /** 出力画面を開いた時点で、ポジションと休憩を出力する状態にするかどうか。 */
+  includeDetailsByDefault: boolean;
   dateNotes: ShiftDateNote[];
 };
 
@@ -114,6 +134,7 @@ export const useShiftBoardPageController = (
   recruitmentId: Id<"recruitments">,
   onExport?: (data: ShiftBoardExportData) => void,
   dateNotes: ShiftBoardDateNotes = EMPTY_DATE_NOTES,
+  staffing?: ShiftBoardStaffingData,
 ): ShiftBoardPageViewProps => {
   const isDateNotesLoading = dateNotes === "loading";
   const loadedDateNotes = isDateNotesLoading ? EMPTY_DATE_NOTES : dateNotes;
@@ -138,17 +159,24 @@ export const useShiftBoardPageController = (
     [data.recruitment.periodStart, data.recruitment.periodEnd],
   );
   const periodLabel = useMemo(() => generatePeriodLabel(dates), [dates]);
-  const staffs: StaffType[] = useMemo(
-    () =>
-      data.staffs.map((staff) => ({
+  const staffProfiles = staffing?.staffProfiles;
+  const staffs: StaffType[] = useMemo(() => {
+    const profileByStaffId = new Map((staffProfiles ?? []).map((profile) => [profile.staffId, profile]));
+    return data.staffs.map((staff) => {
+      const profile = profileByStaffId.get(staff._id);
+      return {
         id: staff._id,
         name: staff.isRemoved ? `${staff.name}（削除済み）` : staff.name,
         isSubmitted: staff.isSubmitted,
         isRemoved: staff.isRemoved,
         createdAt: staff.createdAt,
-      })),
-    [data.staffs],
-  );
+        ...(profile && profile.skillLevel !== "standard" ? { skillLevel: profile.skillLevel } : {}),
+        ...(profile && profile.unavailablePositionIds.length > 0
+          ? { unavailablePositionIds: profile.unavailablePositionIds }
+          : {}),
+      };
+    });
+  }, [data.staffs, staffProfiles]);
   const positions = useMemo(
     () =>
       data.positions.length > 0
@@ -168,7 +196,47 @@ export const useShiftBoardPageController = (
       ...(defaultPositionId ? { defaultPositionId } : {}),
     };
   }, [data.positions, data.submissionPattern.kind]);
-  const initialShifts = useMemo(() => buildShiftData(data, staffs, dates), [data, staffs, dates]);
+  const breakRuleMinWorkMinutes = staffing?.breakRule?.minWorkMinutes;
+  const breakRuleBreakMinutes = staffing?.breakRule?.breakMinutes;
+  const breakRule = useMemo(
+    () =>
+      breakRuleMinWorkMinutes !== undefined && breakRuleBreakMinutes !== undefined
+        ? { minWorkMinutes: breakRuleMinWorkMinutes, breakMinutes: breakRuleBreakMinutes }
+        : null,
+    [breakRuleMinWorkMinutes, breakRuleBreakMinutes],
+  );
+  const shiftFormStaffing = useMemo<ShiftFormStaffing | undefined>(
+    () =>
+      staffing
+        ? {
+            dayTemplates: staffing.dayTemplates.map((template) => ({
+              id: template._id,
+              name: template.name,
+              weekdays: template.weekdays,
+              slots: template.slots,
+            })),
+            dayTemplateOverrides: staffing.dayTemplateOverrides,
+            breakRule,
+          }
+        : undefined,
+    [staffing, breakRule],
+  );
+  // 表示の初期状態は開いた時点で決める。利用者が選んだ状態があればそれを優先する。
+  const [initialDetailMode] = useState(
+    () =>
+      readStoredDetailMode() ??
+      shouldDefaultToDetailMode({
+        positionCount: data.positions.length,
+        staffing: shiftFormStaffing,
+        hasStaffProfiles: (staffProfiles?.length ?? 0) > 0,
+      }),
+  );
+  // シンプル表示は休憩を見せないため、シンプルで開いた場合は、希望から作る勤務の候補に休憩の初期値を入れない。
+  const initialBreakRule = initialDetailMode ? breakRule : null;
+  const initialShifts = useMemo(
+    () => buildShiftData(data, staffs, dates, { breakRule: initialBreakRule }),
+    [data, staffs, dates, initialBreakRule],
+  );
 
   const shiftsRef = useRef<ShiftData[]>(initialShifts);
   // 最後に保存した（または初期表示した）シフト。dirty判定の基準
@@ -215,8 +283,8 @@ export const useShiftBoardPageController = (
   );
 
   const computeCurrentWarnings = useCallback(
-    (shifts: ShiftData[]) => computeAssignmentWarnings({ shifts, staffs, pattern: data.submissionPattern }),
-    [staffs, data.submissionPattern],
+    (shifts: ShiftData[]) => computeAssignmentWarnings({ shifts, staffs, pattern: data.submissionPattern, positions }),
+    [staffs, data.submissionPattern, positions],
   );
 
   const computeVisibleWarnings = useCallback(
@@ -487,6 +555,92 @@ export const useShiftBoardPageController = (
     }
   });
 
+  // ==========================================
+  // くわしく表示の操作（設定ページ、特別な日、仮の勤務）
+  // ==========================================
+  const navigate = useNavigate();
+  const convex = useConvex();
+  const setDayTemplateOverride = useShopMutation(api.shiftSetup.mutations.setDayTemplateOverride);
+  const applyShiftsRef = useRef<((update: (current: ShiftData[]) => ShiftData[]) => void) | null>(null);
+  const setupScope = managerShopScope?.shopId === data.shopId ? managerShopScope : null;
+
+  const handleOpenSetup = useCallback(() => {
+    if (!setupScope) return;
+    void navigate({
+      to: "/manage/shops/$shopId/shift-setup",
+      params: { shopId: setupScope.shopId },
+      search: { org: setupScope.expectedOrganizationId },
+    });
+  }, [navigate, setupScope]);
+
+  const handleChangeDayTemplate = useCallback(
+    (date: string, templateId: string | null) => {
+      setDayTemplateOverride({ date, templateId: templateId as Id<"shiftDayTemplates"> | null }).catch(
+        (error: unknown) => showErrorToast(error),
+      );
+    },
+    [setDayTemplateOverride],
+  );
+
+  const { run: handleInsertProvisional, isRunning: isInsertingProvisional } = useSingleFlight(async () => {
+    if (!setupScope || !applyShiftsRef.current) return;
+    try {
+      const candidates = await convex.query(api.shiftBoard.queries.getProvisionalAssignments, {
+        shopId: setupScope.shopId as Id<"shops">,
+        expectedOrganizationId: setupScope.expectedOrganizationId as Id<"organizations">,
+        recruitmentId,
+      });
+      const unsubmittedStaffIds = new Set(staffs.filter((staff) => !staff.isSubmitted).map((staff) => staff.id));
+      const result = insertProvisionalAssignments({
+        shifts: shiftsRef.current,
+        candidates: candidates ?? [],
+        unsubmittedStaffIds,
+        positions,
+      });
+      if (result.insertedCount === 0) {
+        toaster.create({ title: "仮で入れられる前回の勤務がありませんでした", type: "info" });
+        return;
+      }
+      applyShiftsRef.current(() => result.shifts);
+      showSuccessToast({ title: `前回の勤務を${result.insertedCount}日分、仮で入れました` });
+    } catch (error) {
+      showErrorToast(error);
+    }
+  });
+
+  // いまの表示（シンプル / くわしく）。出力画面の初期状態に使う。
+  const isDetailModeRef = useRef(initialDetailMode);
+  const handleDetailModeChange = useCallback((isDetailMode: boolean) => {
+    isDetailModeRef.current = isDetailMode;
+    storeDetailMode(isDetailMode);
+  }, []);
+
+  const hasUnsubmittedStaff = staffs.some((staff) => !staff.isSubmitted && !staff.isRemoved);
+  const canInsertProvisional =
+    Boolean(setupScope) &&
+    !isReadOnly &&
+    !isConfirmed &&
+    hasUnsubmittedStaff &&
+    staffing?.hasPreviousConfirmedRecruitment === true;
+  const detailActions = useMemo<ShiftFormDetailActions>(
+    () => ({
+      ...(setupScope ? { onOpenSetup: handleOpenSetup } : {}),
+      ...(setupScope && !isReadOnly ? { onChangeDayTemplate: handleChangeDayTemplate } : {}),
+      ...(canInsertProvisional
+        ? { provisionalAction: { onInsert: handleInsertProvisional, isLoading: isInsertingProvisional } }
+        : {}),
+    }),
+    [
+      setupScope,
+      isReadOnly,
+      canInsertProvisional,
+      handleOpenSetup,
+      handleChangeDayTemplate,
+      handleInsertProvisional,
+      isInsertingProvisional,
+    ],
+  );
+
   const handleOpenExport = useCallback(() => {
     if (!exportOrganizationId) return;
     if (!isFormInitializedRef.current || isDateNotesLoading) {
@@ -523,13 +677,19 @@ export const useShiftBoardPageController = (
         submissionPattern: structuredClone(data.submissionPattern),
       },
       staffs: exportStaffs,
-      assignments: buildSaveAssignments(shiftsRef.current).map(({ staffId, date, startTime, endTime, optionId }) => ({
-        staffId,
-        date,
-        startTime,
-        endTime,
-        optionId: optionId ?? null,
-      })),
+      assignments: buildSaveAssignments(shiftsRef.current).map(
+        ({ staffId, date, startTime, endTime, optionId, positionId, breaks }) => ({
+          staffId,
+          date,
+          startTime,
+          endTime,
+          optionId: optionId ?? null,
+          positionId: positionId ?? null,
+          breaks: breaks ?? [],
+        }),
+      ),
+      positions: data.positions.map((position) => ({ id: position._id, name: position.name })),
+      includeDetailsByDefault: isDetailModeRef.current,
       dateNotes: loadedDateNotes.map(({ staffId, date, note }) => ({ staffId, date, note })),
     });
   }, [
@@ -572,6 +732,10 @@ export const useShiftBoardPageController = (
         validationIssues,
         validationWarnings,
         dateNotes: loadedDateNotes,
+        staffing: shiftFormStaffing,
+        initialDetailMode,
+        detailActions,
+        applyShiftsRef,
       },
       confirmDialog: {
         isOpen: confirmModal.isOpen,
@@ -599,6 +763,7 @@ export const useShiftBoardPageController = (
       },
       onOpenExport: handleOpenExport,
       onShiftsChange: handleShiftsChange,
+      onDetailModeChange: handleDetailModeChange,
       onSaveDraft: performSaveDraft,
       onConfirmRequest: handleConfirmRequest,
       onOpenUnsubmittedDetails: unsubmittedDialog.open,

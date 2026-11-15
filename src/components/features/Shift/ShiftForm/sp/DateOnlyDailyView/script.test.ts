@@ -40,6 +40,10 @@ describe("buildSPDateOnlyDailyViewModel", () => {
       { requested: true, assigned: true, statusLabel: "希望あり", statusTone: "positive", isNameMuted: false },
       { requested: false, assigned: false, statusLabel: "未提出", statusTone: "warning", isNameMuted: true },
     ]);
+    expect(viewModel.rows.map(({ shift, assignedSegment }) => ({ shift, assignedSegment }))).toEqual([
+      { shift: shifts[0], assignedSegment: shifts[0].positions[0] },
+      { shift: undefined, assignedSegment: undefined },
+    ]);
   });
 
   it("確定表示では希望の有無を勤務ラベルへ変換する", () => {

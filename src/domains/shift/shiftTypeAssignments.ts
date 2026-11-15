@@ -13,6 +13,8 @@ type ToggleShiftTypeAssignmentParams = {
   date: string;
   option: ShiftTypeOptionLike;
   position: PositionType;
+  // trueの場合、別のポジションで入っている勤務は外さず、選んだポジションへ入れ替える。
+  switchPosition?: boolean;
 };
 
 export const getRequestedShiftTypeOptionIds = (shift: ShiftData | undefined): string[] =>
@@ -71,6 +73,7 @@ export const toggleShiftTypeAssignment = ({
   date,
   option,
   position,
+  switchPosition = false,
 }: ToggleShiftTypeAssignmentParams): ShiftData[] => {
   const targetShift = shifts.find((shift) => shift.staffId === staff.id && shift.date === date);
 
@@ -98,9 +101,15 @@ export const toggleShiftTypeAssignment = ({
     ];
   }
 
-  const hasOption = targetShift.positions.some((positionSegment) => positionSegment.shiftTypeOptionId === option.id);
-  const nextPositions = hasOption
-    ? targetShift.positions.filter((positionSegment) => positionSegment.shiftTypeOptionId !== option.id)
+  const assigned = targetShift.positions.find((positionSegment) => positionSegment.shiftTypeOptionId === option.id);
+  const nextPositions = assigned
+    ? switchPosition && assigned.positionId !== position.id
+      ? targetShift.positions.map((positionSegment) =>
+          positionSegment.shiftTypeOptionId === option.id
+            ? { ...positionSegment, positionId: position.id, positionName: position.name, color: position.color }
+            : positionSegment,
+        )
+      : targetShift.positions.filter((positionSegment) => positionSegment.shiftTypeOptionId !== option.id)
     : [
         ...targetShift.positions,
         {

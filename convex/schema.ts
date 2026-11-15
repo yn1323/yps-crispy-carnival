@@ -5,6 +5,12 @@ import {
   persistedShiftAssignmentValidator,
   shiftConfirmationSnapshotAssignmentValidator,
 } from "./_lib/shiftAssignmentValidators";
+import {
+  shiftBreakRuleValidator,
+  shiftDayTemplateSlotValidator,
+  shiftDayTemplateWeekdayValidator,
+  staffSkillLevelValidator,
+} from "./_lib/shiftSetupValidators";
 import { submissionPatternValidator } from "./_lib/submissionPattern";
 import {
   analyticsEngagementValidator,
@@ -71,6 +77,8 @@ const schema = defineSchema({
       ),
     ),
     submissionPattern: submissionPatternValidator,
+    // 休憩の決まり（何分以上の勤務に何分）。省略は「決まりなし」を表す業務上の任意項目で、backfillは不要。
+    breakRule: v.optional(shiftBreakRuleValidator),
     isDeleted: v.boolean(),
   })
     .index("by_organizationId", ["organizationId"])
@@ -550,6 +558,11 @@ const schema = defineSchema({
     userId: v.optional(v.id("users")),
     // シフト対象外フラグ（店舗共通アドレス等、シフトを出さないスタッフ）。
     excludedFromShift: v.boolean(),
+    // 入れないポジション。省略は「全ポジション可」を表す業務上の任意項目で、backfillは不要。
+    // 件数は店舗の有効なポジション数（POSITION_ACTIVE_LIMIT）を超えない。
+    unavailablePositionIds: v.optional(v.array(v.id("positions"))),
+    // 熟練度。省略は「標準」を表す業務上の任意項目で、backfillは不要。
+    skillLevel: v.optional(staffSkillLevelValidator),
     isDeleted: v.boolean(),
   })
     .index("by_shopId", ["shopId"])
@@ -844,6 +857,26 @@ const schema = defineSchema({
   })
     .index("by_shopId", ["shopId"])
     .index("by_shopId_isDeleted", ["shopId", "isDeleted"]),
+
+  // ========================================
+  // シフト作成の設定（日の型）
+  // ========================================
+  // 1日分の「区切り＋ポジション別の必要人数」。区切りと必要人数はSHIFT_DAY_TEMPLATE_SLOT_LIMITと
+  // POSITION_ACTIVE_LIMITで上限を持つ。
+  shiftDayTemplates: defineTable({
+    shopId: v.id("shops"),
+    name: v.string(),
+    weekdays: v.array(shiftDayTemplateWeekdayValidator),
+    sortOrder: v.number(),
+    slots: v.array(shiftDayTemplateSlotValidator),
+  }).index("by_shopId", ["shopId"]),
+
+  // 特別な日: その日だけ別の日の型を当てる。
+  shiftDayTemplateOverrides: defineTable({
+    shopId: v.id("shops"),
+    date: v.string(), // "2026-01-20"
+    templateId: v.id("shiftDayTemplates"),
+  }).index("by_shopId_and_date", ["shopId", "date"]),
 
   // ========================================
   // マジックリンク認証

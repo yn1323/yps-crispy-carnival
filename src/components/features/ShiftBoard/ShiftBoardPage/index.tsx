@@ -1,6 +1,6 @@
 import type { Id } from "@/convex/_generated/dataModel";
 import type { ShiftFormHeader } from "@/src/components/features/Shift/ShiftForm";
-import type { ShiftBoardData } from "../types";
+import type { ShiftBoardData, ShiftBoardStaffingData } from "../types";
 import { ShiftBoardPageView } from "./ShiftBoardPageView";
 import {
   type ShiftBoardDateNotes,
@@ -15,6 +15,8 @@ export type ShiftBoardPageProps = {
   header?: ShiftFormHeader;
   onExport?: (data: ShiftBoardExportData) => void;
   dateNotes?: ShiftBoardDateNotes;
+  /** 「くわしく」表示に使う店舗の設定。渡さない場合は、従来の画面だけを出す。 */
+  staffing?: ShiftBoardStaffingData;
 };
 
 export const ShiftBoardPage = ({
@@ -24,8 +26,9 @@ export const ShiftBoardPage = ({
   header,
   onExport,
   dateNotes,
+  staffing,
 }: ShiftBoardPageProps) => {
-  const controller = useShiftBoardPageController(data, recruitmentId, onExport, dateNotes);
+  const controller = useShiftBoardPageController(data, recruitmentId, onExport, dateNotes, staffing);
 
   return <ShiftBoardPageView {...controller} layout={layout} header={header} />;
 };

@@ -1,3 +1,4 @@
+import { getEffectiveBreaks } from "@/src/domains/shift/breaks";
 import { isLegacyCompatibleWorkPosition } from "@/src/domains/shift/positions";
 import { formatShiftClockTimeRange, timeToMinutes } from "@/src/domains/shift/time";
 import type { ShiftData } from "@/src/domains/shift/types";
@@ -6,7 +7,9 @@ export type ShiftPopoverViewModel = {
   requestLabel: string | null;
   showUnsubmittedBadge: boolean;
   showDeleteActions: boolean;
-  segments: Array<{ id: string; timeLabel: string }>;
+  segments: Array<{ id: string; timeLabel: string; positionId: string; positionName: string; color: string }>;
+  // 時刻で入れた休憩の表示
+  breakLabels: string[];
 };
 
 const formatRequestLabel = (shift: ShiftData, isStaffSubmitted: boolean): string => {
@@ -37,12 +40,19 @@ export const buildShiftPopoverViewModel = ({
     .map((position) => ({
       id: position.id,
       timeLabel: formatShiftClockTimeRange(position.start, position.end),
+      positionId: position.positionId,
+      positionName: position.positionName,
+      color: position.color,
     }));
+  const breakLabels = getEffectiveBreaks(shift, { clipToWork: true }).map((range) =>
+    formatShiftClockTimeRange(range.start, range.end),
+  );
 
   return {
     requestLabel,
     showUnsubmittedBadge: !isReadOnly && !isStaffSubmitted,
     showDeleteActions: !isReadOnly,
     segments,
+    breakLabels,
   };
 };

@@ -4,10 +4,13 @@ import { useCallback, useMemo, useState } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
 import type { WeekStart } from "@/src/domains/shift/date";
 import { IssueCountBadge } from "../../components";
+import { BreakMark, PositionMark, StaffMeta } from "../../detailParts";
 import {
+  detailModeAtom,
   selectDateWithDailyStaffOrderAtom,
   shiftConfigAtom,
   shiftsAtom,
+  usesPositionColorsAtom,
   viewModeAtom,
   warningCountByDateAtom,
 } from "../../stores";
@@ -23,6 +26,8 @@ export const OverviewView = ({ weekStart = "mon" }: OverviewViewProps) => {
   const warningCounts = useAtomValue(warningCountByDateAtom);
   const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const setViewMode = useSetAtom(viewModeAtom);
+  const detailMode = useAtomValue(detailModeAtom);
+  const usesPositionColors = useAtomValue(usesPositionColorsAtom);
   const { dates, holidays, isReadOnly, staffs } = config;
 
   const weeks = useMemo(
@@ -54,6 +59,8 @@ export const OverviewView = ({ weekStart = "mon" }: OverviewViewProps) => {
               isOpen={isOpen}
               onToggle={() => setOpen({ ...open, [wi]: !isOpen })}
               onDateClick={handleDateClick}
+              detailMode={detailMode}
+              usesPositionColors={usesPositionColors}
             />
           );
         })}
@@ -62,14 +69,12 @@ export const OverviewView = ({ weekStart = "mon" }: OverviewViewProps) => {
   );
 };
 
-type WeekCardProps = {
-  week: OverviewWeekViewModel;
+type WeekCardProps = WeekTableProps & {
   isOpen: boolean;
   onToggle: () => void;
-  onDateClick: (iso: string) => void;
 };
 
-const WeekCard = ({ week, isOpen, onToggle, onDateClick }: WeekCardProps) => {
+const WeekCard = ({ week, isOpen, onToggle, onDateClick, detailMode, usesPositionColors }: WeekCardProps) => {
   return (
     <Box
       bg="white"
@@ -111,7 +116,14 @@ const WeekCard = ({ week, isOpen, onToggle, onDateClick }: WeekCardProps) => {
         </Box>
       </Flex>
 
-      {isOpen && <WeekTable week={week} onDateClick={onDateClick} />}
+      {isOpen && (
+        <WeekTable
+          week={week}
+          onDateClick={onDateClick}
+          detailMode={detailMode}
+          usesPositionColors={usesPositionColors}
+        />
+      )}
     </Box>
   );
 };
@@ -119,9 +131,13 @@ const WeekCard = ({ week, isOpen, onToggle, onDateClick }: WeekCardProps) => {
 type WeekTableProps = {
   week: OverviewWeekViewModel;
   onDateClick: (iso: string) => void;
+  /** くわしく表示かどうか。falseのときは従来の表と同じ内容を出す。 */
+  detailMode: boolean;
+  /** ポジションを塗り分ける表示（くわしく表示で、ポジションが2つ以上）かどうか。 */
+  usesPositionColors: boolean;
 };
 
-const WeekTable = ({ week, onDateClick }: WeekTableProps) => (
+const WeekTable = ({ week, onDateClick, detailMode, usesPositionColors }: WeekTableProps) => (
   <Box>
     <Box as="table" w="100%" textStyle="tableDense" style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>
       <Box as="colgroup">
@@ -218,6 +234,8 @@ const WeekTable = ({ week, onDateClick }: WeekTableProps) => (
                     未提出
                   </Box>
                 )}
+                {/* 合計は右端の「計」の列に週ごとに出すため、名前には熟練度の印だけを添える。 */}
+                {detailMode && <StaffMeta staff={row.staff} showTotal={false} />}
               </Flex>
             </Box>
             {row.cells.map((cell) => (
@@ -235,6 +253,29 @@ const WeekTable = ({ week, onDateClick }: WeekTableProps) => (
                   <Box as="span" color="gray.500" textStyle="caption" fontWeight={700}>
                     {cell.text}
                   </Box>
+                ) : cell.tone === "assigned" && detailMode ? (
+                  // 勤務時間の横に休憩の印、下にポジションを添える。
+                  <Flex direction="column" align="center" gap="3px" minW={0}>
+                    <Flex align="center" justify="center" gap="4px">
+                      <Box
+                        as="span"
+                        textStyle="numeric"
+                        fontWeight={600}
+                        color="teal.700"
+                        style={{ fontVariantNumeric: "tabular-nums" }}
+                      >
+                        {cell.text}
+                      </Box>
+                      <BreakMark shift={cell.breakShift} compact />
+                    </Flex>
+                    {usesPositionColors && (
+                      <Flex justify="center" wrap="wrap" columnGap="6px" rowGap="2px" maxW="100%" color="gray.700">
+                        {cell.positions.map((segment) => (
+                          <PositionMark key={segment.positionId} segment={segment} />
+                        ))}
+                      </Flex>
+                    )}
+                  </Flex>
                 ) : cell.tone === "assigned" ? (
                   <Box
                     as="span"
@@ -261,6 +302,8 @@ const WeekTable = ({ week, onDateClick }: WeekTableProps) => (
                 fontWeight: 700,
                 color: row.hasTotal ? "#27272a" : "#d4d4d8",
                 fontVariantNumeric: "tabular-nums",
+                // 休憩を引いた「13.25h」のような合計を、途中で折り返さない。
+                whiteSpace: "nowrap",
               }}
             >
               {row.totalLabel}

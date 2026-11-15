@@ -18,6 +18,8 @@
 - `convex/dashboard/queries.ts` — ダッシュボード用の店舗設定取得
 - `doc/features/data-deletion.md` — 店舗・組織削除の保証範囲と対象外
 
+ポジション、必要人数、休憩の決まり、スタッフの属性は、店舗詳細の「シフト作成」から開く[シフト作成の設定](shift-setup.md)で管理する。
+
 ## 画面一覧
 
 | 画面 | 説明 |

@@ -1,3 +1,4 @@
+import { getEffectiveBreaks } from "@/src/domains/shift/breaks";
 import { computeVisualBreaks } from "@/src/domains/shift/operations";
 import { isLegacyCompatibleBreakPosition } from "@/src/domains/shift/positions";
 import { formatShiftClockTime, timeToMinutes } from "@/src/domains/shift/time";
@@ -7,6 +8,8 @@ import { minutesToPixel } from "../../../timelineGeometry";
 export type ShiftBarSegmentViewModel = {
   key: string;
   positionId: string;
+  // ポジションの色。くわしく表示でポジションを塗り分けるときに使う。
+  color: string;
   left: number;
   width: number;
   isResizing: boolean;
@@ -36,6 +39,8 @@ export type ShiftBarViewModel = {
   requestedBars: ShiftBarRequestViewModel[];
   workBars: ShiftBarSegmentViewModel[];
   breakBars: ShiftBarOverlayViewModel[];
+  // 時刻で入れた休憩。勤務のバーの内側に重ねる。
+  explicitBreakBars: ShiftBarOverlayViewModel[];
   workLabel: ShiftBarLabelViewModel | null;
 };
 
@@ -107,6 +112,7 @@ export const buildShiftBarViewModel = ({
       {
         key: position.id,
         positionId: position.id,
+        color: position.color,
         left: segmentLeft - left,
         width: segmentRight - segmentLeft,
         isResizing,
@@ -122,6 +128,15 @@ export const buildShiftBarViewModel = ({
         const end = minutesToPixel(timeToMinutes(gap.end), timeRange, hourWidth);
         return { key: `break-${gap.start}-${gap.end}`, left: start - left, width: end - start };
       });
+  const explicitBreakBars = linkedTarget
+    ? []
+    : getEffectiveBreaks({ positions: workPositions, breaks: shift.breaks }, { clipToWork: true }).map(
+        (range): ShiftBarOverlayViewModel => {
+          const start = minutesToPixel(timeToMinutes(range.start), timeRange, hourWidth);
+          const end = minutesToPixel(timeToMinutes(range.end), timeRange, hourWidth);
+          return { key: `explicit-break-${range.start}-${range.end}`, left: start - left, width: end - start };
+        },
+      );
   const firstWork = workPositions[0];
   const lastWork = workPositions[workPositions.length - 1];
   const workLabel =
@@ -137,5 +152,5 @@ export const buildShiftBarViewModel = ({
           };
         })();
 
-  return { shiftId: shift.id, left, width, requestedBars, workBars, breakBars, workLabel };
+  return { shiftId: shift.id, left, width, requestedBars, workBars, breakBars, explicitBreakBars, workLabel };
 };

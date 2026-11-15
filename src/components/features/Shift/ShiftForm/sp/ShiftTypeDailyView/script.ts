@@ -1,6 +1,6 @@
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import type { ShiftTypeOptionLike } from "@/src/domains/shift/shiftTypeAssignments";
-import type { ShiftData, StaffType } from "@/src/domains/shift/types";
+import type { PositionSegment, ShiftData, StaffType } from "@/src/domains/shift/types";
 import {
   buildShiftTypeDailyPresentation,
   type ShiftTypeDailyRequestBadgePresentation,
@@ -22,10 +22,14 @@ export type SPShiftTypeOptionViewModel = {
   timeLabel: string;
   assigned: boolean;
   color: ShiftTypeOptionColor;
+  // その勤務パターンに入っている勤務。くわしく表示でポジションを出すときに使う。
+  segment: PositionSegment | undefined;
 };
 
 export type SPShiftTypeStaffCardViewModel = {
   staff: StaffType;
+  // その日の勤務。くわしく表示の印（仮、休憩）に使う。
+  shift: ShiftData | undefined;
   isNameMuted: boolean;
   requestSectionLabel: "確定" | "希望";
   requestBadges: SPShiftTypeRequestBadgeViewModel[];
@@ -48,11 +52,12 @@ export const buildSPShiftTypeDailyViewModel = ({
   staffs: StaffType[];
   isConfirmedDisplay: boolean;
 }): SPShiftTypeDailyViewModel => {
+  const shiftByStaffId = new Map(shifts.map((shift) => [shift.staffId, shift]));
   const presentation = buildShiftTypeDailyPresentation({
     submissionPattern,
     shifts,
     staffs,
-    shiftByStaffId: new Map(shifts.map((shift) => [shift.staffId, shift])),
+    shiftByStaffId,
     isConfirmedDisplay,
   });
 
@@ -60,8 +65,10 @@ export const buildSPShiftTypeDailyViewModel = ({
     counts: presentation.options.map(({ key, name, countLabel, color }) => ({ key, name, countLabel, color })),
     staffCards: presentation.staffs.map((staffPresentation) => {
       const { staff } = staffPresentation;
+      const shift = shiftByStaffId.get(staff.id);
       return {
         staff,
+        shift,
         isNameMuted: staffPresentation.isNameMuted,
         requestSectionLabel: staffPresentation.requestSectionLabel,
         requestBadges: staffPresentation.requestBadges,
@@ -71,6 +78,7 @@ export const buildSPShiftTypeDailyViewModel = ({
           timeLabel,
           assigned,
           color,
+          segment: assigned ? shift?.positions.find((position) => position.shiftTypeOptionId === option.id) : undefined,
         })),
       };
     }),

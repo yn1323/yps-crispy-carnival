@@ -108,8 +108,20 @@ describe("buildShiftTypeOverviewViewModel", () => {
     expect(week.rows[0].cells[0].content).toEqual({
       kind: "assignments",
       badges: [
-        { key: "early", label: "早番", bg: "#f0fdfa", color: "#0f766e" },
-        { key: "late", label: "遅番", bg: "#eff6ff", color: "#2563eb" },
+        {
+          key: "early",
+          label: "早番",
+          bg: "#f0fdfa",
+          color: "#0f766e",
+          position: { positionName: "勤務", color: "#000" },
+        },
+        {
+          key: "late",
+          label: "遅番",
+          bg: "#eff6ff",
+          color: "#2563eb",
+          position: { positionName: "勤務", color: "#000" },
+        },
       ],
     });
     expect(week.rows[0].cells[1].content).toEqual({ kind: "closed", label: "定休日" });
@@ -140,5 +152,39 @@ describe("buildShiftTypeOverviewViewModel", () => {
       "2026-06-06",
     ]);
     expect(viewModel.weeks[0].dates.find(({ iso }) => iso === "2026-06-01")?.isClickable).toBe(false);
+  });
+
+  it("くわしく表示に使う、週の合計と休憩を行とセルへ持たせる", () => {
+    const withBreak: ShiftData = { ...shifts[0], breaks: [{ start: "10:00", end: "10:30" }] };
+    const closedDay: ShiftData = { ...shifts[0], id: "shift-closed", date: "2026-06-02" };
+    const noBreak: ShiftData = {
+      ...shifts[0],
+      id: "shift-no-break",
+      date: "2026-06-03",
+      positions: [shifts[0].positions[1]],
+    };
+    const viewModel = buildShiftTypeOverviewViewModel({
+      dates: ["2026-06-01", "2026-06-02", "2026-06-03"],
+      weekStart: "mon",
+      holidays: ["2026-06-02"],
+      isReadOnly: false,
+      staffs,
+      shifts: [withBreak, closedDay, noBreak],
+      submissionPattern,
+      warningCounts: new Map(),
+    });
+    const [submittedRow, unsubmittedRow] = viewModel.weeks[0].rows;
+
+    expect(submittedRow.staff).toBe(staffs[0]);
+    // 6/1は9時間から30分を引いた8時間30分、定休日の6/2は数えず、6/3は4時間。
+    expect({ totalLabel: submittedRow.totalLabel, hasTotal: submittedRow.hasTotal }).toEqual({
+      totalLabel: "12.5h",
+      hasTotal: true,
+    });
+    expect(submittedRow.cells.slice(0, 3).map((cell) => cell.breakShift)).toEqual([withBreak, undefined, undefined]);
+    expect({ totalLabel: unsubmittedRow.totalLabel, hasTotal: unsubmittedRow.hasTotal }).toEqual({
+      totalLabel: "—",
+      hasTotal: false,
+    });
   });
 });

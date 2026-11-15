@@ -3,16 +3,20 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useMemo, useState } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
 import { IssueCountBadge } from "../../components";
+import { BreakMark, PositionMark, StaffMeta } from "../../detailParts";
 import {
+  detailModeAtom,
   selectDateWithDailyStaffOrderAtom,
   shiftConfigAtom,
   shiftsAtom,
   viewModeAtom,
   warningCountByDateAtom,
 } from "../../stores";
+import { StaffTotalsCard } from "../StaffTotalsCard";
 import {
   buildDateOnlyOverviewViewModel,
   type DateOnlyOverviewDayRowViewModel,
+  type DateOnlyOverviewStaffRowViewModel,
   type DateOnlyOverviewWeekdayTone,
   type DateOnlyOverviewWeekViewModel,
 } from "./script";
@@ -60,6 +64,7 @@ export const SPDateOnlyOverviewView = () => {
   return (
     <Box flex={1} minH={0} overflow="auto" bg="gray.50" px={3} py={3}>
       <Stack gap={3}>
+        <StaffTotalsCard />
         {viewModel.weeks.map((week, index) => {
           const isOpen = openWeeks[week.key] ?? index === 0;
           return (
@@ -171,13 +176,7 @@ const DayRow = ({ row, onDateTap }: { row: DateOnlyOverviewDayRowViewModel; onDa
     </Box>
     <Box flex={1} minW={0} pt="1px">
       {row.staffRows.length > 0 ? (
-        <Stack gap="5px">
-          {row.staffRows.map((staff) => (
-            <Text key={staff.key} textStyle="caption" fontWeight={600} color="gray.800">
-              {staff.name}
-            </Text>
-          ))}
-        </Stack>
+        <DayStaffList rows={row.staffRows} />
       ) : (
         <Text textStyle="caption" color="gray.400" fontWeight={500} aria-label={row.statusAriaLabel}>
           {row.statusLabel}
@@ -186,3 +185,40 @@ const DayRow = ({ row, onDateTap }: { row: DateOnlyOverviewDayRowViewModel; onDa
     </Box>
   </Flex>
 );
+
+const DayStaffList = ({ rows }: { rows: DateOnlyOverviewStaffRowViewModel[] }) => {
+  const detailMode = useAtomValue(detailModeAtom);
+
+  if (!detailMode) {
+    return (
+      <Stack gap="5px">
+        {rows.map((staff) => (
+          <Text key={staff.key} textStyle="caption" fontWeight={600} color="gray.800">
+            {staff.name}
+          </Text>
+        ))}
+      </Stack>
+    );
+  }
+
+  // くわしく表示: 名前の横に熟練度、右端にポジションと休憩の印を出す。
+  return (
+    <Stack gap="6px">
+      {rows.map((staff) => (
+        <Flex key={staff.key} as="span" align="center" gap={2}>
+          <Flex as="span" flex={1} minW={0} align="center" gap="6px">
+            <Text as="span" textStyle="caption" fontWeight={600} color="gray.800" minW={0}>
+              {staff.name}
+            </Text>
+            <StaffMeta staff={staff.staff} showTotal={false} />
+          </Flex>
+          {/* ポジションの右端をそろえるため、休憩の印はポジションの左に置く。 */}
+          <BreakMark shift={staff.shift} compact />
+          <Box as="span" color="gray.700" minW={0}>
+            <PositionMark segment={staff.segment} />
+          </Box>
+        </Flex>
+      ))}
+    </Stack>
+  );
+};

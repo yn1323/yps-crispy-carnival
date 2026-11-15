@@ -17,8 +17,8 @@ export const DEVELOPMENT_SEED_SCENARIO_KEYS = [
   "trial-daily",
 ] as const;
 
-export const DEVELOPMENT_SEED_CONTRACT_VERSION = "development-seed-v6";
-export const DEVELOPMENT_SEED_EXPECTED_TABLE_COUNT = 58;
+export const DEVELOPMENT_SEED_CONTRACT_VERSION = "development-seed-v7";
+export const DEVELOPMENT_SEED_EXPECTED_TABLE_COUNT = 60;
 
 export type DevelopmentSeedScenarioKey = (typeof DEVELOPMENT_SEED_SCENARIO_KEYS)[number];
 
@@ -349,6 +349,8 @@ export const DEVELOPMENT_SEED_TABLE_COVERAGE = {
   shiftSubmissions: seeded(OPERATIONS),
   recruitmentStats: seeded(OPERATIONS),
   positions: seeded(OPERATIONS),
+  shiftDayTemplates: empty("日の型は店舗が自分で設定する。未設定の店舗を標準の状態にする"),
+  shiftDayTemplateOverrides: empty("特別な日は店舗が自分で設定する"),
   magicLinks: empty("実credentialとなるmagic linkを作らない"),
   sessions: empty("実credentialとなるstaff sessionを作らない"),
   lineLinkTokens: empty("実credentialとなるLINE OAuth stateを作らない"),

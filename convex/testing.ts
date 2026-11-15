@@ -456,6 +456,21 @@ async function deleteShopGraph(
     await ctx.db.delete(position._id);
   }
 
+  const dayTemplates = await ctx.db
+    .query("shiftDayTemplates")
+    .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
+    .collect();
+  for (const template of dayTemplates) {
+    await ctx.db.delete(template._id);
+  }
+  const dayTemplateOverrides = await ctx.db
+    .query("shiftDayTemplateOverrides")
+    .withIndex("by_shopId_and_date", (q) => q.eq("shopId", shopId))
+    .collect();
+  for (const override of dayTemplateOverrides) {
+    await ctx.db.delete(override._id);
+  }
+
   await ctx.db.delete(shopId);
 }
 

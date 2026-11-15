@@ -1,7 +1,9 @@
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
+import { getEffectiveBreaks, getWorkedMinutes } from "@/src/domains/shift/breaks";
 import { buildWeeklyGrid, formatDateShort, getWeekdayLabel, type WeekStart } from "@/src/domains/shift/date";
 import { getAssignedShiftTypeOptionIdsInOptionOrder } from "@/src/domains/shift/shiftTypeAssignments";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
+import { formatStaffWorkTotal } from "@/src/domains/shift/workTotals";
 import { getOrderedShiftTypeOptions } from "@/src/domains/shop/submissionPattern";
 import { getShiftTypeOptionColor } from "../../shiftTypeOptionStyles";
 import { getShiftWeekdayColor } from "../../weekdayPresentation";
@@ -11,6 +13,8 @@ export type ShiftTypeOverviewAssignmentBadgeViewModel = {
   label: string;
   bg: string;
   color: string;
+  /** その勤務パターンに入っている勤務のポジション。くわしく表示で、勤務パターンの下に添える。 */
+  position: { positionName: string; color: string } | null;
 };
 
 export type ShiftTypeOverviewCellContentViewModel =
@@ -32,13 +36,19 @@ export type ShiftTypeOverviewCellViewModel = {
   key: string;
   isClosed: boolean;
   content: ShiftTypeOverviewCellContentViewModel;
+  /** 休憩のある勤務の日だけ持つ、その日の勤務。休憩の印に渡す。 */
+  breakShift: ShiftData | undefined;
 };
 
 export type ShiftTypeOverviewRowViewModel = {
   key: string;
+  staff: StaffType;
   staffName: string;
   isStaffNameMuted: boolean;
   cells: ShiftTypeOverviewCellViewModel[];
+  /** その週の勤務時間の合計（休憩を引く）。くわしく表示の「計」の列に出す。 */
+  totalLabel: string;
+  hasTotal: boolean;
 };
 
 export type ShiftTypeOverviewDateViewModel = {
@@ -129,16 +139,15 @@ export const buildShiftTypeOverviewViewModel = ({
         index: weekIndex,
         rangeLabel: buildWeekRangeLabel(weekDates),
         dates: dateViewModels,
-        rows: staffs.map((staff) => ({
-          key: staff.id,
-          staffName: staff.name,
-          isStaffNameMuted: !staff.isSubmitted,
-          cells: dateViewModels.map((date) => {
+        rows: staffs.map((staff) => {
+          let totalMinutes = 0;
+          const cells = dateViewModels.map((date): ShiftTypeOverviewCellViewModel => {
             if (date.isClosed) {
               return {
                 key: date.key,
                 isClosed: true,
                 content: { kind: "closed" as const, label: "定休日" as const },
+                breakShift: undefined,
               };
             }
 
@@ -147,7 +156,8 @@ export const buildShiftTypeOverviewViewModel = ({
               ? []
               : getAssignedShiftTypeOptionIdsInOptionOrder(shift, sortedOptionIds);
 
-            if (assignedOptionIds.length > 0) {
+            if (shift && assignedOptionIds.length > 0) {
+              totalMinutes += getWorkedMinutes(shift);
               return {
                 key: date.key,
                 isClosed: false,
@@ -155,14 +165,17 @@ export const buildShiftTypeOverviewViewModel = ({
                   kind: "assignments" as const,
                   badges: assignedOptionIds.map((optionId) => {
                     const optionDisplay = optionDisplayById.get(optionId);
+                    const segment = shift.positions.find((position) => position.shiftTypeOptionId === optionId);
                     return {
                       key: optionId,
                       label: optionDisplay?.name ?? "勤務",
                       bg: optionDisplay?.color.requestedBg ?? "teal.50",
                       color: optionDisplay?.color.accent ?? "teal.700",
+                      position: segment ? { positionName: segment.positionName, color: segment.color } : null,
                     };
                   }),
                 },
+                breakShift: getEffectiveBreaks(shift, { clipToWork: true }).length > 0 ? shift : undefined,
               };
             }
 
@@ -171,6 +184,7 @@ export const buildShiftTypeOverviewViewModel = ({
                 key: date.key,
                 isClosed: false,
                 content: { kind: "status" as const, label: "未提出" as const, tone: "unsubmitted" as const },
+                breakShift: undefined,
               };
             }
 
@@ -182,9 +196,20 @@ export const buildShiftTypeOverviewViewModel = ({
                 label: "—" as const,
                 tone: date.rangeStatusLabel ? ("outOfRange" as const) : ("empty" as const),
               },
+              breakShift: undefined,
             };
-          }),
-        })),
+          });
+
+          return {
+            key: staff.id,
+            staff,
+            staffName: staff.name,
+            isStaffNameMuted: !staff.isSubmitted,
+            cells,
+            totalLabel: totalMinutes > 0 ? formatStaffWorkTotal({ kind: "minutes", minutes: totalMinutes }) : "—",
+            hasTotal: totalMinutes > 0,
+          };
+        }),
       },
     ];
   });

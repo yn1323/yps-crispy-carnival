@@ -10,7 +10,18 @@ import {
 import { isSupportedShiftTime, minutesToTime, timeToMinutes } from "@/src/domains/shift/time";
 import type { ExportNoteRow, ExportSchedule, ShiftExportData } from "./types";
 
-export function buildExportSchedule(data: ShiftExportData, splitPeriod = false, includeNotes = false): ExportSchedule {
+// 休憩は「休憩」「開始」「終了」の3行で出す。日付の列は31日分を並べると狭く、1行にまとめると末尾が省略されるためである。
+const formatBreakLines = (item: { startTime: string; endTime: string }) => ["休憩", item.startTime, item.endTime];
+
+const sortBreaks = (breaks: readonly { startTime: string; endTime: string }[]) =>
+  [...breaks].sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
+
+export function buildExportSchedule(
+  data: ShiftExportData,
+  splitPeriod = false,
+  includeNotes = false,
+  includeDetails = false,
+): ExportSchedule {
   const { recruitment } = data;
   const count = getInclusiveDateCount(recruitment.periodStart, recruitment.periodEnd);
   if (
@@ -48,6 +59,31 @@ export function buildExportSchedule(data: ShiftExportData, splitPeriod = false, 
       ? [...pattern.options].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id))
       : [];
   const optionIds = new Set(options.map((option) => option.id));
+  const positions = data.positions ?? [];
+  const positionNameById = new Map(positions.map((position) => [position.id, position.name]));
+  const hasBreaks = data.assignments.some((assignment) => (assignment.breaks?.length ?? 0) > 0);
+  if (
+    data.assignments.some((assignment) =>
+      (assignment.breaks ?? []).some(
+        ({ startTime, endTime }) =>
+          !isSupportedShiftTime(startTime) ||
+          !isSupportedShiftTime(endTime) ||
+          timeToMinutes(startTime) >= timeToMinutes(endTime),
+      ),
+    )
+  ) {
+    throw new Error("休憩時間を確認できませんでした。");
+  }
+  const hasShiftDetails = (positions.length >= 2 && data.assignments.length > 0) || hasBreaks;
+  // ポジション名は、ポジションが2つ以上ある店舗でだけ出す。1つの店舗では勤務の内容と同じ意味になるためである。
+  const showPositions = includeDetails && positions.length >= 2;
+  const positionLine = (positionId: string | null | undefined): string[] => {
+    if (!showPositions) return [];
+    const name = positionId ? positionNameById.get(positionId) : undefined;
+    return name ? [name] : [];
+  };
+  const breakLines = (breaks: readonly { startTime: string; endTime: string }[] | undefined): string[] =>
+    includeDetails ? sortBreaks(breaks ?? []).flatMap(formatBreakLines) : [];
   let bodyLineCount = pattern.kind === "time" ? 2 : 1;
   const rows = data.staffs.map((staff) => ({
     staffId: staff.id,
@@ -55,7 +91,14 @@ export function buildExportSchedule(data: ShiftExportData, splitPeriod = false, 
     cells: dates.map(({ date, isClosed }) => {
       const assignments = byStaffDate.get(`${staff.id}:${date}`) ?? [];
       if (isClosed || assignments.length === 0) return { lines: ["-"] };
-      if (pattern.kind === "dateOnly") return { lines: ["○"] };
+      if (pattern.kind === "dateOnly") {
+        const lines = [
+          positionLine(assignments[0].positionId)[0] ?? "○",
+          ...breakLines(assignments.flatMap((assignment) => assignment.breaks ?? [])),
+        ];
+        bodyLineCount = Math.max(bodyLineCount, lines.length);
+        return { lines };
+      }
       if (pattern.kind === "time") {
         if (
           assignments.some(
@@ -67,22 +110,48 @@ export function buildExportSchedule(data: ShiftExportData, splitPeriod = false, 
         )
           throw new Error("勤務時間を確認できませんでした。");
         const intervals = assignments
-          .map(({ startTime, endTime }) => ({ start: timeToMinutes(startTime), end: timeToMinutes(endTime) }))
+          .map(({ startTime, endTime, positionId, breaks }) => ({
+            start: timeToMinutes(startTime),
+            end: timeToMinutes(endTime),
+            positionId: positionId ?? null,
+            breaks: breaks ?? [],
+          }))
           .sort((a, b) => a.start - b.start || a.end - b.end);
-        const merged: { start: number; end: number }[] = [];
+        const merged: typeof intervals = [];
         for (const interval of intervals) {
           const previous = merged.at(-1);
-          if (previous && interval.start <= previous.end) previous.end = Math.max(previous.end, interval.end);
-          else merged.push({ ...interval });
+          // ポジション名を出すときは、ポジションが違う勤務をまとめない。
+          if (
+            previous &&
+            interval.start <= previous.end &&
+            (!showPositions || previous.positionId === interval.positionId)
+          ) {
+            previous.end = Math.max(previous.end, interval.end);
+            previous.breaks = [...previous.breaks, ...interval.breaks];
+          } else merged.push({ ...interval });
         }
-        const lines = merged.flatMap(({ start, end }) => [minutesToTime(start), minutesToTime(end)]);
+        const lines = merged.flatMap(({ start, end, positionId, breaks }) => [
+          minutesToTime(start),
+          minutesToTime(end),
+          ...positionLine(positionId),
+          ...breakLines(breaks),
+        ]);
         bodyLineCount = Math.max(bodyLineCount, lines.length);
         return { lines };
       }
       const selected = new Set(assignments.map(({ optionId }) => optionId));
       if ([...selected].some((id) => id === null || !optionIds.has(id)))
         throw new Error("勤務パターンを確認できませんでした。");
-      const lines = options.filter(({ id }) => selected.has(id)).map(({ name }) => name);
+      const lines = options
+        .filter(({ id }) => selected.has(id))
+        .flatMap(({ id, name }) => {
+          const optionAssignments = assignments.filter(({ optionId }) => optionId === id);
+          return [
+            name,
+            ...positionLine(optionAssignments[0]?.positionId),
+            ...breakLines(optionAssignments.flatMap((assignment) => assignment.breaks ?? [])),
+          ];
+        });
       bodyLineCount = Math.max(bodyLineCount, lines.length);
       return { lines };
     }),
@@ -98,6 +167,7 @@ export function buildExportSchedule(data: ShiftExportData, splitPeriod = false, 
     bodyLineCount,
     dates,
     rows,
+    hasShiftDetails,
     hasDateNotes: noteRows.length > 0,
     noteRows: includeNotes ? noteRows : [],
   };

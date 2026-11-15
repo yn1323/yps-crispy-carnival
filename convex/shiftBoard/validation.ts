@@ -1,6 +1,7 @@
 import { getSubmissionPatternTimeRange, type ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import { isSupportedShiftTime, timeToMinutes } from "../_lib/time";
 import { isValidIsoDateString } from "../_lib/validation";
+import { SHIFT_ASSIGNMENT_BREAK_LIMIT } from "../constants";
 
 // シフト割当バリデーションの構造化エラー。
 // サーバー（mutations.ts）とフロント（確定前チェック・エラー一覧UI）で共有する純粋モジュール。
@@ -19,7 +20,11 @@ export type AssignmentIssueCode =
   | "SHIFT_TYPE_TIME_MISMATCH"
   | "SHIFT_TYPE_NOT_ALLOWED"
   | "OUT_OF_BOARD_RANGE"
-  | "OVERLAP";
+  | "OVERLAP"
+  | "BREAK_LIMIT"
+  | "BREAK_INVALID_TIME"
+  | "BREAK_OUT_OF_SHIFT"
+  | "BREAK_OVERLAP";
 
 export type AssignmentIssue = {
   code: AssignmentIssueCode;
@@ -45,14 +50,27 @@ const ISSUE_MESSAGES: Record<AssignmentIssueCode, string> = {
   SHIFT_TYPE_NOT_ALLOWED: "パターン選択の募集ではありません",
   OUT_OF_BOARD_RANGE: "設定したシフト時間内にしてください",
   OVERLAP: "同じスタッフの同じ日で、シフトの時間帯が重なっています。",
+  BREAK_LIMIT: `休憩は1つの勤務に${SHIFT_ASSIGNMENT_BREAK_LIMIT}件まで入れられます`,
+  BREAK_INVALID_TIME: "休憩の終了時間は開始時間より後にしてください",
+  BREAK_OUT_OF_SHIFT: "休憩は勤務時間内にしてください",
+  BREAK_OVERLAP: "休憩の時間帯が重なっています",
 };
 
 export function buildAssignmentIssue(code: AssignmentIssueCode, date: string, staffId: string): AssignmentIssue {
   return { code, date, staffId, message: ISSUE_MESSAGES[code] };
 }
 
+export type ShiftAssignmentBreakInput = { startTime: string; endTime: string };
+
 export type ShiftAssignmentValidationInput = {
-  assignments: Array<{ staffId: string; date: string; startTime: string; endTime: string; optionId?: string }>;
+  assignments: Array<{
+    staffId: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    optionId?: string;
+    breaks?: ReadonlyArray<ShiftAssignmentBreakInput>;
+  }>;
   periodStart: string;
   periodEnd: string;
   closedDates: string[];
@@ -142,9 +160,40 @@ export function validateShiftAssignments(input: ShiftAssignmentValidationInput):
     }
     ranges.push({ start: startMinutes, end: endMinutes, ...(a.optionId ? { optionId: a.optionId } : {}) });
     rangesByStaffDate.set(key, ranges);
+
+    const breakIssue = findBreakIssue(a.breaks ?? [], {
+      startMinutes,
+      endMinutes,
+      // 日付選択の勤務は時刻を持たないため、休憩を勤務時間の内側に限らない。
+      requireInsideShift: input.pattern.kind !== "dateOnly",
+    });
+    if (breakIssue) pushIssue(breakIssue);
   }
 
   return issues;
+}
+
+// 休憩の違反を、件数、時刻、勤務時間の内側、重なりの順に確かめ、最初の1件を返す。
+function findBreakIssue(
+  breaks: ReadonlyArray<ShiftAssignmentBreakInput>,
+  shift: { startMinutes: number; endMinutes: number; requireInsideShift: boolean },
+): AssignmentIssueCode | null {
+  if (breaks.length > SHIFT_ASSIGNMENT_BREAK_LIMIT) return "BREAK_LIMIT";
+
+  const ranges: Array<{ start: number; end: number }> = [];
+  for (const item of breaks) {
+    if (!isSupportedShiftTime(item.startTime) || !isSupportedShiftTime(item.endTime)) return "BREAK_INVALID_TIME";
+    const start = timeToMinutes(item.startTime);
+    const end = timeToMinutes(item.endTime);
+    if (start >= end) return "BREAK_INVALID_TIME";
+    if (shift.requireInsideShift) {
+      const coversWholeShift = start === shift.startMinutes && end === shift.endMinutes;
+      if (start < shift.startMinutes || end > shift.endMinutes || coversWholeShift) return "BREAK_OUT_OF_SHIFT";
+    }
+    if (ranges.some((range) => start < range.end && end > range.start)) return "BREAK_OVERLAP";
+    ranges.push({ start, end });
+  }
+  return null;
 }
 
 // ConvexErrorのdataはサーバー境界を越える際にJSON文字列へシリアライズされることがある

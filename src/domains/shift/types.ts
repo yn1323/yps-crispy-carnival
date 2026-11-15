@@ -18,6 +18,10 @@ export type ShiftData = {
   requestedTimes?: ShiftTimeRange[]; // パターン選択では同じ日に複数の希望時間帯を持てる
   requestedShiftTypeOptionIds?: string[]; // パターン選択で希望されたパターンID
   positions: PositionSegment[];
+  // その日の休憩。勤務区間とは独立に持ち、保存と集計のときに勤務時間の内側へ切り詰める。
+  breaks?: ShiftTimeRange[];
+  // 未提出者へ前回確定の勤務を引き継いだ「仮の勤務」
+  isProvisional?: boolean;
 };
 
 // ポジション色セグメント
@@ -47,6 +51,18 @@ export type StaffType = {
   isRemoved?: boolean;
   displayOrder?: number;
   createdAt?: number;
+  // 熟練度。省略は標準。
+  skillLevel?: StaffSkillLevel;
+  // 入れないポジション。省略は全ポジション可。
+  unavailablePositionIds?: string[];
+};
+
+export type StaffSkillLevel = "newcomer" | "lead";
+
+// 店舗の休憩の決まり（何分以上の勤務に何分）
+export type ShiftBreakRule = {
+  minWorkMinutes: number;
+  breakMinutes: number;
 };
 
 // 時間範囲
@@ -86,24 +102,22 @@ export type LinkedResizeTarget = {
 };
 
 // ==========================================
-// 一覧ビュー型
+// 必要人数（日の型）
 // ==========================================
 
-// ピーク帯定義
-export type PeakBand = {
-  startTime: string; // "11:00"
-  endTime: string; // "14:00"
-  requiredCount: number; // 必要人数
+// 人数を数える区切り。募集方式ごとに、時間帯、勤務パターン、終日のいずれかになる。
+export type StaffingSlotKey =
+  | { kind: "time"; startTime: string; endTime: string }
+  | { kind: "shiftType"; optionId: string }
+  | { kind: "allDay" };
+
+export type StaffingRequirement = {
+  positionId: string;
+  count: number;
 };
 
-// 必要人員設定データ（convex/requiredStaffing テーブルの1レコードに対応）
-export type RequiredStaffingData = {
-  dayOfWeek: number; // 0=日, 1=月, ..., 6=土
-  slots: {
-    hour: number; // 0-23
-    position: string;
-    requiredCount: number;
-  }[];
-  peakBands?: PeakBand[];
-  minimumStaff?: number;
+// その日に当てる日の型の区切りと必要人数
+export type StaffingSlot = {
+  key: StaffingSlotKey;
+  requirements: StaffingRequirement[];
 };

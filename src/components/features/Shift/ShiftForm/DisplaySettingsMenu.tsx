@@ -1,11 +1,17 @@
-import { Icon, Menu, Portal } from "@chakra-ui/react";
-import { LuCheck, LuChevronDown, LuMessageSquare } from "react-icons/lu";
+import { Icon, Menu, Portal, useBreakpointValue } from "@chakra-ui/react";
+import { useAtom, useAtomValue } from "jotai";
+import { LuCheck, LuChevronDown, LuListPlus, LuMessageSquare } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
 import { useShiftDateNotesVisibility } from "./dateNotes";
+import { detailModeAtom, detailToggleEnabledAtom } from "./stores";
 
 /** 日付見出しの右端に置く、シフト表の見え方を切り替えるメニュー。 */
 export function DisplaySettingsMenu() {
   const { isVisible, setVisible } = useShiftDateNotesVisibility();
+  const [detailMode, setDetailMode] = useAtom(detailModeAtom);
+  const isDetailToggleEnabled = useAtomValue(detailToggleEnabledAtom);
+  // PCはヘッダーに「シンプル / くわしく」の切り替えを出すため、メニューへ出すのはスマートフォンだけにする。
+  const showDetailToggle = (useBreakpointValue({ base: true, lg: false }) ?? false) && isDetailToggleEnabled;
 
   return (
     <Menu.Root positioning={{ placement: "bottom-end", gutter: 8 }}>
@@ -50,6 +56,27 @@ export function DisplaySettingsMenu() {
                 連絡事項を表示
               </Menu.ItemText>
             </Menu.CheckboxItem>
+            {showDetailToggle && (
+              <Menu.CheckboxItem
+                value="detail-mode"
+                checked={detailMode}
+                onCheckedChange={setDetailMode}
+                cursor="pointer"
+                ps={8}
+                pe={3}
+                py={2.5}
+              >
+                <Menu.ItemIndicator color="teal.600">
+                  <LuCheck aria-hidden />
+                </Menu.ItemIndicator>
+                <Icon boxSize={4} color="gray.600" aria-hidden>
+                  <LuListPlus />
+                </Icon>
+                <Menu.ItemText fontSize="sm" fontWeight="medium">
+                  くわしく表示
+                </Menu.ItemText>
+              </Menu.CheckboxItem>
+            )}
           </Menu.Content>
         </Menu.Positioner>
       </Portal>

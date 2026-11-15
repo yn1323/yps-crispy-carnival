@@ -3,7 +3,8 @@ import {
   hasDateOnlyAssignment,
   hasDateOnlyRequest,
 } from "@/src/domains/shift/dateOnlyAssignments";
-import type { ShiftData, StaffType } from "@/src/domains/shift/types";
+import { isCanonicalWorkPosition } from "@/src/domains/shift/positions";
+import type { PositionSegment, ShiftData, StaffType } from "@/src/domains/shift/types";
 
 export type SPDateInfo = {
   iso: string;
@@ -17,6 +18,9 @@ export type SPDateOnlyStaffRowViewModel = {
   isNameMuted: boolean;
   statusLabel: string;
   statusTone: "positive" | "warning" | "muted";
+  // 以下は、くわしく表示の印（仮、ポジション、休憩）に使う。
+  shift: ShiftData | undefined;
+  assignedSegment: PositionSegment | undefined;
 };
 
 export type SPDateOnlyDailyViewModel = {
@@ -71,6 +75,8 @@ export const buildSPDateOnlyDailyViewModel = ({
       isNameMuted: !staff.isSubmitted,
       statusLabel,
       statusTone: !staff.isSubmitted ? "warning" : requested ? "positive" : "muted",
+      shift,
+      assignedSegment: assigned ? shift?.positions.find(isCanonicalWorkPosition) : undefined,
     };
   });
 

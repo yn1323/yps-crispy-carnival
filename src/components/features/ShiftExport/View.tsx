@@ -13,6 +13,8 @@ type Props = {
   onSplitPeriodChange: (checked: boolean) => void;
   includeNotes: boolean;
   onIncludeNotesChange: (checked: boolean) => void;
+  includeDetails: boolean;
+  onIncludeDetailsChange: (checked: boolean) => void;
 };
 
 export function ShiftExportView({
@@ -21,6 +23,8 @@ export function ShiftExportView({
   onSplitPeriodChange,
   includeNotes,
   onIncludeNotesChange,
+  includeDetails,
+  onIncludeDetailsChange,
 }: Props) {
   const pages = getExportPages(schedule);
   const notePages = getExportNotePages(schedule);
@@ -44,6 +48,24 @@ export function ShiftExportView({
                   <Checkbox.Indicator />
                 </Checkbox.Control>
                 <Checkbox.Label>期間を前半・後半に分ける</Checkbox.Label>
+              </Checkbox.Root>
+            </Box>
+          )}
+          {schedule.hasShiftDetails && (
+            <Box>
+              <Checkbox.Root
+                checked={includeDetails}
+                onCheckedChange={({ checked }) => onIncludeDetailsChange(checked === true)}
+                disabled={download.isGenerating}
+                colorPalette="teal"
+                minH="44px"
+                cursor={download.isGenerating ? "not-allowed" : "pointer"}
+              >
+                <Checkbox.HiddenInput />
+                <Checkbox.Control>
+                  <Checkbox.Indicator />
+                </Checkbox.Control>
+                <Checkbox.Label>ポジションと休憩も出力する</Checkbox.Label>
               </Checkbox.Root>
             </Box>
           )}

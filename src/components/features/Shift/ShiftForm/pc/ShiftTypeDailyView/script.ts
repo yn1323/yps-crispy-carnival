@@ -1,12 +1,14 @@
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
+import { getBreaksForSegment } from "@/src/domains/shift/breaks";
 import { indexShiftsByStaffId } from "@/src/domains/shift/shiftLookup";
 import type { ShiftTypeOptionLike } from "@/src/domains/shift/shiftTypeAssignments";
-import type { ShiftData, StaffType } from "@/src/domains/shift/types";
+import type { PositionSegment, ShiftData, StaffType } from "@/src/domains/shift/types";
 import {
   buildShiftTypeDailyPresentation,
   type ShiftTypeDailyRequestBadgePresentation,
 } from "../../shiftTypeDailyPresentation";
 import type { ShiftTypeOptionColor } from "../../shiftTypeOptionStyles";
+import { type DayStaffingView, formatStaffingCount, type StaffingSlotView } from "../../staffingPresentation";
 
 export type ShiftTypeDailyOptionColumnViewModel = {
   key: string;
@@ -25,11 +27,19 @@ export type ShiftTypeDailyAssignmentCellViewModel = {
   ariaLabel: string;
   symbol: "○" | "×";
   color: ShiftTypeOptionColor;
+  /** その勤務パターンに入っている勤務。くわしく表示でポジションを示すために使う。 */
+  segment: PositionSegment | undefined;
+  /** その勤務パターンの時間内に休憩がある場合だけ持つ、その勤務だけに絞った1日分。休憩の印に渡す。 */
+  breakShift: ShiftData | undefined;
+  /** 前回の勤務を仮で入れた日の勤務かどうか。 */
+  isProvisional: boolean;
 };
 
 export type ShiftTypeDailyRowViewModel = {
   key: string;
   staff: StaffType;
+  /** 表示中の日の勤務。スタッフ名に添える「仮」の印に使う。 */
+  shift: ShiftData | undefined;
   staffName: string;
   isStaffNameMuted: boolean;
   warningMessages: string[];
@@ -67,6 +77,8 @@ export const buildShiftTypeDailyViewModel = ({
   isConfirmedDisplay,
   warningMessagesByStaffId,
   hasDateNotes = false,
+  detailMode = false,
+  usesPositionColors = false,
 }: {
   submissionPattern: ShiftSubmissionPattern;
   shifts: ShiftData[];
@@ -76,12 +88,17 @@ export const buildShiftTypeDailyViewModel = ({
   isConfirmedDisplay: boolean;
   warningMessagesByStaffId: ReadonlyMap<string, string[]>;
   hasDateNotes?: boolean;
+  /** くわしく表示かどうか。セルの読み上げに、ポジションと休憩を足す。 */
+  detailMode?: boolean;
+  /** ポジションを塗り分ける表示（くわしく表示で、ポジションが2つ以上）かどうか。 */
+  usesPositionColors?: boolean;
 }): ShiftTypeDailyViewModel => {
+  const shiftByStaffId = indexShiftsByStaffId(shifts);
   const presentation = buildShiftTypeDailyPresentation({
     submissionPattern,
     shifts,
     staffs,
-    shiftByStaffId: indexShiftsByStaffId(shifts),
+    shiftByStaffId,
     isConfirmedDisplay,
   });
 
@@ -110,24 +127,74 @@ export const buildShiftTypeDailyViewModel = ({
     })),
     rows: presentation.staffs.map((staffPresentation) => {
       const { staff } = staffPresentation;
+      const shift = shiftByStaffId.get(staff.id);
       return {
         key: staff.id,
         staff,
+        shift,
         staffName: staff.name,
         isStaffNameMuted: staffPresentation.isNameMuted,
         warningMessages: warningMessagesByStaffId.get(staff.id) ?? [],
         requestBadges: staffPresentation.requestBadges,
         cells: staffPresentation.assignments.map(({ key, option, assigned, color }) => {
+          const segment = shift?.positions.find((position) => position.shiftTypeOptionId === option.id);
+          const breakShift =
+            shift && segment && getBreaksForSegment(segment, shift.breaks ?? []).length > 0
+              ? { ...shift, positions: [segment] }
+              : undefined;
+          const detailLabels =
+            detailMode && assigned
+              ? [...(usesPositionColors && segment ? [segment.positionName] : []), ...(breakShift ? ["休憩あり"] : [])]
+              : [];
           return {
             key,
             option,
             assigned,
-            ariaLabel: `${staff.name} ${option.name} ${assigned ? "勤務あり" : "勤務なし"}`,
+            ariaLabel: [`${staff.name} ${option.name} ${assigned ? "勤務あり" : "勤務なし"}`, ...detailLabels].join(
+              "、",
+            ),
             symbol: assigned ? "○" : "×",
             color,
+            segment,
+            breakShift,
+            isProvisional: assigned && shift?.isProvisional === true,
           };
         }),
       };
     }),
   };
 };
+
+// ==========================================
+// 人数と過不足（くわしく表示）
+// ==========================================
+export type StaffingSlotSummary = {
+  /** 区切り全体の「人数 / 必要」。必要人数を1つも設定していない区切りは人数だけ。 */
+  totalLabel: string;
+  /** ポジション名つきの内訳。色の丸だけで示す狭いセルの補足に使う。 */
+  title: string;
+};
+
+/** 区切り1つ分の人数を、全体の「人数 / 必要」と内訳の説明へまとめる。 */
+export const summarizeStaffingSlot = (slot: StaffingSlotView): StaffingSlotSummary => {
+  const requiredCounts = slot.positions.flatMap((position) => (position.required === null ? [] : [position.required]));
+  const requiredTotal = requiredCounts.length > 0 ? requiredCounts.reduce((sum, count) => sum + count, 0) : null;
+  const breakdown = slot.positions
+    .map((position) => `${position.name} ${formatStaffingCount(position.count, position.required)}`)
+    .join("、");
+  return {
+    totalLabel: formatStaffingCount(slot.total, requiredTotal),
+    title: breakdown ? `${slot.label} ${breakdown}` : slot.label,
+  };
+};
+
+const SHIFT_TYPE_SLOT_ID_PREFIX = "shiftType:";
+
+/** その日の人数を、勤務パターンの列から引けるようにする。 */
+export const indexStaffingSlotsByOptionKey = (view: DayStaffingView): Map<string, StaffingSlotView> =>
+  new Map(
+    view.slots.flatMap(
+      (slot): Array<[string, StaffingSlotView]> =>
+        slot.id.startsWith(SHIFT_TYPE_SLOT_ID_PREFIX) ? [[slot.id.slice(SHIFT_TYPE_SLOT_ID_PREFIX.length), slot]] : [],
+    ),
+  );

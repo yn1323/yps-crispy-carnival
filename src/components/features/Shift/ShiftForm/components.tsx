@@ -290,7 +290,26 @@ type UnsubmittedStripProps = {
   names: string[];
   reminderStatus: ReminderStatus;
   onOpenDetails?: () => void;
+  /** 未提出者へ前回の勤務を仮で入れる操作。くわしく表示で、前回確定した募集がある場合だけ渡す。 */
+  provisionalAction?: { onInsert: () => void; isLoading: boolean };
 };
+
+const ProvisionalInsertButton = ({ onInsert, isLoading }: { onInsert: () => void; isLoading: boolean }) => (
+  <Button
+    type="button"
+    size="xs"
+    variant="outline"
+    bg="white"
+    h="32px"
+    px={3}
+    flexShrink={0}
+    loading={isLoading}
+    disabled={isLoading}
+    onClick={onInsert}
+  >
+    前回の勤務を仮で入れる
+  </Button>
+);
 
 export type ReminderStatus =
   | {
@@ -299,7 +318,12 @@ export type ReminderStatus =
     }
   | { kind: "unconfirmed" };
 
-export const UnsubmittedStrip = ({ names, reminderStatus, onOpenDetails }: UnsubmittedStripProps) => {
+export const UnsubmittedStrip = ({
+  names,
+  reminderStatus,
+  onOpenDetails,
+  provisionalAction,
+}: UnsubmittedStripProps) => {
   const statusColor =
     reminderStatus.kind === "sent" ? "#047857" : reminderStatus.kind === "scheduled" ? "#92400e" : "#78716c";
   return (
@@ -340,8 +364,14 @@ export const UnsubmittedStrip = ({ names, reminderStatus, onOpenDetails }: Unsub
             {reminderStatus.label}
           </Box>
         )}
+        {provisionalAction && <ProvisionalInsertButton {...provisionalAction} />}
       </Flex>
       <Box display={{ base: "block", lg: "none" }} flexShrink={0}>
+        {provisionalAction && (
+          <Flex justify="flex-end" px={4} pt={2} bg="#fffbeb" borderTop="1px solid #fde68a">
+            <ProvisionalInsertButton {...provisionalAction} />
+          </Flex>
+        )}
         <chakra.button
           type="button"
           onClick={onOpenDetails}
@@ -352,7 +382,7 @@ export const UnsubmittedStrip = ({ names, reminderStatus, onOpenDetails }: Unsub
           p="12px 16px"
           textAlign="left"
           bg="#fffbeb"
-          borderTop="1px solid #fde68a"
+          borderTop={provisionalAction ? "none" : "1px solid #fde68a"}
           borderLeft="none"
           borderRight="none"
           borderBottom="none"

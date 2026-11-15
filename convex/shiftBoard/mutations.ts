@@ -5,9 +5,10 @@ import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { isPastShiftPeriod, jstDayRangeMs } from "../_lib/dateFormat";
 import { managerMutation } from "../_lib/functions";
-import { assertRecruitmentEditVersion } from "../_lib/recruitmentEditing";
+import { assertRecruitmentEditVersion, isCurrentSubmission } from "../_lib/recruitmentEditing";
 import { sha256Hex } from "../_lib/sha256";
-import { normalizeExactAdjacentTimeAssignments } from "../_lib/shiftAssignmentNormalization";
+import { normalizeExactAdjacentTimeAssignments, sortShiftBreaks } from "../_lib/shiftAssignmentNormalization";
+import { shiftAssignmentBreakValidator } from "../_lib/shiftAssignmentValidators";
 import { normalizeEmail } from "../_lib/validation";
 import { recordAnalyticsUsage } from "../analytics/record";
 import { NOTIFICATION_FANOUT_SCOPE_LIMIT, SHIFT_ASSIGNMENT_LIMIT, SHIFT_BOARD_STAFF_LIMIT } from "../constants";
@@ -179,6 +180,14 @@ async function scheduleSupplementalConfirmationResends(
   return scheduledStaffCount;
 }
 
+async function getSubmittedStaffIds(ctx: MutationCtx, recruitmentId: Id<"recruitments">) {
+  const submissions = await ctx.db
+    .query("shiftSubmissions")
+    .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
+    .take(SHIFT_BOARD_STAFF_LIMIT);
+  return new Set(submissions.filter(isCurrentSubmission).map((submission) => submission.staffId));
+}
+
 export const saveShiftAssignments = managerMutation({
   args: {
     recruitmentId: v.id("recruitments"),
@@ -191,6 +200,9 @@ export const saveShiftAssignments = managerMutation({
         endTime: v.string(),
         positionId: v.optional(v.id("positions")),
         optionId: v.optional(v.string()),
+        breaks: v.optional(v.array(shiftAssignmentBreakValidator)),
+        // 未提出者へ前回確定の勤務を引き継いだ「仮の勤務」。提出済みスタッフの分は保存しない。
+        isProvisional: v.optional(v.boolean()),
       }),
     ),
   },
@@ -250,10 +262,19 @@ export const saveShiftAssignments = managerMutation({
 
     const draftSavedAt = Date.now();
     const defaultPositionId = await ensureDefaultPosition(ctx, ctx.shop._id);
-    const resolvedAssignments = args.assignments.map((assignment) => ({
-      ...assignment,
-      positionId: assignment.positionId ?? defaultPositionId,
-    }));
+    // 仮の勤務は未提出者のものだけを保存する。画面を開いている間に提出したスタッフの仮の勤務は、
+    // 希望を優先するために保存しない。開き直すと、そのスタッフの希望が勤務の候補として出る。
+    const submittedStaffIds = args.assignments.some((assignment) => assignment.isProvisional)
+      ? await getSubmittedStaffIds(ctx, args.recruitmentId)
+      : new Set<Id<"staffs">>();
+    const resolvedAssignments = args.assignments
+      .filter((assignment) => !(assignment.isProvisional && submittedStaffIds.has(assignment.staffId)))
+      .map(({ breaks, isProvisional, ...assignment }) => ({
+        ...assignment,
+        positionId: assignment.positionId ?? defaultPositionId,
+        ...(breaks && breaks.length > 0 ? { breaks: sortShiftBreaks(breaks) } : {}),
+        ...(isProvisional ? { isProvisional: true } : {}),
+      }));
     const canonicalAssignments =
       submissionPattern.kind === "time"
         ? normalizeExactAdjacentTimeAssignments(resolvedAssignments)
@@ -276,6 +297,8 @@ export const saveShiftAssignments = managerMutation({
           endTime: assignment.endTime,
           positionId: assignment.positionId,
           ...(assignment.optionId ? { optionId: assignment.optionId } : {}),
+          ...(assignment.breaks ? { breaks: assignment.breaks } : {}),
+          ...(assignment.isProvisional ? { isProvisional: true } : {}),
         }),
       ),
     );
@@ -323,13 +346,26 @@ export const confirmRecruitment = managerMutation({
     }
 
     const shopClosedDateSet = new Set(recruitment.shopClosedDates);
-    const existingAssignments = await ctx.db
+    const savedAssignments = await ctx.db
       .query("shiftAssignments")
       .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", args.recruitmentId))
       .take(SHIFT_ASSIGNMENT_LIMIT + 1);
-    if (existingAssignments.length > SHIFT_ASSIGNMENT_LIMIT) {
+    if (savedAssignments.length > SHIFT_ASSIGNMENT_LIMIT) {
       throw new ConvexError("保存済みシフト割当が上限を超えています");
     }
+    // 仮の勤務を入れたあとで提出したスタッフには、希望を優先する。
+    // 画面を通さない確定でも、提出済みスタッフの仮の勤務を確定内容に残さない。
+    const staleProvisionalAssignments = savedAssignments.some((assignment) => assignment.isProvisional)
+      ? await (async () => {
+          const submittedStaffIds = await getSubmittedStaffIds(ctx, args.recruitmentId);
+          return savedAssignments.filter(
+            (assignment) => assignment.isProvisional && submittedStaffIds.has(assignment.staffId),
+          );
+        })()
+      : [];
+    await Promise.all(staleProvisionalAssignments.map((assignment) => ctx.db.delete(assignment._id)));
+    const staleProvisionalIds = new Set(staleProvisionalAssignments.map((assignment) => assignment._id));
+    const existingAssignments = savedAssignments.filter((assignment) => !staleProvisionalIds.has(assignment._id));
     const closedDateAssignments =
       shopClosedDateSet.size > 0
         ? existingAssignments.filter((assignment) => shopClosedDateSet.has(assignment.date))
@@ -360,6 +396,7 @@ export const confirmRecruitment = managerMutation({
         endTime: assignment.endTime,
         positionId: assignment.positionId,
         ...(assignment.optionId !== undefined ? { optionId: assignment.optionId } : {}),
+        ...(assignment.breaks ? { breaks: assignment.breaks } : {}),
       })),
       recruitment.submissionPattern.kind === "time",
     );

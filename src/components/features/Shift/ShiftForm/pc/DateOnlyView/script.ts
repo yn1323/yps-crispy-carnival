@@ -1,6 +1,11 @@
+import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
+import { getEffectiveBreaks } from "@/src/domains/shift/breaks";
 import { buildWeeklyGrid, formatDateRangeShort, formatDateShort } from "@/src/domains/shift/date";
 import { hasDateOnlyAssignment, hasDateOnlyRequest } from "@/src/domains/shift/dateOnlyAssignments";
-import type { ShiftData, StaffType } from "@/src/domains/shift/types";
+import { isCanonicalWorkPosition } from "@/src/domains/shift/positions";
+import type { PositionType, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
+import { buildDayStaffingView, type DayStaffingView } from "../../staffingPresentation";
+import type { ShiftFormStaffing } from "../../stores";
 import type { DateInfo, DateOnlyColumn, DateOnlyRequestBadgeViewModel, DateOnlyRowViewModel, WeekItem } from "./types";
 
 export const buildDateOnlyWeeks = (dates: string[]): WeekItem[] =>
@@ -56,11 +61,17 @@ export const buildDateOnlyRows = ({
       requestBadges,
       cells: dates.map((date) => {
         const shift = shiftByStaffDate.get(`${staff.id}-${date.iso}`);
+        const assigned = hasDateOnlyAssignment(shift);
+        // 日付選択の休憩は勤務の時刻に縛られないため、入力されたままを数える。
+        const hasBreak = !!shift && assigned && getEffectiveBreaks(shift, { clipToWork: false }).length > 0;
         return {
           date,
-          assigned: hasDateOnlyAssignment(shift),
+          assigned,
           requested: hasDateOnlyRequest(shift),
           isClosed: date.inRange && holidays.includes(date.iso),
+          segment: shift?.positions.find(isCanonicalWorkPosition),
+          breakShift: hasBreak ? shift : undefined,
+          isProvisional: assigned && shift?.isProvisional === true,
         };
       }),
     };
@@ -79,3 +90,52 @@ export const buildRowWeekNotes = (
     const note = getNote(staffId, date.iso);
     return note ? [{ date: date.iso, note }] : [];
   });
+
+/**
+ * 表示中の週の、日付ごとの人数と過不足を返す。くわしく表示の人数の行に使う。
+ * 定休日は数えない。数える対象は、シフト対象のスタッフの勤務だけにする。
+ */
+export const buildDateOnlyStaffingByDate = ({
+  dates,
+  holidays,
+  staffs,
+  shifts,
+  positions,
+  submissionPattern,
+  timeRange,
+  staffing,
+}: {
+  dates: readonly string[];
+  holidays: readonly string[];
+  staffs: readonly StaffType[];
+  shifts: readonly ShiftData[];
+  positions: readonly PositionType[];
+  submissionPattern: ShiftSubmissionPattern;
+  timeRange: TimeRange;
+  staffing: ShiftFormStaffing | undefined;
+}): Map<string, DayStaffingView> => {
+  const staffIds = new Set(staffs.map((staff) => staff.id));
+  const shiftsByDate = new Map<string, ShiftData[]>();
+  for (const shift of shifts) {
+    if (!staffIds.has(shift.staffId)) continue;
+    const dayShifts = shiftsByDate.get(shift.date) ?? [];
+    dayShifts.push(shift);
+    shiftsByDate.set(shift.date, dayShifts);
+  }
+
+  return new Map(
+    dates
+      .filter((date) => !holidays.includes(date))
+      .map((date) => [
+        date,
+        buildDayStaffingView({
+          date,
+          shifts: shiftsByDate.get(date) ?? [],
+          positions,
+          submissionPattern,
+          timeRange,
+          staffing,
+        }),
+      ]),
+  );
+};

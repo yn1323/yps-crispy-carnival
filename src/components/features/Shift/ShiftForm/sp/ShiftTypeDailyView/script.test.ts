@@ -56,8 +56,11 @@ describe("buildSPShiftTypeDailyViewModel", () => {
       "color",
       "name",
       "option",
+      "segment",
       "timeLabel",
     ]);
+    expect(viewModel.staffCards[0].shift).toBe(shifts[0]);
+    expect(viewModel.staffCards[0].options.map(({ segment }) => segment)).toEqual([shifts[0].positions[0], undefined]);
   });
 
   it("未提出スタッフの状態を表示値へ変換する", () => {

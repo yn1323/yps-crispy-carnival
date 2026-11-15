@@ -14,16 +14,19 @@ import type { StaffType } from "@/src/domains/shift/types";
 import { Avatar, DateIssueBadge, dateIssueBorderColor, StaffWarningIcon } from "../../components";
 import { DisplaySettingsMenu } from "../../DisplaySettingsMenu";
 import { ShiftDateNoteBlock, ShiftStaffNoteIcon, useAllShiftDateNotes } from "../../dateNotes";
+import { BreakMark, PositionMark, StaffingSummary, StaffMeta, useDayStaffingView } from "../../detailParts";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
 import {
   dailySortedStaffsAtom,
+  detailModeAtom,
   issueCountByDateAtom,
   selectDateWithDailyStaffOrderAtom,
   selectedDateAtom,
   shiftConfigAtom,
   shiftsAtom,
   toggleDateOnlyAssignmentAtom,
+  usesPositionColorsAtom,
   warningCountByDateAtom,
   warningMessagesByStaffIdForSelectedDateAtom,
 } from "../../stores";
@@ -63,6 +66,8 @@ export const SPDateOnlyDailyView = () => {
     [dates, holidays, isConfirmedDisplay, selectedDate, shifts, sortedStaffs],
   );
   const { activeDate, assignedCount, isInRange, isShopClosedDate, rows } = viewModel;
+  // 人数と過不足を出す日（くわしく表示の営業日）だけ値が入る。
+  const staffingView = useDayStaffingView(isInRange ? activeDate : "");
   useLockedDailyStaffOrder(activeDate);
 
   const handleToggle = useCallback(
@@ -112,9 +117,12 @@ export const SPDateOnlyDailyView = () => {
               </Text>
               {!isInRange && <StatusBadge tone="muted">期間外</StatusBadge>}
               {isShopClosedDate && <StatusBadge tone="muted">定休日</StatusBadge>}
-              <Box ml={2} alignSelf="center">
-                <SummaryPill label="合計" count={assignedCount} muted={!isInRange || isShopClosedDate} />
-              </Box>
+              {/* くわしく表示では、下の「人数」に置き換える。 */}
+              {!staffingView && (
+                <Box ml={2} alignSelf="center">
+                  <SummaryPill label="合計" count={assignedCount} muted={!isInRange || isShopClosedDate} />
+                </Box>
+              )}
             </Flex>
           </Box>
           <Box flexShrink={0}>
@@ -122,6 +130,12 @@ export const SPDateOnlyDailyView = () => {
           </Box>
         </Flex>
       </Box>
+
+      {staffingView && (
+        <Box flexShrink={0} maxH="40dvh" overflowY="auto" px={3} pt={3}>
+          <StaffingSummary date={activeDate} defaultExpanded />
+        </Box>
+      )}
 
       <Box flex={1} minH={0} overflow="auto" px={3} py={3} data-tour="shift-grid">
         {!isInRange ? (
@@ -262,6 +276,11 @@ const StaffToggleRow = ({
   note?: string;
   onToggle: () => void;
 }) => {
+  const detailMode = useAtomValue(detailModeAtom);
+  const usesPositionColors = useAtomValue(usesPositionColorsAtom);
+  // ポジションを塗り分ける表示では、入っているポジションの色と名前をボタンに出す。
+  const positionSegment = usesPositionColors ? row.assignedSegment : undefined;
+
   return (
     <Box bg="white" borderWidth="1px" borderColor="gray.200" borderRadius="md" px={3} py={3}>
       <Flex align="center" gap={3}>
@@ -270,20 +289,28 @@ const StaffToggleRow = ({
           <Text textStyle="sm" fontWeight={600} color={row.isNameMuted ? "gray.500" : "gray.800"} truncate>
             {row.staff.name}
           </Text>
-          <Flex mt={1} align="center" gap={2}>
+          <Flex mt={1} align="center" gap={2} flexWrap={detailMode ? "wrap" : undefined}>
             <StatusBadge tone={row.statusTone}>{row.statusLabel}</StatusBadge>
+            <StaffMeta staff={row.staff} shift={row.shift} />
+            <BreakMark shift={row.shift} />
           </Flex>
         </Box>
         <StaffWarningIcon messages={warningMessages} openOn="tap" />
         <ShiftStaffNoteIcon notes={note ? [{ date: activeDate, note }] : []} openOn="tap" />
         <Box
           as="button"
-          aria-label={`${row.staff.name} ${formatDateWithWeekday(activeDate)} ${row.assigned ? "勤務あり" : "勤務なし"}`}
+          aria-label={`${row.staff.name} ${formatDateWithWeekday(activeDate)} ${row.assigned ? "勤務あり" : "勤務なし"}${
+            positionSegment ? `、${positionSegment.positionName}` : ""
+          }`}
           aria-pressed={row.assigned}
           aria-disabled={isReadOnly}
           onClick={isReadOnly ? undefined : onToggle}
-          w="56px"
-          h="40px"
+          {...(positionSegment
+            ? { minW: "56px", maxW: "104px", h: "44px", px: 2, lineHeight: 1 }
+            : { w: "56px", h: "40px" })}
+          style={
+            positionSegment ? { background: positionSegment.color, borderColor: positionSegment.color } : undefined
+          }
           flexShrink={0}
           borderRadius="md"
           borderWidth="1px"
@@ -307,7 +334,18 @@ const StaffToggleRow = ({
           _active={isReadOnly ? undefined : { bg: row.assigned ? "teal.600" : "gray.100", transitionDuration: "0ms" }}
           _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "1px" }}
         >
-          {row.assigned ? "○" : "×"}
+          {positionSegment ? (
+            <Flex as="span" direction="column" align="center" gap="3px" minW={0}>
+              <Box as="span" fontSize="md">
+                ○
+              </Box>
+              <PositionMark segment={positionSegment} onColor />
+            </Flex>
+          ) : row.assigned ? (
+            "○"
+          ) : (
+            "×"
+          )}
         </Box>
       </Flex>
       {note && <ShiftDateNoteBlock note={note} />}

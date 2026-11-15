@@ -11,7 +11,15 @@ const meta = {
   title: "features/ShiftExport",
   component: ShiftExportView,
   parameters: { layout: "fullscreen" },
-  args: { schedule, download, onSplitPeriodChange: () => {}, includeNotes: false, onIncludeNotesChange: () => {} },
+  args: {
+    schedule,
+    download,
+    onSplitPeriodChange: () => {},
+    includeNotes: false,
+    onIncludeNotesChange: () => {},
+    includeDetails: false,
+    onIncludeDetailsChange: () => {},
+  },
 } satisfies Meta<typeof ShiftExportView>;
 export default meta;
 type Story = StoryObj<typeof meta>;
@@ -273,5 +281,78 @@ export const WithoutNotesHidesNotesOption: Story = {
   render: () => <ShiftExportPage data={createExportFixture()} />,
   play: async ({ canvasElement }) => {
     await expect(within(canvasElement).queryByRole("checkbox", { name: "連絡事項も出力する" })).not.toBeInTheDocument();
+  },
+};
+
+const withShiftDetails = createExportFixture({
+  positions: [
+    { id: "hall", name: "ホール" },
+    { id: "kitchen", name: "キッチン" },
+  ],
+  assignments: [
+    {
+      staffId: "staff-2",
+      date: "2026-08-01",
+      startTime: "09:00",
+      endTime: "17:00",
+      optionId: null,
+      positionId: "hall",
+      breaks: [{ startTime: "12:00", endTime: "13:00" }],
+    },
+    {
+      staffId: "staff-1",
+      date: "2026-08-01",
+      startTime: "17:00",
+      endTime: "22:00",
+      optionId: null,
+      positionId: "kitchen",
+    },
+  ],
+});
+
+// セルのtitleは行を改行でつなぐ。Testing Libraryは照合の前に改行を空白へそろえる。
+const SHIFT_DETAIL_CELL_TITLE = "09:00 17:00 ホール 休憩 12:00 13:00";
+
+export const WithShiftDetails: Story = {
+  args: { schedule: buildExportSchedule(withShiftDetails, false, false, true), includeDetails: true },
+};
+
+export const ToggleShiftDetails: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <ShiftExportPage data={withShiftDetails} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const checkbox = canvas.getByRole("checkbox", { name: "ポジションと休憩も出力する" });
+    await expect(checkbox).not.toBeChecked();
+    // プレビューは列の幅に合わせて文字を省略するため、セルが持つ省略前の内容（title）で確かめる。
+    await expect(canvas.queryByTitle(SHIFT_DETAIL_CELL_TITLE)).not.toBeInTheDocument();
+    await expect(canvas.getByTitle("09:00 17:00")).toBeVisible();
+
+    await userEvent.click(checkbox);
+    await waitFor(() => expect(canvas.getByTitle(SHIFT_DETAIL_CELL_TITLE)).toBeVisible());
+
+    await userEvent.click(checkbox);
+    await waitFor(() => expect(canvas.queryByTitle(SHIFT_DETAIL_CELL_TITLE)).not.toBeInTheDocument());
+  },
+};
+
+export const OpensWithShiftDetailsFromDetailMode: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <ShiftExportPage data={{ ...withShiftDetails, includeDetailsByDefault: true }} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("checkbox", { name: "ポジションと休憩も出力する" })).toBeChecked();
+    await expect(canvas.getByTitle(SHIFT_DETAIL_CELL_TITLE)).toBeVisible();
+    await expect(canvas.getByTitle("17:00 22:00 キッチン")).toBeVisible();
+  },
+};
+
+export const WithoutShiftDetailsHidesDetailsOption: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <ShiftExportPage data={createExportFixture()} />,
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).queryByRole("checkbox", { name: "ポジションと休憩も出力する" }),
+    ).not.toBeInTheDocument();
   },
 };

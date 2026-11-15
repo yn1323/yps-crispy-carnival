@@ -6,7 +6,7 @@ import {
   hasDateOnlyRequest,
   toggleDateOnlyAssignment,
 } from "./dateOnlyAssignments";
-import type { ShiftData, StaffType, TimeRange } from "./types";
+import type { PositionType, ShiftData, StaffType, TimeRange } from "./types";
 
 const staff: StaffType = { id: "staff1", name: "田中 太郎", isSubmitted: true };
 const timeRange: TimeRange = { start: 9, end: 22, unit: 30 };
@@ -93,4 +93,126 @@ describe("dateOnlyAssignments", () => {
       ]),
     );
   });
+});
+
+describe("toggleDateOnlyAssignment: ポジションの入れ替え", () => {
+  const date = "2026-05-21";
+  const hall: PositionType = { id: "hall", name: "ホール", color: "#0d9488", isDefault: true };
+  const kitchen: PositionType = { id: "kitchen", name: "キッチン", color: "#f97316", isDefault: false };
+
+  const assigned = (position: PositionType): ShiftData[] => [
+    {
+      id: `shift-staff1-${date}`,
+      staffId: "staff1",
+      staffName: "田中 太郎",
+      date,
+      requestedTime: { start: "09:00", end: "22:00" },
+      requestedTimes: [{ start: "09:00", end: "22:00" }],
+      positions: [
+        {
+          id: `seg-staff1-${date}`,
+          positionId: position.id,
+          positionName: position.name,
+          color: position.color,
+          start: "09:00",
+          end: "22:00",
+        },
+      ],
+      breaks: [{ start: "12:00", end: "13:00" }],
+    },
+    {
+      id: `shift-staff2-${date}`,
+      staffId: "staff2",
+      staffName: "鈴木 花子",
+      date,
+      requestedTime: null,
+      positions: [
+        {
+          id: `seg-staff2-${date}`,
+          positionId: position.id,
+          positionName: position.name,
+          color: position.color,
+          start: "09:00",
+          end: "22:00",
+        },
+      ],
+    },
+  ];
+
+  it("勤務のない日には、選んだポジションで勤務を入れる", () => {
+    const result = toggleDateOnlyAssignment({
+      shifts: [],
+      staff,
+      date,
+      timeRange,
+      position: kitchen,
+      switchPosition: true,
+    });
+
+    expect(result.map((shift) => shift.positions)).toEqual([
+      [
+        {
+          id: `seg-staff1-${date}`,
+          positionId: kitchen.id,
+          positionName: kitchen.name,
+          color: kitchen.color,
+          start: "09:00",
+          end: "22:00",
+        },
+      ],
+    ]);
+  });
+
+  it("入れ替えが有効なとき、別のポジションの勤務を押すと選んだポジションへ入れ替わる", () => {
+    const shifts = assigned(hall);
+    const result = toggleDateOnlyAssignment({
+      shifts,
+      staff,
+      date,
+      timeRange,
+      position: kitchen,
+      switchPosition: true,
+    });
+
+    expect(result).toEqual([
+      {
+        ...shifts[0],
+        positions: [
+          {
+            id: `seg-staff1-${date}`,
+            positionId: kitchen.id,
+            positionName: kitchen.name,
+            color: kitchen.color,
+            start: "09:00",
+            end: "22:00",
+          },
+        ],
+      },
+      shifts[1],
+    ]);
+  });
+
+  it("入れ替えが有効でも、同じポジションの勤務を押すと外れる", () => {
+    const shifts = assigned(kitchen);
+    const result = toggleDateOnlyAssignment({
+      shifts,
+      staff,
+      date,
+      timeRange,
+      position: kitchen,
+      switchPosition: true,
+    });
+
+    expect(result).toEqual([{ ...shifts[0], positions: [] }, shifts[1]]);
+  });
+
+  it.each([false, undefined])(
+    "入れ替えが無効（%s）なら、別のポジションの勤務を押しても従来どおり外れる",
+    (switchPosition) => {
+      const shifts = assigned(hall);
+      const result = toggleDateOnlyAssignment({ shifts, staff, date, timeRange, position: kitchen, switchPosition });
+
+      expect(result).toEqual([{ ...shifts[0], positions: [] }, shifts[1]]);
+    },
+  );
 });

@@ -1,6 +1,13 @@
+import type { MutableRefObject } from "react";
 import type { AssignmentIssue } from "@/convex/shiftBoard/validation";
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
-import type { ReminderStatus, ShiftDateNote, ShiftFormHeader } from "@/src/components/features/Shift/ShiftForm";
+import type {
+  ReminderStatus,
+  ShiftDateNote,
+  ShiftFormDetailActions,
+  ShiftFormHeader,
+  ShiftFormStaffing,
+} from "@/src/components/features/Shift/ShiftForm";
 import type { DisplayIssue } from "@/src/domains/shift/assignmentIssues";
 import type { AssignmentWarning } from "@/src/domains/shift/assignmentWarnings";
 import type { PositionType, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
@@ -29,6 +36,10 @@ export type ShiftBoardPageViewModel = {
     validationIssues: AssignmentIssue[];
     validationWarnings: AssignmentWarning[];
     dateNotes: readonly ShiftDateNote[];
+    staffing?: ShiftFormStaffing;
+    initialDetailMode: boolean;
+    detailActions: ShiftFormDetailActions;
+    applyShiftsRef: MutableRefObject<((update: (current: ShiftData[]) => ShiftData[]) => void) | null>;
   };
   confirmDialog: {
     isOpen: boolean;
@@ -54,6 +65,7 @@ export type ShiftBoardPageIntents = {
   onReload?: () => void;
   onOpenExport: () => void;
   onShiftsChange: (shifts: ShiftData[]) => void;
+  onDetailModeChange: (isDetailMode: boolean) => void;
   onSaveDraft: () => void;
   onConfirmRequest: () => void;
   onOpenUnsubmittedDetails: () => void;

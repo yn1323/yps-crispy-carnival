@@ -49,6 +49,8 @@ export type ShiftBoardData = {
     endTime: string;
     positionId: Id<"positions">;
     optionId?: string | null;
+    breaks?: Array<{ startTime: string; endTime: string }>;
+    isProvisional?: boolean;
   }>;
   positions: Array<{
     _id: Id<"positions">;
@@ -57,4 +59,28 @@ export type ShiftBoardData = {
     isDefault: boolean;
   }>;
   timeRange: TimeRange;
+};
+
+/** シフト表の「くわしく」表示に使う、店舗の設定とスタッフの属性。 */
+export type ShiftBoardStaffingData = {
+  breakRule: { minWorkMinutes: number; breakMinutes: number } | null;
+  dayTemplates: Array<{
+    _id: Id<"shiftDayTemplates">;
+    name: string;
+    weekdays: string[];
+    slots: Array<{
+      key:
+        | { kind: "time"; startTime: string; endTime: string }
+        | { kind: "shiftType"; optionId: string }
+        | { kind: "allDay" };
+      requirements: Array<{ positionId: Id<"positions">; count: number }>;
+    }>;
+  }>;
+  dayTemplateOverrides: Array<{ date: string; templateId: Id<"shiftDayTemplates"> }>;
+  staffProfiles: Array<{
+    staffId: Id<"staffs">;
+    unavailablePositionIds: Id<"positions">[];
+    skillLevel: "newcomer" | "standard" | "lead";
+  }>;
+  hasPreviousConfirmedRecruitment: boolean;
 };

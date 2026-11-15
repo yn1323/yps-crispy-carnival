@@ -54,6 +54,138 @@ describe("buildExportSchedule", () => {
     data.assignments[0].optionId = "missing";
     expect(() => buildExportSchedule(data)).toThrow("勤務パターン");
   });
+  describe("ポジションと休憩の出力", () => {
+    const positions = [
+      { id: "hall", name: "ホール" },
+      { id: "kitchen", name: "キッチン" },
+    ];
+
+    it("選ばない場合は、ポジションと休憩があっても従来と同じ行にする", () => {
+      const data = createExportFixture({ positions });
+      data.assignments = [
+        {
+          ...data.assignments[0],
+          positionId: "hall",
+          breaks: [{ startTime: "12:00", endTime: "13:00" }],
+        },
+      ];
+      const result = buildExportSchedule(data);
+      expect(result.hasShiftDetails).toBe(true);
+      expect(result.rows[0].cells[0].lines).toEqual(["09:00", "17:00"]);
+      expect(result.bodyLineCount).toBe(2);
+    });
+
+    it("時間指定は勤務ごとにポジション名と休憩を足し、ポジションが違う隣の勤務をまとめない", () => {
+      const data = createExportFixture({ positions });
+      data.assignments = [
+        {
+          ...data.assignments[0],
+          startTime: "09:00",
+          endTime: "13:00",
+          positionId: "hall",
+          breaks: [{ startTime: "11:00", endTime: "11:30" }],
+        },
+        { ...data.assignments[0], startTime: "13:00", endTime: "17:00", positionId: "kitchen" },
+      ];
+      const result = buildExportSchedule(data, false, false, true);
+      expect(result.rows[0].cells[0].lines).toEqual([
+        "09:00",
+        "13:00",
+        "ホール",
+        "休憩",
+        "11:00",
+        "11:30",
+        "13:00",
+        "17:00",
+        "キッチン",
+      ]);
+      expect(result.bodyLineCount).toBe(9);
+      // 選ばない場合は、ポジションをまたいで1つの勤務にまとめる。
+      expect(buildExportSchedule(data).rows[0].cells[0].lines).toEqual(["09:00", "17:00"]);
+    });
+
+    it("ポジションが1つだけの店舗ではポジション名を出さず、休憩だけを足す", () => {
+      const data = createExportFixture({ positions: [positions[0]] });
+      data.assignments = [
+        {
+          ...data.assignments[0],
+          positionId: "hall",
+          breaks: [
+            { startTime: "15:00", endTime: "15:15" },
+            { startTime: "12:00", endTime: "13:00" },
+          ],
+        },
+      ];
+      const result = buildExportSchedule(data, false, false, true);
+      expect(result.hasShiftDetails).toBe(true);
+      expect(result.rows[0].cells[0].lines).toEqual([
+        "09:00",
+        "17:00",
+        "休憩",
+        "12:00",
+        "13:00",
+        "休憩",
+        "15:00",
+        "15:15",
+      ]);
+    });
+
+    it("日付選択は○の代わりにポジション名を出し、休憩を足す", () => {
+      const data = createExportFixture({ positions });
+      data.recruitment.submissionPattern = { kind: "dateOnly" };
+      data.assignments = [
+        {
+          ...data.assignments[0],
+          positionId: "kitchen",
+          breaks: [{ startTime: "14:00", endTime: "15:00" }],
+        },
+      ];
+      expect(buildExportSchedule(data, false, false, true).rows[0].cells[0].lines).toEqual([
+        "キッチン",
+        "休憩",
+        "14:00",
+        "15:00",
+      ]);
+      expect(buildExportSchedule(data).rows[0].cells[0].lines).toEqual(["○"]);
+    });
+
+    it("パターン選択は勤務パターンごとにポジション名と休憩を足す", () => {
+      const data = createExportFixture({ positions });
+      data.recruitment.submissionPattern = {
+        kind: "shiftType",
+        options: [
+          { id: "early", name: "早番", startTime: "09:00", endTime: "17:00", sortOrder: 1 },
+          { id: "late", name: "遅番", startTime: "17:00", endTime: "22:00", sortOrder: 2 },
+        ],
+      };
+      data.assignments = [
+        { ...data.assignments[0], optionId: "late", startTime: "17:00", endTime: "22:00", positionId: "kitchen" },
+        {
+          ...data.assignments[0],
+          optionId: "early",
+          positionId: "hall",
+          breaks: [{ startTime: "12:00", endTime: "13:00" }],
+        },
+      ];
+      const result = buildExportSchedule(data, false, false, true);
+      expect(result.rows[0].cells[0].lines).toEqual(["早番", "ホール", "休憩", "12:00", "13:00", "遅番", "キッチン"]);
+      expect(result.bodyLineCount).toBe(7);
+    });
+
+    it("ポジションが1つで休憩もない場合は、選べる項目を出さない", () => {
+      const data = createExportFixture({ positions: [positions[0]] });
+      data.assignments = [{ ...data.assignments[0], positionId: "hall" }];
+      expect(buildExportSchedule(data).hasShiftDetails).toBe(false);
+      expect(buildExportSchedule(createExportFixture()).hasShiftDetails).toBe(false);
+    });
+
+    it("休憩の時刻が正しくない場合は帳票を作らない", () => {
+      const data = createExportFixture({ positions });
+      data.assignments = [{ ...data.assignments[0], breaks: [{ startTime: "13:00", endTime: "12:00" }] }];
+      expect(() => buildExportSchedule(data)).toThrowError("休憩時間");
+    });
+  });
+
   it("月をまたぐ1日から31日を扱い、範囲外と出力ブロックを拒否する", () => {
     const data = createExportFixture({ assignments: [] });
     data.recruitment.periodStart = "2026-08-31";

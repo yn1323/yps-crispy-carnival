@@ -1,0 +1,319 @@
+import { ConvexError, type Infer, v } from "convex/values";
+import type { Id } from "../_generated/dataModel";
+import { getShiftSetupAssistMode } from "../_lib/config";
+import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
+import { managerMutation, resolveManagerShopAccessByTokenIdentifier } from "../_lib/functions";
+import { rateLimit } from "../_lib/rateLimits";
+import {
+  shiftBreakRuleValidator,
+  shiftDayTemplateSlotValidator,
+  shiftDayTemplateWeekdayValidator,
+} from "../_lib/shiftSetupValidators";
+import { submissionPatternValidator } from "../_lib/submissionPattern";
+import { isValidIsoDateString } from "../_lib/validation";
+import {
+  DEFAULT_POSITION_COLOR,
+  POSITION_ACTIVE_LIMIT,
+  POSITION_COLOR_PALETTE,
+  SHIFT_BOARD_STAFF_LIMIT,
+  SHIFT_DAY_TEMPLATE_LIMIT,
+  SHIFT_DAY_TEMPLATE_NAME_MAX_LENGTH,
+  SHIFT_DAY_TEMPLATE_REQUIRED_COUNT_MAX,
+  SHIFT_DAY_TEMPLATE_SLOT_LIMIT,
+} from "../constants";
+import { ensureDefaultPosition, getDefaultPosition } from "../position/service";
+import { getActiveStaffInShop } from "../staff/service";
+import { DAY_TEMPLATE_ISSUE_MESSAGES, findDayTemplateIssue, projectDayTemplateSlotsForPattern } from "./dayTemplates";
+import { breakRuleSchema, savePositionsSchema } from "./schemas";
+import { ACTIVE_POSITION_LIMIT_MESSAGE, listActivePositions, listDayTemplates } from "./service";
+
+/**
+ * 店舗のポジションを、渡された一覧で置き換える。
+ * 並び順は配列の順。一覧にない既存のポジションは論理削除する。既定のポジションは削除できない。
+ */
+export const savePositions = managerMutation({
+  args: {
+    positions: v.array(v.object({ id: v.optional(v.id("positions")), name: v.string(), color: v.string() })),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const parsed = savePositionsSchema.safeParse(args);
+    if (!parsed.success) {
+      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
+    }
+
+    // 既定のポジションをまだ持たない店舗では、ここで作る。画面は作る前の一覧しか知らないため、
+    // その場合に限って、入力に既定のポジションがなくても受け付けて一覧の先頭へ残す。
+    const hadDefaultPosition = (await getDefaultPosition(ctx, ctx.shop._id)) !== null;
+    const defaultPositionId = await ensureDefaultPosition(ctx, ctx.shop._id);
+    const existing = await listActivePositions(ctx, ctx.shop._id);
+    const existingById = new Map(existing.map((position) => [position._id, position]));
+
+    const inputIds = args.positions.flatMap((position) => (position.id ? [position.id] : []));
+    if (new Set(inputIds).size !== inputIds.length) throw new ConvexError("Not found");
+    // 別店舗・削除済みのIDは、存在を区別せずに拒否する。
+    if (inputIds.some((id) => !existingById.has(id))) throw new ConvexError("Not found");
+    if (hadDefaultPosition && !inputIds.includes(defaultPositionId)) {
+      throw new ConvexError("最初からあるポジションは削除できません。\n名前と色は変更できます。");
+    }
+    const keepsCreatedDefault = !hadDefaultPosition;
+    if (keepsCreatedDefault && args.positions.length >= POSITION_ACTIVE_LIMIT) {
+      throw new ConvexError(ACTIVE_POSITION_LIMIT_MESSAGE);
+    }
+
+    const keptIds = new Set<Id<"positions">>([...inputIds, defaultPositionId]);
+    const sortOffset = keepsCreatedDefault ? 1 : 0;
+    // ここで作った既定のポジションを画面は知らないため、入力の色が既定と重なることがある。
+    // その場合は、まだ使っていない色へ置き換えて見分けられるようにする。
+    const usedColors = new Set<string>([DEFAULT_POSITION_COLOR, ...parsed.data.positions.map((item) => item.color)]);
+    const resolveColor = (color: string): string => {
+      if (!keepsCreatedDefault || color !== DEFAULT_POSITION_COLOR) return color;
+      const unused = POSITION_COLOR_PALETTE.find((candidate) => !usedColors.has(candidate));
+      if (!unused) return color;
+      usedColors.add(unused);
+      return unused;
+    };
+    await Promise.all(
+      existing
+        .filter((position) => !keptIds.has(position._id))
+        .map((position) => ctx.db.patch(position._id, { isDeleted: true })),
+    );
+    await Promise.all(
+      parsed.data.positions.map(async (position, index) => {
+        const id = args.positions[index].id;
+        if (id) {
+          await ctx.db.patch(id, { name: position.name, color: position.color, sortOrder: index + sortOffset });
+          return;
+        }
+        await ctx.db.insert("positions", {
+          shopId: ctx.shop._id,
+          name: position.name,
+          color: resolveColor(position.color),
+          sortOrder: index + sortOffset,
+          isDefault: false,
+          isDeleted: false,
+        });
+      }),
+    );
+    return null;
+  },
+});
+
+/**
+ * 店舗の日の型を、渡された一覧で置き換える。
+ * 既存の型はidで引き継ぎ、特別な日の指定が指す型を保つ。一覧にない型は削除する。
+ */
+export const saveDayTemplates = managerMutation({
+  args: {
+    templates: v.array(
+      v.object({
+        id: v.optional(v.id("shiftDayTemplates")),
+        name: v.string(),
+        weekdays: v.array(shiftDayTemplateWeekdayValidator),
+        slots: v.array(shiftDayTemplateSlotValidator),
+      }),
+    ),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const pattern = ctx.shop.submissionPattern;
+    const issue = findDayTemplateIssue({
+      templates: args.templates,
+      pattern,
+      limits: {
+        templates: SHIFT_DAY_TEMPLATE_LIMIT,
+        nameLength: SHIFT_DAY_TEMPLATE_NAME_MAX_LENGTH,
+        slots: SHIFT_DAY_TEMPLATE_SLOT_LIMIT,
+        requiredCount: SHIFT_DAY_TEMPLATE_REQUIRED_COUNT_MAX,
+      },
+    });
+    if (issue) throw new ConvexError(DAY_TEMPLATE_ISSUE_MESSAGES[issue]);
+
+    const [existing, positions] = await Promise.all([
+      listDayTemplates(ctx, ctx.shop._id),
+      listActivePositions(ctx, ctx.shop._id),
+    ]);
+    const existingById = new Map(existing.map((template) => [template._id, template]));
+    const activePositionIds = new Set(positions.map((position) => position._id));
+
+    const inputIds = args.templates.flatMap((template) => (template.id ? [template.id] : []));
+    if (new Set(inputIds).size !== inputIds.length) throw new ConvexError("Not found");
+    if (inputIds.some((id) => !existingById.has(id))) throw new ConvexError("Not found");
+    const hasForeignPosition = args.templates.some((template) =>
+      template.slots.some((slot) =>
+        slot.requirements.some((requirement) => !activePositionIds.has(requirement.positionId)),
+      ),
+    );
+    if (hasForeignPosition) throw new ConvexError("Not found");
+
+    const keptIds = new Set<Id<"shiftDayTemplates">>(inputIds);
+    await Promise.all(
+      existing.filter((template) => !keptIds.has(template._id)).map((template) => ctx.db.delete(template._id)),
+    );
+    await Promise.all(
+      args.templates.map(async (template, index) => {
+        const document = {
+          name: template.name.trim(),
+          weekdays: template.weekdays,
+          sortOrder: index,
+          // 必要人数0は「未設定」と同じ意味なので保存しない。
+          slots: projectDayTemplateSlotsForPattern(template.slots, pattern).map((slot) => ({
+            key: slot.key,
+            requirements: slot.requirements.filter((requirement) => requirement.count > 0),
+          })),
+        };
+        if (template.id) {
+          await ctx.db.patch(template.id, document);
+          return;
+        }
+        await ctx.db.insert("shiftDayTemplates", { shopId: ctx.shop._id, ...document });
+      }),
+    );
+    return null;
+  },
+});
+
+/** 休憩の決まり（何分以上の勤務に何分）を保存する。nullで決まりを消す。 */
+export const saveBreakRule = managerMutation({
+  args: { breakRule: v.union(shiftBreakRuleValidator, v.null()) },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    if (args.breakRule === null) {
+      await ctx.db.patch(ctx.shop._id, { breakRule: undefined });
+      return null;
+    }
+    const parsed = breakRuleSchema.safeParse(args.breakRule);
+    if (!parsed.success) {
+      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
+    }
+    await ctx.db.patch(ctx.shop._id, { breakRule: parsed.data });
+    return null;
+  },
+});
+
+/** スタッフごとの「入れないポジション」と熟練度を、まとめて保存する。 */
+export const saveStaffShiftProfiles = managerMutation({
+  args: {
+    profiles: v.array(
+      v.object({
+        staffId: v.id("staffs"),
+        unavailablePositionIds: v.array(v.id("positions")),
+        skillLevel: v.union(v.literal("newcomer"), v.literal("standard"), v.literal("lead")),
+      }),
+    ),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    if (args.profiles.length > SHIFT_BOARD_STAFF_LIMIT) {
+      throw new ConvexError("一度に保存できるスタッフ数を超えています");
+    }
+    const staffIds = args.profiles.map((profile) => profile.staffId);
+    if (new Set(staffIds).size !== staffIds.length) throw new ConvexError("Not found");
+
+    const positions = await listActivePositions(ctx, ctx.shop._id);
+    const activePositionIds = new Set(positions.map((position) => position._id));
+    for (const profile of args.profiles) {
+      const unavailable = new Set(profile.unavailablePositionIds);
+      if (unavailable.size !== profile.unavailablePositionIds.length) throw new ConvexError("Not found");
+      if (profile.unavailablePositionIds.some((positionId) => !activePositionIds.has(positionId))) {
+        throw new ConvexError("Not found");
+      }
+      if (unavailable.size >= activePositionIds.size) {
+        throw new ConvexError("入れるポジションを1つ以上残してください");
+      }
+    }
+    const staffs = await Promise.all(
+      args.profiles.map((profile) => getActiveStaffInShop(ctx, ctx.shop._id, profile.staffId)),
+    );
+    if (staffs.some((staff) => !staff || staff.organizationId !== ctx.shop.organizationId)) {
+      throw new ConvexError("Not found");
+    }
+
+    await Promise.all(
+      args.profiles.map((profile) =>
+        ctx.db.patch(profile.staffId, {
+          unavailablePositionIds:
+            profile.unavailablePositionIds.length > 0 ? profile.unavailablePositionIds : undefined,
+          skillLevel: profile.skillLevel === "standard" ? undefined : profile.skillLevel,
+        }),
+      ),
+    );
+    return null;
+  },
+});
+
+/** 特別な日: その日に当てる日の型を変える。nullで曜日の割り当てへ戻す。 */
+export const setDayTemplateOverride = managerMutation({
+  args: {
+    date: v.string(),
+    templateId: v.union(v.id("shiftDayTemplates"), v.null()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    if (!isValidIsoDateString(args.date)) throw new ConvexError("日付の形式が正しくありません");
+    if (args.templateId !== null) {
+      const template = await ctx.db.get(args.templateId);
+      if (!template || template.shopId !== ctx.shop._id) throw new ConvexError("Not found");
+    }
+
+    const existing = await ctx.db
+      .query("shiftDayTemplateOverrides")
+      .withIndex("by_shopId_and_date", (q) => q.eq("shopId", ctx.shop._id).eq("date", args.date))
+      .take(10);
+    await Promise.all(existing.map((override) => ctx.db.delete(override._id)));
+    if (args.templateId !== null) {
+      await ctx.db.insert("shiftDayTemplateOverrides", {
+        shopId: ctx.shop._id,
+        date: args.date,
+        templateId: args.templateId,
+      });
+    }
+    return null;
+  },
+});
+
+const preparedAssistRequestValidator = v.union(
+  v.object({ status: v.literal("unavailable") }),
+  v.object({ status: v.literal("notFound") }),
+  v.object({ status: v.literal("rateLimited") }),
+  v.object({
+    status: v.literal("ready"),
+    submissionPattern: submissionPatternValidator,
+    regularClosedDays: v.array(shiftDayTemplateWeekdayValidator),
+    positionIds: v.array(v.id("positions")),
+  }),
+);
+export type PreparedAssistRequest = Infer<typeof preparedAssistRequestValidator>;
+
+/**
+ * AIサポートのactionから呼び、権限の確認、rate limit、下書きに使う店舗の情報の取得を1回で行う。
+ * 設定は変えない。書き込むのはrate limitの消費だけである。
+ */
+export const prepareAssistRequest = internalMutation({
+  args: {
+    tokenIdentifier: v.string(),
+    shopId: v.id("shops"),
+    expectedOrganizationId: v.id("organizations"),
+  },
+  returns: preparedAssistRequestValidator,
+  handler: async (ctx, args): Promise<PreparedAssistRequest> => {
+    if (getShiftSetupAssistMode() === "off") return { status: "unavailable" as const };
+
+    const access = await resolveManagerShopAccessByTokenIdentifier(ctx, args);
+    if (!access) return { status: "notFound" as const };
+
+    const consumed = await rateLimit(ctx, {
+      name: "shiftSetupAssistShort",
+      key: `${access.user._id}:${access.shop._id}`,
+    });
+    if (!consumed.ok) return { status: "rateLimited" as const };
+
+    const positions = await listActivePositions(ctx, access.shop._id);
+    return {
+      status: "ready" as const,
+      submissionPattern: access.shop.submissionPattern,
+      regularClosedDays: access.shop.regularClosedDays,
+      positionIds: positions.map((position) => position._id),
+    };
+  },
+});

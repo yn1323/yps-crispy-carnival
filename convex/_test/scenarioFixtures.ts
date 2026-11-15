@@ -41,6 +41,8 @@ type ShiftAssignment = ShiftRequest & {
   staffId: Id<"staffs">;
   positionId?: Id<"positions">;
   optionId?: string;
+  breaks?: Array<{ startTime: string; endTime: string }>;
+  isProvisional?: boolean;
 };
 
 type ShiftSubmissionPattern =
@@ -336,6 +338,18 @@ export function createScenario(t: ScenarioTest) {
         },
         async getShiftBoardDateNotes(recruitmentId: Id<"recruitments">) {
           return asManager.query(api.shiftBoard.queries.getShiftBoardDateNotes, {
+            recruitmentId,
+            ...(await getSelectedManagerScope()),
+          });
+        },
+        async getShiftBoardStaffing(recruitmentId: Id<"recruitments">) {
+          return asManager.query(api.shiftBoard.queries.getShiftBoardStaffing, {
+            recruitmentId,
+            ...(await getSelectedManagerScope()),
+          });
+        },
+        async getProvisionalAssignments(recruitmentId: Id<"recruitments">) {
+          return asManager.query(api.shiftBoard.queries.getProvisionalAssignments, {
             recruitmentId,
             ...(await getSelectedManagerScope()),
           });

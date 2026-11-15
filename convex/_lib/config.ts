@@ -71,6 +71,20 @@ export function getPromotionComplimentaryProCode(): string | undefined {
   return value || undefined;
 }
 
+export type ShiftSetupAssistMode = "off" | "random";
+
+/**
+ * シフト作成の設定のAIサポート。未設定の環境では出さない。
+ * "random"は実際のAIにつながず、必要人数をランダムな値で埋める仮の処理を使う。
+ * 根拠のない人数を店舗へ見せないため、Productionでは設定しない。
+ */
+export function getShiftSetupAssistMode(): ShiftSetupAssistMode {
+  const rawMode = env.SHIFT_SETUP_ASSIST_MODE?.trim() ?? "";
+  if (!rawMode) return "off";
+  if (rawMode === "random") return "random";
+  throw new Error("SHIFT_SETUP_ASSIST_MODE must be random or unset");
+}
+
 export type DevelopmentSeedConfiguration = {
   enabled: boolean;
   currentDeploymentUrl: string;

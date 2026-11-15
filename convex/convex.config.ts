@@ -13,6 +13,7 @@ const app = defineApp({
     DEBUG_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER: v.optional(v.string()),
     DEBUG_TRIAL_DURATION_DAYS: v.optional(v.string()),
     PROMOTION_COMPLIMENTARY_PRO_CODE: v.optional(v.string()),
+    SHIFT_SETUP_ASSIST_MODE: v.optional(v.string()),
     STRIPE_SECRET_KEY: v.optional(v.string()),
     STRIPE_WEBHOOK_SECRET: v.optional(v.string()),
     STRIPE_STANDARD_PRICE_ID: v.optional(v.string()),

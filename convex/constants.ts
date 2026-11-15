@@ -175,3 +175,31 @@ export const NOTIFICATION_FAILURE_REMINDER_MANAGER_LIMIT = 20;
 
 export const DEFAULT_POSITION_NAME = "シフト";
 export const DEFAULT_POSITION_COLOR = "#3b82f6";
+// 既存の読み手はpositionsを50件の窓で読む。画面で選び分けられる数に収めるため、有効な件数を10件までにする。
+export const POSITION_ACTIVE_LIMIT = 10;
+export const POSITION_NAME_MAX_LENGTH = 20;
+// ポジションの色は自由入力にせず、シフト表で見分けられる用意済みの色から選ぶ。
+export const POSITION_COLOR_PALETTE = [
+  "#3b82f6",
+  "#c2410c",
+  "#7c3aed",
+  "#db2777",
+  "#b45309",
+  "#0f766e",
+  "#dc2626",
+  "#475569",
+  "#4d7c0f",
+  "#0e7490",
+] as const;
+// 日の型: 曜日のまとまりと特別な日を合わせても、店舗が見渡せる件数に収める。
+export const SHIFT_DAY_TEMPLATE_LIMIT = 6;
+export const SHIFT_DAY_TEMPLATE_NAME_MAX_LENGTH = 20;
+export const SHIFT_DAY_TEMPLATE_SLOT_LIMIT = 8;
+export const SHIFT_DAY_TEMPLATE_REQUIRED_COUNT_MAX = 99;
+// 特別な日の読み取りは募集期間（最大31日）に限る。
+export const SHIFT_DAY_TEMPLATE_OVERRIDE_PERIOD_LIMIT = 31;
+export const SHIFT_ASSIGNMENT_BREAK_LIMIT = 3;
+export const SHIFT_BREAK_RULE_MAX_MINUTES = 24 * 60;
+// AIサポートへ渡す店の状況。保存もログ出力もしないが、外部へ渡す将来の入力として上限を持つ。
+export const SHIFT_SETUP_ASSIST_SITUATION_MAX_LENGTH = 500;
+export const SHIFT_SETUP_ASSIST_SHORT_LIMIT = 5;
