@@ -159,7 +159,7 @@ yellow → ほぼ未使用
 - 通常border → `border.default`、強いborder → `border.emphasized`
 - border、outline、focus ring、divider、progress connector、shadow、文字・iconのforegroundへtealを明示する場合 → `500`以上
 - tealの主要文字 on white → `700`以上を基本にする
-- 低階調tealの許可・禁止用途は、ルート`AGENTS.md`を正本とする
+- 低階調tealの許可・禁止用途は、`.claude/rules/ui-colors.md`を正本とする
 
 ## スペーシングトークン
 

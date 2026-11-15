@@ -3,7 +3,7 @@
 ## 目的
 
 この文書は、変更した契約をどのテスト層で守るかを定める。
-テストコードの書き方、fixture、Storybook play function、Page Objectの手順は `test-strategy` が所有する。
+テストを設計する手順とE2Eの書き方は `test-strategy`、Story、Logic UT、Frontend Unit、Convexのテストの書き方は `.claude/rules/` が所有する。
 実行コマンドとCIの現在値は `package.json`、Vitest設定、Playwright設定、`.github/workflows/` を正本とする。
 
 ## 基本原則
