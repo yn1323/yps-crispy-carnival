@@ -13,15 +13,12 @@ export const STAFF_PAGE_PX = { base: 4, lg: 6 } as const;
 
 const GLASS_BACKDROP_FILTER = "blur(12px) saturate(135%)";
 const AUTHENTICATED_GLASS_BACKGROUND = "rgba(255, 255, 255, 0.08)";
-const SCROLL_HIDE_TRANSITION = "0.3s cubic-bezier(0.4, 0, 0.2, 1)";
-
-/** `data-scroll-hidden`が付いたヘッダーを、画面上端の外へ滑らせて隠す。 */
+/** `data-scroll-hidden`が付いたヘッダーを、影の広がりごと画面上端の外へ滑らせて隠す。 */
 export const HEADER_SCROLL_HIDE_CSS = {
-  transition: `transform ${SCROLL_HIDE_TRANSITION}, box-shadow ${SCROLL_HIDE_TRANSITION}`,
+  transition: "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
   // キーボードで操作中、またはメニューを開いている間は、操作対象を画面内に残す。
   "&[data-scroll-hidden]:not(:has(:focus-visible, [aria-expanded='true']))": {
-    transform: "translateY(-100%)",
-    boxShadow: "none",
+    transform: "translateY(calc(-100% - 32px))",
   },
   "@media (prefers-reduced-motion: reduce)": {
     transition: "none",
