@@ -51,10 +51,10 @@ export function StaffInvitationDialogShell({ invitation, isReadOnly = false, chi
       form="add-staff-form"
       colorPalette="teal"
       loading={invitation.isAddingStaffs}
-      loadingText="スタッフを登録する"
+      loadingText="登録する"
       disabled={isReadOnly || invitation.isAddingOrganizationPerson}
     >
-      スタッフを登録する
+      登録する
     </Button>
   );
   const rotationConfirmationFooter = (

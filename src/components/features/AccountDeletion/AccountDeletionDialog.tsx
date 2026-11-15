@@ -95,7 +95,7 @@ function getDialogContent(
       const futureAssignmentCount = preview?.action === "leaveOrganization" ? preview.futureAssignmentCount : 0;
       return {
         title: "組織から退出してアカウントを削除",
-        submitLabel: "退出して削除",
+        submitLabel: "削除する",
         description: (
           <>
             <Text>
@@ -114,11 +114,11 @@ function getDialogContent(
       const organizationName = preview?.action === "deleteOrganization" ? preview.organization.name : "所属する組織";
       const shopCount = preview?.action === "deleteOrganization" ? preview.organization.shopCount : 0;
       return {
-        title: "組織と店舗の利用を終了",
-        submitLabel: "組織と店舗を終了して削除",
+        title: "組織・店舗・アカウントをすべて削除",
+        submitLabel: "削除する",
         description: (
           <>
-            <Text>{`「${organizationName}」と全${shopCount}店舗の利用を終了し、ログインアカウントを削除します。`}</Text>
+            <Text>{`「${organizationName}」と全${shopCount}店舗、ログインアカウントを削除します。`}</Text>
             <Text>組織と店舗に所属する全スタッフ情報も合わせて削除します。</Text>
           </>
         ),
@@ -127,7 +127,7 @@ function getDialogContent(
     case "accountOnly":
       return {
         title: "アカウントを削除",
-        submitLabel: "アカウントを削除",
+        submitLabel: "削除する",
         description: (
           <Text>
             シフトリへのログインに使うアカウントを削除します。

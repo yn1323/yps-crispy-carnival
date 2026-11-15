@@ -37,7 +37,7 @@ export const SubmitBehavior: Story = {
   play: async ({ canvasElement }) => {
     const screen = within(canvasElement.ownerDocument.body);
     const dialog = await screen.findByRole("alertdialog", { name: "組織を削除" });
-    const submit = within(dialog).getByRole("button", { name: "この組織を削除" });
+    const submit = within(dialog).getByRole("button", { name: "削除する" });
     await expect(submit).toBeEnabled();
     await expect(within(dialog).queryByRole("textbox")).not.toBeInTheDocument();
     await userEvent.click(submit);

@@ -34,7 +34,7 @@
 - テストの層・配置: `doc/rules/testing-strategy.md` と `test-strategy`
 - 検証契約: `doc/specs/full-regression-contracts.md`
 - セキュリティ: `doc/rules/security-strategy.md` と `shiftori-security-review`
-- Convexの横断設計: `doc/rules/convex-design-strategy.md` と `convex-design-review`
+- Convexの横断設計: `doc/rules/convex-design-strategy.md`
 - Convex実装: `convex/_generated/ai/guidelines.md` と `convex/AGENTS.md`
 - 保存済みデータ形式の変更やbackfill: `convex-migration-helper`
 - E2E: `e2e/AGENTS.md`
@@ -50,26 +50,17 @@
 
 ## Skillの発動条件
 
-- 通常実装から独立した大規模なread-only調査、対応表・棚卸し、巨大なlog・diffの圧縮、編集完了後の長時間な最終検証を境界明確なsubtaskへ分けられる場合は `delegate-bounded-repo-work` を使う。
-  通常の実装探索、原因診断、対象test・再実行には使わず、詳細な発動条件は同Skillを正本とする。
 - UI/UX、画面構造、レイアウト、状態、マイクロコピーを変更する場合は `ui-architect` を使う。
 - テスト層、配置、新しい検証契約を判断する場合は `test-strategy` を使う。
 - 認証、認可、IDOR、token、Capability、Webhook、外部副作用、billing、個人情報、retention、redactionに触れる相談・計画・設計・実装・レビューでは、プラン確定前に `shiftori-security-review` を使う。
-- Convexの複数ユースケース、public API境界、Capability、永続ワークフロー、データ寿命、運用契約を横断して扱う場合は `convex-design-review` を使う。
 - 保存済みデータの形を変える、既存documentが新schemaに合わなくなる、またはbackfillが必要な場合は `convex-migration-helper` を使う。
 - 公開ページのtitle、description、canonical、OGP、JSON-LD構造化データを追加・変更する場合は `public-page-metadata` を使う。
+- Web計測（GA4・GTM）のイベントやパラメータを追加・変更・削除する場合は `web-measurement-events` を使い、本番GTM containerへの反映まで行う。
+- 利用者や読者が読む日本語の文章を書く、または書き直す場合は、依頼に名前がなくても仕上げに `yomiyasu` を使う。対象は、UIの説明文、ヘルプと記事の本文、公開ページの文章、`doc/`の文書、Pull Requestの本文である。
+  チャットでの返答、作業報告、コード、ログ、設定値、単語だけのラベルには使わない。
+  `yomiyasu`の直しがプロジェクトの文章規約と食い違う場合は、プロジェクトの規約を優先する。
 
 Skillは特定作業の進め方であり、常時制約や設計原則の正本にしない。
-
-## UI配色
-
-- `teal.50`〜`teal.400`は、ページ、section、card、callout、icon、avatar、badge、選択card、カレンダーの日付範囲、非操作の選択列など、内容を載せる面の背景fillに限って明示的に使用してよい。背景fillであればopacity suffixやgradientも使用してよい。
-- 保存、送信、遷移などのaction button、Accordion（店舗詳細のスタッフ一覧トリガーを除く）、DateRail、日付sort、週選択、シフト割当toggleの背景には、通常、hover、active、selectedを含めて`teal.50`〜`teal.400`を使用しない。実装要素がButtonでも、値を選ぶselection cardは背景fillの例外に含める。
-- クリック可能なrowのrootとhoverには原則として`teal.50`〜`teal.400`を使用しない。Dashboardのスタッフ一覧と、組織設定・店舗詳細・スタッフ詳細でスタッフや店舗を開くdrilldown list cardは、管理者rowの背景とlist card全体のhover背景に`teal.50`〜`teal.400`を使える。店舗詳細のスタッフ一覧トリガーも、スタッフリストカードと同じ`teal.50`のhover背景を使える。
-- border、outline、境界として使うbox-shadow、focus ring、divider、progress connector、通常のshadow、文字とiconのforegroundには、`teal.50`〜`teal.400`を使用しない。
-- 操作要素内のicon、avatar、badgeの背景は使用してよい。禁止対象のaccentには`teal.500`以上、弱い操作面と境界にはwhite、gray、blackAlphaまたは既存の中立semantic tokenを使う。
-- 低階調tealの面にiconやavatarの低階調teal背景を重ねる場合は、内側を外側より1段以上濃くし、背景へ同化させない。
-- 操作面のselected、active、割当済みをtealで強く示す場合は、背景に`teal.500`以上、文字とiconにwhiteを使う。
 
 ## 変更範囲
 
@@ -79,6 +70,11 @@ Skillは特定作業の進め方であり、常時制約や設計原則の正本
 - 認証、認可、店舗境界、入力検証、migration、外部副作用の冪等性など、変更に直接関係する安全契約は省略しない。
 - 既存のwrapper、policy、共通基盤を優先する。
 - テストは変更契約を直接検証する主担当層を一つ選び、異なる失敗境界を検知する場合だけ他層を追加する。
+
+## 調査と提案
+
+- 設定、仕様、外部ツールの挙動について強く勧める、または否定する前に、公式ドキュメントか現在のコードで確認する。
+- 調査に基づく提案では、出典と、全文を読んだ件数を示す。
 
 ## 作業環境とGit
 
@@ -111,7 +107,9 @@ pnpm build
 - `lint`のwarningも解消する。
 - `pnpm lint`やブラウザを使う検証がsandboxのIPC、listen、ブラウザ起動制限で失敗した場合は、コードの失敗と区別する。
 - 実装後に自己レビューを行い、不要な複雑さと重複を除く。
-- ブラウザをAI Agentが手動操作する確認は追加せず、必要な契約は自動テストで検証する。
+- コードを変更したブランチでは、Pull Requestを作成する前に、ブランチ全体の差分を `code-review` でレビューする。指摘のうち正しさに関わるものだけを直し、好みや書き方の指摘は採用しない。
+- AI Agentは画面の見た目と操作の流れを確かめるためにブラウザを操作してよい。
+- 必要な契約は自動テストで検証し、ブラウザでの確認で代用しない。
 
 ## 文書
 
@@ -174,6 +172,3 @@ Convex agent skills for common tasks can be installed by running
   - 閲覧：禁止
   - データ編集：禁止
   - 環境変数編集：禁止
-
-### サブエージェント
-- サブエージェントの利用禁止

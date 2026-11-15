@@ -18,6 +18,7 @@
 
 | 計画 | 状態 | 次に必要な判断 | 現在の正本 |
 |---|---|---|---|
+| [人数が多い店舗のシフト作成方針](2026-11-14_人数が多い店舗のシフト作成_方針.md) | `reviewing` | 足す要素の範囲は決定済み。要素を入れる順番、未提出者の仮の勤務の決め方、設定の初期値の出し方を決める。UIは未着手 | 現行のシフト作成は[シフト表](../features/shift-board.md)、設定は[店舗設定](../features/shop-settings.md) |
 | [Analytics分析用JSONの仮名化出力](2026-11-09_Analytics分析用JSONの仮名化出力_設計.md) | `reviewing` | 組織・店舗・スタッフ・ユーザーはDBのIDで出力すると決定済み。対応表を画面だけに出すか、募集8件・利用日90日の範囲で足りるかを決める | [分析KPI可視化アプリ](../features/analytics-dashboard.md) |
 | [GA4計測基盤とSkill整備](2026-08-12_GA4計測基盤とSkill整備_実装計画.md) | `partially superseded` | アプリ側safe coreは監査残件実装計画へ移管済み。`ga4-measurement` Skillを別途作成するかだけを決める | [公開Web計測](../features/web-measurement.md)、[GA4・GTM運用](../manual/ga4-gtm.md) |
 | [AIシフト下書き機能 詳細設計](2026-07-03_AIシフト下書き機能.md) | `reviewing` | 機能を採用するか、誰が再検討するかを決める | 現行のシフト作成は[シフト表](../features/shift-board.md) |

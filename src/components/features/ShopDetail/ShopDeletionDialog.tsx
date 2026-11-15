@@ -27,7 +27,7 @@ export function ShopDeletionDialog({ shop, isOpen, isDeleting, onClose, onDelete
         const deleted = await onDelete();
         if (deleted) onClose();
       }}
-      submitLabel="店舗を削除"
+      submitLabel="削除する"
       isLoading={isDeleting}
       maxW={{ base: "calc(100vw - 24px)", md: "560px" }}
     >

@@ -426,7 +426,7 @@ export const ReadOnlyInformationDialog: Story = {
   },
   play: async () => {
     const dialog = await screen.findByRole("dialog", { name: "スタッフ情報" });
-    await expect(within(dialog).queryByRole("button", { name: "変更を保存" })).not.toBeInTheDocument();
+    await expect(within(dialog).queryByRole("button", { name: "保存する" })).not.toBeInTheDocument();
     await expect(within(dialog).getAllByRole("button", { name: "閉じる" })).toHaveLength(2);
   },
 };

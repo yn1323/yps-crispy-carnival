@@ -43,7 +43,7 @@ export class StaffLifecyclePage {
 
     await dialog.getByPlaceholder("サンプル スタッフ").first().fill(name);
     await dialog.getByPlaceholder("staff@example.com").first().fill(email);
-    await dialog.getByRole("button", { name: "スタッフを登録する", exact: true }).click();
+    await dialog.getByRole("button", { name: "登録する", exact: true }).click();
 
     await expect(dialog).toHaveCount(0, { timeout: STAFF_LIFECYCLE_TIMEOUT });
   }
@@ -105,7 +105,7 @@ export class StaffLifecyclePage {
 
     await nameInput.fill(updated.name);
     await emailInput.fill(updated.email);
-    await dialog.getByRole("button", { name: "変更を保存", exact: true }).click();
+    await dialog.getByRole("button", { name: "保存する", exact: true }).click();
 
     await expect(dialog).toHaveCount(0, { timeout: STAFF_LIFECYCLE_TIMEOUT });
     await this.expectStaffProfile(updated.name, updated.email);

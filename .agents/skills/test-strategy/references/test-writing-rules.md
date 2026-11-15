@@ -7,13 +7,7 @@
 
 - 変更時のテスト判断
 - Full Regression の契約マップ
-- Logic UT
-- Frontend Unit
-- Storybook / Behavior Test
-- VRT
-- Convex Function Test
-- Convex Scenario Test
-- Assertion の完全性
+- ファイル種別ごとの書き方
 - E2E
 - 高リスク観点
 - テストレビュー
@@ -48,218 +42,18 @@
 同じユーザーストーリーを各層へ丸ごと複製しない。
 たとえば「スタッフを復帰させて新しいlinkから希望提出できる」は、link発行APIの境界をFunction Test、対象外から復帰後の旧link失効・新link発行・提出永続化をScenario Test、匿名ブラウザで画面完了できることをE2Eへ分ける。
 
-## Logic UT
+## ファイル種別ごとの書き方
 
-対象:
+テストファイルの種別ごとの書き方は `.claude/rules/` を正本とする。
+各ファイルは、対象のファイルを読み書きした時点で自動的に読み込まれる。
+対象のファイルを開く前にテストを設計する場合は、該当するファイルを先に読む。
 
-- React / Convex / DOM に依存しない純粋ロジック。
-- 日付、時刻、タイムゾーンずれ、丸め、ソート、正規化。
-- Zod schema、フォーム固有 validation、表示変換。
-
-書き方:
-
-- 境界値を厚めに書く。最小、最大、ちょうど境界、境界外を優先する。
-- 日本語名の `describe` / `it` で業務意味が分かるようにする。
-- 入力と期待値を読みやすく分ける。
-- 実装の中間変数や private な分岐ではなく、公開関数の入出力を検証する。
-
-避けること:
-
-- DOM、React hook、Convex 接続を Logic UT に持ち込まない。
-- ただの型定義、定数、追加ロジックのない schema 定義だけを過剰にテストしない。
-
-共有schemaは、定義元のLogic UTまたはConvex Function Testで境界値を一度だけ検証する。
-フロントエンド固有の追加制約がある場合だけ、その純粋validationをLogic UTへ置く。
-
-## Frontend Unit
-
-対象:
-
-- React hook、jsdom、`window`、`document`、`localStorage`に依存する契約。
-- Visual Viewport、event listener、cleanup、同期ガード、mutation引数生成。
-- DOMを使うsanitizeやtracking helper。
-
-書き方:
-
-- テストファイル名は`*.test.ts`または`*.test.tsx`に統一する。
-- jsdomが必要なファイルは、先頭に`// @vitest-environment jsdom`を記述する。
-- Logic UTと同じく`pnpm test:logic`で実行する。
-- frontendとbackendの責務を分け、引数生成やsession cacheだけを検証する。
-- 認証、認可、IDOR、永続化は対応するConvex Function TestまたはScenario Testで保証する。
-- listener登録とcleanup、enabled切り替え、malformed storage、access kindの分離を必要に応じて確認する。
-- 遅延queryは、非表示中に`"skip"`または無効状態になり、表示条件を満たした時に正しい引数へ切り替わることを確認する。
-- Intersection Observerやidle callbackで開始する処理は、対象callbackを制御して、開始前、開始後、cleanupを別々に確認する。
-- Submit系の同期ガードは、hook単体だけでなく代表componentのBehavior Testでも接続を確認する。
-
-避けること:
-
-- ファイル名に`.frontend`など、実行環境を表す独自suffixを追加しない。
-- jsdomが必要なテストで、ファイル単位の環境指定を省略しない。
-- component全体の表示やユーザー操作をFrontend Unitへ寄せない。
-- backendの権限境界をmock mutationの引数確認だけで保証したことにしない。
-
-## Storybook / Behavior Test
-
-Storybook は「UI状態の棚卸し」と「画面上の軽い振る舞い」を守る場所。
-
-Story の作り方:
-
-- UIを追加・変更したら、同階層の `index.stories.tsx` を作成または更新する。
-- 代表状態、空状態、エラー状態、長文、権限差、モバイル差分を Story として置く。
-- VRT はキャプチャ数の制限がない前提なので、状態ごとに個別 Story を基本にする。
-- 小さい UI 部品だけは Variants Story にまとめてよい。
-- VRT対象Storyに最初から表示される見出し、説明、ラベル、件数などは、静的な見た目と文言としてVRTへ委ねる。
-
-play function の書き方:
-
-- `storybook/test` から `expect`, `userEvent`, `within` を使う。
-- Story から `vitest` の `expect` を import しない。
-- `@storybook/test` の `fn()` は使わず、必要な callback は `() => {}` を直接渡す。
-- 出現待ちは `findBy...` を優先する。
-- `waitFor` は消滅、transition、件数変化など `findBy...` では意図が読みにくい時に限定する。
-- 「押せる」「進める」「エラーが見える」「確認文言が出る」など、ユーザー操作後の見える結果を `expect(...)` で書く。
-- カスタム helper が手動で throw するより、Testing Library の query と `expect` で意図を見せる。
-- 初期表示の静的文言があることだけを確認するplay functionは書かない。`assertText`、`textContent.includes`、`getByText`だけで終わるplayは原則削除する。
-- 操作によって初めて表示・非表示・更新されるvalidation error、確認画面、成功・失敗状態、件数変化はBehavior Testで検証する。
-- lazy mountするtabまたはDialogは、利用者の操作で表示を開始し、`findBy...`で局所Loading後の内容を確認する。
-- 再表示時の入力保持またはresetが製品契約なら、閉じる前の状態を作ってから再表示して確認する。
-- dynamic importの失敗が利用者に見える場合は、代表Storyで局所Errorと再試行または再読み込みの導線を確認する。
-- 操作対象を取得するためのrole/name指定はテスト手段として使ってよいが、同じ静的文言を別assertで重複確認しない。
-- URL、status、error code、JSON-LD、検索対象データ、法務version、sanitize結果、個人情報のマスキングは、文字列自体が機械契約またはセキュリティ契約なのでVRTだけに委ねない。
-
-避けること:
-
-- DB状態や API 副作用を Storybook で保証しない。
-- ピクセル差分を Behavior Test の assertion で代用しない。
-- VRTで守れる初期表示の静的文言をBehavior Testで重複保証しない。
-- 個人情報の非露出や機械可読データまで「静的文言」として削除しない。
-- 表示される文言を無意味に曖昧な正規表現へ寄せすぎない。ユーザーに見える重要文言は明示する。
-
-## VRT
-
-VRT は見た目の退行を守る。
-Storybook play function は振る舞い、VRT は見た目で役割を分ける。
-
-判断:
-
-- 見た目も守りたい Story は VRT 対象に残す。
-- 振る舞いだけを見たい Story は `parameters: { screenshot: { skip: true } }` を付ける。
-- play function の途中状態を撮りたい場合は、静的 Story に代表状態を切り出す。
-- `position: fixed` の Header を含む縦長ページを full-page VRT で撮る場合は `parameters.vrt.releaseFixedHeader = true` を付ける。
-- モバイルStoryはviewport指定と対応する`vrt-mobile1`または`vrt-mobile2` tagをセットで付ける。
-- viewport指定だけではモバイルVRT projectの対象にならないため、tagなしを見逃さない。
-
-実行と確認:
-
-- VRT対象のStory、`parameters`、tagは変更契約に合わせて更新する。
-- 通常の実装作業では、ローカルの`pnpm vrt`、screenshot capture、RegSuit compare、画像差分の目視確認を実行しない。
-- VRTのbuild、capture、差分確認、承認、baseline更新はGitHub ActionsのVRT workflowへ委ねる。
-- ユーザーがローカル実行を明示した場合、またはVRT workflow自体を診断する場合だけ、必要なVRT commandをローカルで実行する。
-- 既定方針によりVRTをローカル実行しなかった場合は、完了報告で「VRTはCI確認方針のため未実行」と示し、環境失敗や検証漏れとして扱わない。
-- CIで差分が出た場合は、意図した変更かを確認し、理由を説明できる状態にする。
-- VRT 差分だけでロジックの正しさを判断しない。
-- 静的文言の追加・削除・改行・長文崩れはVRTで確認し、同じStoryへ存在確認だけのplayを足さない。
-- PRではbaseline欠落を成功扱いにせず、意図した差分だけを承認する。
-- CIでの対象、承認、レポート公開、baseline更新は、現在の `.github/workflows/` と `.github/AGENTS.md` を正本とする。
-
-## Convex Function Test
-
-Convex query/mutation/action/HTTP Action単体の契約を細かく見る。
-`convex-test` の mock backend で高速に回す層。
-
-優先観点:
-
-- 未認証。
-- 権限不足。
-- 他店舗データ参照、IDOR。
-- 論理削除済みデータの除外。
-- 空データ。
-- query の返り値に不要フィールドが含まれないこと。
-- mutation 後の DB 副作用。
-- Magic Link、招待トークン、使用済み/期限切れ。
-- 短時間連打や重複実行が問題になる mutation の冪等性。
-- 関連レコード間の所属整合性。対象レコードだけでなく、staff、session、shop、recruitment、tokenの店舗が一致すること。
-- 異常系でDB、event、scheduler、外部API呼び出しが増えないこと。
-
-書き方:
-
-- 各テストで独立した `convexTest` インスタンスを使う。
-- 認証は `t.withIdentity()` を使う。
-- 正常系と異常系をセットで考える。
-- 所属境界は、関連レコードの一部だけ別店舗にした不整合fixtureを意図的に作り、各組み合わせを拒否できることを確認する。
-- tokenやcapabilityは、未発行、期限切れ、使用済み、失効済み、削除済みstaff/shop、用途違いを必要な範囲で確認する。検証と確定が別APIなら、その間に状態が変わる競合も候補にする。
-- queryの正常系は、公開契約に必要な最小DTOへ射影して完全一致させる。token、秘密情報、内部管理用fieldが露出していないことも確認する。
-- public actionが外部APIを呼ぶ場合、拒否ケースではmock fetchが0回であることを確認する。正常系ではfollow状態、再利用、scheduled function完了まで必要に応じて検証する。
-- 通知や再送は、対象者なし、対象者あり、rate limitを分け、schedulerやoutboxの件数が期待どおりで重複しないことを確認する。
-- schedulerへ予約するAPIは、scheduled functionのname、args、対象範囲の件数を完全一致させる。予約された事実だけの存在確認で終えない。
-- capabilityを発行するmutationでは、返したraw tokenと保存されたdigestを区別し、永続化不要なraw tokenがDBへ残らないことを確認する。
-- 匿名登録では、存在状態ごとの外部DTOが同一であることと、bot proofまたはrate limit拒否時にrequest、event、schedulerが増えないことを確認する。
-- HTTP Actionは`t.fetch()`でmethod、content type、body上限、CORS、署名またはservice credentialを検証し、timestamp・nonce・event IDがある場合はreplayと重複副作用を拒否することを確認する。
-- leaseを使うworkerでは、未期限切れclaimの二重取得、期限切れclaimの再取得、古いclaim identityによる完了更新を別々に検証する。
-- retention処理では、期限の直前と直後、pending行の除外、redact対象、保持する監査field、再実行時の冪等性を確認する。
-- テストデータは既存の `_test` helper または internal mutation 経由で作る。
-- エラー assertion は `.rejects.toThrowError(...)` を使う。
-- 実DB、dev、preview、prod に接続しない。
-
-避けること:
-
-- 複数ユースケースをまたぐ長い業務フローをFunction Testに詰め込まない。
-- `convex-test` の mock 差異に依存する期待値を書かない。ID形式や実 backend のエラーメッセージ詳細に依存しない。
-
-## Convex Scenario Test
-
-Convex Scenario Test は、E2E 未満、Function Test 以上の業務フローテスト。
-E2E で見ると遅すぎる DB 状態遷移、通知、集計、dashboard 表示用 query の意味論を守る。
-
-含めるもの:
-
-- 複数 mutation/query の連続実行。
-- 下書き、再提出、確定、削除、通知予約などの状態遷移。
-- dashboard、通知データ、集計、スナップショットへの影響。
-- 既存データ互換、論理削除、他店舗混入、期限切れ。
-- 売上・運用に直結する主導線と、壊れやすい派生。
-
-書き方:
-
-- `convex/_scenario/{businessFlow}.test.ts` に置く。
-- 大きな業務単位を `describe`、派生シナリオを `it` にする。
-- 各 `it` は Scenario 向け AAA（Arrange / Act / Assert）が読み取れる順序で書く。
-- 長い業務フローでは `Act` / `Assert` の小さなまとまりを複数置いてよい。
-- 繰り返し出るユーザー操作相当の API 呼び出しは `convex/_test/scenarioFixtures.ts` に寄せる。
-- Scenario Fixture は public/internal Convex API を呼ぶ薄い operation wrapper にする。
-- Fixture には検証パターン、期待値、`expect(...)` を入れない。
-- Fixtureはpublic/internal APIの生の結果を返す。statusのunwrap、期待外resultでの`throw`、暗黙の成功判定を隠さず、シナリオ本体でdiscriminated unionをassertする。
-- DB 直 seed は前提状態作成だけに使い、通常のユーザー操作は Fixture 経由で表現する。
-- シナリオ名が提出、再送、閲覧、復旧を約束する場合は、その最終操作を実行し、公開queryまたはDBで最終永続化まで確認する。途中画面用queryが成功しただけで完了扱いにしない。
-- 状態遷移は `初期 -> 中間 -> 最終` の各契約を確認する。対象外化と復帰なら、対象一覧、旧session/linkの失効、通知なし、新linkの一意な発行、復帰後の実提出までをつなげる。
-- 通知シナリオはscheduled/internal actionを完了させ、対象ID、outbox、dedupe、link、snapshotを対象範囲で完全一致させる。古いcapabilityが失敗し、新しいcapabilityが動くことも必要に応じて確認する。
-- schedulerを含む一気通貫シナリオでは、手書き引数でinternal actionを直呼びせず、実際に予約されたqueueを進めて最終状態を確認する。予約境界だけをFunction Testで保証する場合とは分ける。
-- fake timerを使う各テストは独立した`convexTest`で実行する。時刻固定はseed前、予約時刻の変更はAct直前に行い、非同期timer APIはawaitする。timer、env、global mockは`afterEach`または`try/finally`で必ず復元する。
-- zero-delay jobだけを実行する場合は、jobを確認してから`vi.advanceTimersByTime(0)`と`await t.finishInProgressScheduledFunctions()`で完了を待つ。未来の催促や期限切れjobまで進めない。
-- queue全体を将来時刻までdrainする契約だけ`finishAllScheduledFunctions(vi.runAllTimers)`を使い、実行後の失敗jobと未処理例外を放置しない。
-- 中断復旧はinternal actionを都合よく直呼びせず、永続jobのcursor、lease期限、通常のschedulerまたはreaperを通して再開する。
-- fanoutでは対象ID、outbox、dedupeKeyを完全一致させ、中断前後の重複と取りこぼしがないことを確認する。
-- 外部送信後に状態更新だけ失敗するケースではexactly-onceを仮定せず、provider idempotency keyが再試行でも変わらないことを確認する。
-- 削除競合ではterminalな`cancelled`状態と、削除後に新しく始まる外部API呼び出しが0件であることを確認する。
-
-避けること:
-
-- 入力 validation の全分岐を Scenario Test に持ち込まない。
-- ブラウザ操作、見た目、実配送、実認証を Scenario Test で検証しない。
-- 同じ操作 wrapper が既にあるのに API 直呼びを増やさない。
-
-## Assertion の完全性
-
-「存在する」だけで十分か、「余計なものがない」「一意である」「禁止対象がない」まで契約かを先に決める。
-
-- 完全性、対象集合、不在、一意性を守る場合、`arrayContaining`、`toContain`、`.some()`、`.find()`だけで終えない。
-- `not.toEqual(expect.arrayContaining([A, B]))` は、AかBの片方が漏れていても通るため、不在確認には使わない。
-- 先に対象範囲をfilterし、契約fieldへ射影してsortし、`toEqual`と`toHaveLength`で完全一致させる。
-- scheduler、outbox、link、sessionは`.find()`や`hasScheduledJob()`だけだと重複を見逃す。対象をfilterして0件または1件を明示する。
-- public DTOは原則`toEqual`で固定する。DB documentのmetadataが不安定な場合は、安定fieldへ射影してから比較し、必要な箇所だけ`toMatchObject`を使う。
-- `record?.field`を`toBeUndefined`、否定matcher、既定値へ流れる関数で検証する前に、親recordの存在を別にassertしてnarrowする。親ごと消えても通る偽陽性を作らない。
-- テスト名の最も深い動詞までassertする。「提出できる」ならmutationを実行して保存結果を確認し、「再送される」なら対象と通知証跡を確認する。
-- 完全一致ですでに集合の完全性と一意性を保証した場合、同じ集合への`not.toContain`や個別件数assertionを重ねない。
+| 対象 | 正本 | 読み込まれるファイル |
+|---|---|---|
+| Storybook / Behavior Test、VRT | `.claude/rules/stories.md` | `**/*.stories.tsx` |
+| Logic UT、Frontend Unit | `.claude/rules/frontend-tests.md` | `src/`と`scripts/`の`*.test.ts`、`*.test.tsx` |
+| Convex Function Test、Convex Scenario Test | `.claude/rules/convex-tests.md` | `convex/`の`*.test.ts` |
+| Assertion の完全性 | `.claude/rules/test-assertions.md` | すべての`*.test.ts`、`*.test.tsx` |
 
 ## E2E
 
@@ -381,9 +175,10 @@ core E2Eは、エラー系を除くハッピーパスを機能ごとに一契約
 
 ## ユーザー指摘の反映
 
-ユーザーからテスト観点の指摘を受けたら、このファイルと `doc/rules/testing-strategy.md` を更新対象にする。
+ユーザーからテスト観点の指摘を受けたら、このファイル、`.claude/rules/`、`doc/rules/testing-strategy.md` を更新対象にする。
 
-- 細かい書き方、query の選び方、fixture の使い方、レビュー観点はこのファイルへ追記する。
+- Story、Logic UT、Frontend Unit、Convexのテスト、assertionの細かい書き方は、「ファイル種別ごとの書き方」の表にある正本へ追記する。
+- E2Eの書き方、fixture の使い方、レビュー観点はこのファイルへ追記する。
 - テスト層の分担、実行方針、正式な判断基準に関わる内容は `doc/rules/testing-strategy.md` にも反映する。
 - どちらにも関係する場合は、doc に方針、このファイルに実装時の具体例を書く。
 - ユーザー指摘と既存記述が矛盾する場合は、古い記述を残さず更新する。

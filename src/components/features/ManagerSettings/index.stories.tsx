@@ -127,7 +127,7 @@ export const InvitationCardsOpenDialogBehavior: Story = {
     });
     const radio = within(existingDialog).getByRole("radio", { name: "山田 一郎を選択" });
     await userEvent.click(radio);
-    await userEvent.click(within(existingDialog).getByRole("button", { name: "管理者として招待する" }));
+    await userEvent.click(within(existingDialog).getByRole("button", { name: "招待する" }));
 
     await expect(page.queryByRole("alertdialog")).not.toBeInTheDocument();
     await expect(page.getByTestId("existing-staff-dialog-invite-count")).toHaveTextContent("1");
@@ -176,7 +176,7 @@ export const FreeAvailable: Story = {
         {
           ...overview.managers[0],
           canRemoveRole: false,
-          removeRoleDisabledReason: "少なくとも管理者が1名必要です。",
+          removeRoleDisabledReason: "管理者が2名以上のときに外せます",
         },
       ],
       invitations: [],
@@ -191,12 +191,24 @@ export const AtCapacity: Story = {
       usage: { ...overview.usage, activeManagers: 5, projectedManagers: 5, maxManagers: 5 },
       actions: {
         canInviteExistingStaff: false,
-        existingStaffDisabledReason: "これ以上管理者を追加できません。",
+        existingStaffDisabledReason: "管理者は招待中を含めて5名までです",
         canInviteExternal: false,
-        externalDisabledReason: "これ以上管理者を追加できません。",
+        externalDisabledReason: "管理者は招待中を含めて5名までです",
       },
       invitations: [{ ...overview.invitations[0], status: "limitReached" }],
     },
+  },
+};
+
+export const AtCapacitySharedReasonBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  args: AtCapacity.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    // 2枚に共通する理由は、カードごとではなく見出しの下に1回だけ出す。
+    await expect(canvas.getAllByText("管理者は招待中を含めて5名までです")).toHaveLength(1);
+    await expect(canvas.queryByRole("button", { name: "既存スタッフを管理者として招待" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("button", { name: "新しいユーザーを管理者として招待" })).not.toBeInTheDocument();
   },
 };
 
@@ -271,8 +283,8 @@ export const ConfirmationBehavior: Story = {
     const invitation = page.getByRole("article", { name: "鈴木 次郎さんへの管理者招待" });
     await userEvent.click(within(invitation).getByRole("button", { name: "取り消す" }));
     const confirmation = await page.findByRole("alertdialog", { name: "管理者招待を取り消しますか？" });
-    await expect(within(confirmation).getByText(/招待用に確保していた管理者枠が空きます/)).toBeInTheDocument();
-    await userEvent.click(within(confirmation).getByRole("button", { name: "招待を取り消す" }));
+    await expect(within(confirmation).getByText("鈴木 次郎さんへの招待を取り消します。")).toBeInTheDocument();
+    await userEvent.click(within(confirmation).getByRole("button", { name: "取り消す" }));
     await expect(page.getByTestId("manager-confirmation-count")).toHaveTextContent("1");
   },
 };
@@ -285,8 +297,8 @@ export const ResendConfirmationBehavior: Story = {
     const invitation = page.getByRole("article", { name: "鈴木 次郎さんへの管理者招待" });
     await userEvent.click(within(invitation).getByRole("button", { name: "再送する" }));
     const confirmation = await page.findByRole("alertdialog", { name: "管理者招待を再送しますか？" });
-    await expect(within(confirmation).getByText(/以前の招待URLは使えなくなります/)).toBeInTheDocument();
-    await userEvent.click(within(confirmation).getByRole("button", { name: "招待を再送する" }));
+    await expect(within(confirmation).getByText(/へ管理者招待を再送します。/)).toBeInTheDocument();
+    await userEvent.click(within(confirmation).getByRole("button", { name: "再送する" }));
     await expect(page.getByTestId("manager-confirmation-count")).toHaveTextContent("1");
   },
 };
@@ -305,8 +317,26 @@ export const RemoveRoleConfirmationBehavior: Story = {
       within(confirmation).getByText(/この操作後、あなたは管理者としてアクセスできなくなります/),
     ).toBeInTheDocument();
     await expect(within(confirmation).getByText(/スタッフとしての店舗所属は残ります/)).toBeInTheDocument();
-    await userEvent.click(within(confirmation).getByRole("button", { name: "管理者権限を外す" }));
+    await userEvent.click(within(confirmation).getByRole("button", { name: "外す" }));
     await expect(page.getByTestId("manager-confirmation-count")).toHaveTextContent("1");
+  },
+};
+
+export const RemoveRoleDisabledReasonBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  args: FreeAvailable.args,
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    const reason = "管理者が2名以上のときに外せます";
+    const manager = page.getByRole("article", { name: "田中 太郎さんの管理者情報" });
+    const button = within(manager).getByRole("button", { name: "管理者権限を外す" });
+    await expect(button).toHaveAttribute("aria-disabled", "true");
+    await expect(button).toHaveAccessibleDescription(reason);
+    // 理由は読み上げ用の1件だけで、吹き出しは開くまで出さない。
+    await expect(page.getAllByText(reason)).toHaveLength(1);
+    await userEvent.click(button);
+    await waitFor(() => expect(page.getAllByText(reason)).toHaveLength(2));
+    await expect(page.queryByRole("alertdialog")).not.toBeInTheDocument();
   },
 };
 
@@ -320,7 +350,7 @@ export const CandidateSelectionBehavior: Story = {
     await expect(page.getByRole("radio", { name: "高橋 美咲を選択" })).toBeDisabled();
     await userEvent.click(radio);
     await expect(radio).toBeChecked();
-    await userEvent.click(page.getByRole("button", { name: "管理者として招待する" }));
+    await userEvent.click(page.getByRole("button", { name: "招待する" }));
     await expect(page.getByTestId("existing-staff-invite-count")).toHaveTextContent("1");
     await expect(page.queryByRole("alertdialog")).not.toBeInTheDocument();
   },
@@ -332,7 +362,7 @@ export const FreeCandidateAdditionBehavior: Story = {
   play: async ({ canvasElement }) => {
     const page = within(canvasElement.ownerDocument.body);
     await userEvent.click(page.getByRole("radio", { name: "山田 一郎を選択" }));
-    await userEvent.click(page.getByRole("button", { name: "管理者として招待する" }));
+    await userEvent.click(page.getByRole("button", { name: "招待する" }));
     await expect(page.getByTestId("existing-staff-invite-count")).toHaveTextContent("1");
     await expect(page.queryByRole("alertdialog")).not.toBeInTheDocument();
   },
@@ -617,7 +647,7 @@ export const CandidateDriftBehavior: Story = {
     await userEvent.click(page.getByRole("radio", { name: "山田 一郎を選択" }));
     await userEvent.click(driftButton);
     await expect(page.getByRole("radio", { name: "山田 一郎を選択" })).toBeDisabled();
-    await expect(page.getByRole("button", { name: "管理者として招待する" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "招待する" })).toBeDisabled();
     await expect(page.getByTestId("existing-staff-invite-count")).toHaveTextContent("0");
   },
 };

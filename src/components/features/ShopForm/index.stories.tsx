@@ -18,7 +18,7 @@ const meta = {
     onSubmit: () => {},
     onCancel: () => {},
     initialStep: "shopName",
-    submitLabel: "変更を保存",
+    submitLabel: "保存する",
   },
 } satisfies Meta<typeof ShopForm>;
 
@@ -53,7 +53,7 @@ export const AddShopInStepperDialog: Story = {
       regularClosedDays: [],
       submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
     },
-    submitLabel: "店舗を追加",
+    submitLabel: "追加する",
   },
   render: renderAddShopInStepperDialog,
 };
@@ -164,7 +164,7 @@ export const InteractiveStepperFlow: Story = {
     await clickButton(root, "次へ");
 
     expect(await root.findByText("現在の設定: 定休日なし")).toBeTruthy();
-    expect(await root.findByRole("button", { name: "変更を保存" })).toBeTruthy();
+    expect(await root.findByRole("button", { name: "保存する" })).toBeTruthy();
   },
 };
 

@@ -10,7 +10,7 @@ description: シフトリの変更契約に合うテスト層を選び、テス�
 ## 最初に読む
 
 1. `doc/rules/testing-strategy.md`
-2. `references/test-writing-rules.md`
+2. `references/test-writing-rules.md`と、その「ファイル種別ごとの書き方」が示す`.claude/rules/`の該当ファイル
 3. 対象に近い既存test、Story、Page Object、Scenario Fixture
 
 E2EまたはFull Regressionでは`e2e/AGENTS.md`と`references/e2e-full-regression-rules.md`も読む。
@@ -76,7 +76,8 @@ route manifestの全件走査、静的生成物の網羅、UI操作の状態分�
 - Convexの契約はRuleの主担当層へ配置し、異なる失敗境界を一つのテストへ詰め込まない。
 - 「余計な対象がない」「1件だけ」「古いcapabilityが無効」もcontractなら、部分一致でなく件数と完全性をassertする。
 
-詳しいassertion、fixture、Story、VRT、Convex、E2Eの書き方は`references/test-writing-rules.md`だけに置く。
+Story、VRT、Logic UT、Frontend Unit、Convexのテスト、assertionの書き方は`.claude/rules/`の該当ファイルだけに置く。
+E2Eの書き方とfixtureは`references/test-writing-rules.md`だけに置く。
 Full Regressionの監査手順は`references/e2e-full-regression-rules.md`だけに置く。
 
 ## Output and Validation
@@ -88,4 +89,4 @@ E2E縮小のreviewでは、削除または統合したcontract ID、移管先、
 
 commandとsandbox注意事項はroot、近い`AGENTS.md`、`package.json`を正本とし、このSkillへ複製しない。
 
-durableなテスト指示を反映する依頼では`doc/rules/agent-instructions.md`の配置基準に従い、層の原則は`doc/rules/testing-strategy.md`、作業手順はこのSkill、具体的な書き方はreferenceへ置く。
+durableなテスト指示を反映する依頼では`doc/rules/agent-instructions.md`の配置基準に従い、層の原則は`doc/rules/testing-strategy.md`、作業手順はこのSkill、具体的な書き方は`.claude/rules/`の該当ファイルまたはreferenceへ置く。

@@ -257,7 +257,7 @@ describe("organization manager settings queries", () => {
         role: "active",
         name: "管理者",
         canRemoveRole: false,
-        removeRoleDisabledReason: "少なくとも管理者が1名必要です。",
+        removeRoleDisabledReason: "管理者が2名以上のときに外せます",
       },
     ]);
     expect(result.invitations.map((invitation) => invitation.invitationId)).toEqual([ids.failed, ids.later]);

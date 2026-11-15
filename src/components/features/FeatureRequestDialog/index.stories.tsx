@@ -42,7 +42,7 @@ export const Validation: Story = {
     await userEvent.click(canvas.getByRole("button", { name: "要望を送る" }));
     const screen = within(document.body);
     const dialog = within(await screen.findByRole("dialog"));
-    await userEvent.click(dialog.getByRole("button", { name: "要望を送る" }));
+    await userEvent.click(dialog.getByRole("button", { name: "送信する" }));
     await expect(await dialog.findByText("要望を入力してください")).toBeVisible();
   },
 };
@@ -56,7 +56,7 @@ export const SuccessfulSubmission: Story = {
     await userEvent.click(canvas.getByRole("button", { name: "要望を送る" }));
     const dialog = within(await screen.findByRole("dialog"));
     await userEvent.type(dialog.getByRole("textbox"), "シフトを複製したい");
-    await userEvent.click(dialog.getByRole("button", { name: "要望を送る" }));
+    await userEvent.click(dialog.getByRole("button", { name: "送信する" }));
     await expect(args.onSubmit).toHaveBeenCalledOnce();
     await waitFor(() => expect(screen.queryByRole("textbox")).toBeNull());
   },
@@ -71,7 +71,7 @@ export const AppOrganizationScope: Story = {
     const dialog = within(await within(document.body).findByRole("dialog"));
     await expect(dialog.queryByRole("combobox")).toBeNull();
     await userEvent.type(dialog.getByRole("textbox"), "組織について改善してほしい");
-    await userEvent.click(dialog.getByRole("button", { name: "要望を送る" }));
+    await userEvent.click(dialog.getByRole("button", { name: "送信する" }));
 
     await expect(args.onSubmit).toHaveBeenCalledWith({
       comment: "組織について改善してほしい",
@@ -101,7 +101,7 @@ export const AppFixedShopScope: Story = {
     const dialog = within(await within(document.body).findByRole("dialog"));
     await expect(dialog.queryByRole("combobox", { name: "対象店舗" })).toBeNull();
     await userEvent.type(dialog.getByRole("textbox"), "この店舗について改善してほしい");
-    await userEvent.click(dialog.getByRole("button", { name: "要望を送る" }));
+    await userEvent.click(dialog.getByRole("button", { name: "送信する" }));
 
     await expect(args.onSubmit).toHaveBeenCalledWith({
       shopId: SHOP_A_ID,

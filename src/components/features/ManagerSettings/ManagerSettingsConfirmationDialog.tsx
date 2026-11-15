@@ -34,8 +34,8 @@ export function ManagerSettingsConfirmationDialog({ confirmation, isRunning, onC
         <Text fontWeight="semibold" color="gray.900">
           {copy.subject}
         </Text>
-        <Text whiteSpace="pre-line">{copy.description}</Text>
-        {confirmation.kind !== "resend" && (
+        {copy.description && <Text whiteSpace="pre-line">{copy.description}</Text>}
+        {confirmation.kind === "removeRole" && (
           <Text color="red.700" fontWeight="semibold">
             この操作はもとに戻せません。
           </Text>
@@ -50,16 +50,16 @@ function getConfirmationCopy(confirmation: Exclude<ManagerSettingsConfirmation, 
     return {
       title: "管理者招待を再送しますか？",
       subject: `${confirmation.invitation.name}さんへ新しい案内を送ります。`,
-      description: `${confirmation.invitation.invitedEmail}へ管理者招待を再送します。\n以前の招待URLは使えなくなります。`,
-      submitLabel: "招待を再送する",
+      description: `${confirmation.invitation.invitedEmail}へ管理者招待を再送します。`,
+      submitLabel: "再送する",
     };
   }
   if (confirmation.kind === "revoke") {
     return {
       title: "管理者招待を取り消しますか？",
       subject: `${confirmation.invitation.name}さんへの招待を取り消します。`,
-      description: "招待URLは使えなくなり、招待用に確保していた管理者枠が空きます。",
-      submitLabel: "招待を取り消す",
+      description: "",
+      submitLabel: "取り消す",
     };
   }
   return {
@@ -68,6 +68,6 @@ function getConfirmationCopy(confirmation: Exclude<ManagerSettingsConfirmation, 
     description: `${
       confirmation.manager.isSelf ? "この操作後、あなたは管理者としてアクセスできなくなります。\n" : ""
     }スタッフとしての店舗所属は残ります。`,
-    submitLabel: "管理者権限を外す",
+    submitLabel: "外す",
   };
 }

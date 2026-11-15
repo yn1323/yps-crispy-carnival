@@ -57,7 +57,7 @@ export const SubmitCloseLockBehavior: Story = {
     await userEvent.click(dialog.getByRole("button", { name: "次へ" }));
     await dialog.findByText("現在の設定: 毎週 日");
 
-    const submit = dialog.getByRole("button", { name: "変更を保存" });
+    const submit = dialog.getByRole("button", { name: "保存する" });
     fireEvent.click(submit);
     fireEvent.click(submit);
 

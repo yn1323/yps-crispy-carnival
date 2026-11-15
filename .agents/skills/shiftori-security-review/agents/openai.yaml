@@ -1,4 +1,0 @@
-interface:
-  display_name: "シフトリ Security Review"
-  short_description: "シフトリ固有のtrust boundaryとabuse caseを確認する"
-  default_prompt: "Use $shiftori-security-review to apply a security lens to this Shiftori plan or code change before implementation."

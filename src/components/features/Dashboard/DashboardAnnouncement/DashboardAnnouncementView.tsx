@@ -71,7 +71,7 @@ export const DashboardAnnouncementView = ({
         onClose={dialog.close}
         closeLabel="閉じる"
         onSubmit={onDismiss}
-        submitLabel="次回以降表示しない"
+        submitLabel="非表示にする"
         submitColorPalette="red"
         actionLayout="flow"
         mobileFullScreen
