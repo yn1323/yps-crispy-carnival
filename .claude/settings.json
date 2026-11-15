@@ -65,6 +65,17 @@
     "ask": []
   },
   "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/type-check-on-stop.sh",
+            "timeout": 120
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit|MultiEdit|Write",
@@ -72,14 +83,6 @@
           {
             "type": "command",
             "command": "pnpm format"
-          },
-          {
-            "type": "command",
-            "command": "pnpm test"
-          },
-          {
-            "type": "command",
-            "command": "pnpm type-check"
           }
         ]
       }
