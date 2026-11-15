@@ -12,6 +12,7 @@ declare const __VRT_VIEWPORT__: ViewportSize;
 const FREEZE_STYLE_ID = "vrt-freeze-animations";
 const FREEZE_MEDIA_CONTROLS_STYLE_ID = "vrt-freeze-media-controls";
 const RELEASE_FIXED_HEADER_STYLE_ID = "vrt-release-fixed-header";
+const KEEP_SCROLL_HIDDEN_HEADER_STYLE_ID = "vrt-keep-scroll-hidden-header";
 const VRT_ROOT_ATTRIBUTE = "data-vrt";
 const VRT_FONT_READY_TIMEOUT_MS = 1500;
 
@@ -61,6 +62,34 @@ function applyReleaseFixedHeaderStyle() {
   document.head.appendChild(style);
 }
 
+// 全体撮影は1画面ずつスクロールして継ぎ合わせる。スクロールで隠れるヘッダーの表示状態が
+// 撮影の瞬間によって変わらないよう、撮影中だけ隠れた状態でも表示位置へ留める。
+function keepScrollHiddenHeaderVisible(): BrowserScreenshotHook {
+  return {
+    async setup() {
+      applyKeepScrollHiddenHeaderStyle();
+    },
+    async preCapture() {
+      applyKeepScrollHiddenHeaderStyle();
+    },
+    async postCapture() {
+      document.getElementById(KEEP_SCROLL_HIDDEN_HEADER_STYLE_ID)?.remove();
+    },
+  };
+}
+
+function applyKeepScrollHiddenHeaderStyle() {
+  if (document.getElementById(KEEP_SCROLL_HIDDEN_HEADER_STYLE_ID)) return;
+  const style = document.createElement("style");
+  style.id = KEEP_SCROLL_HIDDEN_HEADER_STYLE_ID;
+  style.textContent = `
+    header[data-scroll-hidden] {
+      transform: none !important;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 async function waitForVrtStableFrame() {
   await waitWithTimeout(document.fonts?.ready.catch(() => undefined) ?? Promise.resolve(), VRT_FONT_READY_TIMEOUT_MS);
   await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
@@ -92,7 +121,10 @@ beforeEach(async () => {
 afterEach(async (context) => {
   applyLegacySnapshotSkip(context);
   const story = getStoryContext(context);
-  const hooks = story?.parameters?.vrt?.releaseFixedHeader === true ? [releaseFixedHeaderForFullPage()] : [];
+  const hooks = [
+    keepScrollHiddenHeaderVisible(),
+    ...(story?.parameters?.vrt?.releaseFixedHeader === true ? [releaseFixedHeaderForFullPage()] : []),
+  ];
 
   await waitForVrtStableFrame();
   await screenshot(page, context, {

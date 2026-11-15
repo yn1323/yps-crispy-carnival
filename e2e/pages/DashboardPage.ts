@@ -1,5 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 import { expectAppHydrated } from "../helpers/appReadiness";
+import { revealHeaderControl } from "../helpers/headerControl";
 import { assertNotificationRecipientSuppressed } from "../helpers/notificationProbe";
 
 const DASHBOARD_DATA_TIMEOUT = 20_000;
@@ -98,7 +99,9 @@ export class DashboardPage {
 
   async expectInitialTrialScopeInManagement(organizationId: string, shopName: string) {
     const navigation = this.page.getByRole("navigation", { name: "メインメニュー" });
-    await navigation.getByRole("link", { name: "管理", exact: true }).click();
+    const managementLink = navigation.getByRole("link", { name: "管理", exact: true });
+    await revealHeaderControl(managementLink);
+    await managementLink.click();
     await expect(this.page).toHaveURL(
       (url) => url.pathname === "/manage" && url.searchParams.get("org") === organizationId,
       { timeout: DASHBOARD_DATA_TIMEOUT },
@@ -179,6 +182,7 @@ export class DashboardPage {
   ) {
     const switcher = this.page.getByRole("button", { name: ORGANIZATION_SWITCHER_BUTTON_NAME });
     await expect(switcher).toBeVisible({ timeout: DASHBOARD_DATA_TIMEOUT });
+    await revealHeaderControl(switcher);
     await switcher.click();
     await this.page.getByRole("menuitemradio", { name: organizationName, exact: true }).click();
     await this.expectSelectedShop(expectedShopName, expectedOrganizationId, expectedShopId);

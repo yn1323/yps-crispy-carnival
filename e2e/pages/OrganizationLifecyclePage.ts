@@ -1,5 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 import { expectAppHydrated } from "../helpers/appReadiness";
+import { revealHeaderControl } from "../helpers/headerControl";
 
 const ORGANIZATION_DATA_TIMEOUT = 20_000;
 
@@ -86,7 +87,9 @@ export class OrganizationLifecyclePage {
   }
 
   async switchOrganization(organizationName: string, expectedOrganizationId: string) {
-    await this.page.getByRole("button", { name: /^組織を切り替える/ }).click();
+    const switcher = this.page.getByRole("button", { name: /^組織を切り替える/ });
+    await revealHeaderControl(switcher);
+    await switcher.click();
     await this.page.getByRole("menuitemradio", { name: organizationName, exact: true }).click();
     await expect(this.page).toHaveURL(
       (url) => url.pathname === "/manage/organization" && url.searchParams.get("org") === expectedOrganizationId,

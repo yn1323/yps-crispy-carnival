@@ -84,7 +84,6 @@ Skillは特定作業の進め方であり、常時制約や設計原則の正本
 
 - 新しいbranchやworktreeを作らず、現在のcheckoutで作業する。
 - 依頼外の既存変更は残し、revert、削除、stageをしない。
-- commit、push、Pull Request作成は、ユーザーが明示した場合だけ行う。
 - Convex、Storybook、Viteの開発サーバーはユーザーが起動しているため、新規起動しない。
 - `.env`は直接複製しない。`pnpm convex:env:setup`は`scripts/setupEnv.ts`のallowlistにある変数を、現在選択中のdeploymentへ同期する。Productionまたは別projectでは使わず、完全修飾deployment名を指定したConvex CLIまたはDashboardで設定する。
 - 秘密値や個人情報をログ、文書、コミットへ含めない。

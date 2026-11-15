@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 import { expectAppHydrated } from "../helpers/appReadiness";
+import { revealHeaderControl } from "../helpers/headerControl";
 import type { ManagerSettingsScenarioSeed } from "../helpers/managerSettingsScenario";
 
 const MANAGER_SETTINGS_TIMEOUT = 20_000;
@@ -143,10 +144,11 @@ export class ManagerSettingsPage {
   }
 
   async returnToManagement(seed: ManagerCandidateSeed) {
-    await this.page
+    const managementLink = this.page
       .getByRole("navigation", { name: "メインメニュー" })
-      .getByRole("link", { name: "管理", exact: true })
-      .click();
+      .getByRole("link", { name: "管理", exact: true });
+    await revealHeaderControl(managementLink);
+    await managementLink.click();
     await expect(this.page).toHaveURL(
       (url) => url.pathname === "/manage" && url.searchParams.get("org") === seed.organizationId,
       { timeout: MANAGER_SETTINGS_TIMEOUT },
