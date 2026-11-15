@@ -6,7 +6,7 @@ AGENTS.mdの「各Convex環境への接続」は、本番環境の閲覧と編�
 
 止める対象:
 - 本番のdeployment名を含むコマンド（検索や表示だけのコマンドは除く）
-- `convex ... --prod` と `convex deploy`
+- `convex ... --prod`、`convex ... --deployment prod`、`convex deploy`
 - 本番を指す CONVEX_DEPLOYMENT / CONVEX_DEPLOY_KEY の指定
 - 本番modeで起動するanalytics-dashboardのscript
 
@@ -102,8 +102,26 @@ def is_read_only(name: str, segment: list[str]) -> bool:
 
 
 def is_convex_cli(token: str) -> bool:
+    """Convex CLIの呼び出しかを返す。`convex:run:local`のように引数をCLIへ渡すpackage scriptも含める。"""
     token = token.strip("`")
-    return token == "convex" or token.endswith("/convex") or token.startswith("convex@")
+    return token == "convex" or token.endswith("/convex") or token.startswith(("convex@", "convex:"))
+
+
+def production_flag(arguments: list[str]) -> str | None:
+    """Convex CLIの引数から、本番を指す指定を返す。"""
+    for index, token in enumerate(arguments):
+        if token == "--prod" or token.startswith("--prod="):
+            return "--prod"
+        if token == "--deployment":
+            reference = arguments[index + 1] if index + 1 < len(arguments) else ""
+        elif token.startswith("--deployment="):
+            reference = token.split("=", 1)[1]
+        else:
+            continue
+        # `prod`はprojectの既定の本番を指す。`project:prod`と`team:project:prod`も同じ。
+        if reference == "prod" or reference.endswith(":prod"):
+            return f"--deployment {reference}"
+    return None
 
 
 def violation(segment: list[str]) -> str | None:
@@ -125,31 +143,63 @@ def violation(segment: list[str]) -> str | None:
     convex_at = next((i for i, token in enumerate(segment) if is_convex_cli(token)), None)
     if convex_at is not None:
         rest = [token.strip("`") for token in segment[convex_at + 1 :]]
-        if any(token == "--prod" or token.startswith("--prod=") for token in rest):
-            return "`convex`へ`--prod`を指定しています"
+        flag = production_flag(rest)
+        if flag:
+            return f"`convex`へ`{flag}`を指定しています"
         if "deploy" in rest:
             return "`convex deploy`は本番へ反映するコマンドです"
 
     return None
 
 
+def command_substitutions(command: str) -> list[str]:
+    """`$(...)`とバッククォートの中身を返す。
+
+    引用符の種類は区別しない。単一引用符の中は実際には展開されないが、
+    heredocでは引用符に関係なく展開されるため、判別できない入力は検査する側へ倒す。
+    """
+    found: list[str] = []
+    index = 0
+    while index < len(command):
+        if command.startswith("$(", index):
+            depth = 1
+            end = index + 2
+            while end < len(command) and depth:
+                depth += {"(": 1, ")": -1}.get(command[end], 0)
+                end += 1
+            found.append(command[index + 2 : end - 1 if depth == 0 else end])
+            index = end
+        elif command[index] == "`":
+            end = command.find("`", index + 1)
+            end = len(command) if end == -1 else end
+            found.append(command[index + 1 : end])
+            index = end + 1
+        else:
+            index += 1
+    return found
+
+
 def all_segments(command: str, depth: int = 0) -> list[list[str]]:
-    """区切りごとの単語列を返す。`bash -c`と`eval`が受け取る文字列は、中身も区切って加える。"""
+    """区切りごとの単語列を返す。シェルが別に実行する文字列は、中身も区切って加える。
+
+    対象は、コマンド置換の中身と、`bash -c`と`eval`が受け取る文字列である。
+    外側が`echo`などの表示用コマンドでも、これらは先に実行される。
+    """
     segments = split_segments(command)
-    if depth >= 3:
+    if depth >= 5:
         return segments
 
-    nested: list[list[str]] = []
+    scripts = command_substitutions(command)
     for segment in segments:
         name = command_name(segment)
         if name in SHELLS and "-c" in segment:
-            scripts = segment[segment.index("-c") + 1 :][:1]
+            scripts.extend(segment[segment.index("-c") + 1 :][:1])
         elif name == "eval":
-            scripts = [" ".join(segment[segment.index("eval") + 1 :])]
-        else:
-            continue
-        for script in scripts:
-            nested.extend(all_segments(script, depth + 1))
+            scripts.append(" ".join(segment[segment.index("eval") + 1 :]))
+
+    nested: list[list[str]] = []
+    for script in scripts:
+        nested.extend(all_segments(script, depth + 1))
     return segments + nested
 
 
