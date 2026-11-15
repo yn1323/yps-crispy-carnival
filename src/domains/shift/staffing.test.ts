@@ -188,6 +188,30 @@ describe("countStaffingByTimeSlots", () => {
     expect(result.total).toBe(0);
   });
 
+  it("15分に満たない休憩が時間帯の途中にある場合も、その人を数えない", () => {
+    const [result] = countStaffingByTimeSlots({
+      shifts: [shift("a", [segment("09:00", "10:00", HALL)], [{ start: "09:05", end: "09:10" }])],
+      positionIds,
+      slots: [timeSlot("09:00", "10:00", [{ positionId: HALL, count: 1 }])],
+    });
+
+    expect(result.total).toBe(0);
+    expect(result.positions.filter((position) => position.positionId === HALL)).toEqual([
+      { positionId: HALL, count: 0, required: 1, shortage: 1 },
+    ]);
+    expect(result.hasShortage).toBe(true);
+  });
+
+  it("15分刻みに乗らない時刻で入れ替わる場合も、誰もいない時間があれば0人にする", () => {
+    const [result] = countStaffingByTimeSlots({
+      shifts: [shift("a", [segment("09:00", "09:20", HALL)]), shift("b", [segment("09:25", "10:00", HALL)])],
+      positionIds,
+      slots: [timeSlot("09:00", "10:00")],
+    });
+
+    expect(result.total).toBe(0);
+  });
+
   it("勤務の外にある休憩では人数を変えない", () => {
     const [result] = countStaffingByTimeSlots({
       shifts: [shift("a", [segment("10:00", "14:00", HALL)], [{ start: "14:00", end: "15:00" }])],

@@ -276,6 +276,19 @@ describe("buildDateOnlyStaffingByDate", () => {
     ]);
   });
 
+  it("削除済みのスタッフに残った勤務は数えない", () => {
+    const result = build({
+      staffs: [...staffs, { id: "staff-deleted", name: "鈴木（削除済み）", isSubmitted: false, isRemoved: true }],
+      shifts: [shiftOf("staff-1", "2026-06-01", "hall"), shiftOf("staff-deleted", "2026-06-01", "hall")],
+    });
+
+    expect(
+      summarize(result)
+        .filter(({ date }) => date === "2026-06-01")
+        .map(({ total, hasShortage, positions: counts }) => ({ total, hasShortage, hall: counts[0] })),
+    ).toEqual([{ total: [1], hasShortage: true, hall: { name: "ホール", count: 1, required: 2, shortage: 1 } }]);
+  });
+
   it("定休日は数えない", () => {
     expect([...build({ holidays: ["2026-06-01", "2026-06-03"] }).keys()]).toEqual(["2026-06-02"]);
   });

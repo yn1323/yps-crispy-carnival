@@ -114,7 +114,8 @@ export const buildDateOnlyStaffingByDate = ({
   timeRange: TimeRange;
   staffing: ShiftFormStaffing | undefined;
 }): Map<string, DayStaffingView> => {
-  const staffIds = new Set(staffs.map((staff) => staff.id));
+  // 削除済みのスタッフに残った勤務は数えない。日別の表示（selectStaffingShifts）と同じ対象にそろえる。
+  const staffIds = new Set(staffs.filter((staff) => !staff.isRemoved).map((staff) => staff.id));
   const shiftsByDate = new Map<string, ShiftData[]>();
   for (const shift of shifts) {
     if (!staffIds.has(shift.staffId)) continue;

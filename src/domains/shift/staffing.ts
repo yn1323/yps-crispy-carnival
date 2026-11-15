@@ -7,7 +7,6 @@ import type { ShiftData, StaffingSlot, StaffingSlotKey } from "./types";
 // 時間帯の人数は「その時間帯を通していられる人数」とし、時間帯の中で最も少ない時点の人数を数える。
 // 途中で人が抜ける時間帯を、足りていると見せないためである。
 
-const HEADCOUNT_STEP_MINUTES = 15;
 const HOUR_MINUTES = 60;
 
 export type StaffingPositionCount = {
@@ -50,31 +49,58 @@ const buildSlotCount = (
   return { key, total, positions, hasShortage: positions.some((position) => position.shortage > 0) };
 };
 
+type MinuteRange = { start: number; end: number };
+type PreparedShift = { segments: Array<MinuteRange & { positionId: string }>; breaks: MinuteRange[] };
+
+// 勤務区間と、実際に効く休憩を、分の範囲へ直す。時刻ごとの判定で同じ計算を繰り返さないために先に作る。
+const prepareShift = (shift: ShiftData): PreparedShift => ({
+  segments: shift.positions.filter(isCanonicalWorkPosition).map((position) => ({
+    start: timeToMinutes(position.start),
+    end: timeToMinutes(position.end),
+    positionId: position.positionId,
+  })),
+  breaks: getEffectiveBreaks(shift, { clipToWork: true }).map((range) => ({
+    start: timeToMinutes(range.start),
+    end: timeToMinutes(range.end),
+  })),
+});
+
 // その時点（分）に勤務していて、休憩中でない人を、ポジションごとに数える。
-const countWorkingAt = (shifts: readonly ShiftData[], minute: number) => {
+const countWorkingAt = (shifts: readonly PreparedShift[], minute: number) => {
   const countByPositionId = new Map<string, number>();
   let total = 0;
   for (const shift of shifts) {
-    const segment = shift.positions
-      .filter(isCanonicalWorkPosition)
-      .find((position) => timeToMinutes(position.start) <= minute && minute < timeToMinutes(position.end));
+    const segment = shift.segments.find((item) => item.start <= minute && minute < item.end);
     if (!segment) continue;
-    const isOnBreak = getEffectiveBreaks(shift, { clipToWork: true }).some(
-      (range) => timeToMinutes(range.start) <= minute && minute < timeToMinutes(range.end),
-    );
-    if (isOnBreak) continue;
+    if (shift.breaks.some((range) => range.start <= minute && minute < range.end)) continue;
     total += 1;
     countByPositionId.set(segment.positionId, (countByPositionId.get(segment.positionId) ?? 0) + 1);
   }
   return { total, countByPositionId };
 };
 
+// 人数が変わりうる時点。時間帯の開始と、時間帯の中にある勤務・休憩の開始と終了である。
+// 人数はこれらの時点の間で変わらないため、ここだけを確かめれば時間帯の中の最小の人数が分かる。
+const collectChangeMinutes = (shifts: readonly PreparedShift[], startMinutes: number, endMinutes: number): number[] => {
+  const minutes = new Set<number>([startMinutes]);
+  for (const shift of shifts) {
+    for (const range of [...shift.segments, ...shift.breaks]) {
+      for (const minute of [range.start, range.end]) {
+        if (startMinutes < minute && minute < endMinutes) minutes.add(minute);
+      }
+    }
+  }
+  return [...minutes];
+};
+
 const countTimeRange = (shifts: readonly ShiftData[], startMinutes: number, endMinutes: number) => {
+  if (startMinutes >= endMinutes) return { total: 0, countByPositionId: new Map<string, number>() };
+  const prepared = shifts.map(prepareShift);
   let total = Number.POSITIVE_INFINITY;
   const countByPositionId = new Map<string, number>();
   let isFirst = true;
-  for (let minute = startMinutes; minute < endMinutes; minute += HEADCOUNT_STEP_MINUTES) {
-    const snapshot = countWorkingAt(shifts, minute);
+  for (const minute of collectChangeMinutes(prepared, startMinutes, endMinutes)) {
+    const snapshot = countWorkingAt(prepared, minute);
     total = Math.min(total, snapshot.total);
     if (isFirst) {
       for (const [positionId, count] of snapshot.countByPositionId) countByPositionId.set(positionId, count);
