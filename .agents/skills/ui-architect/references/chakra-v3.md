@@ -229,7 +229,7 @@ const dialog = useDialog();
   onOpenChange={dialog.onOpenChange}
   onClose={dialog.close}
   formId="staff-form"
-  submitLabel="変更を保存"
+  submitLabel="保存する"
   isLoading={isSaving}
 >
   <form id="staff-form" onSubmit={handleSubmit(onSubmit)}>
@@ -259,7 +259,7 @@ custom footerが必要な場合も、配置用の`Flex`をfeatureで組まず`Di
           戻る
         </Button>
       }
-      endAction={<Button onClick={onSave}>変更を保存</Button>}
+      endAction={<Button onClick={onSave}>保存する</Button>}
     />
   }
 >
