@@ -1,6 +1,0 @@
-interface:
-  display_name: "SEO記事作成"
-  short_description: "検索意図に沿うArticleSiteの日本語SEO記事を作成"
-  default_prompt: "Use $seo-article-writer to create or revise a Japanese SEO article for Shiftori ArticleSite."
-policy:
-  allow_implicit_invocation: false

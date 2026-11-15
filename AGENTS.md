@@ -50,8 +50,6 @@
 
 ## Skillの発動条件
 
-- 通常実装から独立した大規模なread-only調査、対応表・棚卸し、巨大なlog・diffの圧縮、編集完了後の長時間な最終検証を境界明確なsubtaskへ分けられる場合は `delegate-bounded-repo-work` を使う。
-  通常の実装探索、原因診断、対象test・再実行には使わず、詳細な発動条件は同Skillを正本とする。
 - UI/UX、画面構造、レイアウト、状態、マイクロコピーを変更する場合は `ui-architect` を使う。
 - テスト層、配置、新しい検証契約を判断する場合は `test-strategy` を使う。
 - 認証、認可、IDOR、token、Capability、Webhook、外部副作用、billing、個人情報、retention、redactionに触れる相談・計画・設計・実装・レビューでは、プラン確定前に `shiftori-security-review` を使う。

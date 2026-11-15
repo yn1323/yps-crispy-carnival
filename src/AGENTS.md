@@ -15,4 +15,7 @@
 - 配置、依存方向、公開入口、ファイル責務は `doc/rules/frontend-architecture.md` に従う。
 - フロントエンドの表示制御だけを認可として扱わず、権限はConvex側でも検証する。
 - UIは既存のChakra UI v3パターンと `src/components/ui/` の部品を優先する。
+- Submit系の操作は `src/hooks/useSingleFlight.ts` で短時間の連打を止める。
+- 店舗スコープのmutationは `src/hooks/useShopMutation.ts` を使う。
+- 業務日付の `YYYY-MM-DD` は `src/domains/shift/date.ts` で扱い、`new Date().toISOString()` から作らない。
 - テストの責務は `doc/rules/testing-strategy.md` に従い、同じ層の近いテストを追従更新する場合は既存パターンを優先する。

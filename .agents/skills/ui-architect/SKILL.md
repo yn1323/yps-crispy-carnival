@@ -66,9 +66,9 @@ Loading、Empty、Error、Successの部品選定に迷う場合は`references/st
 - placeholderを設計または監査する場合は、`references/ui-writing.md`の「Placeholders」を読み、入力種別、事前値、補足文との役割を区別する。
 - ボタン、ラベル、Toast、表見出しは短くする。
 - ボタンやラベルなどの短いUI文言にも、`../japanese-tech-writing/SKILL.md`の「直接的で自然な文」を適用する。
-- 複数文の説明を構成から推敲する場合は`$japanese-tech-writing`を使う。
-- 読み物としての緩急が必要な長い説明だけに`$cognitive-rhythm-writing`を併用する。
-- HelpCenterのFAQ・使い方は`$write-help-content`、ArticleSiteの記事は`$seo-article-writer`へ分ける。
+- 複数文の説明を構成から推敲する場合は`japanese-tech-writing`を使う。
+- 読み物としての緩急が必要な長い説明だけに`cognitive-rhythm-writing`を併用する。
+- HelpCenterのFAQ・使い方は`write-help-content`、ArticleSiteの記事は`seo-article-writer`へ分ける。
 
 ## 5. 実装する
 
@@ -86,7 +86,7 @@ Loading、Empty、Error、Successの部品選定に迷う場合は`references/st
 - DialogはPCとSPでDOM順と見た目の順、action areaの配置、長い文言、本文scroll、safe areaを確認する。
 - 閲覧専用を含む終了操作、すべてのclose経路、close lockの開始と解除、Dialogを重ねない確認遷移を確認する。
 - キーボード操作、フォーカス、ラベル、コントラストを確認する。
-- テスト層や新しい検証契約を設計する場合は`$test-strategy`を使う。
+- テスト層や新しい検証契約を設計する場合は`test-strategy`を使う。
 - 対象範囲の`AGENTS.md`に従ってlint、型、テストを実行する。
 
 ## 7. 結果を報告する

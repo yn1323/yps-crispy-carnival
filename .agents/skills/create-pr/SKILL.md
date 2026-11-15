@@ -1,17 +1,18 @@
 ---
 name: create-pr
-description: ユーザーが`$create-pr`を明示したとき、コミット済みの現在ブランチを必要に応じてpushし、日本語のPull Requestを作成する。通常のPR相談、本文案だけの依頼、未コミット変更の処理では自動的に使わない。
+description: コミット済みの現在ブランチを必要に応じてpushし、日本語のPull Requestを作成する。ユーザーが`/create-pr`で起動したときだけ使う。
+disable-model-invocation: true
 ---
 
 # Pull Requestを作成する
 
-このスキルは、ユーザーが `$create-pr` を明示した場合だけ使う。
+このスキルは、ユーザーが `/create-pr` で起動した場合だけ使う。
 
 ## 前提条件とpush権限
 
 - 対象変更がコミット済みである。
 - GitHubリポジトリと連携済みである。
-- `$create-pr`の明示実行は、Pull Request作成に必要な現在ブランチの通常pushを許可したものとして扱う。
+- `/create-pr`での起動は、Pull Request作成に必要な現在ブランチの通常pushを許可したものとして扱う。
 
 未コミット変更は勝手にコミットせず、Pull Requestへ含まれないことを報告する。
 force push、rebase、mergeは行わない。
@@ -19,12 +20,9 @@ force push、rebase、mergeは行わない。
 
 ## 併用スキル
 
-PRタイトルと本文を書く前に、`$japanese-tech-writing` を使う。
+PRタイトルと本文を書く前に、`japanese-tech-writing` を使う。
 本スキルには文章規範を複製せず、日本語表現の判断は `japanese-tech-writing` に従う。
 
-デフォルトブランチとの大規模なdiff・commit logを、Pull Request作成の判断から独立した事実へ圧縮できる場合だけ、`$delegate-bounded-repo-work`を併用する。
-対象判定、固定model、委譲契約は同Skillを正本とする。
-通常の差分確認、検証結果の確認、base・head、PRタイトルと本文、push、Pull Request作成は本Skillの親Agentが判断・実行する。
 最後の関連変更より後に同じworkspace状態で成功した検証は再利用し、Pull Request作成段階へ進んだという理由だけで再実行しない。
 
 ## ワークフロー

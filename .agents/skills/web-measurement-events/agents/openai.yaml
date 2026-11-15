@@ -1,4 +1,0 @@
-interface:
-  display_name: "Web計測イベントの変更"
-  short_description: "GA4のイベント変更をコード、GTM、GA4のカスタム定義まで同期する"
-  default_prompt: "Use $web-measurement-events to add, change, or remove Shiftori web measurement events and sync the code, the GTM container definition, the production GTM container, and GA4 custom definitions."

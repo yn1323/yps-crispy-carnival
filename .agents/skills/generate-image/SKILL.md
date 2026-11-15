@@ -1,6 +1,7 @@
 ---
 name: generate-image
-description: シフトリ向けのイラストや図解について、用途に合う形式を提案し、ユーザーの選択後に基準画像を参照して生成する。ユーザーが`$generate-image`を明示した場合だけ使い、通常のUI、画像、デザイン、実装依頼では暗黙に使わない。
+description: シフトリ向けのイラストや図解について、用途に合う形式を提案し、ユーザーの選択後に基準画像を参照して生成する。ユーザーが`/generate-image`で起動したときだけ使う。
+disable-model-invocation: true
 ---
 
 # シフトリ向け画像を生成する
@@ -20,7 +21,7 @@ Guide the user from an unclear visual need to a selected format and generated im
 6. After selection, summarize the final direction briefly only if clarification remains necessary.
 7. Generate with the image-generation tool. Resolve `doc/assets/article-hero-style-reference.png` from the repository root, then pass its absolute path through `referenced_image_paths`; mentioning it in the prompt alone is insufficient.
 8. Follow explicit user instructions over defaults.
-9. Always convert every generated image with `$convert-images-to-webp` before using it. Reference only the `.webp` output from code, Markdown, and MDX; the generated PNG may remain only as an editing source.
+9. Always convert every generated image with `convert-images-to-webp` before using it. Reference only the `.webp` output from code, Markdown, and MDX; the generated PNG may remain only as an editing source.
 
 ## Format catalog
 
