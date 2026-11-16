@@ -10,7 +10,7 @@ import {
 import { Button } from "@/src/components/ui/Button";
 import { Toaster, toaster } from "@/src/components/ui/toaster";
 import { ManagerShopScopeProvider } from "@/src/providers/ManagerShopScopeProvider";
-import type { ShiftBoardData } from "../types";
+import type { ShiftBoardData, ShiftBoardStaffingData } from "../types";
 import { ShiftBoardPage } from "./index";
 
 const mockData: ShiftBoardData = {
@@ -197,6 +197,73 @@ export const PCWithInitialWarnings: Story = {
 
     await expect(await canvas.findByLabelText("確認事項2件")).toBeInTheDocument();
     await expect((await canvas.findAllByLabelText("確認事項1件")).length).toBeGreaterThanOrEqual(2);
+  },
+};
+
+// 新人の鈴木さんが10:00〜18:00、標準の佐藤さんが11:00〜14:00に入る。佐藤さんがいない時間は新人だけになる。
+// 過去の募集は確定できないため、先の日付にする。2099-01-21は水曜日。
+const newcomerOnlyData: ShiftBoardData = {
+  ...mockData,
+  recruitment: {
+    ...mockData.recruitment,
+    periodStart: "2099-01-20",
+    periodEnd: "2099-01-26",
+    deadline: "2099-01-17",
+  },
+  staffs: mockData.staffs.slice(0, 2),
+  requestedSlots: [
+    { staffId: "s1" as Id<"staffs">, date: "2099-01-21", startTime: "10:00", endTime: "18:00" },
+    { staffId: "s2" as Id<"staffs">, date: "2099-01-21", startTime: "11:00", endTime: "14:00" },
+  ],
+  shiftAssignments: [
+    {
+      staffId: "s1" as Id<"staffs">,
+      date: "2099-01-21",
+      startTime: "10:00",
+      endTime: "18:00",
+      positionId: "position-1" as Id<"positions">,
+    },
+    {
+      staffId: "s2" as Id<"staffs">,
+      date: "2099-01-21",
+      startTime: "11:00",
+      endTime: "14:00",
+      positionId: "position-1" as Id<"positions">,
+    },
+  ],
+};
+const newcomerOnlyStaffing: ShiftBoardStaffingData = {
+  breakRule: null,
+  staffProfiles: [{ staffId: "s1" as Id<"staffs">, unavailablePositionIds: [], skillLevel: "newcomer" }],
+  hasPreviousConfirmedRecruitment: false,
+  isLocked: false,
+  templates: [],
+  days: [],
+};
+
+/** 確定の前の確認に、新人だけの時間帯が、日と時間帯の単位で出る。確定は止めない。 */
+export const PCNewcomerOnlyConfirm: Story = {
+  name: "PC Newcomer Only Confirm",
+  args: {
+    data: newcomerOnlyData,
+    staffing: newcomerOnlyStaffing,
+  },
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const screen = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(await canvas.findByRole("button", { name: "シフトを確定して通知" }));
+
+    const dialog = within(await screen.findByRole("dialog", { name: "シフトを確定しますか？" }));
+    const list = await dialog.findByRole("list", { name: "新人だけの時間帯" });
+    // ポジションが1つの店舗では、ポジション名を省く。
+    await expect(
+      within(list)
+        .getAllByRole("listitem")
+        .map((item) => item.textContent),
+    ).toEqual(["1/21(水) 10:00〜11:00", "1/21(水) 14:00〜18:00"]);
+    await expect(dialog.getByRole("button", { name: "確定する" })).toBeEnabled();
   },
 };
 

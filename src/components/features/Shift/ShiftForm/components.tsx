@@ -4,6 +4,7 @@ import { LuFileDown, LuSave, LuTriangleAlert } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
 import { Tooltip } from "@/src/components/ui/tooltip";
 import type { StaffType, ViewMode } from "@/src/domains/shift/types";
+import { type DayStaffingMarks, STAFFING_TONE_STYLES } from "./staffingPresentation";
 
 // エラー（赤）と確認事項（オレンジ）で色を切り替える。色規約: red=エラー / orange=要対応・警告
 export type IssueTone = "error" | "warning";
@@ -43,6 +44,59 @@ export const dateIssueBorderColor = (args: {
   if (args.issueCount > 0) return "red.200";
   if (args.warningCount > 0) return "orange.200";
   return args.fallbackColor;
+};
+
+const STAFFING_MARKS = [
+  { key: "hasShortage", tone: "shortage", symbol: "▲", label: "不足あり" },
+  { key: "hasExcess", tone: "excess", symbol: "＋", label: "多い時間あり" },
+] as const;
+
+/**
+ * 日付チップの下段に出す、人数の印。不足のある日は「▲」、多い時間のある日は「＋」。
+ * 右上の丸い件数バッジ（エラー・確認事項）と読み分けられるよう、位置を下段に、形を帯と同じ四角の記号にする。
+ * 横に並ぶ日付チップでは、印のない日も高さをそろえるためにreserveSpaceを渡す。
+ */
+export const DateStaffingMarks = ({
+  marks,
+  reserveSpace = false,
+}: {
+  marks: DayStaffingMarks | undefined;
+  reserveSpace?: boolean;
+}) => {
+  if (!marks && !reserveSpace) return null;
+  return (
+    <Flex justify="center" gap="2px" mt="3px" h="14px">
+      {STAFFING_MARKS.filter((mark) => marks?.[mark.key]).map((mark) => {
+        const style = STAFFING_TONE_STYLES[mark.tone];
+        return (
+          <Box
+            key={mark.key}
+            as="span"
+            data-staffing-mark={mark.tone}
+            title={mark.label}
+            display="inline-flex"
+            alignItems="center"
+            justifyContent="center"
+            boxSize="14px"
+            borderRadius="sm"
+            borderWidth="1px"
+            bg={style.bg}
+            borderColor={style.borderColor}
+            borderStyle={style.borderStyle}
+            color={style.color}
+            fontSize="9px"
+            fontWeight={700}
+            lineHeight={1}
+          >
+            <Box as="span" aria-hidden>
+              {mark.symbol}
+            </Box>
+            <chakra.span srOnly>{mark.label}</chakra.span>
+          </Box>
+        );
+      })}
+    </Flex>
+  );
 };
 
 // 日付チップ（DateRail / SP日付ピッカー）右上に重ねる件数バッジ。

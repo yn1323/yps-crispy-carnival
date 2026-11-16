@@ -17,8 +17,8 @@ export const DEVELOPMENT_SEED_SCENARIO_KEYS = [
   "trial-daily",
 ] as const;
 
-export const DEVELOPMENT_SEED_CONTRACT_VERSION = "development-seed-v7";
-export const DEVELOPMENT_SEED_EXPECTED_TABLE_COUNT = 60;
+export const DEVELOPMENT_SEED_CONTRACT_VERSION = "development-seed-v8";
+export const DEVELOPMENT_SEED_EXPECTED_TABLE_COUNT = 62;
 
 export type DevelopmentSeedScenarioKey = (typeof DEVELOPMENT_SEED_SCENARIO_KEYS)[number];
 
@@ -350,7 +350,9 @@ export const DEVELOPMENT_SEED_TABLE_COVERAGE = {
   recruitmentStats: seeded(OPERATIONS),
   positions: seeded(OPERATIONS),
   shiftDayTemplates: empty("日の型は店舗が自分で設定する。未設定の店舗を標準の状態にする"),
-  shiftDayTemplateOverrides: empty("特別な日は店舗が自分で設定する"),
+  shiftDayTemplateOverrides: empty("その日だけの指定は店舗が自分で設定する"),
+  nationalHolidays: empty("店舗に属さない祝日の表は、運営者がinternal mutationで入れる"),
+  recruitmentStaffingSnapshots: empty("型を持たない店舗の確定では、必要人数を保存しない"),
   magicLinks: empty("実credentialとなるmagic linkを作らない"),
   sessions: empty("実credentialとなるstaff sessionを作らない"),
   lineLinkTokens: empty("実credentialとなるLINE OAuth stateを作らない"),

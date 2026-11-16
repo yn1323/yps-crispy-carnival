@@ -58,36 +58,43 @@ async function seedShiftSetup(t: TestConvex<typeof schema>) {
       name: "週末",
       weekdays: ["sat", "sun"],
       sortOrder: 1,
-      slots: [],
+      appliesToHolidays: true,
+      requirements: { kind: "time", bars: [] },
     });
     const weekdayTemplateId = await ctx.db.insert("shiftDayTemplates", {
       shopId: actor.shopId,
       name: "平日",
       weekdays: ["mon", "tue"],
       sortOrder: 0,
-      slots: [
-        {
-          key: { kind: "time", startTime: "10:00", endTime: "15:00" },
-          requirements: [
-            { positionId: hallPositionId, count: 2 },
-            { positionId: deletedPositionId, count: 1 },
-            { positionId: kitchenPositionId, count: 0 },
-          ],
-        },
-        { key: { kind: "time", startTime: "15:00", endTime: "23:00" }, requirements: [] },
-      ],
+      appliesToHolidays: false,
+      requirements: {
+        kind: "time",
+        bars: [
+          // 受付時間（10:00-23:00）より前に始まるバー。消さずにそのまま返す。
+          { positionId: hallPositionId, startTime: "09:00", endTime: "12:00" },
+          { positionId: hallPositionId, startTime: "10:00", endTime: "15:00" },
+          { positionId: deletedPositionId, startTime: "10:00", endTime: "15:00" },
+          { positionId: hallPositionId, startTime: "15:00", endTime: "23:00" },
+          { positionId: kitchenPositionId, startTime: "17:00", endTime: "23:30" },
+        ],
+      },
+    });
+    // 店舗が集め方を変える前に保存した型。必要人数の種類が、いまの集め方（時間指定）と違う。
+    const staleTemplateId = await ctx.db.insert("shiftDayTemplates", {
+      shopId: actor.shopId,
+      name: "集め方を変える前の型",
+      weekdays: ["fri"],
+      sortOrder: 2,
+      appliesToHolidays: false,
+      requirements: { kind: "dateOnly", counts: [{ positionId: hallPositionId, count: 3 }] },
     });
     await ctx.db.insert("shiftDayTemplates", {
       shopId: other.shopId,
       name: "別組織の型",
       weekdays: ["mon"],
       sortOrder: 0,
-      slots: [
-        {
-          key: { kind: "time", startTime: "09:00", endTime: "22:00" },
-          requirements: [{ positionId: otherPositionId, count: 5 }],
-        },
-      ],
+      appliesToHolidays: false,
+      requirements: { kind: "time", bars: [{ positionId: otherPositionId, startTime: "09:00", endTime: "22:00" }] },
     });
 
     const leadStaffId = await seedStaff(ctx, {
@@ -124,10 +131,12 @@ async function seedShiftSetup(t: TestConvex<typeof schema>) {
       actor,
       other,
       defaultPositionId,
+      deletedPositionId,
       hallPositionId,
       kitchenPositionId,
       weekdayTemplateId,
       weekendTemplateId,
+      staleTemplateId,
       leadStaffId,
       standardStaffId,
     };
@@ -225,15 +234,36 @@ describe("shiftSetup/queries", () => {
             _id: ids.weekdayTemplateId,
             name: "平日",
             weekdays: ["mon", "tue"],
-            slots: [
-              {
-                key: { kind: "time", startTime: "10:00", endTime: "15:00" },
-                requirements: [{ positionId: ids.hallPositionId, count: 2 }],
-              },
-              { key: { kind: "time", startTime: "15:00", endTime: "23:00" }, requirements: [] },
-            ],
+            appliesToHolidays: false,
+            // 受付時間の外に出たバーは残し、削除済みのポジションのバーだけを除く。
+            requirements: {
+              kind: "time",
+              bars: [
+                { positionId: ids.hallPositionId, startTime: "09:00", endTime: "12:00" },
+                { positionId: ids.hallPositionId, startTime: "10:00", endTime: "15:00" },
+                { positionId: ids.hallPositionId, startTime: "15:00", endTime: "23:00" },
+                { positionId: ids.kitchenPositionId, startTime: "17:00", endTime: "23:30" },
+              ],
+            },
+            requiresReentry: false,
           },
-          { _id: ids.weekendTemplateId, name: "週末", weekdays: ["sat", "sun"], slots: [] },
+          {
+            _id: ids.weekendTemplateId,
+            name: "週末",
+            weekdays: ["sat", "sun"],
+            appliesToHolidays: true,
+            requirements: { kind: "time", bars: [] },
+            requiresReentry: false,
+          },
+          {
+            _id: ids.staleTemplateId,
+            name: "集め方を変える前の型",
+            weekdays: ["fri"],
+            appliesToHolidays: false,
+            // 種類が違う必要人数は返さず、いまの種類の空の必要人数にして、入れ直しが要ることを伝える。
+            requirements: { kind: "time", bars: [] },
+            requiresReentry: true,
+          },
         ],
         breakRule: { minWorkMinutes: 360, breakMinutes: 45 },
         staffs: [
@@ -267,6 +297,88 @@ describe("shiftSetup/queries", () => {
       expect(result?.positions.map((position) => position._id)).toHaveLength(3);
       expect(result?.staffs.filter((staff) => staff._id === fixture.leadStaffId)).toEqual([
         { _id: fixture.leadStaffId, name: "責任者スタッフ", unavailablePositionIds: [], skillLevel: "lead" },
+      ]);
+    });
+
+    it("パターン選択の店舗では、店舗にない勤務パターンと削除済みのポジションの人数を除き、設定順で返す", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedShiftSetup(t);
+      const templateId = await t.run(async (ctx) => {
+        await ctx.db.patch(ids.actor.shopId, {
+          submissionPattern: {
+            kind: "shiftType",
+            options: [
+              { id: "early", name: "早番", startTime: "10:00", endTime: "16:00", sortOrder: 0 },
+              { id: "late", name: "遅番", startTime: "16:00", endTime: "23:00", sortOrder: 1 },
+            ],
+          },
+        });
+        return await ctx.db.insert("shiftDayTemplates", {
+          shopId: ids.actor.shopId,
+          name: "パターンの型",
+          weekdays: ["thu"],
+          sortOrder: 3,
+          appliesToHolidays: false,
+          requirements: {
+            kind: "shiftType",
+            options: [
+              { optionId: "late", counts: [{ positionId: ids.kitchenPositionId, count: 1 }] },
+              { optionId: "removed", counts: [{ positionId: ids.hallPositionId, count: 4 }] },
+              {
+                optionId: "early",
+                counts: [
+                  { positionId: ids.deletedPositionId, count: 2 },
+                  { positionId: ids.hallPositionId, count: 2 },
+                ],
+              },
+            ],
+          },
+        });
+      });
+
+      const result = await t.withIdentity({ subject: MANAGER_SUBJECT }).query(api.shiftSetup.queries.getShiftSetup, {
+        shopId: ids.actor.shopId,
+        expectedOrganizationId: ids.actor.organizationId,
+      });
+
+      const emptyReentry = { requirements: { kind: "shiftType", options: [] }, requiresReentry: true };
+      expect(result?.dayTemplates).toEqual([
+        // 時間指定のときに保存した型は、入れ直しが要る型として返す。
+        {
+          _id: ids.weekdayTemplateId,
+          name: "平日",
+          weekdays: ["mon", "tue"],
+          appliesToHolidays: false,
+          ...emptyReentry,
+        },
+        {
+          _id: ids.weekendTemplateId,
+          name: "週末",
+          weekdays: ["sat", "sun"],
+          appliesToHolidays: true,
+          ...emptyReentry,
+        },
+        {
+          _id: ids.staleTemplateId,
+          name: "集め方を変える前の型",
+          weekdays: ["fri"],
+          appliesToHolidays: false,
+          ...emptyReentry,
+        },
+        {
+          _id: templateId,
+          name: "パターンの型",
+          weekdays: ["thu"],
+          appliesToHolidays: false,
+          requirements: {
+            kind: "shiftType",
+            options: [
+              { optionId: "early", counts: [{ positionId: ids.hallPositionId, count: 2 }] },
+              { optionId: "late", counts: [{ positionId: ids.kitchenPositionId, count: 1 }] },
+            ],
+          },
+          requiresReentry: false,
+        },
       ]);
     });
 

@@ -191,13 +191,16 @@ export const POSITION_COLOR_PALETTE = [
   "#4d7c0f",
   "#0e7490",
 ] as const;
-// 日の型: 曜日のまとまりと特別な日を合わせても、店舗が見渡せる件数に収める。
-export const SHIFT_DAY_TEMPLATE_LIMIT = 6;
+// 日の型: 曜日ごとの型に、祝日や年末年始のような日の型を足しても、一覧で選び分けられる件数に収める。
+export const SHIFT_DAY_TEMPLATE_LIMIT = 20;
 export const SHIFT_DAY_TEMPLATE_NAME_MAX_LENGTH = 20;
-export const SHIFT_DAY_TEMPLATE_SLOT_LIMIT = 8;
 export const SHIFT_DAY_TEMPLATE_REQUIRED_COUNT_MAX = 99;
-// 特別な日の読み取りは募集期間（最大31日）に限る。
-export const SHIFT_DAY_TEMPLATE_OVERRIDE_PERIOD_LIMIT = 31;
+// 時間指定の必要人数は、1本のバーが1人分を表す。1つの型に置けるバーと、1ポジションで同時に重なるバーに上限を持つ。
+export const SHIFT_DAY_TEMPLATE_BAR_LIMIT = 200;
+export const SHIFT_DAY_TEMPLATE_CONCURRENT_BAR_LIMIT = 10;
+// 祝日の表の更新で、1年分として受け付ける件数。
+export const NATIONAL_HOLIDAY_YEAR_LIMIT = 50;
+export const NATIONAL_HOLIDAY_NAME_MAX_LENGTH = 30;
 export const SHIFT_ASSIGNMENT_BREAK_LIMIT = 3;
 export const SHIFT_BREAK_RULE_MAX_MINUTES = 24 * 60;
 // AIサポートへ渡す店の状況。保存もログ出力もしないが、外部へ渡す将来の入力として上限を持つ。

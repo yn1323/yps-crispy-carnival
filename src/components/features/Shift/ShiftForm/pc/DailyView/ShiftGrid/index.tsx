@@ -17,7 +17,7 @@ import {
 } from "../../../stores";
 import { useDrag } from "../hooks/useDrag";
 import { TimeHeader } from "../TimeHeader";
-import { StaffingTimelineRow } from "./StaffingTimelineRow";
+import { StaffingBand } from "./StaffingBand";
 import { StaffRow } from "./StaffRow";
 
 const STAFF_COL_WIDTH = 200;
@@ -227,7 +227,7 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
               />
             );
           })}
-          <StaffingTimelineRow leftWidth={STAFF_COL_WIDTH + (dateNotes.hasNotes ? NOTE_COL_WIDTH : 0)} />
+          <StaffingBand leftWidth={STAFF_COL_WIDTH + (dateNotes.hasNotes ? NOTE_COL_WIDTH : 0)} />
         </Box>
       </Box>
     </Flex>

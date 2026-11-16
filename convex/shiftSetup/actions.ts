@@ -1,7 +1,7 @@
 import { ConvexError, type Infer, v } from "convex/values";
 import { internal } from "../_generated/api";
 import { observedAction as action } from "../_lib/errorObservability";
-import { shiftDayTemplateSlotValidator, shiftDayTemplateWeekdayValidator } from "../_lib/shiftSetupValidators";
+import { dayRequirementsValidator, shiftDayTemplateWeekdayValidator } from "../_lib/shiftSetupValidators";
 import { buildRandomShiftSetupDraft } from "./assistDraft";
 import type { PreparedAssistRequest } from "./mutations";
 import { assistSituationSchema } from "./schemas";
@@ -15,7 +15,8 @@ const assistResultValidator = v.union(
       v.object({
         name: v.string(),
         weekdays: v.array(shiftDayTemplateWeekdayValidator),
-        slots: v.array(shiftDayTemplateSlotValidator),
+        appliesToHolidays: v.boolean(),
+        requirements: dayRequirementsValidator,
       }),
     ),
   }),

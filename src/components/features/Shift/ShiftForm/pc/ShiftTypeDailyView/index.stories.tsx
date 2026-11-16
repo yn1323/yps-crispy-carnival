@@ -1,15 +1,24 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { type ComponentProps, useMemo, useState } from "react";
-import { expect, userEvent, within } from "storybook/test";
+import type { ComponentProps } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import type { PositionType, ShiftData, StaffType } from "@/src/domains/shift/types";
-import { ShiftForm, type ShiftFormDetailActions, type ShiftFormStaffing } from "../..";
+import { ShiftForm } from "../..";
+import { shiftTypeDetailDays, shiftTypeDetailTemplates, shiftTypeWeekdayTemplate } from "../../sp/detailStoryFixtures";
 import { mockShiftTypeDates, mockShiftTypePattern, mockShiftTypeStaffs } from "../../stories/fixtures";
 import { desktopGlobals, fullscreenParameters, shiftFormDecorators, shiftTypeArgs } from "../../stories/shared";
+import {
+  buildStaffing,
+  readStaffingCalls,
+  StaffingHarness,
+  staffingCounts,
+  templateDay,
+  unsetDay,
+} from "../../stories/staffingHarness";
 
 type ShiftFormArgs = ComponentProps<typeof ShiftForm>;
 
 // ==========================================
-// くわしく表示のfixture（ポジション3つ、日の型あり、休憩あり、熟練度あり、仮の勤務あり）
+// くわしく表示のfixture（ポジション3つ、必要人数あり、休憩あり、熟練度あり、仮の勤務あり）
 // ==========================================
 const hall: PositionType = { id: "hall", name: "ホール", color: "#3b82f6", isDefault: true };
 const kitchen: PositionType = { id: "kitchen", name: "キッチン", color: "#c2410c", isDefault: false };
@@ -80,64 +89,12 @@ const detailShifts: ShiftData[] = [
   shift("staff2", secondDate, [["late", kitchen]]),
 ];
 
-const requirements = (counts: Array<[position: PositionType, count: number]>) =>
-  counts.map(([position, count]) => ({ positionId: position.id, count }));
+const detailStaffing = buildStaffing({ templates: shiftTypeDetailTemplates, days: shiftTypeDetailDays });
 
-const detailStaffing: ShiftFormStaffing = {
-  dayTemplates: [
-    {
-      id: "weekday",
-      name: "平日",
-      weekdays: ["mon", "tue", "wed", "thu", "fri"],
-      slots: [
-        {
-          key: { kind: "shiftType", optionId: "morning" },
-          requirements: requirements([
-            [hall, 2],
-            [kitchen, 1],
-          ]),
-        },
-        {
-          key: { kind: "shiftType", optionId: "middle" },
-          requirements: requirements([
-            [hall, 1],
-            [kitchen, 1],
-          ]),
-        },
-        {
-          key: { kind: "shiftType", optionId: "late" },
-          requirements: requirements([
-            [hall, 2],
-            [kitchen, 1],
-          ]),
-        },
-        { key: { kind: "shiftType", optionId: "night" }, requirements: requirements([[register, 1]]) },
-      ],
-    },
-    {
-      id: "event",
-      name: "イベント日",
-      weekdays: [],
-      slots: [
-        {
-          key: { kind: "shiftType", optionId: "morning" },
-          requirements: requirements([
-            [hall, 3],
-            [kitchen, 2],
-          ]),
-        },
-        {
-          key: { kind: "shiftType", optionId: "middle" },
-          requirements: requirements([
-            [hall, 3],
-            [kitchen, 2],
-          ]),
-        },
-      ],
-    },
-  ],
-  dayTemplateOverrides: [],
-  breakRule: null,
+const noopStaffingActions = {
+  onApplyTemplate: async () => true,
+  onSaveCustom: async () => true,
+  isPending: false,
 };
 
 const detailArgs = {
@@ -148,41 +105,25 @@ const detailArgs = {
   staffing: detailStaffing,
   initialDetailMode: true,
   onDetailModeChange: () => {},
+  detailActions: { onOpenSetup: () => {}, dayStaffingActions: noopStaffingActions },
 } satisfies ShiftFormArgs;
 
-/** シフト表の外にある「特別な日」の保存を、Storyの中の状態で代わりに持つ。 */
-const ShiftFormWithDayTemplateState = (args: ShiftFormArgs) => {
-  const [overrides, setOverrides] = useState(args.staffing?.dayTemplateOverrides ?? []);
-  const staffing = useMemo(
-    () => (args.staffing ? { ...args.staffing, dayTemplateOverrides: overrides } : undefined),
-    [args.staffing, overrides],
-  );
-  const detailActions = useMemo<ShiftFormDetailActions>(
-    () => ({
-      onOpenSetup: () => {},
-      onChangeDayTemplate: (date, templateId) =>
-        setOverrides((current) => [
-          ...current.filter((entry) => entry.date !== date),
-          ...(templateId ? [{ date, templateId }] : []),
-        ]),
-    }),
-    [],
-  );
-  return <ShiftForm {...args} staffing={staffing} detailActions={detailActions} />;
-};
+/** 必要人数の操作を受け取り、Storyの中の状態でサーバーの代わりをする。 */
+const harnessRender = (args: ShiftFormArgs) => (
+  <StaffingHarness {...args} templates={shiftTypeDetailTemplates} weekdayDays={shiftTypeDetailDays} />
+);
 
 const meta = {
   title: "Features/Shift/ShiftForm/Shift Type/PC/Daily Detail",
   component: ShiftForm,
   parameters: fullscreenParameters,
   decorators: shiftFormDecorators,
-  render: (args) => <ShiftFormWithDayTemplateState {...args} />,
 } satisfies Meta<typeof ShiftForm>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** 複数ポジション、日の型あり（不足あり）、休憩、熟練度、仮の勤務を1画面で確かめる。 */
+/** 複数ポジション、必要人数（足りない人数、新人だけの印）、休憩、熟練度、仮の勤務を1画面で確かめる。 */
 export const Detail: Story = {
   args: detailArgs,
   globals: desktopGlobals,
@@ -203,25 +144,30 @@ export const DetailSinglePosition: Story = {
         color: hall.color,
       })),
     })),
-    staffing: {
-      ...detailStaffing,
-      dayTemplates: detailStaffing.dayTemplates.map((template) => ({
-        ...template,
-        slots: template.slots.map((slot) => ({ ...slot, requirements: requirements([[hall, 2]]) })),
-      })),
-    },
+    staffing: buildStaffing({
+      templates: [shiftTypeWeekdayTemplate],
+      days: mockShiftTypeDates.map((date) =>
+        templateDay(date, {
+          ...shiftTypeWeekdayTemplate,
+          requirements: {
+            kind: "shiftType",
+            options: shiftTypeOptions.map((option) => ({ optionId: option.id, counts: staffingCounts([[hall, 2]]) })),
+          },
+        }),
+      ),
+    }),
   },
   globals: desktopGlobals,
 };
 
-/** 日の型を設定していない店舗では、人数だけを出し、設定への導線を置く。 */
+/** 型を設定していない店舗では、人数だけを出し、必要人数が未設定であることを伝える。 */
 export const DetailWithoutDayTemplates: Story = {
   name: "Detail Without Day Templates",
-  args: { ...detailArgs, staffing: { dayTemplates: [], dayTemplateOverrides: [], breakRule: null } },
+  args: { ...detailArgs, staffing: buildStaffing({ days: mockShiftTypeDates.map(unsetDay) }) },
   globals: desktopGlobals,
 };
 
-/** 管理者の閲覧専用でも、ポジションと休憩と人数は出す。入れるものの選択は出さず、日の型は名前だけを出す。 */
+/** 管理者の閲覧専用でも、ポジションと休憩と人数は出す。入れるものの選択は出さず、型は名前だけを出す。 */
 export const DetailReadOnly: Story = {
   name: "Detail Read Only",
   args: { ...detailArgs, isReadOnly: true },
@@ -258,7 +204,7 @@ export const DetailAssignInteractive: Story = {
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(await canvas.findByTitle("早番 ホール 1/2、キッチン 1/1、レジ 0")).toBeInTheDocument();
+    await expect(await canvas.findByTitle("早番 ホール 1/2 ▲1、キッチン 1/1、レジ 0")).toBeInTheDocument();
 
     // 選んだポジションで入る。
     await userEvent.click(await canvas.findByRole("radio", { name: "キッチン" }));
@@ -266,7 +212,8 @@ export const DetailAssignInteractive: Story = {
     await expect(await findVisibleByLabelText(canvas, "山田 一郎 早番 勤務あり、キッチン")).toHaveTextContent(
       "キッチン",
     );
-    await expect(await canvas.findByTitle("早番 ホール 1/2、キッチン 2/1、レジ 0")).toBeInTheDocument();
+    // 新人の山田さんが入っても、仮の勤務の中村さんがいるため、キッチンは新人だけにならない。
+    await expect(await canvas.findByTitle("早番 ホール 1/2 ▲1、キッチン 2/1 ＋1、レジ 0")).toBeInTheDocument();
 
     // 別のポジションを選んで勤務のあるセルを押すと、外れずに入れ替わる。
     await userEvent.click(await canvas.findByRole("radio", { name: "ホール" }));
@@ -277,14 +224,15 @@ export const DetailAssignInteractive: Story = {
     // 同じポジションでもう一度押すと外れる。
     await userEvent.click(await findVisibleByLabelText(canvas, "山田 一郎 早番 勤務あり、ホール"));
     await expect(await findVisibleByLabelText(canvas, "山田 一郎 早番 勤務なし")).toBeInTheDocument();
-    await expect(await canvas.findByTitle("早番 ホール 1/2、キッチン 1/1、レジ 0")).toBeInTheDocument();
+    await expect(await canvas.findByTitle("早番 ホール 1/2 ▲1、キッチン 1/1、レジ 0")).toBeInTheDocument();
   },
 };
 
-/** 人数の行の左から、その日に当てる日の型を変えると、必要人数が変わる。 */
+/** 人数の行の左にある型のメニューから型を当てると、その日と型を送り、必要人数が変わる。曜日の設定へも戻せる。 */
 export const DetailDayTemplateInteractive: Story = {
   name: "Detail Day Template Interactive",
   args: detailArgs,
+  render: harnessRender,
   globals: desktopGlobals,
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
@@ -294,12 +242,65 @@ export const DetailDayTemplateInteractive: Story = {
     await userEvent.click(await canvas.findByRole("button", { name: "この日の型: 平日" }));
     await userEvent.click(await body.findByRole("menuitem", { name: "イベント日" }));
     await expect(await canvas.findByRole("button", { name: "この日の型: イベント日" })).toBeInTheDocument();
-    await expect(await canvas.findByTitle("早番 ホール 1/3、キッチン 1/2、レジ 0")).toBeInTheDocument();
+    // イベント日は早番のホールに3人が必要で、キッチンは未設定になる。
+    await expect(await canvas.findByTitle("早番 ホール 1/3 ▲2、キッチン 1、レジ 0")).toBeInTheDocument();
 
     await userEvent.click(await canvas.findByRole("button", { name: "この日の型: イベント日" }));
     await userEvent.click(await body.findByRole("menuitem", { name: "曜日の設定に戻す" }));
     await expect(await canvas.findByRole("button", { name: "この日の型: 平日" })).toBeInTheDocument();
-    await expect(await canvas.findByTitle("早番 ホール 1/2、キッチン 1/1、レジ 0")).toBeInTheDocument();
+    await expect(await canvas.findByTitle("早番 ホール 1/2 ▲1、キッチン 1/1、レジ 0")).toBeInTheDocument();
+    await expect((await readStaffingCalls(canvasElement)).calls).toEqual([
+      { mutation: "applyDayTemplateToDates", dates: [firstDate], templateId: "event" },
+      { mutation: "applyDayTemplateToDates", dates: [firstDate], templateId: null },
+    ]);
+  },
+};
+
+/** 「この日だけ人数を変える」で、勤務パターンごとの人数を数字で直し、その日だけの必要人数として保存する。 */
+export const DetailCustomRequirementsInteractive: Story = {
+  name: "Detail Custom Requirements Interactive",
+  args: detailArgs,
+  render: harnessRender,
+  globals: desktopGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(document.body);
+
+    await userEvent.click(await canvas.findByRole("button", { name: "この日の型: 平日" }));
+    await userEvent.click(await body.findByRole("menuitem", { name: "この日だけ人数を変える" }));
+    // 2026-05-21は木曜日。
+    const dialog = within(await body.findByRole("dialog", { name: "5月21日（木）の必要人数" }));
+    const hallInput = dialog.getByRole("spinbutton", { name: "早番のホールの必要人数" });
+    // いまの必要人数が初期値に入っている。
+    await expect(hallInput).toHaveValue(2);
+
+    await userEvent.clear(hallInput);
+    await userEvent.type(hallInput, "4");
+    await userEvent.clear(dialog.getByRole("spinbutton", { name: "夜勤のレジの必要人数" }));
+    await userEvent.click(dialog.getByRole("button", { name: "保存する" }));
+
+    await waitFor(() =>
+      expect(body.queryByRole("dialog", { name: "5月21日（木）の必要人数" })).not.toBeInTheDocument(),
+    );
+    const count = (positionId: string, value: number) => ({ positionId, count: value });
+    // 0人にした夜勤は送らない。
+    await expect((await readStaffingCalls(canvasElement)).calls).toEqual([
+      {
+        mutation: "saveDayCustomRequirements",
+        date: firstDate,
+        requirements: {
+          kind: "shiftType",
+          options: [
+            { optionId: "morning", counts: [count("hall", 4), count("kitchen", 1)] },
+            { optionId: "middle", counts: [count("hall", 1), count("kitchen", 1)] },
+            { optionId: "late", counts: [count("hall", 2), count("kitchen", 1)] },
+          ],
+        },
+      },
+    ]);
+    await expect(await canvas.findByRole("button", { name: "この日の型: この日だけ変更" })).toBeInTheDocument();
+    await expect(await canvas.findByTitle("早番 ホール 1/4 ▲3、キッチン 1/1、レジ 0")).toBeInTheDocument();
   },
 };
 

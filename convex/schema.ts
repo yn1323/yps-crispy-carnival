@@ -6,8 +6,8 @@ import {
   shiftConfirmationSnapshotAssignmentValidator,
 } from "./_lib/shiftAssignmentValidators";
 import {
+  dayRequirementsValidator,
   shiftBreakRuleValidator,
-  shiftDayTemplateSlotValidator,
   shiftDayTemplateWeekdayValidator,
   staffSkillLevelValidator,
 } from "./_lib/shiftSetupValidators";
@@ -861,22 +861,52 @@ const schema = defineSchema({
   // ========================================
   // シフト作成の設定（日の型）
   // ========================================
-  // 1日分の「区切り＋ポジション別の必要人数」。区切りと必要人数はSHIFT_DAY_TEMPLATE_SLOT_LIMITと
-  // POSITION_ACTIVE_LIMITで上限を持つ。
+  // 名前を付けた1日分の必要人数。使う日は曜日と祝日で決める。
+  // 件数はSHIFT_DAY_TEMPLATE_LIMIT、バーはSHIFT_DAY_TEMPLATE_BAR_LIMIT、人数はPOSITION_ACTIVE_LIMITで上限を持つ。
   shiftDayTemplates: defineTable({
     shopId: v.id("shops"),
     name: v.string(),
-    weekdays: v.array(shiftDayTemplateWeekdayValidator),
     sortOrder: v.number(),
-    slots: v.array(shiftDayTemplateSlotValidator),
+    weekdays: v.array(shiftDayTemplateWeekdayValidator),
+    // 祝日（nationalHolidaysにある日）に使う型。店舗で1つだけ持てる。
+    appliesToHolidays: v.boolean(),
+    requirements: dayRequirementsValidator,
   }).index("by_shopId", ["shopId"]),
 
-  // 特別な日: その日だけ別の日の型を当てる。
-  shiftDayTemplateOverrides: defineTable({
+  // その日だけの指定。別の型を当てるか、その日だけの必要人数を持つ。曜日と祝日の型より優先する。
+  shiftDayTemplateOverrides: defineTable(
+    v.union(
+      v.object({
+        shopId: v.id("shops"),
+        date: v.string(), // "2026-01-20"
+        kind: v.literal("template"),
+        templateId: v.id("shiftDayTemplates"),
+      }),
+      v.object({
+        shopId: v.id("shops"),
+        date: v.string(), // "2026-01-20"
+        kind: v.literal("custom"),
+        requirements: dayRequirementsValidator,
+      }),
+    ),
+  ).index("by_shopId_and_date", ["shopId", "date"]),
+
+  // 国民の祝日。店舗に属さない全体の表で、運営者がinternal mutationで年ごとに置き換える。
+  // 店舗の休業日（shopClosedDates、regularClosedDays）とは別のものである。
+  nationalHolidays: defineTable({
+    date: v.string(), // "2026-01-01"
+    name: v.string(),
+  }).index("by_date", ["date"]),
+
+  // 募集を確定した時点の、日ごとの必要人数。確定済みのシフト表は、型を直してもこの内容を表示する。
+  // 型が当たらない日は行を作らない。
+  recruitmentStaffingSnapshots: defineTable({
+    recruitmentId: v.id("recruitments"),
     shopId: v.id("shops"),
     date: v.string(), // "2026-01-20"
-    templateId: v.id("shiftDayTemplates"),
-  }).index("by_shopId_and_date", ["shopId", "date"]),
+    templateName: v.union(v.string(), v.null()),
+    requirements: v.union(dayRequirementsValidator, v.null()),
+  }).index("by_recruitmentId_and_date", ["recruitmentId", "date"]),
 
   // ========================================
   // マジックリンク認証

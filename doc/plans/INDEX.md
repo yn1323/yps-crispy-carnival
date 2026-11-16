@@ -31,6 +31,7 @@
 | 計画 | 状態 | 未完了条件 | 現在の正本 |
 |---|---|---|---|
 | [人数が多い店舗のシフト作成](2026-11-16_人数が多い店舗のシフト作成_実装計画.md) | `repository implemented` | 13要素、設定ページ、仮の処理のAIサポート、PDF・Excel出力への反映、core E2Eの1契約を実装し、ローカルの検証は成功。実際のAIへの接続、ヘルプの追加、VRT基準画像の承認、CI、実環境への反映が残る | 方針は[人数が多い店舗のシフト作成方針](2026-11-14_人数が多い店舗のシフト作成_方針.md)。現行のシフト作成は[シフト表](../features/shift-board.md)、設定は[店舗設定](../features/shop-settings.md) |
+| [必要人数のバー入力と型の当て方](2026-11-16_必要人数のバー入力と型の当て方_実装計画.md) | `repository implemented` | 2026-11-16に承認され、実装とローカルの検証（lint、型、Logic、Convex、Behavior、build）が成功。E2Eの実行、VRT基準画像の承認、CI、実環境への反映、本番の祝日の表の投入が残る | 初版は[人数が多い店舗のシフト作成](2026-11-16_人数が多い店舗のシフト作成_実装計画.md)。現行の設定は[シフト作成の設定](../features/shift-setup.md) |
 | [希望シフトの日付メモ](2026-10-04_希望シフトの日付メモ_実装計画.md) | `repository implemented` | 提出画面、シフト表（PC・SP）、PDF・Excelのメモ一覧、プライバシーポリシー更新を実装し、ローカルのlint・型検査・全テスト・buildは成功。仮決定の項目（文字数、再同意、閲覧のみ、常時有効、保持期間、メモ一覧の初期状態）とポリシー文言の法務確認、VRT基準画像の承認、CI、実環境への反映とClarity設定の確認が残る | [希望シフト提出](../features/shift-submission.md)、[シフト表](../features/shift-board.md) |
 | [LINE連携トークンの使い回し](2026-10-31_LINE連携トークン使い回し_実装計画.md) | `repository implemented` | メール経由の発行での使い回し、メール変更時の失効、主担当テスト、機能文書の更新を実装し、lint・型検査・Logic/Convex/Scenario testは成功。UI testはローカル環境でブラウザを起動できず未実行。CI・自動レビューと実環境への反映が残る | [LINE通知連携](../features/line-notification.md) |
 | [トライアル終了前のDashboard案内](2026-10-17_トライアル終了前のDashboard案内_実装計画.md) | `repository implemented` | 未契約Trialへ終了14日前・7日前・最終日の段階的な案内をDashboardに実装し、ローカルの検証は成功。表示と押下の計測、VRT基準画像の承認、CI、実環境への反映が残る | [Dashboardの課金案内](../features/trial-ending-dashboard-callout.md) |

@@ -102,22 +102,27 @@ export type LinkedResizeTarget = {
 };
 
 // ==========================================
-// 必要人数（日の型）
+// 必要人数
 // ==========================================
 
-// 人数を数える区切り。募集方式ごとに、時間帯、勤務パターン、終日のいずれかになる。
-export type StaffingSlotKey =
-  | { kind: "time"; startTime: string; endTime: string }
-  | { kind: "shiftType"; optionId: string }
-  | { kind: "allDay" };
+// 人数を数える区切り。パターン選択は勤務パターン、日付選択は終日になる。
+// 時間指定は区切りを持たず、バー（StaffingBar）から人数が変わる時刻で区切る。
+export type StaffingSlotKey = { kind: "shiftType"; optionId: string } | { kind: "allDay" };
 
 export type StaffingRequirement = {
   positionId: string;
   count: number;
 };
 
-// その日に当てる日の型の区切りと必要人数
+// その日の区切りと必要人数
 export type StaffingSlot = {
   key: StaffingSlotKey;
   requirements: StaffingRequirement[];
+};
+
+// 時間指定の必要人数のバー。1本が1人分で、ある時刻の必要人数は、その時刻に重なるバーの本数になる。
+export type StaffingBar = {
+  positionId: string;
+  start: string; // "11:00"
+  end: string; // "14:00"
 };

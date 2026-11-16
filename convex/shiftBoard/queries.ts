@@ -6,29 +6,27 @@ import { managerQuery, organizationQuery } from "../_lib/functions";
 import { getRecruitmentEditVersion, isCurrentSubmission } from "../_lib/recruitmentEditing";
 import { normalizeExactAdjacentTimeAssignments } from "../_lib/shiftAssignmentNormalization";
 import { shiftAssignmentBreakValidator, shiftBoardAssignmentValidator } from "../_lib/shiftAssignmentValidators";
-import {
-  shiftBreakRuleValidator,
-  shiftDayTemplateSlotValidator,
-  shiftDayTemplateWeekdayValidator,
-} from "../_lib/shiftSetupValidators";
+import { dayRequirementsValidator, shiftBreakRuleValidator } from "../_lib/shiftSetupValidators";
 import { getSubmissionPatternTimeRange, submissionPatternValidator } from "../_lib/submissionPattern";
 import { isSupportedShiftTime, timeToMinutes } from "../_lib/time";
 import {
+  RECRUITMENT_PERIOD_DAYS_MAX,
   SHIFT_ASSIGNMENT_LIMIT,
   SHIFT_BOARD_DATE_NOTE_LIMIT,
   SHIFT_BOARD_SHIFT_REQUEST_LIMIT,
   SHIFT_BOARD_STAFF_LIMIT,
   SHIFT_BOARD_TIME_UNIT_MINUTES,
-  SHIFT_DAY_TEMPLATE_OVERRIDE_PERIOD_LIMIT,
 } from "../constants";
 import { getOrganizationStaffOrderScope } from "../organization/staffOrder";
 import { getOrganizationAccessPolicy } from "../organizationBilling/service";
 import { getDefaultPosition } from "../position/service";
 import { getActiveRecruitmentInShop } from "../recruitment/service";
+import { filterDayRequirementsByPositions } from "../shiftSetup/dayTemplates";
 import {
   listActivePositions,
   listDayTemplates,
-  toDayTemplateSlotsDto,
+  type RecruitmentStaffingDay,
+  resolveRecruitmentStaffingDays,
   toUnavailablePositionIdsDto,
 } from "../shiftSetup/service";
 import { isShiftTargetStaff } from "../staff/service";
@@ -371,24 +369,51 @@ async function getPreviousConfirmedRecruitment(
     .first();
 }
 
+type ShiftBoardStaffingDay = Omit<RecruitmentStaffingDay, "source"> & {
+  source: RecruitmentStaffingDay["source"] | "confirmed";
+};
+
 /**
- * シフト表の「くわしく」表示に使う、店舗の設定とスタッフの属性を返す。
+ * 確定済みの募集の必要人数を、確定時に保存した内容だけから返す。
+ * 保存のない日（型が当たらなかった日、この機能より前に確定した募集）は未設定として返す。
+ */
+async function listConfirmedStaffingDays(
+  ctx: QueryCtx,
+  recruitment: Doc<"recruitments">,
+  activePositionIds: ReadonlySet<Id<"positions">>,
+): Promise<ShiftBoardStaffingDay[]> {
+  const snapshots = await ctx.db
+    .query("recruitmentStaffingSnapshots")
+    .withIndex("by_recruitmentId_and_date", (q) => q.eq("recruitmentId", recruitment._id))
+    .take(RECRUITMENT_PERIOD_DAYS_MAX);
+  const snapshotByDate = new Map(snapshots.map((snapshot) => [snapshot.date, snapshot]));
+
+  return generateDateRange(recruitment.periodStart, recruitment.periodEnd).map((date) => {
+    const snapshot = snapshotByDate.get(date);
+    return {
+      date,
+      source: "confirmed" as const,
+      templateId: null,
+      templateName: snapshot?.templateName ?? null,
+      // 削除済みのポジションは画面に出せないため、保存した内容からも除いて返す。
+      requirements: snapshot?.requirements
+        ? filterDayRequirementsByPositions(snapshot.requirements, activePositionIds)
+        : null,
+    };
+  });
+}
+
+/**
+ * シフト表の「くわしく」表示に使う、日ごとの必要人数、店舗の設定、スタッフの属性を返す。
  * 割当の下書き保存で再送しないよう、getShiftBoardDataとは別に購読する。
+ * 未確定の募集は、いまの型とその日だけの指定から必要人数を決める。
+ * 確定済みの募集は、確定時に保存した必要人数だけを返し、型を直しても変えない。
  */
 export const getShiftBoardStaffing = managerQuery({
   args: { recruitmentId: v.id("recruitments") },
   returns: v.union(
     v.object({
       breakRule: v.union(shiftBreakRuleValidator, v.null()),
-      dayTemplates: v.array(
-        v.object({
-          _id: v.id("shiftDayTemplates"),
-          name: v.string(),
-          weekdays: v.array(shiftDayTemplateWeekdayValidator),
-          slots: v.array(shiftDayTemplateSlotValidator),
-        }),
-      ),
-      dayTemplateOverrides: v.array(v.object({ date: v.string(), templateId: v.id("shiftDayTemplates") })),
       // 標準（全ポジション可、熟練度が標準）のスタッフは返さない。
       staffProfiles: v.array(
         v.object({
@@ -398,6 +423,27 @@ export const getShiftBoardStaffing = managerQuery({
         }),
       ),
       hasPreviousConfirmedRecruitment: v.boolean(),
+      // 確定済みで、型の当て直しと「この日だけ変える」ができない。
+      isLocked: v.boolean(),
+      // まとめて当てるメニューに出す型。募集の集め方と種類が合う型だけを返す。
+      templates: v.array(v.object({ _id: v.id("shiftDayTemplates"), name: v.string() })),
+      // 募集期間の全日。requirementsがnullの日は未設定として扱う。
+      days: v.array(
+        v.object({
+          date: v.string(),
+          source: v.union(
+            v.literal("confirmed"),
+            v.literal("dateCustom"),
+            v.literal("dateTemplate"),
+            v.literal("holiday"),
+            v.literal("weekday"),
+            v.literal("none"),
+          ),
+          templateId: v.union(v.id("shiftDayTemplates"), v.null()),
+          templateName: v.union(v.string(), v.null()),
+          requirements: v.union(dayRequirementsValidator, v.null()),
+        }),
+      ),
     }),
     v.null(),
   ),
@@ -408,15 +454,9 @@ export const getShiftBoardStaffing = managerQuery({
     const recruitment = await getActiveRecruitmentInShop(ctx, shop._id, args.recruitmentId);
     if (!recruitment) return null;
 
-    const [positions, templates, overrides, staffs, previousRecruitment] = await Promise.all([
+    const [positions, templates, staffs, previousRecruitment] = await Promise.all([
       listActivePositions(ctx, shop._id),
       listDayTemplates(ctx, shop._id),
-      ctx.db
-        .query("shiftDayTemplateOverrides")
-        .withIndex("by_shopId_and_date", (q) =>
-          q.eq("shopId", shop._id).gte("date", recruitment.periodStart).lte("date", recruitment.periodEnd),
-        )
-        .take(SHIFT_DAY_TEMPLATE_OVERRIDE_PERIOD_LIMIT),
       ctx.db
         .query("staffs")
         .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
@@ -424,20 +464,13 @@ export const getShiftBoardStaffing = managerQuery({
       getPreviousConfirmedRecruitment(ctx, shop._id, recruitment.periodStart),
     ]);
     const activePositionIds = new Set(positions.map((position) => position._id));
-    const templateIds = new Set(templates.map((template) => template._id));
+    const isLocked = recruitment.status === "confirmed";
+    const days: ShiftBoardStaffingDay[] = isLocked
+      ? await listConfirmedStaffingDays(ctx, recruitment, activePositionIds)
+      : await resolveRecruitmentStaffingDays(ctx, { shopId: shop._id, recruitment, templates, activePositionIds });
 
     return {
       breakRule: shop.breakRule ?? null,
-      dayTemplates: templates.map((template) => ({
-        _id: template._id,
-        name: template.name,
-        weekdays: template.weekdays,
-        slots: toDayTemplateSlotsDto(template, activePositionIds),
-      })),
-      // 削除された型を指す特別な日は、曜日の割り当てへ戻ったものとして返さない。
-      dayTemplateOverrides: overrides
-        .filter((override) => templateIds.has(override.templateId))
-        .map((override) => ({ date: override.date, templateId: override.templateId })),
       staffProfiles: staffs
         .filter((staff) => staff.organizationId === shop.organizationId && isShiftTargetStaff(staff))
         .map((staff) => ({
@@ -447,6 +480,11 @@ export const getShiftBoardStaffing = managerQuery({
         }))
         .filter((profile) => profile.unavailablePositionIds.length > 0 || profile.skillLevel !== "standard"),
       hasPreviousConfirmedRecruitment: previousRecruitment !== null,
+      isLocked,
+      templates: templates
+        .filter((template) => template.requirements.kind === recruitment.submissionPattern.kind)
+        .map((template) => ({ _id: template._id, name: template.name })),
+      days,
     };
   },
 });

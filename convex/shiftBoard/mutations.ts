@@ -21,6 +21,7 @@ import { ensureNotificationFanoutOperation } from "../notification/fanout";
 import { getBusinessNotificationOrigin } from "../notificationOutbox/origin";
 import { ensureDefaultPosition } from "../position/service";
 import { getActiveRecruitmentInShop } from "../recruitment/service";
+import { listActivePositions, listDayTemplates, resolveRecruitmentStaffingDays } from "../shiftSetup/service";
 import { getActiveStaffInShop, isShiftTargetStaff } from "../staff/service";
 import { buildAssignmentIssue, SHIFT_ASSIGNMENT_VALIDATION, validateShiftAssignments } from "./validation";
 
@@ -308,6 +309,36 @@ export const saveShiftAssignments = managerMutation({
   },
 });
 
+/**
+ * 確定した時点の、募集期間の各日の必要人数（募集の集め方へ写したもの）と型の名前を保存する。
+ * 確定済みのシフト表は、この内容だけを表示する。型が当たらない日は行を作らない。
+ */
+async function saveRecruitmentStaffingSnapshots(ctx: MutationCtx, recruitment: Doc<"recruitments">) {
+  const [positions, templates] = await Promise.all([
+    listActivePositions(ctx, recruitment.shopId),
+    listDayTemplates(ctx, recruitment.shopId),
+  ]);
+  const days = await resolveRecruitmentStaffingDays(ctx, {
+    shopId: recruitment.shopId,
+    recruitment,
+    templates,
+    activePositionIds: new Set(positions.map((position) => position._id)),
+  });
+  await Promise.all(
+    days
+      .filter((day) => day.source !== "none")
+      .map((day) =>
+        ctx.db.insert("recruitmentStaffingSnapshots", {
+          recruitmentId: recruitment._id,
+          shopId: recruitment.shopId,
+          date: day.date,
+          templateName: day.templateName,
+          requirements: day.requirements,
+        }),
+      ),
+  );
+}
+
 export const confirmRecruitment = managerMutation({
   args: {
     recruitmentId: v.id("recruitments"),
@@ -511,6 +542,8 @@ export const confirmRecruitment = managerMutation({
       lastConfirmationNotificationOperationKey: operationKey,
       lastConfirmationNotificationRunId: notificationRunId,
     });
+    // 未確定から確定へ変わるときだけ、確定した時点の必要人数を残す。再確定では書き直さない。
+    if (!isResend) await saveRecruitmentStaffingSnapshots(ctx, recruitment);
     // 配送だけの再送は利用実績へ加えない。確定後に保存したシフトの再確定は記録する。
     if (!isResend || (recruitment.draftSavedAt ?? 0) > (recruitment.confirmedAt ?? 0)) {
       await recordAnalyticsUsage(ctx, {

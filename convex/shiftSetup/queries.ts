@@ -2,15 +2,15 @@ import { v } from "convex/values";
 import { getShiftSetupAssistMode } from "../_lib/config";
 import { managerQuery } from "../_lib/functions";
 import {
+  dayRequirementsValidator,
   shiftBreakRuleValidator,
-  shiftDayTemplateSlotValidator,
   shiftDayTemplateWeekdayValidator,
 } from "../_lib/shiftSetupValidators";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
 import { SHIFT_BOARD_STAFF_LIMIT } from "../constants";
 import { getOrganizationAccessPolicy } from "../organizationBilling/service";
 import { isShiftTargetStaff } from "../staff/service";
-import { listActivePositions, listDayTemplates, toDayTemplateSlotsDto, toUnavailablePositionIdsDto } from "./service";
+import { listActivePositions, listDayTemplates, toDayTemplateDto, toUnavailablePositionIdsDto } from "./service";
 
 const shiftSetupWriteBlockReasonValidator = v.union(
   v.literal("paymentResultPending"),
@@ -31,7 +31,11 @@ const shiftSetupValidator = v.object({
       _id: v.id("shiftDayTemplates"),
       name: v.string(),
       weekdays: v.array(shiftDayTemplateWeekdayValidator),
-      slots: v.array(shiftDayTemplateSlotValidator),
+      appliesToHolidays: v.boolean(),
+      // 時間指定で受付時間の外に出たバーも、消さずに返す。画面が本数を数えて知らせる。
+      requirements: dayRequirementsValidator,
+      // 保存済みの必要人数の種類が、店舗のいまの集め方と違う。requirementsは空で、入れ直しが要る。
+      requiresReentry: v.boolean(),
     }),
   ),
   breakRule: v.union(shiftBreakRuleValidator, v.null()),
@@ -82,12 +86,7 @@ export const getShiftSetup = managerQuery({
         color: position.color,
         isDefault: position.isDefault,
       })),
-      dayTemplates: templates.map((template) => ({
-        _id: template._id,
-        name: template.name,
-        weekdays: template.weekdays,
-        slots: toDayTemplateSlotsDto(template, activePositionIds),
-      })),
+      dayTemplates: templates.map((template) => toDayTemplateDto(template, shop.submissionPattern, activePositionIds)),
       breakRule: shop.breakRule ?? null,
       staffs: staffs
         .filter((staff) => staff.organizationId === shop.organizationId && isShiftTargetStaff(staff))

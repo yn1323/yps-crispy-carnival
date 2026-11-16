@@ -132,7 +132,7 @@ export const DateOnlyTable = ({
             {columns.map(({ date, isClosed, assignmentCount }) => {
               const staffingView = staffingByDate?.get(date.iso);
               return staffingView ? (
-                <HeaderCell key={date.iso} muted bg={staffingView.hasShortage ? "red.50" : "gray.50"} flush>
+                <HeaderCell key={date.iso} muted bg="gray.50" flush>
                   <DateStaffingCell date={date.iso} view={staffingView} />
                 </HeaderCell>
               ) : (

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
-import type { DayStaffingView, StaffingSlotView } from "../../staffingPresentation";
+import { buildStaffingCountView, type DayStaffingView, type StaffingSlotView } from "../../staffingPresentation";
 import { buildShiftTypeDailyViewModel, indexStaffingSlotsByOptionKey, summarizeStaffingSlot } from "./script";
 
 const submissionPattern: ShiftSubmissionPattern = {
@@ -224,13 +224,11 @@ describe("buildShiftTypeDailyViewModel", () => {
   });
 });
 
-const position = (name: string, count: number, required: number | null) => ({
+const position = (name: string, count: number, required: number | null, isNewcomerOnly = false) => ({
   positionId: name,
   name,
   color: "#000",
-  count,
-  required,
-  shortage: required === null ? 0 : Math.max(0, required - count),
+  ...buildStaffingCountView({ count, required, isNewcomerOnly }),
 });
 
 const slot = (overrides: Partial<StaffingSlotView>): StaffingSlotView => ({
@@ -239,16 +237,25 @@ const slot = (overrides: Partial<StaffingSlotView>): StaffingSlotView => ({
   total: 0,
   positions: [],
   hasShortage: false,
+  hasExcess: false,
   ...overrides,
 });
 
 describe("summarizeStaffingSlot", () => {
-  it("必要人数はポジションごとの設定を足し、内訳をポジション名つきで説明する", () => {
+  it("必要人数はポジションごとの設定を足し、内訳をポジション名と過不足つきで説明する", () => {
     expect(
       summarizeStaffingSlot(
         slot({ total: 3, positions: [position("ホール", 2, 3), position("キッチン", 1, 1)], hasShortage: true }),
       ),
-    ).toEqual({ totalLabel: "3/4", title: "早番 ホール 2/3、キッチン 1/1" });
+    ).toEqual({ totalLabel: "3/4", title: "早番 ホール 2/3 ▲1、キッチン 1/1" });
+  });
+
+  it("多い人数と、新人だけのポジションを内訳で説明する", () => {
+    expect(
+      summarizeStaffingSlot(
+        slot({ total: 3, positions: [position("ホール", 2, 1, true), position("キッチン", 1, 1)], hasExcess: true }),
+      ),
+    ).toEqual({ totalLabel: "3/2", title: "早番 ホール 2/1 ＋1（新人だけ）、キッチン 1/1" });
   });
 
   it("必要人数を設定していないポジションは、必要の合計に含めない", () => {
@@ -275,10 +282,14 @@ describe("indexStaffingSlotsByOptionKey", () => {
     const early = slot({ id: "shiftType:early" });
     const late = slot({ id: "shiftType:late", label: "遅番" });
     const view: DayStaffingView = {
-      template: null,
-      isOverridden: false,
+      date: "2026-06-03",
+      template: { label: "未設定", templateId: null, templateName: null, isCustom: false, isDateSpecific: false },
+      hasRequirements: false,
       slots: [early, late, slot({ id: "allDay", label: "1日" })],
+      bands: [],
       hasShortage: false,
+      hasExcess: false,
+      shortageCount: 0,
     };
 
     expect([...indexStaffingSlotsByOptionKey(view)]).toEqual([

@@ -7,6 +7,7 @@ import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import { FocusedFlowBackButton } from "@/src/components/templates/FocusedFlowHeader";
 import { type DisplayIssue, toDisplayIssues } from "@/src/domains/shift/assignmentIssues";
 import type { AssignmentWarning } from "@/src/domains/shift/assignmentWarnings";
+import type { NewcomerOnlyPeriod } from "@/src/domains/shift/staffing";
 import type { PositionType, ShiftData, SortMode, StaffType, TimeRange, ViewMode } from "@/src/domains/shift/types";
 import { BreakEditorDialog } from "./BreakEditorDialog";
 import {
@@ -18,6 +19,7 @@ import {
   UnsubmittedStrip,
   ViewTabs,
 } from "./components";
+import { DayStaffingDialogs } from "./DayStaffingDialogs";
 import { type ShiftDateNote, ShiftDateNotesProvider } from "./dateNotes";
 import {
   DetailModeToggle,
@@ -44,18 +46,18 @@ import {
   applyShiftDraftsAtom,
   detailModeAtom,
   detailToggleEnabledAtom,
-  type ShiftFormStaffing,
   selectDateWithDailyStaffOrderAtom,
   shiftsAtom,
   viewModeAtom,
 } from "./stores";
+import type { ShiftFormStaffing } from "./types";
 import { ValidationErrorPanel } from "./ValidationErrorPanel";
 
 export type { ReminderStatus } from "./components";
 export type { ShiftDateNote } from "./dateNotes";
-export type { ShiftFormDetailActions } from "./detailParts";
+export type { ShiftFormDayStaffingActions, ShiftFormDetailActions } from "./detailParts";
 export { shouldDefaultToDetailMode } from "./staffingPresentation";
-export type { ShiftFormStaffing } from "./stores";
+export type { ShiftFormDayRequirements, ShiftFormStaffing, ShiftFormStaffingDay } from "./types";
 
 export type ShiftFormHeader = {
   desktopTitle: string;
@@ -75,7 +77,7 @@ type ShiftFormProps = {
   isReadOnly?: boolean;
   currentStaffId?: string;
   allShifts?: ShiftData[];
-  /** 「くわしく」表示で使う店舗の設定（日の型、特別な日、休憩の決まり）。 */
+  /** 「くわしく」表示で使う店舗の設定（日ごとの必要人数、当てられる型、休憩の決まり）。 */
   staffing?: ShiftFormStaffing;
   submissionPattern: ShiftSubmissionPattern;
   displayMode?: "request" | "confirmed";
@@ -86,7 +88,7 @@ type ShiftFormProps = {
   initialDetailMode?: boolean;
   /** 渡した場合だけ「シンプル / くわしく」の切り替えを出し、切り替えを通知する。 */
   onDetailModeChange?: (isDetailMode: boolean) => void;
-  /** 設定ページへの移動、特別な日、仮の勤務など、画面の外へ出す操作。 */
+  /** 設定ページへの移動、その日の必要人数、仮の勤務など、画面の外へ出す操作。 */
   detailActions?: ShiftFormDetailActions;
   /** 画面の外で組み立てた編集結果（仮の勤務の差し込みなど）を取り込むための受け口。 */
   applyShiftsRef?: MutableRefObject<((update: (current: ShiftData[]) => ShiftData[]) => void) | null>;
@@ -101,6 +103,8 @@ type ShiftFormProps = {
   onOpenUnsubmittedDetails?: () => void;
   validationIssues?: AssignmentIssue[];
   validationWarnings?: AssignmentWarning[];
+  /** 新人だけの時間帯（確認事項）。くわしく表示のときに、日付の確認事項の件数へ足す。 */
+  newcomerOnlyPeriods?: NewcomerOnlyPeriod[];
   onDismissValidationIssues?: () => void;
   header?: ShiftFormHeader;
   exportAction?: ShiftFormExportAction;
@@ -139,6 +143,7 @@ const ShiftFormInner = ({
   onOpenUnsubmittedDetails,
   validationIssues,
   validationWarnings,
+  newcomerOnlyPeriods,
   onDismissValidationIssues,
   header,
   exportAction,
@@ -163,6 +168,7 @@ const ShiftFormInner = ({
     initialDetailMode,
     validationIssues,
     validationWarnings,
+    newcomerOnlyPeriods,
   });
 
   const shifts = useAtomValue(shiftsAtom);
@@ -484,6 +490,7 @@ export const ShiftForm = (props: ShiftFormProps) => (
       <ShiftFormDetailActionsProvider actions={props.detailActions ?? EMPTY_DETAIL_ACTIONS}>
         <ShiftFormInner {...props} />
         <BreakEditorDialog />
+        <DayStaffingDialogs />
       </ShiftFormDetailActionsProvider>
     </ShiftDateNotesProvider>
   </Provider>

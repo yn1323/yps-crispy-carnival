@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { AssignmentWarning } from "@/src/domains/shift/assignmentWarnings";
+import type { NewcomerOnlyPeriod } from "@/src/domains/shift/staffing";
 import type { PositionSegment, ShiftData } from "@/src/domains/shift/types";
-import { visibleAssignmentWarnings } from "./warningVisibility";
+import { visibleAssignmentWarnings, visibleNewcomerOnlyPeriods } from "./warningVisibility";
 
 const segment = (start: string, end: string): PositionSegment => ({
   id: `segment-${start}-${end}`,
@@ -87,6 +88,57 @@ describe("visibleAssignmentWarnings", () => {
         baselineShifts: [shift("staff-1", "2026-01-20", [segment("09:00", "14:00")])],
         closedDateSet: new Set(),
         buildAssignmentsOptions: { submissionPatternKind: "time" },
+        isConfirmed: true,
+      }),
+    ).toEqual([]);
+  });
+});
+
+describe("visibleNewcomerOnlyPeriods", () => {
+  const period = (date: string): NewcomerOnlyPeriod => ({
+    date,
+    positionId: "position-1",
+    scope: { kind: "time", start: "09:00", end: "12:00" },
+  });
+  const periods = [period("2026-01-20"), period("2026-01-21")];
+  const options = {
+    closedDateSet: new Set<string>(),
+    buildAssignmentsOptions: { submissionPatternKind: "time" as const },
+  };
+
+  it("未確定では、すべての新人だけの時間帯を出す", () => {
+    expect(
+      visibleNewcomerOnlyPeriods({ periods, currentShifts: [], baselineShifts: [], ...options, isConfirmed: false }),
+    ).toEqual(periods);
+  });
+
+  it("確定済みでは、開いた時点からだれかの勤務を変えた日のものだけを出す", () => {
+    expect(
+      visibleNewcomerOnlyPeriods({
+        periods,
+        currentShifts: [
+          shift("staff-1", "2026-01-20", [segment("09:00", "13:00")]),
+          shift("staff-2", "2026-01-21", [segment("09:00", "12:00")]),
+        ],
+        baselineShifts: [
+          shift("staff-1", "2026-01-20", [segment("09:00", "12:00")]),
+          shift("staff-2", "2026-01-21", [segment("09:00", "12:00")]),
+        ],
+        ...options,
+        isConfirmed: true,
+      }),
+    ).toEqual([period("2026-01-20")]);
+  });
+
+  it("確定済みで、勤務を変えていなければ、何も出さない", () => {
+    const shifts = [shift("staff-1", "2026-01-20", [segment("09:00", "12:00")])];
+
+    expect(
+      visibleNewcomerOnlyPeriods({
+        periods,
+        currentShifts: shifts,
+        baselineShifts: shifts,
+        ...options,
         isConfirmed: true,
       }),
     ).toEqual([]);

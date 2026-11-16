@@ -1,13 +1,11 @@
 import { getEffectiveBreaks } from "./breaks";
 import { isCanonicalWorkPosition } from "./positions";
-import { timeToMinutes } from "./time";
-import type { ShiftData, StaffingSlot, StaffingSlotKey } from "./types";
+import { minutesToTime, timeToMinutes } from "./time";
+import type { ShiftData, StaffingBar, StaffingSlot, StaffingSlotKey } from "./types";
 
 // 区切りごと・ポジションごとの人数と、必要人数との過不足を数える純粋処理。
-// 時間帯の人数は「その時間帯を通していられる人数」とし、時間帯の中で最も少ない時点の人数を数える。
-// 途中で人が抜ける時間帯を、足りていると見せないためである。
-
-const HOUR_MINUTES = 60;
+// 時間指定は、人数と必要人数が変わる時刻で区切った帯にする（buildPositionStaffingBands）。
+// パターン選択は勤務パターンごと、日付選択は1日ごとに数える。
 
 export type StaffingPositionCount = {
   positionId: string;
@@ -16,6 +14,10 @@ export type StaffingPositionCount = {
   required: number | null;
   // 足りない人数。足りている場合と必要人数が未設定の場合は0。
   shortage: number;
+  // 必要人数より多い人数。多くない場合と必要人数が未設定の場合は0。
+  excess: number;
+  // そのポジションに1人以上いて、全員が新人のときtrue。
+  isNewcomerOnly: boolean;
 };
 
 export type StaffingSlotCount = {
@@ -24,6 +26,7 @@ export type StaffingSlotCount = {
   total: number;
   positions: StaffingPositionCount[];
   hasShortage: boolean;
+  hasExcess: boolean;
 };
 
 type CountInput = {
@@ -31,29 +34,20 @@ type CountInput = {
   shifts: readonly ShiftData[];
   // 人数を出すポジションのID。並び順は表示順。
   positionIds: readonly string[];
-};
-
-const buildSlotCount = (
-  key: StaffingSlotKey,
-  total: number,
-  countByPositionId: ReadonlyMap<string, number>,
-  positionIds: readonly string[],
-  requirements: StaffingSlot["requirements"],
-): StaffingSlotCount => {
-  const requiredByPositionId = new Map(requirements.map((requirement) => [requirement.positionId, requirement.count]));
-  const positions = positionIds.map((positionId) => {
-    const count = countByPositionId.get(positionId) ?? 0;
-    const required = requiredByPositionId.get(positionId) ?? null;
-    return { positionId, count, required, shortage: required === null ? 0 : Math.max(0, required - count) };
-  });
-  return { key, total, positions, hasShortage: positions.some((position) => position.shortage > 0) };
+  // 新人のstaffId。省略すると、新人だけの印は付かない。
+  newcomerStaffIds?: ReadonlySet<string>;
 };
 
 type MinuteRange = { start: number; end: number };
-type PreparedShift = { segments: Array<MinuteRange & { positionId: string }>; breaks: MinuteRange[] };
+type PreparedShift = {
+  staffId: string;
+  segments: Array<MinuteRange & { positionId: string }>;
+  breaks: MinuteRange[];
+};
 
 // 勤務区間と、実際に効く休憩を、分の範囲へ直す。時刻ごとの判定で同じ計算を繰り返さないために先に作る。
 const prepareShift = (shift: ShiftData): PreparedShift => ({
+  staffId: shift.staffId,
   segments: shift.positions.filter(isCanonicalWorkPosition).map((position) => ({
     start: timeToMinutes(position.start),
     end: timeToMinutes(position.end),
@@ -65,95 +59,44 @@ const prepareShift = (shift: ShiftData): PreparedShift => ({
   })),
 });
 
-// その時点（分）に勤務していて、休憩中でない人を、ポジションごとに数える。
-const countWorkingAt = (shifts: readonly PreparedShift[], minute: number) => {
-  const countByPositionId = new Map<string, number>();
+const isNewcomerOnly = (staffIds: readonly string[], newcomerStaffIds: ReadonlySet<string> | undefined): boolean =>
+  newcomerStaffIds !== undefined && staffIds.length > 0 && staffIds.every((staffId) => newcomerStaffIds.has(staffId));
+
+const buildSlotCount = (
+  key: StaffingSlotKey,
+  staffIdsByPositionId: ReadonlyMap<string, string[]>,
+  input: CountInput,
+  requirements: StaffingSlot["requirements"],
+): StaffingSlotCount => {
   let total = 0;
-  for (const shift of shifts) {
-    const segment = shift.segments.find((item) => item.start <= minute && minute < item.end);
-    if (!segment) continue;
-    if (shift.breaks.some((range) => range.start <= minute && minute < range.end)) continue;
-    total += 1;
-    countByPositionId.set(segment.positionId, (countByPositionId.get(segment.positionId) ?? 0) + 1);
-  }
-  return { total, countByPositionId };
-};
-
-// 人数が変わりうる時点。時間帯の開始と、時間帯の中にある勤務・休憩の開始と終了である。
-// 人数はこれらの時点の間で変わらないため、ここだけを確かめれば時間帯の中の最小の人数が分かる。
-const collectChangeMinutes = (shifts: readonly PreparedShift[], startMinutes: number, endMinutes: number): number[] => {
-  const minutes = new Set<number>([startMinutes]);
-  for (const shift of shifts) {
-    for (const range of [...shift.segments, ...shift.breaks]) {
-      for (const minute of [range.start, range.end]) {
-        if (startMinutes < minute && minute < endMinutes) minutes.add(minute);
-      }
-    }
-  }
-  return [...minutes];
-};
-
-const countTimeRange = (shifts: readonly ShiftData[], startMinutes: number, endMinutes: number) => {
-  if (startMinutes >= endMinutes) return { total: 0, countByPositionId: new Map<string, number>() };
-  const prepared = shifts.map(prepareShift);
-  let total = Number.POSITIVE_INFINITY;
-  const countByPositionId = new Map<string, number>();
-  let isFirst = true;
-  for (const minute of collectChangeMinutes(prepared, startMinutes, endMinutes)) {
-    const snapshot = countWorkingAt(prepared, minute);
-    total = Math.min(total, snapshot.total);
-    if (isFirst) {
-      for (const [positionId, count] of snapshot.countByPositionId) countByPositionId.set(positionId, count);
-      isFirst = false;
-      continue;
-    }
-    for (const positionId of countByPositionId.keys()) {
-      countByPositionId.set(
-        positionId,
-        Math.min(countByPositionId.get(positionId) ?? 0, snapshot.countByPositionId.get(positionId) ?? 0),
-      );
-    }
-  }
-  return { total: Number.isFinite(total) ? total : 0, countByPositionId };
-};
-
-/** 時間指定: 日の型の時間帯ごとに、ポジション別の人数と過不足を数える。 */
-export const countStaffingByTimeSlots = (input: CountInput & { slots: readonly StaffingSlot[] }): StaffingSlotCount[] =>
-  input.slots.flatMap((slot) => {
-    if (slot.key.kind !== "time") return [];
-    const { total, countByPositionId } = countTimeRange(
-      input.shifts,
-      timeToMinutes(slot.key.startTime),
-      timeToMinutes(slot.key.endTime),
-    );
-    return [buildSlotCount(slot.key, total, countByPositionId, input.positionIds, slot.requirements)];
+  for (const staffIds of staffIdsByPositionId.values()) total += staffIds.length;
+  const requiredByPositionId = new Map(requirements.map((requirement) => [requirement.positionId, requirement.count]));
+  const positions = input.positionIds.map((positionId) => {
+    const staffIds = staffIdsByPositionId.get(positionId) ?? [];
+    const count = staffIds.length;
+    const required = requiredByPositionId.get(positionId) ?? null;
+    return {
+      positionId,
+      count,
+      required,
+      shortage: required === null ? 0 : Math.max(0, required - count),
+      excess: required === null ? 0 : Math.max(0, count - required),
+      isNewcomerOnly: isNewcomerOnly(staffIds, input.newcomerStaffIds),
+    };
   });
+  return {
+    key,
+    total,
+    positions,
+    hasShortage: positions.some((position) => position.shortage > 0),
+    hasExcess: positions.some((position) => position.excess > 0),
+  };
+};
 
-/** 時間指定で日の型がない日: 1時間ごとの人数だけを数える。 */
-export const countStaffingByHour = (
-  input: CountInput & { startMinutes: number; endMinutes: number },
-): StaffingSlotCount[] => {
-  const result: StaffingSlotCount[] = [];
-  const firstHour = Math.floor(input.startMinutes / HOUR_MINUTES) * HOUR_MINUTES;
-  for (let hourStart = firstHour; hourStart < input.endMinutes; hourStart += HOUR_MINUTES) {
-    const start = Math.max(hourStart, input.startMinutes);
-    const end = Math.min(hourStart + HOUR_MINUTES, input.endMinutes);
-    const { total, countByPositionId } = countTimeRange(input.shifts, start, end);
-    result.push(
-      buildSlotCount(
-        {
-          kind: "time",
-          startTime: `${String(Math.floor(start / 60)).padStart(2, "0")}:${String(start % 60).padStart(2, "0")}`,
-          endTime: `${String(Math.floor(end / 60)).padStart(2, "0")}:${String(end % 60).padStart(2, "0")}`,
-        },
-        total,
-        countByPositionId,
-        input.positionIds,
-        [],
-      ),
-    );
-  }
-  return result;
+const pushStaffId = (staffIdsByPositionId: Map<string, string[]>, positionId: string, staffId: string) => {
+  const staffIds = staffIdsByPositionId.get(positionId);
+  if (staffIds) staffIds.push(staffId);
+  else staffIdsByPositionId.set(positionId, [staffId]);
 };
 
 /** パターン選択: 勤務パターンごとに、ポジション別の人数と過不足を数える。休憩では人数を変えない。 */
@@ -161,36 +104,226 @@ export const countStaffingByShiftType = (
   input: CountInput & { optionIds: readonly string[]; slots: readonly StaffingSlot[] },
 ): StaffingSlotCount[] =>
   input.optionIds.map((optionId) => {
-    const countByPositionId = new Map<string, number>();
-    let total = 0;
+    const staffIdsByPositionId = new Map<string, string[]>();
     for (const shift of input.shifts) {
       const segment = shift.positions
         .filter(isCanonicalWorkPosition)
         .find((position) => position.shiftTypeOptionId === optionId);
       if (!segment) continue;
-      total += 1;
-      countByPositionId.set(segment.positionId, (countByPositionId.get(segment.positionId) ?? 0) + 1);
+      pushStaffId(staffIdsByPositionId, segment.positionId, shift.staffId);
     }
     const slot = input.slots.find((item) => item.key.kind === "shiftType" && item.key.optionId === optionId);
-    return buildSlotCount(
-      { kind: "shiftType", optionId },
-      total,
-      countByPositionId,
-      input.positionIds,
-      slot?.requirements ?? [],
-    );
+    return buildSlotCount({ kind: "shiftType", optionId }, staffIdsByPositionId, input, slot?.requirements ?? []);
   });
 
 /** 日付選択: 1日の、ポジション別の人数と過不足を数える。休憩では人数を変えない。 */
 export const countStaffingByDay = (input: CountInput & { slots: readonly StaffingSlot[] }): StaffingSlotCount => {
-  const countByPositionId = new Map<string, number>();
-  let total = 0;
+  const staffIdsByPositionId = new Map<string, string[]>();
   for (const shift of input.shifts) {
     const segment = shift.positions.find(isCanonicalWorkPosition);
     if (!segment) continue;
-    total += 1;
-    countByPositionId.set(segment.positionId, (countByPositionId.get(segment.positionId) ?? 0) + 1);
+    pushStaffId(staffIdsByPositionId, segment.positionId, shift.staffId);
   }
   const slot = input.slots.find((item) => item.key.kind === "allDay");
-  return buildSlotCount({ kind: "allDay" }, total, countByPositionId, input.positionIds, slot?.requirements ?? []);
+  return buildSlotCount({ kind: "allDay" }, staffIdsByPositionId, input, slot?.requirements ?? []);
+};
+
+// ==========================================
+// 時間指定: ポジションごとの帯
+// ==========================================
+
+export type PositionStaffingBandSegment = {
+  start: string; // "11:00"
+  end: string; // "14:00"
+  // その区間に勤務していて、休憩中でない人数
+  count: number;
+  // 必要人数（重なるバーの本数）。未設定のポジションはnull。
+  required: number | null;
+  // 人数と必要人数の差。足りないと負、多いと正。未設定は0。
+  diff: number;
+  // その区間に1人以上いて、全員が新人のときtrue。
+  isNewcomerOnly: boolean;
+};
+
+export type PositionStaffingBand = {
+  positionId: string;
+  // 数える範囲にバーが1本でもかかるポジションはtrue。falseのポジションは過不足を出さない。
+  isConfigured: boolean;
+  // 数える範囲の端から端までを、すき間なく区切った区間。値が同じ隣どうしは1つにまとめる。
+  segments: PositionStaffingBandSegment[];
+};
+
+/**
+ * 時間指定: シフト表の帯のために、ポジションごとの人数と必要人数を、値が変わる時刻で区切る。
+ * 区切る時刻は、バー、勤務、休憩の開始と終了を合わせたものである。休憩中の人は数えない。
+ * 必要人数が未設定の日（barsがnull）と、範囲にバーが1本もかからないポジションは、未設定として過不足を出さない。
+ */
+export const buildPositionStaffingBands = (input: {
+  // 数える対象の日の勤務（シフト対象で在籍しているスタッフ分）
+  shifts: readonly ShiftData[];
+  // その日の必要人数のバー。必要人数が未設定の日はnull。
+  bars: readonly StaffingBar[] | null;
+  // 帯を出すポジションのID。並び順は表示順。
+  positionIds: readonly string[];
+  // 新人のstaffId。省略すると、新人だけの印は付かない。
+  newcomerStaffIds?: ReadonlySet<string>;
+  // 数える範囲（分）。募集の受付時間にあたる。
+  startMinutes: number;
+  endMinutes: number;
+}): PositionStaffingBand[] => {
+  const { startMinutes, endMinutes } = input;
+  const isInside = (minute: number) => startMinutes < minute && minute < endMinutes;
+  const barRanges = (input.bars ?? [])
+    .map((bar) => ({ positionId: bar.positionId, start: timeToMinutes(bar.start), end: timeToMinutes(bar.end) }))
+    .filter((bar) => bar.start < bar.end && bar.start < endMinutes && startMinutes < bar.end);
+  const prepared = input.shifts.map(prepareShift);
+
+  const points = new Set<number>(startMinutes < endMinutes ? [startMinutes, endMinutes] : []);
+  for (const range of [...barRanges, ...prepared.flatMap((shift) => [...shift.segments, ...shift.breaks])]) {
+    for (const minute of [range.start, range.end]) {
+      if (isInside(minute)) points.add(minute);
+    }
+  }
+  const sortedPoints = [...points].sort((a, b) => a - b);
+
+  // 区切りごとに、その時点に勤務していて休憩中でない人を、ポジション別に集める。
+  const intervals = sortedPoints.slice(0, -1).map((start, index) => {
+    const staffIdsByPositionId = new Map<string, string[]>();
+    for (const shift of prepared) {
+      const segment = shift.segments.find((item) => item.start <= start && start < item.end);
+      if (!segment) continue;
+      if (shift.breaks.some((range) => range.start <= start && start < range.end)) continue;
+      pushStaffId(staffIdsByPositionId, segment.positionId, shift.staffId);
+    }
+    return { start, end: sortedPoints[index + 1], staffIdsByPositionId };
+  });
+
+  return input.positionIds.map((positionId) => {
+    const positionBars = barRanges.filter((bar) => bar.positionId === positionId);
+    const isConfigured = positionBars.length > 0;
+    const merged: Array<MinuteRange & Omit<PositionStaffingBandSegment, "start" | "end">> = [];
+    for (const interval of intervals) {
+      const staffIds = interval.staffIdsByPositionId.get(positionId) ?? [];
+      const count = staffIds.length;
+      const required = isConfigured
+        ? positionBars.filter((bar) => bar.start <= interval.start && interval.start < bar.end).length
+        : null;
+      const newcomerOnly = isNewcomerOnly(staffIds, input.newcomerStaffIds);
+      const previous = merged.at(-1);
+      if (
+        previous &&
+        previous.count === count &&
+        previous.required === required &&
+        previous.isNewcomerOnly === newcomerOnly
+      ) {
+        previous.end = interval.end;
+        continue;
+      }
+      merged.push({
+        start: interval.start,
+        end: interval.end,
+        count,
+        required,
+        diff: required === null ? 0 : count - required,
+        isNewcomerOnly: newcomerOnly,
+      });
+    }
+    return {
+      positionId,
+      isConfigured,
+      segments: merged.map((segment) => ({
+        ...segment,
+        start: minutesToTime(segment.start),
+        end: minutesToTime(segment.end),
+      })),
+    };
+  });
+};
+
+// ==========================================
+// 新人だけの時間帯
+// ==========================================
+
+/** あるポジションに入っている人が全員新人の区切り。確定の前の確認事項に使う。 */
+export type NewcomerOnlyPeriod = {
+  date: string;
+  positionId: string;
+  // 時間指定は時間帯、パターン選択は勤務パターン、日付選択は1日。
+  scope: { kind: "time"; start: string; end: string } | { kind: "shiftType"; optionId: string } | { kind: "allDay" };
+};
+
+export type NewcomerOnlyPattern =
+  // 数える範囲（分）。募集の受付時間にあたる。
+  | { kind: "time"; startMinutes: number; endMinutes: number }
+  | { kind: "shiftType"; optionIds: readonly string[] }
+  | { kind: "dateOnly" };
+
+/**
+ * 新人だけの区切りを、日、ポジション、区切りの単位で並べて返す。
+ * 時間指定は、新人だけの状態が続く時間を1件にまとめる（人数が変わっても、新人だけである限り区切らない）。
+ */
+export const listNewcomerOnlyPeriods = (input: {
+  // 数える対象の勤務（シフト対象で在籍しているスタッフ分）。日付は問わない。
+  shifts: readonly ShiftData[];
+  // 数える日。並び順は結果の並び順。定休日は渡さない。
+  dates: readonly string[];
+  positionIds: readonly string[];
+  newcomerStaffIds: ReadonlySet<string>;
+  pattern: NewcomerOnlyPattern;
+}): NewcomerOnlyPeriod[] => {
+  const { pattern, positionIds, newcomerStaffIds } = input;
+  if (newcomerStaffIds.size === 0) return [];
+
+  const shiftsByDate = new Map<string, ShiftData[]>();
+  for (const shift of input.shifts) {
+    const dayShifts = shiftsByDate.get(shift.date);
+    if (dayShifts) dayShifts.push(shift);
+    else shiftsByDate.set(shift.date, [shift]);
+  }
+
+  return input.dates.flatMap((date): NewcomerOnlyPeriod[] => {
+    const shifts = shiftsByDate.get(date) ?? [];
+    // 新人の勤務がない日は、新人だけの区切りもない。
+    if (!shifts.some((shift) => newcomerStaffIds.has(shift.staffId))) return [];
+    const base = { shifts, positionIds, newcomerStaffIds };
+
+    if (pattern.kind === "time") {
+      const bands = buildPositionStaffingBands({
+        ...base,
+        bars: null,
+        startMinutes: pattern.startMinutes,
+        endMinutes: pattern.endMinutes,
+      });
+      return bands.flatMap((band) => {
+        // 区間は時刻の順にすき間なく並ぶため、終了と開始が同じなら続いている。
+        const ranges: Array<{ start: string; end: string }> = [];
+        for (const segment of band.segments) {
+          if (!segment.isNewcomerOnly) continue;
+          const last = ranges.at(-1);
+          if (last && last.end === segment.start) last.end = segment.end;
+          else ranges.push({ start: segment.start, end: segment.end });
+        }
+        return ranges.map((range) => ({
+          date,
+          positionId: band.positionId,
+          scope: { kind: "time" as const, ...range },
+        }));
+      });
+    }
+    if (pattern.kind === "shiftType") {
+      const slots = countStaffingByShiftType({ ...base, optionIds: pattern.optionIds, slots: [] });
+      return pattern.optionIds.flatMap((optionId, index) =>
+        slots[index].positions
+          .filter((position) => position.isNewcomerOnly)
+          .map((position) => ({
+            date,
+            positionId: position.positionId,
+            scope: { kind: "shiftType" as const, optionId },
+          })),
+      );
+    }
+    return countStaffingByDay({ ...base, slots: [] })
+      .positions.filter((position) => position.isNewcomerOnly)
+      .map((position) => ({ date, positionId: position.positionId, scope: { kind: "allDay" as const } }));
+  });
 };

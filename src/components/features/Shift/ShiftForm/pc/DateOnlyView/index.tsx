@@ -9,6 +9,7 @@ import { useShiftDateNotes } from "../../dateNotes";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import {
   dailySortedStaffsAtom,
+  dayStaffingViewByDateAtom,
   detailModeAtom,
   issueCountByDateAtom,
   lockDailyStaffOrderAtom,
@@ -21,7 +22,7 @@ import {
   warningCountByDateAtom,
 } from "../../stores";
 import { DateOnlyTable } from "./DateOnlyTable";
-import { buildDateOnlyRows, buildDateOnlyStaffingByDate, buildDateOnlyWeeks, getSortableDates } from "./script";
+import { buildDateOnlyRows, buildDateOnlyWeeks, getSortableDates } from "./script";
 import type { DateOnlyColumn } from "./types";
 import { WeekRail } from "./WeekRail";
 
@@ -38,7 +39,7 @@ export const DateOnlyView = () => {
   const detailMode = useAtomValue(detailModeAtom);
   const usesPositionColors = useAtomValue(usesPositionColorsAtom);
 
-  const { dates, holidays, isReadOnly, staffs, positions, submissionPattern, timeRange, staffing } = config;
+  const { dates, holidays, isReadOnly } = config;
   const isConfirmedDisplay = config.displayMode === "confirmed";
   const weeks = useMemo(() => buildDateOnlyWeeks(dates), [dates]);
   const [selectedWeekIndex, setSelectedWeekIndex] = useState(0);
@@ -65,34 +66,9 @@ export const DateOnlyView = () => {
     () => countDateOnlyAssignmentsByDate(shifts, visibleInRangeDateKeys),
     [shifts, visibleInRangeDateKeys],
   );
-  // くわしく表示のときだけ、日付ごとの人数と過不足を数える。スタッフ向けの確定シフト表示には出さない。
-  const staffingByDate = useMemo(
-    () =>
-      detailMode && !isConfirmedDisplay
-        ? buildDateOnlyStaffingByDate({
-            dates: visibleInRangeDateKeys,
-            holidays,
-            staffs,
-            shifts,
-            positions,
-            submissionPattern,
-            timeRange,
-            staffing,
-          })
-        : null,
-    [
-      detailMode,
-      holidays,
-      isConfirmedDisplay,
-      positions,
-      shifts,
-      staffing,
-      staffs,
-      submissionPattern,
-      timeRange,
-      visibleInRangeDateKeys,
-    ],
-  );
+  // くわしく表示のときだけ、日付ごとの人数と過不足を出す。スタッフ向けの確定シフト表示には出さない。
+  const staffingViews = useAtomValue(dayStaffingViewByDateAtom);
+  const staffingByDate = detailMode && !isConfirmedDisplay ? staffingViews : null;
   const warningMessagesByStaffId = useMemo(() => {
     const visibleDateSet = new Set(visibleInRangeDateKeys);
     const messagesByStaffId = new Map<string, string[]>();

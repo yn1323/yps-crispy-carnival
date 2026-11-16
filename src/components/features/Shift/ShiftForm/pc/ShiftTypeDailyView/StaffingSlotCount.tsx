@@ -1,5 +1,5 @@
 import { Box, Flex } from "@chakra-ui/react";
-import { StaffingPositionCounts } from "../../detailParts";
+import { StaffingPositionCounts } from "../../staffingParts";
 import type { StaffingSlotView } from "../../staffingPresentation";
 import { summarizeStaffingSlot } from "./script";
 

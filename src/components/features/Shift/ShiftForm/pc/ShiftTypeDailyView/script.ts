@@ -180,7 +180,7 @@ export const summarizeStaffingSlot = (slot: StaffingSlotView): StaffingSlotSumma
   const requiredCounts = slot.positions.flatMap((position) => (position.required === null ? [] : [position.required]));
   const requiredTotal = requiredCounts.length > 0 ? requiredCounts.reduce((sum, count) => sum + count, 0) : null;
   const breakdown = slot.positions
-    .map((position) => `${position.name} ${formatStaffingCount(position.count, position.required)}`)
+    .map((position) => `${position.name} ${position.label}${position.isNewcomerOnly ? "（新人だけ）" : ""}`)
     .join("、");
   return {
     totalLabel: formatStaffingCount(slot.total, requiredTotal),

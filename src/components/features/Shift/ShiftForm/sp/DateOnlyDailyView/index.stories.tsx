@@ -1,8 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { ShiftForm } from "../..";
 import { fullscreenParameters, mobileGlobals, shiftFormDecorators } from "../../stories/shared";
-import { dateOnlyDetailArgs } from "../detailStoryFixtures";
+import { readStaffingCalls, StaffingHarness } from "../../stories/staffingHarness";
+import { dateOnlyDetailArgs, dateOnlyDetailDays, dateOnlyDetailTemplates } from "../detailStoryFixtures";
 
 const meta = {
   title: "Features/Shift/ShiftForm/Date Only/SP/Daily Detail",
@@ -15,7 +16,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** 複数ポジション、日の型あり（不足あり）、休憩、熟練度、仮の勤務を1画面で確かめる。 */
+/** 複数ポジション、必要人数（足りない人数、新人だけの印）、休憩、熟練度、仮の勤務を1画面で確かめる。 */
 export const Detail: Story = {
   args: dateOnlyDetailArgs,
   globals: mobileGlobals,
@@ -37,7 +38,7 @@ export const AssignInteractive: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const staffing = await canvas.findByRole("region", { name: "人数" });
-    await expect(staffing).toHaveTextContent("ホール2/2キッチン1/2▲1レジ1/1");
+    await expect(staffing).toHaveTextContent("ホール2/2キッチン1/2 ▲1レジ1/1新人だけ");
 
     // 選んだポジションで入る。
     await userEvent.click(await canvas.findByRole("radio", { name: "キッチン" }));
@@ -45,7 +46,7 @@ export const AssignInteractive: Story = {
     await expect(await canvas.findByRole("button", { name: "吉田 三郎 6/2(火) 勤務あり、キッチン" })).toHaveTextContent(
       "キッチン",
     );
-    await expect(staffing).toHaveTextContent("ホール2/2キッチン2/2レジ1/1");
+    await expect(staffing).toHaveTextContent("ホール2/2キッチン2/2レジ1/1新人だけ");
 
     // 別のポジションを選んで勤務のあるボタンを押すと、外れずに入れ替わる。
     await userEvent.click(await canvas.findByRole("radio", { name: "レジ" }));
@@ -53,11 +54,57 @@ export const AssignInteractive: Story = {
     await expect(await canvas.findByRole("button", { name: "吉田 三郎 6/2(火) 勤務あり、レジ" })).toHaveTextContent(
       "レジ",
     );
-    await expect(staffing).toHaveTextContent("ホール2/2キッチン1/2▲1レジ2/1");
+    await expect(staffing).toHaveTextContent("ホール2/2キッチン1/2 ▲1レジ2/1 ＋1");
 
     // 同じポジションでもう一度押すと外れる。
     await userEvent.click(await canvas.findByRole("button", { name: "吉田 三郎 6/2(火) 勤務あり、レジ" }));
     await expect(await canvas.findByRole("button", { name: "吉田 三郎 6/2(火) 勤務なし" })).toBeInTheDocument();
-    await expect(staffing).toHaveTextContent("ホール2/2キッチン1/2▲1レジ1/1");
+    await expect(staffing).toHaveTextContent("ホール2/2キッチン1/2 ▲1レジ1/1新人だけ");
+  },
+};
+
+/** スマートフォンでも、「この日だけ人数を変える」で1日の人数を数字で直し、その日だけの必要人数として保存できる。 */
+export const CustomRequirementsInteractive: Story = {
+  name: "Custom Requirements Interactive",
+  args: dateOnlyDetailArgs,
+  render: (args) => <StaffingHarness {...args} templates={dateOnlyDetailTemplates} weekdayDays={dateOnlyDetailDays} />,
+  globals: mobileGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    const staffing = await canvas.findByRole("region", { name: "人数" });
+
+    await userEvent.click(within(staffing).getByRole("button", { name: "この日の型: 平日" }));
+    await userEvent.click(await body.findByRole("menuitem", { name: "この日だけ人数を変える" }));
+    const dialog = within(await body.findByRole("dialog", { name: "6月2日（火）の必要人数" }));
+    const kitchenInput = dialog.getByRole("spinbutton", { name: "1日のキッチンの必要人数" });
+    await expect(kitchenInput).toHaveValue(2);
+
+    await userEvent.clear(kitchenInput);
+    await userEvent.type(kitchenInput, "1");
+    await userEvent.click(dialog.getByRole("button", { name: "保存する" }));
+
+    await waitFor(() => expect(body.queryByRole("dialog", { name: "6月2日（火）の必要人数" })).not.toBeInTheDocument());
+    await expect((await readStaffingCalls(canvasElement)).calls).toEqual([
+      {
+        mutation: "saveDayCustomRequirements",
+        date: "2026-06-02",
+        requirements: {
+          kind: "dateOnly",
+          counts: [
+            { positionId: "hall", count: 2 },
+            { positionId: "kitchen", count: 1 },
+            { positionId: "register", count: 1 },
+          ],
+        },
+      },
+    ]);
+    // キッチンの不足がなくなり、その日だけ変えた日として出る。
+    await expect(
+      await within(staffing).findByRole("button", { name: "この日の型: この日だけ変更" }),
+    ).toBeInTheDocument();
+    await expect(staffing).toHaveTextContent("ホール2/2キッチン1/1レジ1/1新人だけ");
+    await expect(within(staffing).getByText("不足なし")).toBeInTheDocument();
   },
 };

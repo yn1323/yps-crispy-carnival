@@ -1,6 +1,7 @@
 import type { ComponentProps } from "react";
+import { getDayOfWeek } from "@/src/domains/shift/date";
 import type { PositionSegment, PositionType, ShiftData, StaffType } from "@/src/domains/shift/types";
-import type { ShiftForm, ShiftFormStaffing } from "..";
+import type { ShiftForm } from "..";
 import {
   mockDateOnlyDates,
   mockDateOnlyStaffs,
@@ -10,9 +11,17 @@ import {
   mockStaffs,
 } from "../stories/fixtures";
 import { allPatternsArgs, dateOnlyArgs, shiftTypeArgs } from "../stories/shared";
+import {
+  buildStaffing,
+  type StoryTemplate,
+  staffingCounts,
+  templateDay,
+  timeRequirements,
+  unsetDay,
+} from "../stories/staffingHarness";
 
 // スマートフォンの「くわしく表示」のStoryで共有するfixture。
-// 複数ポジション、日の型あり（不足あり）、休憩あり、熟練度あり、仮の勤務ありを1画面で確かめられるようにする。
+// 複数ポジション、必要人数あり（不足、多い人数、新人だけ）、休憩あり、熟練度あり、仮の勤務ありを1画面で確かめられるようにする。
 
 type ShiftFormArgs = ComponentProps<typeof ShiftForm>;
 
@@ -21,8 +30,19 @@ export const kitchen: PositionType = { id: "kitchen", name: "キッチン", colo
 export const register: PositionType = { id: "register", name: "レジ", color: "#7c3aed", isDefault: false };
 export const detailPositions = [hall, kitchen, register];
 
-const requirements = (counts: Array<[position: PositionType, count: number]>) =>
-  counts.map(([position, count]) => ({ positionId: position.id, count }));
+// 平日（月〜金）は型を当て、土日は未設定にする。
+const weekdayDays = (dates: readonly string[], template: StoryTemplate) =>
+  dates.map((date) => {
+    const weekday = getDayOfWeek(date);
+    return weekday === 0 || weekday === 6 ? unsetDay(date) : templateDay(date, template);
+  });
+
+const noopStaffingActions = {
+  onApplyTemplate: async () => true,
+  onSaveCustom: async () => true,
+  isPending: false,
+};
+const detailActions = { onOpenSetup: () => {}, dayStaffingActions: noopStaffingActions };
 
 // staff1を責任者、staff4を新人にする。
 const withSkillLevels = (staffs: StaffType[]): StaffType[] =>
@@ -110,49 +130,30 @@ export const timeDetailShifts: ShiftData[] = [
   }),
 ];
 
-export const timeDetailStaffing: ShiftFormStaffing = {
-  dayTemplates: [
-    {
-      id: "weekday",
-      name: "平日",
-      weekdays: ["mon", "tue", "wed", "thu", "fri"],
-      slots: [
-        {
-          key: { kind: "time", startTime: "09:00", endTime: "13:00" },
-          requirements: requirements([
-            [hall, 2],
-            [kitchen, 1],
-          ]),
-        },
-        {
-          key: { kind: "time", startTime: "13:00", endTime: "17:00" },
-          requirements: requirements([
-            [hall, 1],
-            [kitchen, 2],
-            [register, 1],
-          ]),
-        },
-        { key: { kind: "time", startTime: "17:00", endTime: "22:00" }, requirements: requirements([[hall, 1]]) },
-      ],
-    },
-    {
-      id: "event",
-      name: "イベント日",
-      weekdays: [],
-      slots: [
-        {
-          key: { kind: "time", startTime: "09:00", endTime: "22:00" },
-          requirements: requirements([
-            [hall, 3],
-            [kitchen, 2],
-          ]),
-        },
-      ],
-    },
-  ],
-  dayTemplateOverrides: [],
-  breakRule: null,
+// 平日の型。ホールは午前に2人、キッチンは午後に2人、レジは午後だけ1人が必要。
+export const timeWeekdayTemplate: StoryTemplate = {
+  id: "weekday",
+  name: "平日",
+  requirements: timeRequirements([
+    [hall, "09:00", "13:00", 2],
+    [hall, "13:00", "22:00"],
+    [kitchen, "09:00", "13:00"],
+    [kitchen, "13:00", "17:00", 2],
+    [register, "13:00", "17:00"],
+  ]),
 };
+export const timeEventTemplate: StoryTemplate = {
+  id: "event",
+  name: "イベント日",
+  requirements: timeRequirements([
+    [hall, "09:00", "22:00", 3],
+    [kitchen, "09:00", "22:00", 2],
+  ]),
+};
+export const timeDetailTemplates = [timeWeekdayTemplate, timeEventTemplate];
+// 2026-01-23は金曜（平日の型が当たる）、24は土曜（型が当たらない）。
+export const timeDetailDays = weekdayDays([timeDetailDate, timeDetailNextDate], timeWeekdayTemplate);
+export const timeDetailStaffing = buildStaffing({ templates: timeDetailTemplates, days: timeDetailDays });
 
 export const timeDetailArgs = {
   ...allPatternsArgs,
@@ -163,6 +164,7 @@ export const timeDetailArgs = {
   staffing: timeDetailStaffing,
   initialDetailMode: true,
   onDetailModeChange: () => {},
+  detailActions,
 } satisfies ShiftFormArgs;
 
 // ==========================================
@@ -225,41 +227,51 @@ const shiftTypeDetailShifts: ShiftData[] = [
   shiftTypeShift("staff2", shiftTypeNextDate, [["late", kitchen]]),
 ];
 
-const shiftTypeDetailStaffing: ShiftFormStaffing = {
-  dayTemplates: [
-    {
-      id: "weekday",
-      name: "平日",
-      weekdays: ["mon", "tue", "wed", "thu", "fri"],
-      slots: [
-        {
-          key: { kind: "shiftType", optionId: "morning" },
-          requirements: requirements([
-            [hall, 2],
-            [kitchen, 1],
-          ]),
-        },
-        {
-          key: { kind: "shiftType", optionId: "middle" },
-          requirements: requirements([
-            [hall, 1],
-            [kitchen, 1],
-          ]),
-        },
-        {
-          key: { kind: "shiftType", optionId: "late" },
-          requirements: requirements([
-            [hall, 2],
-            [kitchen, 1],
-          ]),
-        },
-        { key: { kind: "shiftType", optionId: "night" }, requirements: requirements([[register, 1]]) },
-      ],
-    },
-  ],
-  dayTemplateOverrides: [],
-  breakRule: null,
+export const shiftTypeWeekdayTemplate: StoryTemplate = {
+  id: "weekday",
+  name: "平日",
+  requirements: {
+    kind: "shiftType",
+    options: [
+      {
+        optionId: "morning",
+        counts: staffingCounts([
+          [hall, 2],
+          [kitchen, 1],
+        ]),
+      },
+      {
+        optionId: "middle",
+        counts: staffingCounts([
+          [hall, 1],
+          [kitchen, 1],
+        ]),
+      },
+      {
+        optionId: "late",
+        counts: staffingCounts([
+          [hall, 2],
+          [kitchen, 1],
+        ]),
+      },
+      { optionId: "night", counts: staffingCounts([[register, 1]]) },
+    ],
+  },
 };
+export const shiftTypeEventTemplate: StoryTemplate = {
+  id: "event",
+  name: "イベント日",
+  requirements: {
+    kind: "shiftType",
+    options: [
+      { optionId: "morning", counts: staffingCounts([[hall, 3]]) },
+      { optionId: "middle", counts: staffingCounts([[hall, 3]]) },
+    ],
+  },
+};
+export const shiftTypeDetailTemplates = [shiftTypeWeekdayTemplate, shiftTypeEventTemplate];
+export const shiftTypeDetailDays = weekdayDays(mockShiftTypeDates, shiftTypeWeekdayTemplate);
+const shiftTypeDetailStaffing = buildStaffing({ templates: shiftTypeDetailTemplates, days: shiftTypeDetailDays });
 
 export const shiftTypeDetailArgs = {
   ...shiftTypeArgs,
@@ -269,6 +281,7 @@ export const shiftTypeDetailArgs = {
   staffing: shiftTypeDetailStaffing,
   initialDetailMode: true,
   onDetailModeChange: () => {},
+  detailActions,
 } satisfies ShiftFormArgs;
 
 // ==========================================
@@ -320,27 +333,32 @@ const dateOnlyDetailShifts: ShiftData[] = [
   dateOnlyShift("staff4", dateOnlyNextDate, kitchen),
 ];
 
-const dateOnlyDetailStaffing: ShiftFormStaffing = {
-  dayTemplates: [
-    {
-      id: "weekday",
-      name: "平日",
-      weekdays: ["mon", "tue", "wed", "thu", "fri"],
-      slots: [
-        {
-          key: { kind: "allDay" },
-          requirements: requirements([
-            [hall, 2],
-            [kitchen, 2],
-            [register, 1],
-          ]),
-        },
-      ],
-    },
-  ],
-  dayTemplateOverrides: [],
-  breakRule: null,
+export const dateOnlyWeekdayTemplate: StoryTemplate = {
+  id: "weekday",
+  name: "平日",
+  requirements: {
+    kind: "dateOnly",
+    counts: staffingCounts([
+      [hall, 2],
+      [kitchen, 2],
+      [register, 1],
+    ]),
+  },
 };
+export const dateOnlyEventTemplate: StoryTemplate = {
+  id: "event",
+  name: "イベント日",
+  requirements: {
+    kind: "dateOnly",
+    counts: staffingCounts([
+      [hall, 3],
+      [kitchen, 3],
+    ]),
+  },
+};
+export const dateOnlyDetailTemplates = [dateOnlyWeekdayTemplate, dateOnlyEventTemplate];
+export const dateOnlyDetailDays = weekdayDays(mockDateOnlyDates, dateOnlyWeekdayTemplate);
+const dateOnlyDetailStaffing = buildStaffing({ templates: dateOnlyDetailTemplates, days: dateOnlyDetailDays });
 
 export const dateOnlyDetailArgs = {
   ...dateOnlyArgs,
@@ -350,4 +368,5 @@ export const dateOnlyDetailArgs = {
   staffing: dateOnlyDetailStaffing,
   initialDetailMode: true,
   onDetailModeChange: () => {},
+  detailActions,
 } satisfies ShiftFormArgs;

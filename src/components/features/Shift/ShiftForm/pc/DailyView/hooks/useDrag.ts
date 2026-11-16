@@ -1,6 +1,11 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  isWithinEditableRange,
+  pixelToEditableMinutes,
+  pixelToRawMinutes,
+} from "@/src/components/shared/ShiftTimeline/timelineGeometry";
+import {
   mergeAdjacentPositions,
   paintPosition,
   resizeLinkedPositions,
@@ -18,7 +23,6 @@ import {
   shiftConfigAtom,
   updateShiftDraftsAtom,
 } from "../../../stores";
-import { isWithinEditableRange, pixelToEditableMinutes, pixelToRawMinutes } from "../../../timelineGeometry";
 
 type DragState = {
   mode: DragMode;

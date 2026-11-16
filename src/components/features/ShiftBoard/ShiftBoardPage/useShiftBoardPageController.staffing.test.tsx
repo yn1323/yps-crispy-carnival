@@ -11,11 +11,13 @@ import type { ShiftBoardData, ShiftBoardStaffingData } from "../types";
 const mocks = vi.hoisted(() => ({
   saveReference: Symbol("save"),
   confirmReference: Symbol("confirm"),
-  overrideReference: Symbol("setDayTemplateOverride"),
+  applyTemplateReference: Symbol("applyDayTemplateToDates"),
+  saveCustomReference: Symbol("saveDayCustomRequirements"),
   provisionalQueryReference: Symbol("getProvisionalAssignments"),
   save: vi.fn(),
   confirm: vi.fn(),
-  setDayTemplateOverride: vi.fn(),
+  applyDayTemplateToDates: vi.fn(),
+  saveDayCustomRequirements: vi.fn(),
   navigate: vi.fn(),
   convexQuery: vi.fn(),
   toast: vi.fn(),
@@ -32,14 +34,20 @@ vi.mock("@/convex/_generated/api", () => ({
       mutations: { saveShiftAssignments: mocks.saveReference, confirmRecruitment: mocks.confirmReference },
       queries: { getProvisionalAssignments: mocks.provisionalQueryReference },
     },
-    shiftSetup: { mutations: { setDayTemplateOverride: mocks.overrideReference } },
+    shiftSetup: {
+      mutations: {
+        applyDayTemplateToDates: mocks.applyTemplateReference,
+        saveDayCustomRequirements: mocks.saveCustomReference,
+      },
+    },
   },
 }));
 vi.mock("@/src/hooks/useShopMutation", () => ({
   useShopMutation: (reference: unknown) => {
     if (reference === mocks.saveReference) return mocks.save;
     if (reference === mocks.confirmReference) return mocks.confirm;
-    if (reference === mocks.overrideReference) return mocks.setDayTemplateOverride;
+    if (reference === mocks.applyTemplateReference) return mocks.applyDayTemplateToDates;
+    if (reference === mocks.saveCustomReference) return mocks.saveDayCustomRequirements;
     throw new Error("unexpected mutation reference");
   },
 }));
@@ -96,23 +104,29 @@ const data: ShiftBoardData = {
 
 const emptyStaffing: ShiftBoardStaffingData = {
   breakRule: null,
-  dayTemplates: [],
-  dayTemplateOverrides: [],
   staffProfiles: [],
   hasPreviousConfirmedRecruitment: false,
+  isLocked: false,
+  templates: [],
+  days: [{ date, source: "none", templateId: null, templateName: null, requirements: null }],
 };
 
-const dayTemplate: ShiftBoardStaffingData["dayTemplates"][number] = {
-  _id: templateId,
-  name: "平日",
-  weekdays: ["mon", "tue", "wed", "thu", "fri"],
-  slots: [
-    {
-      key: { kind: "time", startTime: "09:00", endTime: "22:00" },
-      requirements: [{ positionId: hallId, count: 2 }],
-    },
-  ],
+const template = { _id: templateId, name: "平日" };
+// 曜日の型が当たり、ホールに9:00〜22:00で2人が必要な日。
+const weekdayDay: ShiftBoardStaffingData["days"][number] = {
+  date,
+  source: "weekday",
+  templateId,
+  templateName: "平日",
+  requirements: {
+    kind: "time",
+    bars: [
+      { positionId: hallId, startTime: "09:00", endTime: "22:00" },
+      { positionId: hallId, startTime: "09:00", endTime: "22:00" },
+    ],
+  },
 };
+const templateStaffing: ShiftBoardStaffingData = { ...emptyStaffing, templates: [template], days: [weekdayDay] };
 
 function Scope({ children }: { children: ReactNode }) {
   return (
@@ -154,49 +168,35 @@ beforeEach(() => {
   window.localStorage.clear();
   mocks.save.mockResolvedValue(null);
   mocks.confirm.mockResolvedValue(null);
-  mocks.setDayTemplateOverride.mockResolvedValue(null);
+  mocks.applyDayTemplateToDates.mockResolvedValue(null);
+  mocks.saveDayCustomRequirements.mockResolvedValue(null);
   mocks.convexQuery.mockResolvedValue([]);
 });
 
 afterEach(() => vi.restoreAllMocks());
 
 describe("店舗の設定をシフト表へ渡す", () => {
-  it("日の型、特別な日、休憩の決まりをShiftFormの形へ変換して渡す", () => {
+  it("日ごとの必要人数、当てられる型、休憩の決まりをShiftFormの形へ変換して渡す", () => {
     const { result } = renderController({
-      staffing: {
-        ...emptyStaffing,
-        breakRule: { minWorkMinutes: 360, breakMinutes: 60 },
-        dayTemplates: [dayTemplate],
-        dayTemplateOverrides: [{ date, templateId }],
-      },
+      staffing: { ...templateStaffing, breakRule: { minWorkMinutes: 360, breakMinutes: 60 } },
     });
 
     expect(result.current.viewModel.shiftForm.staffing).toEqual({
-      dayTemplates: [
-        {
-          id: templateId,
-          name: "平日",
-          weekdays: ["mon", "tue", "wed", "thu", "fri"],
-          slots: [
-            {
-              key: { kind: "time", startTime: "09:00", endTime: "22:00" },
-              requirements: [{ positionId: hallId, count: 2 }],
-            },
-          ],
-        },
-      ],
-      dayTemplateOverrides: [{ date, templateId }],
       breakRule: { minWorkMinutes: 360, breakMinutes: 60 },
+      isLocked: false,
+      templates: [{ id: templateId, name: "平日" }],
+      days: [weekdayDay],
     });
   });
 
-  it("何も設定していない店舗の設定は、空の一覧と決まりなしで渡す", () => {
+  it("何も設定していない店舗の設定は、未設定の日と、空の型の一覧と、決まりなしで渡す", () => {
     const { result } = renderController({ staffing: emptyStaffing });
 
     expect(result.current.viewModel.shiftForm.staffing).toEqual({
-      dayTemplates: [],
-      dayTemplateOverrides: [],
       breakRule: null,
+      isLocked: false,
+      templates: [],
+      days: [{ date, source: "none", templateId: null, templateName: null, requirements: null }],
     });
   });
 
@@ -315,7 +315,7 @@ describe("店舗の設定を渡さない利用箇所", () => {
 describe("表示の初期状態", () => {
   const configuredCases: Array<[string, RenderOptions]> = [
     ["ポジションが2つ以上ある", { data: { ...data, positions: [hall, kitchen] }, staffing: emptyStaffing }],
-    ["日の型がある", { staffing: { ...emptyStaffing, dayTemplates: [dayTemplate] } }],
+    ["当てられる型がある", { staffing: templateStaffing }],
     ["休憩の決まりがある", { staffing: { ...emptyStaffing, breakRule: { minWorkMinutes: 360, breakMinutes: 45 } } }],
     [
       "スタッフの属性を設定している",
@@ -363,10 +363,10 @@ describe("表示の初期状態", () => {
       { wrapper: Scope, initialProps: { staffing: emptyStaffing } },
     );
 
-    rerender({ staffing: { ...emptyStaffing, dayTemplates: [dayTemplate] } });
+    rerender({ staffing: templateStaffing });
 
     expect(result.current.viewModel.shiftForm.initialDetailMode).toBe(false);
-    expect(result.current.viewModel.shiftForm.staffing?.dayTemplates).toHaveLength(1);
+    expect(result.current.viewModel.shiftForm.staffing?.templates).toEqual([{ id: templateId, name: "平日" }]);
   });
 
   it("利用者が切り替えた表示を端末に覚える", () => {
@@ -570,28 +570,193 @@ describe("前回の勤務を仮で入れる", () => {
   });
 });
 
-describe("日の型の変更と設定ページへの導線", () => {
-  it("書き込める場合は、その日に当てる日の型の変更と、曜日の割り当てへ戻す操作を保存する", () => {
-    const { result } = renderController({ staffing: emptyStaffing });
+describe("その日の必要人数の変更と設定ページへの導線", () => {
+  type Controller = { current: ReturnType<typeof useShiftBoardPageController> };
+  const actionsOf = (result: Controller) => {
+    const actions = result.current.viewModel.shiftForm.detailActions.dayStaffingActions;
+    if (!actions) throw new Error("dayStaffingActions is not provided");
+    return actions;
+  };
 
-    act(() => {
-      result.current.viewModel.shiftForm.detailActions.onChangeDayTemplate?.(date, templateId);
-      result.current.viewModel.shiftForm.detailActions.onChangeDayTemplate?.(date, null);
+  it("選んだ日へ型を当てる操作は、この募集と日付と型を1回で送り、成功を返す", async () => {
+    const { result } = renderController({ staffing: templateStaffing });
+
+    let applied: boolean | undefined;
+    await act(async () => {
+      applied = await actionsOf(result).onApplyTemplate([date], templateId);
     });
 
-    expect(mocks.setDayTemplateOverride.mock.calls).toEqual([[{ date, templateId }], [{ date, templateId: null }]]);
+    expect(applied).toBe(true);
+    expect(mocks.applyDayTemplateToDates.mock.calls).toEqual([[{ recruitmentId, dates: [date], templateId }]]);
+    // 1日だけの変更は、帯が変わることで伝わるため、成功の通知を出さない。
+    expect(mocks.showSuccessToast).not.toHaveBeenCalled();
   });
 
-  it("日の型の変更に失敗した場合は、エラーを知らせる", async () => {
-    const error = new Error("rejected");
-    mocks.setDayTemplateOverride.mockRejectedValue(error);
-    const { result } = renderController({ staffing: emptyStaffing });
+  it("複数の日へまとめて当てた場合は、1回の呼び出しで送り、日数を成功の通知で伝える", async () => {
+    const { result } = renderController({ staffing: templateStaffing });
 
     await act(async () => {
-      result.current.viewModel.shiftForm.detailActions.onChangeDayTemplate?.(date, templateId);
+      await actionsOf(result).onApplyTemplate(["2099-01-20", "2099-01-21", "2099-01-24"], templateId);
     });
 
+    expect(mocks.applyDayTemplateToDates.mock.calls).toEqual([
+      [{ recruitmentId, dates: ["2099-01-20", "2099-01-21", "2099-01-24"], templateId }],
+    ]);
+    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "3日の型を変更しました" });
+  });
+
+  it("曜日の設定に戻す操作は、型をnullで送る", async () => {
+    const { result } = renderController({ staffing: templateStaffing });
+
+    await act(async () => {
+      await actionsOf(result).onApplyTemplate([date], null);
+    });
+
+    expect(mocks.applyDayTemplateToDates.mock.calls).toEqual([[{ recruitmentId, dates: [date], templateId: null }]]);
+  });
+
+  it("型を当てる操作に失敗した場合は、エラーを知らせて失敗を返す", async () => {
+    const error = new Error("rejected");
+    mocks.applyDayTemplateToDates.mockRejectedValue(error);
+    const { result } = renderController({ staffing: templateStaffing });
+
+    let applied: boolean | undefined;
+    await act(async () => {
+      applied = await actionsOf(result).onApplyTemplate([date], templateId);
+    });
+
+    expect(applied).toBe(false);
     expect(mocks.showErrorToast).toHaveBeenCalledExactlyOnceWith(error);
+    expect(mocks.showSuccessToast).not.toHaveBeenCalled();
+  });
+
+  it("処理中にもう一度当てても、2回目は送らずに失敗を返す", async () => {
+    let resolveFirst: (value: null) => void = () => {};
+    mocks.applyDayTemplateToDates.mockReturnValue(
+      new Promise<null>((resolve) => {
+        resolveFirst = resolve;
+      }),
+    );
+    const { result } = renderController({ staffing: templateStaffing });
+
+    let first: Promise<boolean> | undefined;
+    let second: boolean | undefined;
+    await act(async () => {
+      first = actionsOf(result).onApplyTemplate([date], templateId);
+      second = await actionsOf(result).onApplyTemplate([date], null);
+    });
+    expect(second).toBe(false);
+    expect(actionsOf(result).isPending).toBe(true);
+
+    await act(async () => {
+      resolveFirst(null);
+      await first;
+    });
+
+    expect(mocks.applyDayTemplateToDates).toHaveBeenCalledTimes(1);
+    expect(actionsOf(result).isPending).toBe(false);
+  });
+
+  it("この日だけの必要人数は、この募集と日付と必要人数を送り、保存したことを伝える", async () => {
+    const requirements = {
+      kind: "time" as const,
+      bars: [{ positionId: hallId as string, startTime: "09:00", endTime: "14:00" }],
+    };
+    const { result } = renderController({ staffing: templateStaffing });
+
+    let saved: boolean | undefined;
+    await act(async () => {
+      saved = await actionsOf(result).onSaveCustom(date, requirements);
+    });
+
+    expect(saved).toBe(true);
+    expect(mocks.saveDayCustomRequirements.mock.calls).toEqual([[{ recruitmentId, date, requirements }]]);
+    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "この日の必要人数を保存しました" });
+  });
+
+  it("この日だけの必要人数の保存に失敗した場合は、エラーを知らせて失敗を返す", async () => {
+    const error = new Error("rejected");
+    mocks.saveDayCustomRequirements.mockRejectedValue(error);
+    const { result } = renderController({ staffing: templateStaffing });
+
+    let saved: boolean | undefined;
+    await act(async () => {
+      saved = await actionsOf(result).onSaveCustom(date, { kind: "time", bars: [] });
+    });
+
+    expect(saved).toBe(false);
+    expect(mocks.showErrorToast).toHaveBeenCalledExactlyOnceWith(error);
+    expect(mocks.showSuccessToast).not.toHaveBeenCalled();
+  });
+
+  it("型を当て直して必要人数が変わっても、編集中の勤務を消さず、そのまま保存する", async () => {
+    const { result, rerender } = renderHook(
+      ({ staffing }: { staffing: ShiftBoardStaffingData }) =>
+        useShiftBoardPageController(data, recruitmentId, undefined, undefined, staffing),
+      { wrapper: Scope, initialProps: { staffing: emptyStaffing } },
+    );
+    const initialShifts = result.current.viewModel.shiftForm.initialShifts;
+    act(() => result.current.intents.onShiftsChange(initialShifts));
+    // 未提出のスタッフへ、保存していない勤務を入れる。
+    const edited = initialShifts.map((shift) =>
+      shift.staffId === unsubmittedStaffId
+        ? {
+            ...shift,
+            positions: [
+              {
+                id: "seg-manual",
+                positionId: hallId,
+                positionName: "ホール",
+                color: "#0d9488",
+                start: "09:00",
+                end: "12:00",
+              },
+            ],
+          }
+        : shift,
+    );
+    act(() => result.current.intents.onShiftsChange(edited));
+
+    await act(async () => {
+      await actionsOf(result).onApplyTemplate([date], templateId);
+    });
+    // 型を当てたあとの必要人数が、queryの更新で届く。
+    rerender({ staffing: templateStaffing });
+
+    expect(mocks.save).not.toHaveBeenCalled();
+    expect(result.current.viewModel.shiftForm.staffing?.days).toEqual([weekdayDay]);
+
+    await act(async () => {
+      result.current.intents.onSaveDraft();
+    });
+
+    expect(mocks.save).toHaveBeenCalledTimes(1);
+    expect(
+      mocks.save.mock.calls[0][0].assignments.map(
+        (assignment: { staffId: string; startTime: string; endTime: string }) => [
+          assignment.staffId,
+          assignment.startTime,
+          assignment.endTime,
+        ],
+      ),
+    ).toEqual([
+      [submittedStaffId, "10:00", "18:00"],
+      [unsubmittedStaffId, "09:00", "12:00"],
+    ]);
+  });
+
+  it("確定済みで必要人数を変えられない募集には、必要人数の操作を出さず、設定ページへの導線だけを出す", () => {
+    const { result } = renderController({
+      data: { ...data, recruitment: { ...data.recruitment, status: "confirmed", confirmedAt: 1 } },
+      staffing: {
+        ...templateStaffing,
+        isLocked: true,
+        days: [{ ...weekdayDay, source: "confirmed", templateId: null }],
+      },
+    });
+
+    expect(result.current.viewModel.shiftForm.staffing?.isLocked).toBe(true);
+    expect(Object.keys(result.current.viewModel.shiftForm.detailActions)).toEqual(["onOpenSetup"]);
   });
 
   it.each<[string, Partial<ShiftBoardData>]>([
@@ -600,21 +765,21 @@ describe("日の型の変更と設定ページへの導線", () => {
       "支払い結果の確認中で書き込めない",
       { canWriteBusinessData: false, businessWriteBlockReason: "paymentResultPending" },
     ],
-  ])("%s場合は、日の型の変更を出さず、設定ページへの導線だけを出す", (_label, overrides) => {
+  ])("%s場合は、必要人数の操作を出さず、設定ページへの導線だけを出す", (_label, overrides) => {
     const { result } = renderController({ data: { ...data, ...overrides }, staffing: emptyStaffing });
 
     expect(result.current.viewModel.isReadOnly).toBe(true);
     expect(Object.keys(result.current.viewModel.shiftForm.detailActions)).toEqual(["onOpenSetup"]);
   });
 
-  it("募集条件が変わって再読み込みを案内している間は、日の型の変更を出さない", () => {
+  it("募集条件が変わって再読み込みを案内している間は、必要人数の操作を出さない", () => {
     const { result, rerender } = renderHook(
       ({ current }: { current: ShiftBoardData }) =>
         useShiftBoardPageController(current, recruitmentId, undefined, undefined, emptyStaffing),
       { wrapper: Scope, initialProps: { current: data } },
     );
     expect(Object.keys(result.current.viewModel.shiftForm.detailActions).sort()).toEqual([
-      "onChangeDayTemplate",
+      "dayStaffingActions",
       "onOpenSetup",
     ]);
 
@@ -646,5 +811,101 @@ describe("日の型の変更と設定ページへの導線", () => {
     });
 
     expect(result.current.viewModel.shiftForm.detailActions).toEqual({});
+  });
+});
+
+describe("新人だけの時間帯の確認事項", () => {
+  const newcomerId = "staff-newcomer" as Id<"staffs">;
+  // 提出済みの新人が10:00〜18:00にホール、提出済みの標準スタッフが10:00〜14:00にホールへ入る。
+  const newcomerData: ShiftBoardData = {
+    ...data,
+    positions: [hall, kitchen],
+    staffs: [
+      { _id: submittedStaffId, name: "提出済み", isSubmitted: true, wasSubmittedAtDraft: false },
+      { _id: newcomerId, name: "新人", isSubmitted: true, wasSubmittedAtDraft: false },
+    ],
+    requestedSlots: [
+      { staffId: submittedStaffId, date, startTime: "10:00", endTime: "14:00" },
+      { staffId: newcomerId, date, startTime: "10:00", endTime: "18:00" },
+    ],
+    shiftAssignments: [
+      { staffId: submittedStaffId, date, startTime: "10:00", endTime: "14:00", positionId: hallId },
+      { staffId: newcomerId, date, startTime: "10:00", endTime: "18:00", positionId: hallId },
+    ],
+  };
+  const newcomerStaffing: ShiftBoardStaffingData = {
+    ...emptyStaffing,
+    staffProfiles: [{ staffId: newcomerId, unavailablePositionIds: [], skillLevel: "newcomer" }],
+  };
+  const period = { date, positionId: hallId, scope: { kind: "time", start: "14:00", end: "18:00" } };
+  const item = { key: `${date}-${hallId}-14:00`, date, label: "1/20(火) ホール 14:00〜18:00" };
+
+  it("新人だけが残る時間帯を、日、ポジション、時間帯の単位で、シフト表と確定の確認へ渡す", () => {
+    const { result } = renderInitialized({ data: newcomerData, staffing: newcomerStaffing });
+
+    expect(result.current.viewModel.shiftForm.newcomerOnlyPeriods).toEqual([period]);
+    expect(result.current.viewModel.confirmDialog.newcomerOnlyItems).toEqual([item]);
+    // スタッフ1人に結び付く確認事項とは別に持つ。
+    expect(result.current.viewModel.shiftForm.validationWarnings).toEqual([]);
+  });
+
+  it("新人だけの時間帯があっても、確定の確認を開ける", () => {
+    const { result } = renderInitialized({ data: newcomerData, staffing: newcomerStaffing });
+
+    act(() => result.current.intents.onConfirmRequest());
+
+    expect(result.current.viewModel.shiftForm.validationIssues).toEqual([]);
+    expect(result.current.viewModel.confirmDialog.isOpen).toBe(true);
+    expect(result.current.viewModel.confirmDialog.newcomerOnlyItems).toEqual([item]);
+  });
+
+  it("新人だけの時間帯があっても、下書きを保存できる", async () => {
+    const { result } = renderInitialized({ data: newcomerData, staffing: newcomerStaffing });
+
+    await act(async () => {
+      result.current.intents.onSaveDraft();
+    });
+
+    expect(mocks.save).toHaveBeenCalledTimes(1);
+    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "下書きを保存しました" });
+  });
+
+  it("勤務を編集すると、新人だけの時間帯を数え直す", () => {
+    const { result } = renderInitialized({ data: newcomerData, staffing: newcomerStaffing });
+    const withoutStandard = result.current.viewModel.shiftForm.initialShifts.map((shift) =>
+      shift.staffId === submittedStaffId ? { ...shift, positions: [] } : shift,
+    );
+
+    act(() => result.current.intents.onShiftsChange(withoutStandard));
+
+    expect(result.current.viewModel.confirmDialog.newcomerOnlyItems.map((entry) => entry.label)).toEqual([
+      "1/20(火) ホール 10:00〜18:00",
+    ]);
+  });
+
+  it("新人の印がないスタッフだけの店舗では、何も出さない", () => {
+    const { result } = renderInitialized({ data: newcomerData, staffing: emptyStaffing });
+
+    expect(result.current.viewModel.shiftForm.newcomerOnlyPeriods).toEqual([]);
+    expect(result.current.viewModel.confirmDialog.newcomerOnlyItems).toEqual([]);
+  });
+
+  it("確定済みのシフトを開き直しただけでは出さず、勤務を変えた日のものだけを出す", () => {
+    const { result } = renderInitialized({
+      data: { ...newcomerData, recruitment: { ...newcomerData.recruitment, status: "confirmed", confirmedAt: 1 } },
+      staffing: newcomerStaffing,
+    });
+    expect(result.current.viewModel.confirmDialog.newcomerOnlyItems).toEqual([]);
+
+    const edited = result.current.viewModel.shiftForm.initialShifts.map((shift) =>
+      shift.staffId === submittedStaffId
+        ? { ...shift, positions: shift.positions.map((position) => ({ ...position, end: "13:00" })) }
+        : shift,
+    );
+    act(() => result.current.intents.onShiftsChange(edited));
+
+    expect(result.current.viewModel.confirmDialog.newcomerOnlyItems.map((entry) => entry.label)).toEqual([
+      "1/20(火) ホール 13:00〜18:00",
+    ]);
   });
 });

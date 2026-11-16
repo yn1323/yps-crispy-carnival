@@ -1,12 +1,13 @@
 import { ConvexError, type Infer, v } from "convex/values";
-import type { Id } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
+import type { MutationCtx } from "../_generated/server";
 import { getShiftSetupAssistMode } from "../_lib/config";
 import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { managerMutation, resolveManagerShopAccessByTokenIdentifier } from "../_lib/functions";
 import { rateLimit } from "../_lib/rateLimits";
 import {
+  dayRequirementsValidator,
   shiftBreakRuleValidator,
-  shiftDayTemplateSlotValidator,
   shiftDayTemplateWeekdayValidator,
 } from "../_lib/shiftSetupValidators";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
@@ -15,15 +16,19 @@ import {
   DEFAULT_POSITION_COLOR,
   POSITION_ACTIVE_LIMIT,
   POSITION_COLOR_PALETTE,
+  RECRUITMENT_PERIOD_DAYS_MAX,
   SHIFT_BOARD_STAFF_LIMIT,
-  SHIFT_DAY_TEMPLATE_LIMIT,
-  SHIFT_DAY_TEMPLATE_NAME_MAX_LENGTH,
-  SHIFT_DAY_TEMPLATE_REQUIRED_COUNT_MAX,
-  SHIFT_DAY_TEMPLATE_SLOT_LIMIT,
 } from "../constants";
 import { ensureDefaultPosition, getDefaultPosition } from "../position/service";
+import { getActiveRecruitmentInShop } from "../recruitment/service";
 import { getActiveStaffInShop } from "../staff/service";
-import { DAY_TEMPLATE_ISSUE_MESSAGES, findDayTemplateIssue, projectDayTemplateSlotsForPattern } from "./dayTemplates";
+import {
+  DAY_TEMPLATE_ISSUE_MESSAGES,
+  type DayRequirements,
+  findDayRequirementsIssue,
+  findDayTemplateIssue,
+  normalizeDayRequirements,
+} from "./dayTemplates";
 import { breakRuleSchema, savePositionsSchema } from "./schemas";
 import { ACTIVE_POSITION_LIMIT_MESSAGE, listActivePositions, listDayTemplates } from "./service";
 
@@ -99,9 +104,17 @@ export const savePositions = managerMutation({
   },
 });
 
+/** 必要人数が指すポジションを返す。同じポジションが複数回出ることがある。 */
+function listRequirementPositionIds(requirements: DayRequirements<Id<"positions">>): Id<"positions">[] {
+  if (requirements.kind === "time") return requirements.bars.map((bar) => bar.positionId);
+  if (requirements.kind === "dateOnly") return requirements.counts.map((entry) => entry.positionId);
+  return requirements.options.flatMap((option) => option.counts.map((entry) => entry.positionId));
+}
+
 /**
  * 店舗の日の型を、渡された一覧で置き換える。
- * 既存の型はidで引き継ぎ、特別な日の指定が指す型を保つ。一覧にない型は削除する。
+ * 既存の型はidで引き継ぎ、その日だけの指定が指す型を保つ。一覧にない型は削除する。
+ * 削除した型を指す指定は残し、読み取りで無視して曜日と祝日の型へ戻す。
  */
 export const saveDayTemplates = managerMutation({
   args: {
@@ -110,23 +123,15 @@ export const saveDayTemplates = managerMutation({
         id: v.optional(v.id("shiftDayTemplates")),
         name: v.string(),
         weekdays: v.array(shiftDayTemplateWeekdayValidator),
-        slots: v.array(shiftDayTemplateSlotValidator),
+        appliesToHolidays: v.boolean(),
+        requirements: dayRequirementsValidator,
       }),
     ),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
     const pattern = ctx.shop.submissionPattern;
-    const issue = findDayTemplateIssue({
-      templates: args.templates,
-      pattern,
-      limits: {
-        templates: SHIFT_DAY_TEMPLATE_LIMIT,
-        nameLength: SHIFT_DAY_TEMPLATE_NAME_MAX_LENGTH,
-        slots: SHIFT_DAY_TEMPLATE_SLOT_LIMIT,
-        requiredCount: SHIFT_DAY_TEMPLATE_REQUIRED_COUNT_MAX,
-      },
-    });
+    const issue = findDayTemplateIssue({ templates: args.templates, pattern });
     if (issue) throw new ConvexError(DAY_TEMPLATE_ISSUE_MESSAGES[issue]);
 
     const [existing, positions] = await Promise.all([
@@ -138,11 +143,10 @@ export const saveDayTemplates = managerMutation({
 
     const inputIds = args.templates.flatMap((template) => (template.id ? [template.id] : []));
     if (new Set(inputIds).size !== inputIds.length) throw new ConvexError("Not found");
+    // 別店舗・削除済みのIDは、存在を区別せずに拒否する。
     if (inputIds.some((id) => !existingById.has(id))) throw new ConvexError("Not found");
     const hasForeignPosition = args.templates.some((template) =>
-      template.slots.some((slot) =>
-        slot.requirements.some((requirement) => !activePositionIds.has(requirement.positionId)),
-      ),
+      listRequirementPositionIds(template.requirements).some((positionId) => !activePositionIds.has(positionId)),
     );
     if (hasForeignPosition) throw new ConvexError("Not found");
 
@@ -154,13 +158,10 @@ export const saveDayTemplates = managerMutation({
       args.templates.map(async (template, index) => {
         const document = {
           name: template.name.trim(),
-          weekdays: template.weekdays,
           sortOrder: index,
-          // 必要人数0は「未設定」と同じ意味なので保存しない。
-          slots: projectDayTemplateSlotsForPattern(template.slots, pattern).map((slot) => ({
-            key: slot.key,
-            requirements: slot.requirements.filter((requirement) => requirement.count > 0),
-          })),
+          weekdays: template.weekdays,
+          appliesToHolidays: template.appliesToHolidays,
+          requirements: normalizeDayRequirements(template.requirements, pattern),
         };
         if (template.id) {
           await ctx.db.patch(template.id, document);
@@ -242,32 +243,113 @@ export const saveStaffShiftProfiles = managerMutation({
   },
 });
 
-/** 特別な日: その日に当てる日の型を変える。nullで曜日の割り当てへ戻す。 */
-export const setDayTemplateOverride = managerMutation({
+const CONFIRMED_RECRUITMENT_STAFFING_ERROR = "確定済みのシフトでは、必要人数を変更できません。";
+
+/**
+ * その日だけの指定を変えられる募集かを確かめる。
+ * 募集はこの店舗の未確定のもの、日付は募集期間の内側で重複なし、件数は募集期間の上限までとする。
+ */
+async function requireStaffingEditableRecruitment(
+  ctx: MutationCtx,
+  shopId: Id<"shops">,
+  recruitmentId: Id<"recruitments">,
+  dates: readonly string[],
+): Promise<Doc<"recruitments">> {
+  const recruitment = await getActiveRecruitmentInShop(ctx, shopId, recruitmentId);
+  if (!recruitment) throw new ConvexError("Not found");
+  if (recruitment.status === "confirmed") throw new ConvexError(CONFIRMED_RECRUITMENT_STAFFING_ERROR);
+
+  if (dates.length > RECRUITMENT_PERIOD_DAYS_MAX) {
+    throw new ConvexError(`一度に変更できるのは${RECRUITMENT_PERIOD_DAYS_MAX}日までです`);
+  }
+  if (new Set(dates).size !== dates.length) throw new ConvexError("同じ日付が重複しています");
+  for (const date of dates) {
+    if (!isValidIsoDateString(date)) throw new ConvexError("日付の形式が正しくありません");
+    if (date < recruitment.periodStart || date > recruitment.periodEnd) {
+      throw new ConvexError("募集期間内の日付を選んでください");
+    }
+  }
+  return recruitment;
+}
+
+/** その日だけの指定を消す。同じ日付の指定は1件だけにするため、残っているものをすべて消す。 */
+async function deleteDayOverrides(ctx: MutationCtx, shopId: Id<"shops">, date: string): Promise<void> {
+  const existing = await ctx.db
+    .query("shiftDayTemplateOverrides")
+    .withIndex("by_shopId_and_date", (q) => q.eq("shopId", shopId).eq("date", date))
+    .take(10);
+  await Promise.all(existing.map((override) => ctx.db.delete(override._id)));
+}
+
+/**
+ * シフト表で選んだ複数の日へ、型をまとめて当てる。
+ * nullはその日だけの指定を消し、曜日と祝日の型へ戻す。確定済みの募集では受け付けない。
+ */
+export const applyDayTemplateToDates = managerMutation({
   args: {
-    date: v.string(),
+    recruitmentId: v.id("recruitments"),
+    dates: v.array(v.string()),
     templateId: v.union(v.id("shiftDayTemplates"), v.null()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    if (!isValidIsoDateString(args.date)) throw new ConvexError("日付の形式が正しくありません");
-    if (args.templateId !== null) {
-      const template = await ctx.db.get(args.templateId);
+    const recruitment = await requireStaffingEditableRecruitment(ctx, ctx.shop._id, args.recruitmentId, args.dates);
+    const templateId = args.templateId;
+    if (templateId !== null) {
+      const template = await ctx.db.get(templateId);
       if (!template || template.shopId !== ctx.shop._id) throw new ConvexError("Not found");
+      if (template.requirements.kind !== recruitment.submissionPattern.kind) {
+        throw new ConvexError("この募集の集め方に合わない型は当てられません");
+      }
     }
 
-    const existing = await ctx.db
-      .query("shiftDayTemplateOverrides")
-      .withIndex("by_shopId_and_date", (q) => q.eq("shopId", ctx.shop._id).eq("date", args.date))
-      .take(10);
-    await Promise.all(existing.map((override) => ctx.db.delete(override._id)));
-    if (args.templateId !== null) {
-      await ctx.db.insert("shiftDayTemplateOverrides", {
-        shopId: ctx.shop._id,
-        date: args.date,
-        templateId: args.templateId,
-      });
+    for (const date of args.dates) {
+      await deleteDayOverrides(ctx, ctx.shop._id, date);
+      if (templateId !== null) {
+        await ctx.db.insert("shiftDayTemplateOverrides", {
+          shopId: ctx.shop._id,
+          date,
+          kind: "template",
+          templateId,
+        });
+      }
     }
+    return null;
+  },
+});
+
+/**
+ * その日だけの必要人数を保存する。型は変えない。
+ * 必要人数は募集の集め方に照らして検証する。確定済みの募集では受け付けない。
+ * 型へ戻すときは、applyDayTemplateToDatesへnullを渡す。
+ */
+export const saveDayCustomRequirements = managerMutation({
+  args: {
+    recruitmentId: v.id("recruitments"),
+    date: v.string(),
+    requirements: dayRequirementsValidator,
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const recruitment = await requireStaffingEditableRecruitment(ctx, ctx.shop._id, args.recruitmentId, [args.date]);
+    const pattern = recruitment.submissionPattern;
+    const issue = findDayRequirementsIssue(args.requirements, pattern);
+    if (issue) throw new ConvexError(DAY_TEMPLATE_ISSUE_MESSAGES[issue]);
+
+    const positions = await listActivePositions(ctx, ctx.shop._id);
+    const activePositionIds = new Set(positions.map((position) => position._id));
+    // 別店舗・削除済みのポジションは、存在を区別せずに拒否する。
+    if (listRequirementPositionIds(args.requirements).some((positionId) => !activePositionIds.has(positionId))) {
+      throw new ConvexError("Not found");
+    }
+
+    await deleteDayOverrides(ctx, ctx.shop._id, args.date);
+    await ctx.db.insert("shiftDayTemplateOverrides", {
+      shopId: ctx.shop._id,
+      date: args.date,
+      kind: "custom",
+      requirements: normalizeDayRequirements(args.requirements, pattern),
+    });
     return null;
   },
 });

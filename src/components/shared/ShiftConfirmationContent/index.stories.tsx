@@ -55,6 +55,18 @@ const warnings = [
   },
 ];
 
+const newcomerOnlyItems = [
+  { key: "2026-01-21-hall-17:00", label: "1/21(水) ホール 17:00〜22:00" },
+  { key: "2026-01-21-kitchen-18:00", label: "1/21(水) キッチン 18:00〜22:00" },
+  { key: "2026-01-24-hall-09:00", label: "1/24(土) ホール 09:00〜11:30" },
+];
+
+// 募集期間の毎日に新人だけの時間帯がある場合。一覧の中でスクロールする。
+const manyNewcomerOnlyItems = Array.from({ length: 14 }, (_, index) => ({
+  key: `2026-01-${21 + (index % 7)}-${index}`,
+  label: `1/${21 + (index % 7)} ${index % 2 === 0 ? "ホール 17:00〜22:00" : "キッチン 18:00〜22:00"}`,
+}));
+
 const unsubmittedNames = ["山田太郎", "佐藤花子"];
 
 const manyUnsubmittedNames = ["山田太郎", "佐藤花子", "田中次郎", "小林大輔", "高橋健太", "中村真理", "渡辺優子"];
@@ -106,6 +118,25 @@ export const WithWarnings: Story = {
   args: {
     ...baseArgs,
     warnings,
+  },
+};
+
+/** 新人だけの時間帯は、日、ポジション、時間帯の単位で一覧に出す。 */
+export const WithNewcomerOnly: Story = {
+  name: "With Newcomer Only",
+  args: {
+    ...baseArgs,
+    newcomerOnlyItems,
+  },
+};
+
+/** スタッフ別の確認事項と、新人だけの時間帯を、同じ見出しの下に並べる。 */
+export const WithWarningsAndNewcomerOnly: Story = {
+  name: "With Warnings And Newcomer Only",
+  args: {
+    ...baseArgs,
+    warnings,
+    newcomerOnlyItems,
   },
 };
 
@@ -176,6 +207,32 @@ export const SPModalWithWarnings: Story = {
   },
   globals: {
     viewport: { value: "mobile2", isRotated: false },
+  },
+  render: (args) => (
+    <Dialog
+      title="シフトを確定しますか？"
+      isOpen
+      onOpenChange={() => {}}
+      onClose={() => {}}
+      onSubmit={() => {}}
+      submitLabel="確定する"
+    >
+      <ConfirmShiftContent {...args} />
+    </Dialog>
+  ),
+};
+
+/** 新人だけの時間帯が多くても、確定の操作が画面の外へ出ないよう、一覧の中でスクロールする。 */
+export const ModalWithManyNewcomerOnly: Story = {
+  name: "Modal With Many Newcomer Only",
+  args: {
+    ...baseArgs,
+    warnings,
+    unsubmittedNames,
+    newcomerOnlyItems: manyNewcomerOnlyItems,
+  },
+  parameters: {
+    layout: "fullscreen",
   },
   render: (args) => (
     <Dialog

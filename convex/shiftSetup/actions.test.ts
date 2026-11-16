@@ -5,15 +5,8 @@ import { api } from "../_generated/api";
 import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import { seedManagerShop, seedOrganizationManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
-import {
-  SHIFT_DAY_TEMPLATE_LIMIT,
-  SHIFT_DAY_TEMPLATE_NAME_MAX_LENGTH,
-  SHIFT_DAY_TEMPLATE_REQUIRED_COUNT_MAX,
-  SHIFT_DAY_TEMPLATE_SLOT_LIMIT,
-  SHIFT_SETUP_ASSIST_SHORT_LIMIT,
-  SHIFT_SETUP_ASSIST_SITUATION_MAX_LENGTH,
-} from "../constants";
-import { findDayTemplateIssue } from "./dayTemplates";
+import { SHIFT_SETUP_ASSIST_SHORT_LIMIT, SHIFT_SETUP_ASSIST_SITUATION_MAX_LENGTH } from "../constants";
+import { buildEmptyDayRequirements, type DayRequirements, findDayTemplateIssue } from "./dayTemplates";
 
 const MANAGER_SUBJECT = "shift_setup_assist_manager";
 const OTHER_MANAGER_SUBJECT = "shift_setup_assist_other_manager";
@@ -67,7 +60,8 @@ async function seedAssistShop(
       name: "保存済みの型",
       weekdays: ["mon"],
       sortOrder: 0,
-      slots: [],
+      appliesToHolidays: false,
+      requirements: buildEmptyDayRequirements(options?.submissionPattern?.kind ?? "time"),
     });
     return {
       scope: { shopId: actor.shopId, expectedOrganizationId: actor.organizationId },
@@ -77,6 +71,68 @@ async function seedAssistShop(
       activePositionIds: [defaultPositionId, hallPositionId, kitchenPositionId],
     };
   });
+}
+
+/**
+ * 下書きの必要人数から、ランダムに決まる本数と人数を除いた形を作る。
+ * 時間指定は、ポジションごとに「受付時間いっぱいのバーの本数」と「足したバーの時間帯」を残す。
+ */
+function toRequirementsShape(requirements: DayRequirements) {
+  if (requirements.kind === "time") {
+    // バーは時刻順に並ぶため、ポジションはIDの順にそろえて比べる。
+    const positionIds = [...new Set(requirements.bars.map((bar) => bar.positionId))].sort();
+    return {
+      kind: "time" as const,
+      positions: positionIds.map((positionId) => {
+        const bars = requirements.bars.filter((bar) => bar.positionId === positionId);
+        const isFullDay = (bar: { startTime: string; endTime: string }) =>
+          bar.startTime === "09:00" && bar.endTime === "22:00";
+        return {
+          positionId,
+          fullDayBarCount: bars.filter(isFullDay).length,
+          extraBands: [
+            ...new Set(bars.filter((bar) => !isFullDay(bar)).map((bar) => `${bar.startTime}-${bar.endTime}`)),
+          ].sort(),
+        };
+      }),
+    };
+  }
+  const toCountShape = (counts: ReadonlyArray<{ positionId: string; count: number }>) =>
+    counts.map((entry) => ({
+      positionId: entry.positionId,
+      isPositiveInteger: Number.isInteger(entry.count) && entry.count >= 1,
+    }));
+  if (requirements.kind === "shiftType") {
+    return {
+      kind: "shiftType" as const,
+      options: requirements.options.map((option) => ({
+        optionId: option.optionId,
+        counts: toCountShape(option.counts),
+      })),
+    };
+  }
+  return { kind: "dateOnly" as const, counts: toCountShape(requirements.counts) };
+}
+
+function expectedRequirementsShape(pattern: ShiftSubmissionPattern, positionIds: readonly string[]) {
+  const counts = positionIds.map((positionId) => ({ positionId, isPositiveInteger: true }));
+  if (pattern.kind === "time") {
+    return {
+      kind: "time",
+      positions: [...positionIds].sort().map((positionId) => ({
+        positionId,
+        fullDayBarCount: 1,
+        // 足すバーは0本のこともあるため、時間帯は「昼と夜の範囲に収まること」を別に確かめる。
+        extraBands: expect.toSatisfy((bands: string[]) =>
+          bands.every((band) => band === "11:00-14:00" || band === "17:00-21:00"),
+        ),
+      })),
+    };
+  }
+  if (pattern.kind === "shiftType") {
+    return { kind: "shiftType", options: pattern.options.map((option) => ({ optionId: option.id, counts })) };
+  }
+  return { kind: "dateOnly", counts };
 }
 
 /** 下書きの作成が書き換えてはならない設定と、rate limitの消費を読む。 */
@@ -117,81 +173,37 @@ describe("shiftSetup/actions", () => {
     });
 
     it.each([
-      {
-        name: "時間指定",
-        pattern: { kind: "time" as const, startTime: "09:00", endTime: "22:00" },
-        slotKeys: [
-          { kind: "time", startTime: "09:00", endTime: "11:00" },
-          { kind: "time", startTime: "11:00", endTime: "14:00" },
-          { kind: "time", startTime: "14:00", endTime: "17:00" },
-          { kind: "time", startTime: "17:00", endTime: "21:00" },
-          { kind: "time", startTime: "21:00", endTime: "22:00" },
-        ],
-      },
-      {
-        name: "パターン選択",
-        pattern: SHIFT_TYPE_PATTERN,
-        slotKeys: [
-          { kind: "shiftType", optionId: "early" },
-          { kind: "shiftType", optionId: "late" },
-        ],
-      },
-      { name: "日付選択", pattern: { kind: "dateOnly" as const }, slotKeys: [{ kind: "allDay" }] },
-    ])(
-      "$name の店舗では、提出方法に合う区切りと上限内の人数を持つ下書きを返し、設定を変えない",
-      async ({ pattern, slotKeys }) => {
-        vi.stubEnv("SHIFT_SETUP_ASSIST_MODE", "random");
-        const t = convexTest(schema, modules);
-        const ids = await seedAssistShop(t, { submissionPattern: pattern, regularClosedDays: ["wed", "sun"] });
-        const before = await readState(t);
+      { name: "時間指定", pattern: { kind: "time" as const, startTime: "09:00", endTime: "22:00" } },
+      { name: "パターン選択", pattern: SHIFT_TYPE_PATTERN },
+      { name: "日付選択", pattern: { kind: "dateOnly" as const } },
+    ])("$name の店舗では、集め方に合う必要人数を持つ下書きを返し、設定を変えない", async ({ pattern }) => {
+      vi.stubEnv("SHIFT_SETUP_ASSIST_MODE", "random");
+      const t = convexTest(schema, modules);
+      const ids = await seedAssistShop(t, { submissionPattern: pattern, regularClosedDays: ["wed", "sun"] });
+      const before = await readState(t);
 
-        const result = await t
-          .withIdentity({ subject: MANAGER_SUBJECT })
-          .action(api.shiftSetup.actions.suggestShiftSetup, { ...ids.scope, situation: SITUATION });
+      const result = await t
+        .withIdentity({ subject: MANAGER_SUBJECT })
+        .action(api.shiftSetup.actions.suggestShiftSetup, { ...ids.scope, situation: SITUATION });
 
-        if (result.status !== "ok") throw new Error(`expected an ok draft but received ${result.status}`);
-        const counts = result.templates.flatMap((template) =>
-          template.slots.flatMap((slot) => slot.requirements.map((requirement) => requirement.count)),
-        );
-        expect(counts).toHaveLength(2 * slotKeys.length * ids.activePositionIds.length);
-        expect(counts.filter((count) => !Number.isInteger(count) || count < 1)).toEqual([]);
-        // 人数だけがランダムなので、人数を除いた形は完全一致で確かめる。定休日（水・日）は型に入らない。
-        expect(
-          result.templates.map((template) => ({
-            ...template,
-            slots: template.slots.map((slot) => ({
-              key: slot.key,
-              positionIds: slot.requirements.map((requirement) => requirement.positionId),
-            })),
-          })),
-        ).toEqual([
-          {
-            name: "平日",
-            weekdays: ["mon", "tue", "thu"],
-            slots: slotKeys.map((key) => ({ key, positionIds: ids.activePositionIds })),
-          },
-          {
-            name: "週末",
-            weekdays: ["fri", "sat"],
-            slots: slotKeys.map((key) => ({ key, positionIds: ids.activePositionIds })),
-          },
-        ]);
-        // 下書きは、そのまま保存しても検証を通る形である。
-        expect(
-          findDayTemplateIssue({
-            templates: result.templates,
-            pattern,
-            limits: {
-              templates: SHIFT_DAY_TEMPLATE_LIMIT,
-              nameLength: SHIFT_DAY_TEMPLATE_NAME_MAX_LENGTH,
-              slots: SHIFT_DAY_TEMPLATE_SLOT_LIMIT,
-              requiredCount: SHIFT_DAY_TEMPLATE_REQUIRED_COUNT_MAX,
-            },
-          }),
-        ).toBeNull();
-        expect((await readState(t)).settings).toEqual(before.settings);
-      },
-    );
+      if (result.status !== "ok") throw new Error(`expected an ok draft but received ${result.status}`);
+      // 本数と人数だけがランダムなので、それ以外の形は完全一致で確かめる。定休日（水・日）は型に入らない。
+      expect(
+        result.templates.map((template) => ({ ...template, requirements: toRequirementsShape(template.requirements) })),
+      ).toEqual(
+        [
+          { name: "平日", weekdays: ["mon", "tue", "thu"] },
+          { name: "週末", weekdays: ["fri", "sat"] },
+        ].map((template) => ({
+          ...template,
+          appliesToHolidays: false,
+          requirements: expectedRequirementsShape(pattern, ids.activePositionIds),
+        })),
+      );
+      // 下書きは、そのまま保存しても検証を通る形である。
+      expect(findDayTemplateIssue({ templates: result.templates, pattern })).toBeNull();
+      expect((await readState(t)).settings).toEqual(before.settings);
+    });
 
     it("未認証は拒否し、設定もrate limitも変えない", async () => {
       vi.stubEnv("SHIFT_SETUP_ASSIST_MODE", "random");

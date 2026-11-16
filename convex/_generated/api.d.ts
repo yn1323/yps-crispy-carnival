@@ -169,6 +169,8 @@ import type * as migrations_m049_notification_outbox_shop_deleted_reason from ".
 import type * as migrations_m050_staffs_canonical_links_backfill from "../migrations/m050_staffs_canonical_links_backfill.js";
 import type * as migrations_organizationMigrationHelpers from "../migrations/organizationMigrationHelpers.js";
 import type * as narrowReadiness_queries from "../narrowReadiness/queries.js";
+import type * as nationalHoliday_mutations from "../nationalHoliday/mutations.js";
+import type * as nationalHoliday_service from "../nationalHoliday/service.js";
 import type * as notification_actions from "../notification/actions.js";
 import type * as notification_confirmationDelivery from "../notification/confirmationDelivery.js";
 import type * as notification_confirmationSnapshots from "../notification/confirmationSnapshots.js";
@@ -461,6 +463,8 @@ declare const fullApi: ApiFromModules<{
   "migrations/m050_staffs_canonical_links_backfill": typeof migrations_m050_staffs_canonical_links_backfill;
   "migrations/organizationMigrationHelpers": typeof migrations_organizationMigrationHelpers;
   "narrowReadiness/queries": typeof narrowReadiness_queries;
+  "nationalHoliday/mutations": typeof nationalHoliday_mutations;
+  "nationalHoliday/service": typeof nationalHoliday_service;
   "notification/actions": typeof notification_actions;
   "notification/confirmationDelivery": typeof notification_confirmationDelivery;
   "notification/confirmationSnapshots": typeof notification_confirmationSnapshots;

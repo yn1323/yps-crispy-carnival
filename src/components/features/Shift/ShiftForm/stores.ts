@@ -11,25 +11,19 @@ import { isCanonicalWorkPosition } from "@/src/domains/shift/positions";
 import { indexShiftsByStaffId } from "@/src/domains/shift/shiftLookup";
 import { type ShiftTypeOptionLike, toggleShiftTypeAssignment } from "@/src/domains/shift/shiftTypeAssignments";
 import { compareDefaultStaffOrder, sortDailyStaffs, sortStaffs } from "@/src/domains/shift/sortStaffs";
-import type {
-  PositionType,
-  ShiftBreakRule,
-  ShiftData,
-  SortMode,
-  StaffingSlot,
-  StaffType,
-  TimeRange,
-  ViewMode,
-} from "@/src/domains/shift/types";
+import type { NewcomerOnlyPeriod } from "@/src/domains/shift/staffing";
+import type { PositionType, ShiftData, SortMode, StaffType, TimeRange, ViewMode } from "@/src/domains/shift/types";
 import { sumStaffWorkTotals } from "@/src/domains/shift/workTotals";
 import { DEFAULT_TIME_PATTERN } from "@/src/domains/shop/submissionPattern";
+import {
+  buildDayStaffingMarks,
+  buildDayStaffingView,
+  collectNewcomerStaffIds,
+  type DayStaffingView,
+} from "./staffingPresentation";
+import type { ShiftFormStaffing } from "./types";
 
-/** 「くわしく」表示で使う、店舗の設定。未設定の項目は空で渡す。 */
-export type ShiftFormStaffing = {
-  dayTemplates: Array<{ id: string; name: string; weekdays: string[]; slots: StaffingSlot[] }>;
-  dayTemplateOverrides: Array<{ date: string; templateId: string }>;
-  breakRule: ShiftBreakRule | null;
-};
+export type { ShiftFormStaffing } from "./types";
 
 // ==========================================
 // 外部設定（propsから初期化、子コンポーネントは読み取り専用）
@@ -321,6 +315,59 @@ export const openBreakEditorForToolAtom = atom(
     openBreakEditorIfBreakTool(get, set, staffId, date),
 );
 
+// ==========================================
+// 人数と過不足
+// ==========================================
+// 募集期間の全日の、人数と過不足。くわしく表示のときだけ値を持つ。定休日は含めない。
+// スタッフ向けの確定シフト表示には、人数と過不足を出さない。
+// 数えるのは、いま在籍しているシフト対象のスタッフの勤務だけである。
+export const dayStaffingViewByDateAtom = atom((get) => {
+  const views = new Map<string, DayStaffingView>();
+  const config = get(shiftConfigAtom);
+  if (!get(detailModeAtom) || config.displayMode === "confirmed") return views;
+
+  const activeStaffIds = new Set(config.staffs.filter((staff) => !staff.isRemoved).map((staff) => staff.id));
+  const shiftsByDate = new Map<string, ShiftData[]>();
+  for (const shift of get(shiftsAtom)) {
+    if (!activeStaffIds.has(shift.staffId)) continue;
+    const dayShifts = shiftsByDate.get(shift.date);
+    if (dayShifts) dayShifts.push(shift);
+    else shiftsByDate.set(shift.date, [shift]);
+  }
+  const dayByDate = new Map((config.staffing?.days ?? []).map((day) => [day.date, day]));
+  const newcomerStaffIds = collectNewcomerStaffIds(config.staffs);
+  const closedDates = new Set(config.holidays);
+
+  for (const date of config.dates) {
+    if (closedDates.has(date)) continue;
+    views.set(
+      date,
+      buildDayStaffingView({
+        date,
+        shifts: shiftsByDate.get(date) ?? [],
+        positions: config.positions,
+        submissionPattern: config.submissionPattern,
+        timeRange: config.timeRange,
+        day: dayByDate.get(date),
+        newcomerStaffIds,
+      }),
+    );
+  }
+  return views;
+});
+
+// 日付の一覧に出す、不足のある日と多い時間のある日の印。
+export const dayStaffingMarksByDateAtom = atom((get) => buildDayStaffingMarks(get(dayStaffingViewByDateAtom)));
+
+// その日の必要人数を変えられるか。閲覧専用と確定済みでは、型の名前だけを出す。
+export const canEditDayStaffingAtom = atom((get) => {
+  const config = get(shiftConfigAtom);
+  return !config.isReadOnly && config.staffing !== undefined && !config.staffing.isLocked;
+});
+
+// 開いている、その日の型のDialog。bulkは「ほかの日もまとめて変える」、customは「この日だけ人数を変える」。
+export const dayStaffingDialogAtom = atom<{ kind: "bulk" | "custom"; date: string } | null>(null);
+
 // 人ごとの合計（募集期間の全日）。時刻を持つ勤務は休憩を引いた時間、日付選択は出勤日数。
 export const staffWorkTotalsAtom = atom((get) =>
   sumStaffWorkTotals(get(shiftsAtom), get(shiftConfigAtom).submissionPattern.kind === "dateOnly" ? "days" : "minutes"),
@@ -412,8 +459,19 @@ export const issueStaffIdSetForSelectedDateAtom = atom((get) => {
 // ==========================================
 export const validationWarningsAtom = atom<AssignmentWarning[]>([]);
 
-// DateRailのオレンジバッジ用: 日付ごとの確認事項件数
-export const warningCountByDateAtom = atom((get) => issueCountByDate(get(validationWarningsAtom)));
+// 新人だけの時間帯（確認事項）。スタッフ1人に結び付かないため、スタッフ別の確認事項とは別に持つ。
+export const newcomerOnlyPeriodsAtom = atom<NewcomerOnlyPeriod[]>([]);
+
+// DateRailのオレンジバッジ用: 日付ごとの確認事項件数。
+// 新人だけの時間帯は、帯の「新」の印で場所を確かめられる、くわしく表示のときだけ件数へ足す。
+export const warningCountByDateAtom = atom((get) => {
+  const counts = issueCountByDate(get(validationWarningsAtom));
+  if (!get(detailModeAtom)) return counts;
+  for (const period of get(newcomerOnlyPeriodsAtom)) {
+    counts.set(period.date, (counts.get(period.date) ?? 0) + 1);
+  }
+  return counts;
+});
 
 // 選択中日付で確認事項を持つスタッフごとの理由（スタッフ名セルのアイコンTooltip用）
 export const warningMessagesByStaffIdForSelectedDateAtom = atom((get) => {

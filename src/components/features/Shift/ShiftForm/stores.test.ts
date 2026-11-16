@@ -7,10 +7,14 @@ import {
   applyShiftDraftsAtom,
   breakEditorTargetAtom,
   breakToolActiveAtom,
+  canEditDayStaffingAtom,
   changeShiftPositionAtom,
   clearShiftDraftPositionsAtom,
+  dayStaffingMarksByDateAtom,
+  dayStaffingViewByDateAtom,
   deleteShiftPositionAtom,
   detailModeAtom,
+  newcomerOnlyPeriodsAtom,
   openBreakEditorForToolAtom,
   replaceShiftDraftsAtom,
   type ShiftFormStaffing,
@@ -23,6 +27,8 @@ import {
   toggleShiftTypeAssignmentAtom,
   updateShiftDraftsAtom,
   upsertShiftDraftAtom,
+  validationWarningsAtom,
+  warningCountByDateAtom,
 } from "./stores";
 
 const staff: StaffType = { id: "staff-1", name: "山田", isSubmitted: true };
@@ -169,10 +175,15 @@ const breakRule = { minWorkMinutes: 360, breakMinutes: 60 };
 
 type StoreConfig = Partial<ExtractAtomValue<typeof shiftConfigAtom>>;
 
-const staffingWith = (rule: ShiftFormStaffing["breakRule"]): ShiftFormStaffing => ({
-  dayTemplates: [],
-  dayTemplateOverrides: [],
+const staffingWith = (
+  rule: ShiftFormStaffing["breakRule"],
+  overrides: Partial<ShiftFormStaffing> = {},
+): ShiftFormStaffing => ({
   breakRule: rule,
+  isLocked: false,
+  templates: [],
+  days: [],
+  ...overrides,
 });
 
 function createDetailStore(config: StoreConfig = {}, options: { detailMode?: boolean } = {}) {
@@ -818,5 +829,159 @@ describe("閲覧専用のくわしく表示", () => {
 
     expect(deleted).toBeNull();
     expect(store.get(shiftsAtom)).toBe(shifts);
+  });
+});
+
+// ==========================================
+// 人数と過不足（全日の判定）
+// ==========================================
+describe("全日の人数と過不足（dayStaffingViewByDateAtom / dayStaffingMarksByDateAtom）", () => {
+  const thirdDate = "2026-07-16";
+  const newcomer: StaffType = { id: "staff-new", name: "新田", isSubmitted: true, skillLevel: "newcomer" };
+  const removed: StaffType = { id: "staff-removed", name: "退職", isSubmitted: true, isRemoved: true };
+  const hallBar = (startTime: string, endTime: string) => ({ positionId: position.id, startTime, endTime });
+  const dayOf = (targetDate: string, bars: Array<ReturnType<typeof hallBar>>) => ({
+    date: targetDate,
+    source: "weekday" as const,
+    templateId: "template-1",
+    templateName: "通常",
+    requirements: { kind: "time" as const, bars },
+  });
+  // 1日目は9〜18時に1人、2日目は9〜12時に1人が必要。3日目は未設定。
+  const staffing = staffingWith(null, {
+    templates: [{ id: "template-1", name: "通常" }],
+    days: [dayOf(date, [hallBar("09:00", "18:00")]), dayOf(nextDate, [hallBar("09:00", "12:00")])],
+  });
+  const createStaffingStore = (config: StoreConfig = {}, options: { detailMode?: boolean } = {}) =>
+    createDetailStore(
+      { staffs: [staff, secondStaff, newcomer, removed], dates: [date, nextDate, thirdDate], staffing, ...config },
+      options,
+    );
+  const shiftOf = (target: StaffType, targetDate: string, start: string, end: string): ShiftData =>
+    draft({
+      id: `shift-${target.id}-${targetDate}`,
+      staffId: target.id,
+      staffName: target.name,
+      date: targetDate,
+      positions: [workSegment(position, start, end)],
+    });
+
+  it("募集期間の全日の人数を数え、不足のある日と多い時間のある日に印を付ける", () => {
+    const store = createStaffingStore();
+    store.set(replaceShiftDraftsAtom, [
+      // 1日目: 9〜12時だけ1人。12〜18時が不足。
+      shiftOf(staff, date, "09:00", "12:00"),
+      // 2日目: 9〜12時に2人。1人多い。
+      shiftOf(staff, nextDate, "09:00", "12:00"),
+      shiftOf(secondStaff, nextDate, "09:00", "12:00"),
+      // 3日目: 未設定の日は、人が入っても過不足にしない。
+      shiftOf(staff, thirdDate, "09:00", "18:00"),
+    ]);
+
+    expect([...store.get(dayStaffingViewByDateAtom).keys()]).toEqual([date, nextDate, thirdDate]);
+    expect([...store.get(dayStaffingMarksByDateAtom)]).toEqual([
+      [date, { hasShortage: true, hasExcess: false }],
+      [nextDate, { hasShortage: false, hasExcess: true }],
+    ]);
+  });
+
+  it("勤務を編集すると、印も変わる", () => {
+    const store = createStaffingStore();
+    store.set(replaceShiftDraftsAtom, [shiftOf(staff, date, "09:00", "12:00")]);
+    expect(store.get(dayStaffingMarksByDateAtom).get(date)).toEqual({ hasShortage: true, hasExcess: false });
+
+    store.set(replaceShiftDraftsAtom, [shiftOf(staff, date, "09:00", "18:00")]);
+
+    // 1日目は足り、2日目は9〜12時が不足のまま。
+    expect([...store.get(dayStaffingMarksByDateAtom)]).toEqual([[nextDate, { hasShortage: true, hasExcess: false }]]);
+  });
+
+  it("削除済みのスタッフに残った勤務は数えない", () => {
+    const store = createStaffingStore();
+    store.set(replaceShiftDraftsAtom, [shiftOf(removed, date, "09:00", "18:00")]);
+
+    expect(store.get(dayStaffingMarksByDateAtom).get(date)).toEqual({ hasShortage: true, hasExcess: false });
+  });
+
+  it("新人だけが入っている区間に、新人だけの印を持たせる", () => {
+    const store = createStaffingStore();
+    store.set(replaceShiftDraftsAtom, [shiftOf(newcomer, date, "09:00", "18:00")]);
+
+    const view = store.get(dayStaffingViewByDateAtom).get(date);
+    expect(view?.bands[0].segments.map((segment) => [segment.label, segment.isNewcomerOnly])).toEqual([["1/1", true]]);
+  });
+
+  it("定休日は数えず、印も付けない", () => {
+    const store = createStaffingStore({ holidays: [date] });
+
+    expect([...store.get(dayStaffingViewByDateAtom).keys()]).toEqual([nextDate, thirdDate]);
+    expect([...store.get(dayStaffingMarksByDateAtom).keys()]).toEqual([nextDate]);
+  });
+
+  it("シンプル表示と、スタッフ向けの確定シフト表示では、人数も印も出さない", () => {
+    const simple = createStaffingStore({}, { detailMode: false });
+    const confirmed = createStaffingStore({ displayMode: "confirmed" });
+
+    for (const store of [simple, confirmed]) {
+      expect(store.get(dayStaffingViewByDateAtom).size).toBe(0);
+      expect(store.get(dayStaffingMarksByDateAtom).size).toBe(0);
+    }
+  });
+
+  it("必要人数を渡さない画面でも、くわしく表示なら全日の人数だけを出す", () => {
+    const store = createStaffingStore({ staffing: undefined });
+    store.set(replaceShiftDraftsAtom, [shiftOf(staff, date, "09:00", "18:00")]);
+
+    const view = store.get(dayStaffingViewByDateAtom).get(date);
+    expect(view?.hasRequirements).toBe(false);
+    expect(view?.template.label).toBe("未設定");
+    expect(store.get(dayStaffingMarksByDateAtom).size).toBe(0);
+  });
+});
+
+describe("その日の必要人数を変えられるか（canEditDayStaffingAtom）", () => {
+  it("編集できる募集では変えられる", () => {
+    expect(createDetailStore({ staffing: staffingWith(null) }).get(canEditDayStaffingAtom)).toBe(true);
+  });
+
+  it("確定済み、閲覧専用、必要人数を渡さない画面では変えられない", () => {
+    const locked = createDetailStore({ staffing: staffingWith(null, { isLocked: true }) });
+    const readOnly = createDetailStore({ staffing: staffingWith(null), isReadOnly: true });
+    const withoutStaffing = createDetailStore();
+
+    expect(locked.get(canEditDayStaffingAtom)).toBe(false);
+    expect(readOnly.get(canEditDayStaffingAtom)).toBe(false);
+    expect(withoutStaffing.get(canEditDayStaffingAtom)).toBe(false);
+  });
+});
+
+describe("日付ごとの確認事項の件数（warningCountByDateAtom）", () => {
+  const period = (targetDate: string, start: string) => ({
+    date: targetDate,
+    positionId: position.id,
+    scope: { kind: "time" as const, start, end: "18:00" },
+  });
+  const setWarnings = (store: ReturnType<typeof createDetailStore>) => {
+    store.set(validationWarningsAtom, [
+      { code: "NOT_SUBMITTED", date, staffId: secondStaff.id, message: "未提出のまま勤務に入っています" },
+    ]);
+    store.set(newcomerOnlyPeriodsAtom, [period(date, "09:00"), period(date, "14:00"), period(nextDate, "09:00")]);
+  };
+
+  it("くわしく表示では、スタッフ別の確認事項に、新人だけの時間帯の件数を足す", () => {
+    const store = createDetailStore();
+    setWarnings(store);
+
+    expect([...store.get(warningCountByDateAtom)]).toEqual([
+      [date, 3],
+      [nextDate, 1],
+    ]);
+  });
+
+  it("シンプル表示では、新人だけの時間帯を件数へ足さない", () => {
+    const store = createDetailStore({}, { detailMode: false });
+    setWarnings(store);
+
+    expect([...store.get(warningCountByDateAtom)]).toEqual([[date, 1]]);
   });
 });

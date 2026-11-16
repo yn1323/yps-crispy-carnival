@@ -6,11 +6,13 @@ import type { ShiftTypeOptionLike } from "@/src/domains/shift/shiftTypeAssignmen
 import type { StaffType } from "@/src/domains/shift/types";
 import { Avatar, StaffWarningIcon } from "../../components";
 import { ShiftDateNoteText, ShiftStaffNoteIcon, useAllShiftDateNotes, useShiftDateNotes } from "../../dateNotes";
-import { BreakMark, DayTemplateMenu, PositionMark, StaffMeta, useDayStaffingView } from "../../detailParts";
+import { BreakMark, PositionMark, StaffMeta } from "../../detailParts";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import type { ShiftTypeOptionColor } from "../../shiftTypeOptionStyles";
+import { DayTemplateMenu, StaffingUnsetNote, useDayStaffingView } from "../../staffingParts";
 import {
   dailySortedStaffsAtom,
+  dayStaffingMarksByDateAtom,
   detailModeAtom,
   issueCountByDateAtom,
   selectDateWithDailyStaffOrderAtom,
@@ -46,6 +48,7 @@ export const ShiftTypeDailyView = () => {
   const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const issueCounts = useAtomValue(issueCountByDateAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
+  const staffingMarks = useAtomValue(dayStaffingMarksByDateAtom);
   const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
   const dateNotes = useShiftDateNotes();
   const allDateNotes = useAllShiftDateNotes();
@@ -105,6 +108,7 @@ export const ShiftTypeDailyView = () => {
         holidays={holidays}
         issueCounts={issueCounts}
         warningCounts={warningCounts}
+        staffingMarks={staffingMarks}
       />
       <Flex direction="column" minW={0} minH={0} flex={1} overflow="hidden">
         <DayTitle date={selectedDate} holidays={holidays} />
@@ -135,7 +139,7 @@ export const ShiftTypeDailyView = () => {
                 <Box as="thead" {...(detailMode ? STICKY_HEAD_PROPS : undefined)}>
                   <Box as="tr" bg="gray.50">
                     {/* 人数の行には勤務パターンごとの人数だけを置き、左の見出しは2行分を結合する。 */}
-                    {/* くわしく表示では結合をやめ、人数の行の左に見出しと日の型の切り替えを置く。 */}
+                    {/* くわしく表示では結合をやめ、人数の行の左に見出しと、その日の型のメニューを置く。 */}
                     <HeaderCell rowSpan={leadingHeaderRowSpan}>スタッフ</HeaderCell>
                     <HeaderCell rowSpan={leadingHeaderRowSpan}>{viewModel.requestHeaderLabel}</HeaderCell>
                     {dateNotes.hasNotes && <HeaderCell rowSpan={leadingHeaderRowSpan}>連絡事項</HeaderCell>}
@@ -161,22 +165,20 @@ export const ShiftTypeDailyView = () => {
                         textStyle="xs"
                         fontWeight={600}
                       >
-                        <Flex align="center" justify="space-between" gap={2}>
-                          <Text fontWeight={700} color="gray.700" whiteSpace="nowrap">
-                            {staffingView.template ? "人数 / 必要" : "人数"}
-                          </Text>
+                        <Flex align="center" justify="space-between" columnGap={2} rowGap={1} wrap="wrap">
+                          <Flex align="center" gap={2} minW={0}>
+                            <Text fontWeight={700} color="gray.700" whiteSpace="nowrap">
+                              {staffingView.hasRequirements ? "人数 / 必要" : "人数"}
+                            </Text>
+                            {!staffingView.hasRequirements && <StaffingUnsetNote />}
+                          </Flex>
                           <DayTemplateMenu date={selectedDate} view={staffingView} />
                         </Flex>
                       </chakra.th>
                       {viewModel.optionColumns.map((option) => {
                         const slot = staffingSlotByOptionKey.get(option.key);
                         return (
-                          <HeaderCell
-                            key={option.key}
-                            optionColor={option.color}
-                            tone="count"
-                            bg={slot?.hasShortage ? "red.50" : undefined}
-                          >
+                          <HeaderCell key={option.key} optionColor={option.color} tone="count">
                             {slot ? <StaffingSlotCount slot={slot} /> : option.countLabel}
                           </HeaderCell>
                         );

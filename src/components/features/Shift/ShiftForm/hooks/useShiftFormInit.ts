@@ -6,12 +6,13 @@ import type { AssignmentWarning } from "@/src/domains/shift/assignmentWarnings";
 import { resolveInitialSelectedDate } from "@/src/domains/shift/date";
 import { indexShiftsByStaffId } from "@/src/domains/shift/shiftLookup";
 import { sortDailyStaffs } from "@/src/domains/shift/sortStaffs";
+import type { NewcomerOnlyPeriod } from "@/src/domains/shift/staffing";
 import type { PositionType, ShiftData, SortMode, StaffType, TimeRange, ViewMode } from "@/src/domains/shift/types";
 import {
   detailModeAtom,
   lockedDailyStaffOrderAtom,
+  newcomerOnlyPeriodsAtom,
   replaceShiftDraftsAtom,
-  type ShiftFormStaffing,
   selectedDateAtom,
   shiftConfigAtom,
   sortModeAtom,
@@ -19,6 +20,7 @@ import {
   validationWarningsAtom,
   viewModeAtom,
 } from "../stores";
+import type { ShiftFormStaffing } from "../types";
 
 type UseShiftFormInitParams = {
   shopId: string;
@@ -40,6 +42,7 @@ type UseShiftFormInitParams = {
   initialDetailMode?: boolean;
   validationIssues?: AssignmentIssue[];
   validationWarnings?: AssignmentWarning[];
+  newcomerOnlyPeriods?: NewcomerOnlyPeriod[];
 };
 
 export const useShiftFormInit = ({
@@ -62,6 +65,7 @@ export const useShiftFormInit = ({
   initialDetailMode,
   validationIssues,
   validationWarnings,
+  newcomerOnlyPeriods,
 }: UseShiftFormInitParams) => {
   const setConfig = useSetAtom(shiftConfigAtom);
   const setShifts = useSetAtom(replaceShiftDraftsAtom);
@@ -72,6 +76,7 @@ export const useShiftFormInit = ({
   const setDetailMode = useSetAtom(detailModeAtom);
   const setValidationIssues = useSetAtom(validationIssuesAtom);
   const setValidationWarnings = useSetAtom(validationWarningsAtom);
+  const setNewcomerOnlyPeriods = useSetAtom(newcomerOnlyPeriodsAtom);
   const isInitialized = useRef(false);
 
   // 初回マウント時: シフトデータ初期化 + 選択日を設定
@@ -161,4 +166,9 @@ export const useShiftFormInit = ({
   useEffect(() => {
     setValidationWarnings(validationWarnings ?? []);
   }, [validationWarnings, setValidationWarnings]);
+
+  // 新人だけの時間帯（確認事項）の同期
+  useEffect(() => {
+    setNewcomerOnlyPeriods(newcomerOnlyPeriods ?? []);
+  }, [newcomerOnlyPeriods, setNewcomerOnlyPeriods]);
 };

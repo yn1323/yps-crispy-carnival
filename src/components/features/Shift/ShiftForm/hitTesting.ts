@@ -1,6 +1,6 @@
+import { minutesToPixel } from "@/src/components/shared/ShiftTimeline/timelineGeometry";
 import { timeToMinutes } from "@/src/domains/shift/time";
 import type { LinkedResizeTarget, ShiftData, TimeRange } from "@/src/domains/shift/types";
-import { minutesToPixel } from "./timelineGeometry";
 
 // 連結リサイズ対象の検出（隣接バーの境界を検出、固定幅ベース）
 export const detectLinkedResizeEdge = (params: {

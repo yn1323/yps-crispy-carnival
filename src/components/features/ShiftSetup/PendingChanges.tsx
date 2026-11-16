@@ -1,34 +1,61 @@
-import { Box, Flex, Text } from "@chakra-ui/react";
-import { useState } from "react";
+import { Box, Flex, Stack, Text } from "@chakra-ui/react";
+import { useEffect, useRef, useState } from "react";
 import { MOBILE_APP_NAVIGATION_HEIGHT } from "@/src/components/features/AuthenticatedApp/AppPrimaryNavigation";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog, DialogActionArea } from "@/src/components/ui/Dialog";
 import { formatPendingSections } from "./script";
 import type { LeaveDialogState, PendingSection } from "./types";
 
+/**
+ * PCで、操作バーを画面の下端から離す距離（px）。
+ * 操作バーの上に積む要素は、この距離とバーの高さを足した位置に置き、バーのすぐ上に付ける。
+ */
+export const PENDING_BAR_BOTTOM_PX = 16;
+
 type BarProps = {
   sections: readonly PendingSection[];
   isSaving: boolean;
   onReset: () => void;
   onSave: () => void;
+  /** 操作バーの高さ（px）が変わったとき。バーを出していない間は0を渡す。バーの上に積む要素の位置決めに使う。 */
+  onHeightChange?: (height: number) => void;
 };
 
 /**
  * 保存していない変更があるときだけ、画面の下端に留まる操作バーを出す。
  * 何の変更が保存されるかを、セクションの名前で示す。
  */
-export function PendingChangesBar({ sections, isSaving, onReset, onSave }: BarProps) {
+export function PendingChangesBar({ sections, isSaving, onReset, onSave, onHeightChange }: BarProps) {
   const [isResetConfirmationOpen, setIsResetConfirmationOpen] = useState(false);
   const closeResetConfirmation = () => setIsResetConfirmationOpen(false);
   const label = formatPendingSections(sections);
+  const isVisible = sections.length > 0;
+  const barRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const bar = barRef.current;
+    if (!isVisible || !bar || !onHeightChange) return;
+    const report = () => onHeightChange(bar.offsetHeight);
+    report();
+    const observer = new ResizeObserver(report);
+    observer.observe(bar);
+    return () => {
+      observer.disconnect();
+      onHeightChange(0);
+    };
+  }, [isVisible, onHeightChange]);
 
   return (
     <>
-      {sections.length > 0 && (
+      {isVisible && (
         <Box
+          ref={barRef}
           position="sticky"
           // スマートフォンでは、画面下端に固定されたメインメニューの上に留める。
-          bottom={{ base: `calc(${MOBILE_APP_NAVIGATION_HEIGHT} + env(safe-area-inset-bottom) + 8px)`, lg: 4 }}
+          bottom={{
+            base: `calc(${MOBILE_APP_NAVIGATION_HEIGHT} + env(safe-area-inset-bottom) + 8px)`,
+            lg: `${PENDING_BAR_BOTTOM_PX}px`,
+          }}
           zIndex="docked"
         >
           <Flex
@@ -46,9 +73,16 @@ export function PendingChangesBar({ sections, isSaving, onReset, onSave }: BarPr
             borderRadius="xl"
             boxShadow="lg"
           >
-            <Text fontSize="sm" fontWeight="semibold" color="gray.900">
-              {label}の変更を保存していません
-            </Text>
+            <Stack gap={0.5} minW={0}>
+              <Text fontSize="sm" fontWeight="semibold" color="gray.900">
+                {label}の変更を保存していません
+              </Text>
+              {sections.includes("dayTemplates") && (
+                <Text fontSize="xs" color="fg.muted" lineHeight="tall">
+                  保存すると、確定前のシフト表に反映されます。確定済みのシフト表は変わりません。
+                </Text>
+              )}
+            </Stack>
             <Flex gap={2} flexShrink={0}>
               <Button
                 type="button"
@@ -79,7 +113,7 @@ export function PendingChangesBar({ sections, isSaving, onReset, onSave }: BarPr
 
       <Dialog
         title="変更を元に戻す"
-        isOpen={isResetConfirmationOpen && sections.length > 0}
+        isOpen={isResetConfirmationOpen && isVisible}
         onOpenChange={({ open }) => {
           if (!open) closeResetConfirmation();
         }}

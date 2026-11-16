@@ -2,6 +2,7 @@ import { Badge, Box, chakra, Field, Flex, Grid, HStack, Text, VisuallyHidden, VS
 import { useAtomValue } from "jotai";
 import { useId, useMemo, useRef, useState } from "react";
 import { LuPlus, LuTrash2 } from "react-icons/lu";
+import { getEditableEndMinutes, getEditableStartMinutes } from "@/src/components/shared/ShiftTimeline/timelineGeometry";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
 import type { SelectItemType } from "@/src/components/ui/Select";
@@ -11,7 +12,6 @@ import { resolveDefaultPosition } from "@/src/domains/shift/operations";
 import { formatShiftClockTimeRange, generateShiftTimeOptions, timeToMinutes } from "@/src/domains/shift/time";
 import type { PositionType, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
 import { detailModeAtom, isPositionSelectableAtom, selectedPositionAtom } from "../../stores";
-import { getEditableEndMinutes, getEditableStartMinutes } from "../../timelineGeometry";
 import {
   buildSPShiftEditNewRow,
   buildSPShiftEditResult,

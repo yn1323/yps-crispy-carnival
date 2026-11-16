@@ -137,6 +137,7 @@ export const ShiftBoardPageView = ({ viewModel, intents, layout = "legacy", head
           onOpenUnsubmittedDetails={intents.onOpenUnsubmittedDetails}
           validationIssues={shiftForm.validationIssues}
           validationWarnings={shiftForm.validationWarnings}
+          newcomerOnlyPeriods={shiftForm.newcomerOnlyPeriods}
           dateNotes={shiftForm.dateNotes}
           staffing={shiftForm.staffing}
           initialDetailMode={shiftForm.initialDetailMode}
@@ -167,6 +168,7 @@ export const ShiftBoardPageView = ({ viewModel, intents, layout = "legacy", head
           staffCount={confirmDialog.staffCount}
           periodLabel={viewModel.periodLabel}
           warnings={confirmDialog.warnings}
+          newcomerOnlyItems={confirmDialog.newcomerOnlyItems}
           unsubmittedNames={confirmDialog.unsubmittedNames}
           hasUnsubmittedManager={confirmDialog.hasUnsubmittedManager}
           isResend={viewModel.isConfirmed}

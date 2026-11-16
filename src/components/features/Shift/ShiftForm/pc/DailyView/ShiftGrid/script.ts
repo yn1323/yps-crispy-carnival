@@ -1,9 +1,9 @@
+import { minutesToPixel } from "@/src/components/shared/ShiftTimeline/timelineGeometry";
 import { getEffectiveBreaks } from "@/src/domains/shift/breaks";
 import { computeVisualBreaks } from "@/src/domains/shift/operations";
 import { isLegacyCompatibleBreakPosition } from "@/src/domains/shift/positions";
 import { formatShiftClockTime, timeToMinutes } from "@/src/domains/shift/time";
 import type { LinkedResizeTarget, ShiftData, TimeRange } from "@/src/domains/shift/types";
-import { minutesToPixel } from "../../../timelineGeometry";
 
 export type ShiftBarSegmentViewModel = {
   key: string;

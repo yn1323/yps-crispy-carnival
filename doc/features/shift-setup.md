@@ -36,22 +36,37 @@ URLの`org`と`shopId`の一致は、QueryとMutationの双方で確かめる。
 
 ### 必要人数
 
-1日分の「区切り」と、区切りごと・ポジションごとの必要人数を「型」として持つ。  
-型は6件まで作れ、曜日に割り当てる。  同じ曜日を2つの型に割り当てることはできない。
+1日分の必要人数を「型」として持つ。  
+型には名前を付け、20件まで作れる。  
+型ごとに、使う曜日と、祝日に使うかどうかを選ぶ。  同じ曜日を2つの型に割り当てることはできず、祝日に使う型も1つだけである。  
+曜日も祝日も選ばない型は、シフト表で日付を選んで当てる。
 
-区切りの形は、店舗の希望シフトの集め方で決まる。
+必要人数の持ち方は、店舗の希望シフトの集め方で決まる。
 
-| 集め方 | 区切り |
+| 集め方 | 持ち方 |
 |---|---|
-| 時間指定 | 時間帯。開始と終了を選び、8件まで持てる |
-| パターン選択 | 勤務パターン。店舗設定の勤務パターンがそのまま並ぶ |
-| 日付選択 | 1日 |
+| 時間指定 | バー。1本のバーがポジションと開始・終了を持ち、1人分を表す |
+| パターン選択 | 勤務パターンごとの、ポジション別の人数 |
+| 日付選択 | 1日の、ポジション別の人数 |
 
-人数は表の各マスを−と＋で増減する。  0人は未設定と同じ意味で、保存しない。  
-集め方を変えた店舗では、合わなくなった区切りを表示せず、次の保存で消す。
+時間指定では、ある時刻のポジションの必要人数は、その時刻に重なっているバーの本数になる。  
+バーは30分単位で、1ポジションで同時に重ねられるのは10本、1つの型で持てるのは200本までである。  
+隣り合うバーは自動でつながらない。  10時〜14時と14時〜18時のバーは、2人の交代として別々に持つ。
 
-特別な日は、シフト表でその日に別の型を当てる。  設定ページでは扱わない。  
-型を削除すると、その型を当てていた日は曜日の割り当てへ戻る。
+PCでは、空いた場所をなぞるとバーが引け、端をなぞると伸び縮みする。  
+画面の行は置き場所で、人を表さない。  置いたバーは、その時間が空いている一番上の行へ寄る。  
+「時刻を選んで足す」からは、開始、終了、本数を選んで足せる。  
+スマートフォンでは、バーを「11:00〜14:00 ×2」の一覧で表示し、行を押して時刻と本数を変える。  
+どちらの表示でも、できあがる必要人数を時間帯ごとに確かめられる。
+
+パターン選択と日付選択では、人数を数字で入力する。  0人は未設定と同じ意味で、保存しない。
+
+受付時間を短くして範囲の外に出たバーは、消さずに残す。  
+設定ページに本数を表示し、「受付時間に合わせる」で切りそろえるまで、型を保存できない。  
+集め方の種類を変えた店舗では、型の必要人数を空として表示し、入れ直しが要ることを知らせる。
+
+型を削除すると、その型を当てていた日は祝日と曜日の割り当てへ戻る。  
+その日に当たる型の決まり方と、日ごとの操作は[シフト表](shift-board.md)を参照する。
 
 ### 休憩の決まり
 
@@ -71,7 +86,7 @@ URLの`org`と`shopId`の一致は、QueryとMutationの双方で確かめる。
 店の状況を文章で入力すると、型の下書きが編集中の表に入る。  
 下書きは保存されず、管理者が内容を確かめて保存したときに設定になる。
 
-現在は実際のAIにつないでいない。  入力した文章は読まず、区切りを店舗の集め方から作り、必要人数をランダムな値で埋める。  
+現在は実際のAIにつないでいない。  入力した文章は読まず、店舗の集め方に合う形の必要人数を、ランダムな値で作る。  時間指定では、受付時間いっぱいのバーと、昼と夜の追加のバーを置く。  
 文章は保存せず、ログにも出さない。
 
 Convexの環境変数`SHIFT_SETUP_ASSIST_MODE`が`random`の環境だけで使える。  
@@ -82,6 +97,7 @@ Convexの環境変数`SHIFT_SETUP_ASSIST_MODE`が`random`の環境だけで使�
 
 ポジション、型、スタッフの属性は、画面の一覧をまとめて保存する。  
 型とスタッフの属性は、変更があるときだけ画面の下端に出る操作から保存する。  
+型の変更は、確定していないシフト表に反映される。  確定済みのシフト表は、確定した時点の必要人数のまま変わらない。  
 保存していない変更がある状態でページを離れようとすると、確認を表示する。
 
 ## Public API
@@ -93,7 +109,8 @@ Convexの環境変数`SHIFT_SETUP_ASSIST_MODE`が`random`の環境だけで使�
 | `api.shiftSetup.mutations.saveDayTemplates` | 型の一覧を置き換える。既存の型はIDを引き継ぐ |
 | `api.shiftSetup.mutations.saveBreakRule` | 休憩の決まりを保存する。`null`で決まりをなくす |
 | `api.shiftSetup.mutations.saveStaffShiftProfiles` | スタッフの入れないポジションと熟練度をまとめて保存する |
-| `api.shiftSetup.mutations.setDayTemplateOverride` | 特別な日に当てる型を変える。`null`で曜日の割り当てへ戻す |
+| `api.shiftSetup.mutations.applyDayTemplateToDates` | 未確定の募集の期間内の日付へ、型をまとめて当てる。`null`でその日だけの指定を消す |
+| `api.shiftSetup.mutations.saveDayCustomRequirements` | 未確定の募集の1日に、その日だけの必要人数を保存する |
 | `api.shiftSetup.actions.suggestShiftSetup` | 型の下書きを返す。設定は保存しない |
 
 どのAPIも、対象店舗が属する組織の有効な管理者だけが使える。  
@@ -106,7 +123,9 @@ Convexの環境変数`SHIFT_SETUP_ASSIST_MODE`が`random`の環境だけで使�
 | RouteとPage | `src/routes/_auth/manage_.shops.$shopId_.shift-setup.tsx`、`src/pages/shift-setup/` |
 | 設定の画面 | `src/components/features/ShiftSetup/` |
 | queryとmutation | `convex/shiftSetup/queries.ts`、`convex/shiftSetup/mutations.ts` |
-| 型の検証と、その日に当てる型の解決 | `convex/shiftSetup/dayTemplates.ts` |
+| 型の検証と、その日に当たる必要人数の解決 | `convex/shiftSetup/dayTemplates.ts` |
+| 祝日の表 | `convex/nationalHoliday/` |
+| バーの入力と、人数を数字で入れる表 | `src/components/shared/StaffingBarEditor/`、`src/components/shared/StaffingCountTable/`、`src/domains/shift/staffingBars.ts` |
 | AIサポート | `convex/shiftSetup/actions.ts`、`convex/shiftSetup/assistDraft.ts` |
 | 上限 | `convex/constants.ts` |
 
@@ -115,3 +134,4 @@ Convexの環境変数`SHIFT_SETUP_ASSIST_MODE`が`random`の環境だけで使�
 - [シフト表](shift-board.md)
 - [店舗設定](shop-settings.md)
 - [シフト対象外スタッフ](shift-exclusion.md)
+- [祝日の表の更新](../manual/national-holidays.md)

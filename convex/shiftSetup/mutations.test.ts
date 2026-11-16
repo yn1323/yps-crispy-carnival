@@ -3,6 +3,7 @@ import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
+import { addDays, generateDateRange } from "../_lib/dateFormat";
 import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import { seedStaff } from "../_test/scenarioBuilders";
 import { seedManagerShop, seedOrganizationManagerShop } from "../_test/seed";
@@ -10,15 +11,19 @@ import { modules, schema } from "../_test/setup.test-helper";
 import {
   POSITION_ACTIVE_LIMIT,
   POSITION_COLOR_PALETTE,
+  RECRUITMENT_PERIOD_DAYS_MAX,
   SHIFT_BOARD_STAFF_LIMIT,
+  SHIFT_DAY_TEMPLATE_BAR_LIMIT,
+  SHIFT_DAY_TEMPLATE_CONCURRENT_BAR_LIMIT,
   SHIFT_DAY_TEMPLATE_LIMIT,
   SHIFT_DAY_TEMPLATE_REQUIRED_COUNT_MAX,
-  SHIFT_DAY_TEMPLATE_SLOT_LIMIT,
 } from "../constants";
+import { buildEmptyDayRequirements, type DayRequirements } from "./dayTemplates";
 
 const MANAGER_SUBJECT = "shift_setup_manager";
 const OTHER_MANAGER_SUBJECT = "shift_setup_other_manager";
 
+const TIME_PATTERN: ShiftSubmissionPattern = { kind: "time", startTime: "09:00", endTime: "22:00" };
 const SHIFT_TYPE_PATTERN: ShiftSubmissionPattern = {
   kind: "shiftType",
   options: [
@@ -26,39 +31,46 @@ const SHIFT_TYPE_PATTERN: ShiftSubmissionPattern = {
     { id: "late", name: "遅番", startTime: "15:00", endTime: "22:00", sortOrder: 1 },
   ],
 };
+const DATE_ONLY_PATTERN: ShiftSubmissionPattern = { kind: "dateOnly" };
+
+// 対象店舗の募集期間。2026-01-19は月曜である。
+const PERIOD_START = "2026-01-19";
+const PERIOD_END = "2026-01-25";
 
 type Test = TestConvex<typeof schema>;
 type MutationClient = Pick<Test, "mutation">;
 type SeededIds = Awaited<ReturnType<typeof seedShops>>;
 type Weekday = "sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat";
-type SlotKey =
-  | { kind: "time"; startTime: string; endTime: string }
-  | { kind: "shiftType"; optionId: string }
-  | { kind: "allDay" };
+type Requirements = DayRequirements<Id<"positions">>;
 type TemplateInput = {
   id?: Id<"shiftDayTemplates">;
   name: string;
   weekdays: Weekday[];
-  slots: Array<{ key: SlotKey; requirements: Array<{ positionId: Id<"positions">; count: number }> }>;
+  appliesToHolidays: boolean;
+  requirements: Requirements;
 };
 
-const timeKey = (startTime: string, endTime: string): SlotKey => ({ kind: "time", startTime, endTime });
+const bar = (positionId: Id<"positions">, startTime: string, endTime: string) => ({ positionId, startTime, endTime });
+const timeRequirements = (bars: Array<ReturnType<typeof bar>>): Requirements => ({ kind: "time", bars });
 
 /**
  * 対象店舗（時間指定 09:00-22:00）と、同じ組織の別店舗、別組織の店舗を用意する。
  * 別店舗と別組織には、IDを取り違えたときに拒否されることを確かめるためのデータを置く。
+ * 各店舗に、未確定の募集（2026-01-19〜2026-01-25）を1件ずつ置く。
  */
-async function seedShops(t: Test, options?: { submissionPattern?: ShiftSubmissionPattern }) {
+async function seedShops(
+  t: Test,
+  options?: { submissionPattern?: ShiftSubmissionPattern; recruitmentPattern?: ShiftSubmissionPattern },
+) {
   return await t.run(async (ctx) => {
     const actor = await seedManagerShop(ctx, { subject: MANAGER_SUBJECT, shopName: "設定店舗" });
     const other = await seedOrganizationManagerShop(ctx, { subject: OTHER_MANAGER_SUBJECT, shopName: "別組織店舗" });
-    if (options?.submissionPattern) {
-      await ctx.db.patch(actor.shopId, { submissionPattern: options.submissionPattern });
-    }
+    const shopPattern = options?.submissionPattern ?? TIME_PATTERN;
+    await ctx.db.patch(actor.shopId, { submissionPattern: shopPattern });
     const siblingShopId = await ctx.db.insert("shops", {
       organizationId: actor.organizationId,
       name: "同じ組織の別店舗",
-      submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      submissionPattern: TIME_PATTERN,
       regularClosedDays: [],
       isDeleted: false,
     });
@@ -103,11 +115,39 @@ async function seedShops(t: Test, options?: { submissionPattern?: ShiftSubmissio
     });
 
     const insertTemplate = (shopId: Id<"shops">, name: string) =>
-      ctx.db.insert("shiftDayTemplates", { shopId, name, weekdays: [], sortOrder: 0, slots: [] });
+      ctx.db.insert("shiftDayTemplates", {
+        shopId,
+        name,
+        weekdays: [],
+        sortOrder: 0,
+        appliesToHolidays: false,
+        requirements: buildEmptyDayRequirements("time"),
+      });
     const siblingTemplateId = await insertTemplate(siblingShopId, "別店舗の型");
     const otherTemplateId = await insertTemplate(other.shopId, "別組織の型");
     const deletedTemplateId = await insertTemplate(actor.shopId, "削除する型");
     await ctx.db.delete(deletedTemplateId);
+
+    const insertRecruitment = (
+      shopId: Id<"shops">,
+      recruitment?: { submissionPattern?: ShiftSubmissionPattern; isDeleted?: boolean },
+    ) =>
+      ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: PERIOD_START,
+        periodEnd: PERIOD_END,
+        deadline: "2026-01-15",
+        shopClosedDates: [],
+        status: "open",
+        isDeleted: recruitment?.isDeleted ?? false,
+        submissionPattern: recruitment?.submissionPattern ?? TIME_PATTERN,
+      });
+    const recruitmentId = await insertRecruitment(actor.shopId, {
+      submissionPattern: options?.recruitmentPattern ?? shopPattern,
+    });
+    const deletedRecruitmentId = await insertRecruitment(actor.shopId, { isDeleted: true });
+    const siblingRecruitmentId = await insertRecruitment(siblingShopId);
+    const otherRecruitmentId = await insertRecruitment(other.shopId);
 
     const staffId = await seedStaff(ctx, { shopId: actor.shopId, name: "対象スタッフ", email: "target@example.com" });
     const secondStaffId = await seedStaff(ctx, {
@@ -147,6 +187,10 @@ async function seedShops(t: Test, options?: { submissionPattern?: ShiftSubmissio
       siblingTemplateId,
       otherTemplateId,
       deletedTemplateId,
+      recruitmentId,
+      deletedRecruitmentId,
+      siblingRecruitmentId,
+      otherRecruitmentId,
       staffId,
       secondStaffId,
       deletedStaffId,
@@ -162,6 +206,8 @@ async function readSetupState(t: Test) {
     positions: await ctx.db.query("positions").collect(),
     dayTemplates: await ctx.db.query("shiftDayTemplates").collect(),
     dayTemplateOverrides: await ctx.db.query("shiftDayTemplateOverrides").collect(),
+    staffingSnapshots: await ctx.db.query("recruitmentStaffingSnapshots").collect(),
+    recruitments: await ctx.db.query("recruitments").collect(),
     shops: await ctx.db.query("shops").collect(),
     staffs: await ctx.db.query("staffs").collect(),
   }));
@@ -191,8 +237,25 @@ function projectPositions(positions: Doc<"positions">[], shopId: Id<"shops">, la
 function projectTemplates(templates: Doc<"shiftDayTemplates">[], shopId: Id<"shops">) {
   return templates
     .filter((template) => template.shopId === shopId)
-    .map(({ name, weekdays, sortOrder, slots }) => ({ name, weekdays, sortOrder, slots }))
+    .map(({ name, weekdays, sortOrder, appliesToHolidays, requirements }) => ({
+      name,
+      weekdays,
+      sortOrder,
+      appliesToHolidays,
+      requirements,
+    }))
     .sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+/** その日だけの指定を、店舗と日付の順に、保存した内容だけへ写す。 */
+function projectOverrides(overrides: Doc<"shiftDayTemplateOverrides">[]) {
+  return overrides
+    .map((override) =>
+      override.kind === "template"
+        ? { shopId: override.shopId, date: override.date, kind: override.kind, templateId: override.templateId }
+        : { shopId: override.shopId, date: override.date, kind: override.kind, requirements: override.requirements },
+    )
+    .sort((a, b) => a.shopId.localeCompare(b.shopId) || a.date.localeCompare(b.date));
 }
 
 describe("shiftSetup/mutations", () => {
@@ -214,7 +277,9 @@ describe("shiftSetup/mutations", () => {
         run: (client, _ids, scope) =>
           client.mutation(api.shiftSetup.mutations.saveDayTemplates, {
             ...scope,
-            templates: [{ name: "書き込んだ型", weekdays: ["mon"], slots: [] }],
+            templates: [
+              { name: "書き込んだ型", weekdays: ["mon"], appliesToHolidays: false, requirements: timeRequirements([]) },
+            ],
           }),
       },
       {
@@ -234,12 +299,23 @@ describe("shiftSetup/mutations", () => {
           }),
       },
       {
-        name: "setDayTemplateOverride",
-        run: (client, _ids, scope) =>
-          client.mutation(api.shiftSetup.mutations.setDayTemplateOverride, {
+        name: "applyDayTemplateToDates",
+        run: (client, ids, scope) =>
+          client.mutation(api.shiftSetup.mutations.applyDayTemplateToDates, {
             ...scope,
-            date: "2026-01-20",
+            recruitmentId: ids.recruitmentId,
+            dates: ["2026-01-20"],
             templateId: null,
+          }),
+      },
+      {
+        name: "saveDayCustomRequirements",
+        run: (client, ids, scope) =>
+          client.mutation(api.shiftSetup.mutations.saveDayCustomRequirements, {
+            ...scope,
+            recruitmentId: ids.recruitmentId,
+            date: "2026-01-20",
+            requirements: timeRequirements([bar(ids.hallPositionId, "10:00", "14:00")]),
           }),
       },
     ];
@@ -531,367 +607,465 @@ describe("shiftSetup/mutations", () => {
   });
 
   describe("saveDayTemplates", () => {
-    it("日の型を一覧の順に作り、区切りを開始順に並べ、必要人数0を保存しない", async () => {
+    const template = (overrides: Partial<TemplateInput> = {}): TemplateInput => ({
+      name: "平日",
+      weekdays: ["mon"],
+      appliesToHolidays: false,
+      requirements: timeRequirements([]),
+      ...overrides,
+    });
+    const save = (t: Test, ids: SeededIds, templates: TemplateInput[]) =>
+      t
+        .withIdentity({ subject: MANAGER_SUBJECT })
+        .mutation(api.shiftSetup.mutations.saveDayTemplates, { ...ids.scope, templates });
+
+    it("型を一覧の順に作り、バーを開始、終了、ポジションの順に並べ、隣り合うバーと同じ時間のバーを結合しない", async () => {
       const t = convexTest(schema, modules);
       const ids = await seedShops(t);
       const before = await readSetupState(t);
 
-      await t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shiftSetup.mutations.saveDayTemplates, {
-        ...ids.scope,
-        templates: [
-          {
-            name: " 平日 ",
-            weekdays: ["mon", "tue"],
-            slots: [
-              {
-                key: timeKey("14:00", "22:00"),
-                requirements: [
-                  { positionId: ids.hallPositionId, count: SHIFT_DAY_TEMPLATE_REQUIRED_COUNT_MAX },
-                  { positionId: ids.defaultPositionId, count: 0 },
-                ],
-              },
-              {
-                key: timeKey("09:00", "14:00"),
-                requirements: [
-                  { positionId: ids.kitchenPositionId, count: 0 },
-                  { positionId: ids.defaultPositionId, count: 1 },
-                ],
-              },
-            ],
-          },
-          { name: "週末", weekdays: ["sat", "sun"], slots: [] },
-        ],
-      });
+      await save(t, ids, [
+        {
+          name: " 平日 ",
+          weekdays: ["mon", "tue"],
+          appliesToHolidays: false,
+          requirements: timeRequirements([
+            bar(ids.kitchenPositionId, "14:00", "18:00"),
+            bar(ids.hallPositionId, "14:00", "18:00"),
+            bar(ids.hallPositionId, "10:00", "14:00"),
+            bar(ids.hallPositionId, "10:00", "14:00"),
+            bar(ids.defaultPositionId, "09:00", "22:00"),
+          ]),
+        },
+        { name: "祝日", weekdays: [], appliesToHolidays: true, requirements: timeRequirements([]) },
+      ]);
 
       const after = await readSetupState(t);
+      const [first, second] = [ids.hallPositionId, ids.kitchenPositionId].sort();
       expect(projectTemplates(after.dayTemplates, ids.shopId)).toEqual([
         {
           name: "平日",
           weekdays: ["mon", "tue"],
           sortOrder: 0,
-          slots: [
-            { key: timeKey("09:00", "14:00"), requirements: [{ positionId: ids.defaultPositionId, count: 1 }] },
-            {
-              key: timeKey("14:00", "22:00"),
-              requirements: [{ positionId: ids.hallPositionId, count: SHIFT_DAY_TEMPLATE_REQUIRED_COUNT_MAX }],
-            },
-          ],
+          appliesToHolidays: false,
+          requirements: timeRequirements([
+            bar(ids.defaultPositionId, "09:00", "22:00"),
+            bar(ids.hallPositionId, "10:00", "14:00"),
+            bar(ids.hallPositionId, "10:00", "14:00"),
+            bar(first, "14:00", "18:00"),
+            bar(second, "14:00", "18:00"),
+          ]),
         },
-        { name: "週末", weekdays: ["sat", "sun"], sortOrder: 1, slots: [] },
+        { name: "祝日", weekdays: [], sortOrder: 1, appliesToHolidays: true, requirements: timeRequirements([]) },
       ]);
       // ほかの店舗の型と、日の型以外の設定は変えない。
-      expect(after.dayTemplates.filter((template) => template.shopId !== ids.shopId)).toEqual(before.dayTemplates);
+      expect(after.dayTemplates.filter((item) => item.shopId !== ids.shopId)).toEqual(before.dayTemplates);
       expect({ ...after, dayTemplates: [] }).toEqual({ ...before, dayTemplates: [] });
     });
 
-    it.each([
-      {
-        name: "パターン選択",
-        pattern: SHIFT_TYPE_PATTERN,
-        // 区切りは勤務パターンの設定順に並べ直す。
-        input: [
-          { kind: "shiftType" as const, optionId: "late" },
-          { kind: "shiftType" as const, optionId: "early" },
-        ],
-        saved: [
-          { kind: "shiftType" as const, optionId: "early" },
-          { kind: "shiftType" as const, optionId: "late" },
-        ],
-      },
-      {
-        name: "日付選択",
-        pattern: { kind: "dateOnly" as const },
-        input: [{ kind: "allDay" as const }],
-        saved: [{ kind: "allDay" as const }],
-      },
-    ])("$name の店舗では、提出方法に合う区切りを保存する", async ({ pattern, input, saved }) => {
+    it("パターン選択の店舗では、勤務パターンを設定順に並べ、人数0を保存しない", async () => {
       const t = convexTest(schema, modules);
-      const ids = await seedShops(t, { submissionPattern: pattern });
+      const ids = await seedShops(t, { submissionPattern: SHIFT_TYPE_PATTERN });
 
-      await t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shiftSetup.mutations.saveDayTemplates, {
-        ...ids.scope,
-        templates: [
-          {
-            name: "平日",
-            weekdays: ["mon"],
-            slots: input.map((key) => ({ key, requirements: [{ positionId: ids.hallPositionId, count: 2 }] })),
+      await save(t, ids, [
+        template({
+          requirements: {
+            kind: "shiftType",
+            options: [
+              {
+                optionId: "late",
+                counts: [
+                  { positionId: ids.hallPositionId, count: SHIFT_DAY_TEMPLATE_REQUIRED_COUNT_MAX },
+                  { positionId: ids.kitchenPositionId, count: 0 },
+                ],
+              },
+              { optionId: "early", counts: [{ positionId: ids.defaultPositionId, count: 1 }] },
+            ],
           },
-        ],
-      });
+        }),
+      ]);
 
       expect(projectTemplates((await readSetupState(t)).dayTemplates, ids.shopId)).toEqual([
         {
           name: "平日",
           weekdays: ["mon"],
           sortOrder: 0,
-          slots: saved.map((key) => ({ key, requirements: [{ positionId: ids.hallPositionId, count: 2 }] })),
+          appliesToHolidays: false,
+          requirements: {
+            kind: "shiftType",
+            options: [
+              { optionId: "early", counts: [{ positionId: ids.defaultPositionId, count: 1 }] },
+              {
+                optionId: "late",
+                counts: [{ positionId: ids.hallPositionId, count: SHIFT_DAY_TEMPLATE_REQUIRED_COUNT_MAX }],
+              },
+            ],
+          },
         },
       ]);
     });
 
-    it("idのある型は同じidのまま更新し、一覧にない型を削除し、idのない型を新しく作る", async () => {
+    it("日付選択の店舗では、1日分のポジション別の人数を保存し、人数0を保存しない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedShops(t, { submissionPattern: DATE_ONLY_PATTERN });
+
+      await save(t, ids, [
+        template({
+          requirements: {
+            kind: "dateOnly",
+            counts: [
+              { positionId: ids.hallPositionId, count: 3 },
+              { positionId: ids.kitchenPositionId, count: 0 },
+            ],
+          },
+        }),
+      ]);
+
+      expect(projectTemplates((await readSetupState(t)).dayTemplates, ids.shopId)).toEqual([
+        {
+          name: "平日",
+          weekdays: ["mon"],
+          sortOrder: 0,
+          appliesToHolidays: false,
+          requirements: { kind: "dateOnly", counts: [{ positionId: ids.hallPositionId, count: 3 }] },
+        },
+      ]);
+    });
+
+    it("idのある型は同じidのまま更新し、一覧にない型を削除し、idのない型を新しく作る。削除した型を指す指定は残す", async () => {
       const t = convexTest(schema, modules);
       const ids = await seedShops(t);
       const existing = await t.run(async (ctx) => {
-        const keptTemplateId = await ctx.db.insert("shiftDayTemplates", {
-          shopId: ids.shopId,
-          name: "平日",
-          weekdays: ["mon", "tue"],
-          sortOrder: 0,
-          slots: [{ key: timeKey("09:00", "22:00"), requirements: [{ positionId: ids.hallPositionId, count: 2 }] }],
-        });
-        const removedTemplateId = await ctx.db.insert("shiftDayTemplates", {
-          shopId: ids.shopId,
-          name: "週末",
-          weekdays: ["sat", "sun"],
-          sortOrder: 1,
-          slots: [],
-        });
+        const insert = (name: string, weekdays: Weekday[], sortOrder: number) =>
+          ctx.db.insert("shiftDayTemplates", {
+            shopId: ids.shopId,
+            name,
+            weekdays,
+            sortOrder,
+            appliesToHolidays: false,
+            requirements: timeRequirements([bar(ids.hallPositionId, "09:00", "12:00")]),
+          });
+        const keptTemplateId = await insert("平日", ["mon", "tue"], 0);
+        const removedTemplateId = await insert("週末", ["sat"], 1);
+        for (const templateId of [keptTemplateId, removedTemplateId]) {
+          await ctx.db.insert("shiftDayTemplateOverrides", {
+            shopId: ids.shopId,
+            date: templateId === keptTemplateId ? "2026-01-20" : "2026-01-21",
+            kind: "template",
+            templateId,
+          });
+        }
         return { keptTemplateId, removedTemplateId };
       });
       const before = await readSetupState(t);
 
-      await t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shiftSetup.mutations.saveDayTemplates, {
-        ...ids.scope,
-        templates: [
-          { name: "祝日", weekdays: ["sun"], slots: [] },
-          {
-            id: existing.keptTemplateId,
-            name: "平日と金曜",
-            weekdays: ["mon", "fri"],
-            slots: [
-              { key: timeKey("10:00", "20:00"), requirements: [{ positionId: ids.kitchenPositionId, count: 3 }] },
-            ],
-          },
-        ],
-      });
+      await save(t, ids, [
+        template({ name: "新しい型", weekdays: ["sat", "sun"], appliesToHolidays: true }),
+        template({
+          id: existing.keptTemplateId,
+          name: "平日（改）",
+          weekdays: ["mon"],
+          requirements: timeRequirements([bar(ids.kitchenPositionId, "17:00", "22:00")]),
+        }),
+      ]);
 
       const after = await readSetupState(t);
-      const shopTemplates = after.dayTemplates.filter((template) => template.shopId === ids.shopId);
+      const shopTemplates = after.dayTemplates.filter((item) => item.shopId === ids.shopId);
       expect(projectTemplates(shopTemplates, ids.shopId)).toEqual([
-        { name: "祝日", weekdays: ["sun"], sortOrder: 0, slots: [] },
         {
-          name: "平日と金曜",
-          weekdays: ["mon", "fri"],
+          name: "新しい型",
+          weekdays: ["sat", "sun"],
+          sortOrder: 0,
+          appliesToHolidays: true,
+          requirements: timeRequirements([]),
+        },
+        {
+          name: "平日（改）",
+          weekdays: ["mon"],
           sortOrder: 1,
-          slots: [{ key: timeKey("10:00", "20:00"), requirements: [{ positionId: ids.kitchenPositionId, count: 3 }] }],
+          appliesToHolidays: false,
+          requirements: timeRequirements([bar(ids.kitchenPositionId, "17:00", "22:00")]),
         },
       ]);
-      expect(
-        shopTemplates.filter((template) => template.name === "平日と金曜").map((template) => template._id),
-      ).toEqual([existing.keptTemplateId]);
-      expect(shopTemplates.filter((template) => template._id === existing.removedTemplateId)).toEqual([]);
-      expect(after.dayTemplates.filter((template) => template.shopId !== ids.shopId)).toEqual(
-        before.dayTemplates.filter((template) => template.shopId !== ids.shopId),
+      expect(shopTemplates.find((item) => item.name === "平日（改）")?._id).toBe(existing.keptTemplateId);
+      expect(shopTemplates.map((item) => item._id)).not.toContain(existing.removedTemplateId);
+      // その日だけの指定は、削除した型を指すものも含めて変えない。読み取りが無視して下の順位へ落とす。
+      expect(after.dayTemplateOverrides).toEqual(before.dayTemplateOverrides);
+      expect(after.dayTemplates.filter((item) => item.shopId !== ids.shopId)).toEqual(
+        before.dayTemplates.filter((item) => item.shopId !== ids.shopId),
       );
+    });
+
+    it("同じ一覧をもう一度保存しても、同じ状態のままである", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedShops(t);
+      const readShopTemplates = async () =>
+        (await readSetupState(t)).dayTemplates
+          .filter((item) => item.shopId === ids.shopId)
+          .sort((a, b) => a.sortOrder - b.sortOrder);
+      const templates = [
+        template({ requirements: timeRequirements([bar(ids.hallPositionId, "09:00", "22:00")]) }),
+        template({ name: "祝日", weekdays: [], appliesToHolidays: true }),
+      ];
+      await save(t, ids, templates);
+      const saved = await readShopTemplates();
+      expect(saved).toHaveLength(2);
+
+      await save(
+        t,
+        ids,
+        templates.map((item, index) => ({ ...item, id: saved[index]._id })),
+      );
+
+      expect(await readShopTemplates()).toEqual(saved);
     });
 
     it("空の一覧を保存すると、その店舗の型だけをすべて削除する", async () => {
       const t = convexTest(schema, modules);
       const ids = await seedShops(t);
-      await t.run(async (ctx) => {
-        await ctx.db.insert("shiftDayTemplates", {
-          shopId: ids.shopId,
-          name: "平日",
-          weekdays: ["mon"],
-          sortOrder: 0,
-          slots: [],
-        });
-      });
+      await save(t, ids, [template()]);
       const before = await readSetupState(t);
 
-      await t
-        .withIdentity({ subject: MANAGER_SUBJECT })
-        .mutation(api.shiftSetup.mutations.saveDayTemplates, { ...ids.scope, templates: [] });
+      await save(t, ids, []);
 
       const after = await readSetupState(t);
-      expect(after.dayTemplates).toEqual(before.dayTemplates.filter((template) => template.shopId !== ids.shopId));
-      expect(after.dayTemplates.map((template) => template._id).sort()).toEqual(
+      expect(after.dayTemplates).toEqual(before.dayTemplates.filter((item) => item.shopId !== ids.shopId));
+      expect(after.dayTemplates.map((item) => item._id).sort()).toEqual(
         [ids.siblingTemplateId, ids.otherTemplateId].sort(),
       );
     });
 
-    const template = (overrides: Partial<TemplateInput> = {}): TemplateInput => ({
-      name: "平日",
-      weekdays: ["mon"],
-      slots: [],
-      ...overrides,
-    });
-
-    it.each([
+    it.each<{ name: string; build: (ids: SeededIds) => TemplateInput[]; message: string }>([
       {
         name: "同じ曜日を2つの型に割り当てる",
         build: () => [template({ weekdays: ["mon", "tue"] }), template({ name: "週末", weekdays: ["sat", "tue"] })],
         message: "同じ曜日を2つの型に割り当てることはできません",
       },
       {
+        name: "祝日に使う型を2つ選ぶ",
+        build: () => [
+          template({ appliesToHolidays: true }),
+          template({ name: "年末年始", weekdays: [], appliesToHolidays: true }),
+        ],
+        message: "祝日に使う型は1つだけ選べます",
+      },
+      {
         name: "型の名前が重複する",
         build: () => [template({ weekdays: ["mon"] }), template({ name: " 平日 ", weekdays: ["tue"] })],
         message: "型の名前が重複しています",
       },
-      {
-        name: "型の名前が空白だけ",
-        build: () => [template({ name: "  " })],
-        message: "型の名前を入力してください",
-      },
+      { name: "型の名前が空白だけ", build: () => [template({ name: "  " })], message: "型の名前を入力してください" },
       {
         name: "型の名前が21文字",
         build: () => [template({ name: "あ".repeat(21) })],
-        message: "型の名前が長すぎます",
+        message: "型の名前は20文字以内で入力してください",
       },
       {
-        name: "区切りが上限を超える",
-        build: () => [
-          template({
-            slots: Array.from({ length: SHIFT_DAY_TEMPLATE_SLOT_LIMIT + 1 }, (_, index) => ({
-              key: timeKey(`${String(9 + index).padStart(2, "0")}:00`, `${String(10 + index).padStart(2, "0")}:00`),
-              requirements: [],
-            })),
-          }),
-        ],
-        message: "時間帯が上限を超えています",
+        name: "バーが30分刻みでない",
+        build: (ids) => [template({ requirements: timeRequirements([bar(ids.hallPositionId, "09:15", "12:00")]) })],
+        message: "バーの時間は30分単位にしてください",
       },
       {
-        name: "時間帯が重なる",
-        build: () => [
-          template({
-            slots: [
-              { key: timeKey("09:00", "14:00"), requirements: [] },
-              { key: timeKey("13:00", "22:00"), requirements: [] },
-            ],
-          }),
-        ],
-        message: "時間帯が重なっています",
+        name: "バーの終了が開始より前",
+        build: (ids) => [template({ requirements: timeRequirements([bar(ids.hallPositionId, "12:00", "09:00")]) })],
+        message: "バーの終了時間は開始時間より後にしてください",
       },
       {
-        name: "必要人数が上限を超える",
-        build: (ids: SeededIds) => [
-          template({
-            slots: [
-              {
-                key: timeKey("09:00", "22:00"),
-                requirements: [{ positionId: ids.hallPositionId, count: SHIFT_DAY_TEMPLATE_REQUIRED_COUNT_MAX + 1 }],
-              },
-            ],
-          }),
-        ],
-        message: "必要人数が正しくありません",
+        name: "バーが受付時間の外に出る",
+        build: (ids) => [template({ requirements: timeRequirements([bar(ids.hallPositionId, "08:00", "10:00")]) })],
+        message: "受付時間の外に出ているバーがあります",
       },
       {
-        name: "必要人数が整数でない",
-        build: (ids: SeededIds) => [
+        name: "同時に重なるバーが1つのポジションで上限を超える",
+        build: (ids) => [
           template({
-            slots: [{ key: timeKey("09:00", "22:00"), requirements: [{ positionId: ids.hallPositionId, count: 1.5 }] }],
+            requirements: timeRequirements(
+              Array.from({ length: SHIFT_DAY_TEMPLATE_CONCURRENT_BAR_LIMIT + 1 }, () =>
+                bar(ids.hallPositionId, "11:00", "14:00"),
+              ),
+            ),
           }),
         ],
-        message: "必要人数が正しくありません",
+        message: "同じ時間に重ねられるバーは、1つのポジションで10本までです",
       },
       {
-        name: "同じポジションの必要人数が重複する",
-        build: (ids: SeededIds) => [
+        name: "バーの本数が1つの型の上限を超える",
+        build: (ids) => [
           template({
-            slots: [
-              {
-                key: timeKey("09:00", "22:00"),
-                requirements: [
-                  { positionId: ids.hallPositionId, count: 1 },
-                  { positionId: ids.hallPositionId, count: 2 },
-                ],
-              },
-            ],
+            requirements: timeRequirements(
+              Array.from({ length: SHIFT_DAY_TEMPLATE_BAR_LIMIT + 1 }, (_, index) =>
+                bar(ids.hallPositionId, `${9 + (index % 13)}:00`, `${10 + (index % 13)}:00`),
+              ),
+            ),
           }),
         ],
-        message: "同じポジションの必要人数が重複しています",
+        message: "バーは1つの型に200本まで置けます",
+      },
+      {
+        name: "時間指定の店舗へ、1日分の人数を渡す",
+        build: (ids) => [
+          template({ requirements: { kind: "dateOnly", counts: [{ positionId: ids.hallPositionId, count: 1 }] } }),
+        ],
+        message: "希望シフトの集め方に合わない必要人数があります",
       },
     ])("$name 保存は拒否する", async ({ build, message }) => {
       const t = convexTest(schema, modules);
       const ids = await seedShops(t);
 
-      await expectRejectedWithoutChange(
-        t,
-        () =>
-          t
-            .withIdentity({ subject: MANAGER_SUBJECT })
-            .mutation(api.shiftSetup.mutations.saveDayTemplates, { ...ids.scope, templates: build(ids) }),
-        message,
-      );
+      await expectRejectedWithoutChange(t, () => save(t, ids, build(ids)), message);
     });
 
-    it.each([
+    it.each<{
+      name: string;
+      pattern: ShiftSubmissionPattern;
+      build: (ids: SeededIds) => Requirements;
+      message: string;
+    }>([
       {
-        name: "時間指定の店舗へ勤務パターンの区切り",
-        pattern: undefined,
-        key: { kind: "shiftType" as const, optionId: "early" },
-      },
-      { name: "時間指定の店舗へ終日の区切り", pattern: undefined, key: { kind: "allDay" as const } },
-      { name: "時間指定の店舗へ受付時間の外に出る時間帯", pattern: undefined, key: timeKey("08:00", "10:00") },
-      { name: "パターン選択の店舗へ時間帯の区切り", pattern: SHIFT_TYPE_PATTERN, key: timeKey("09:00", "15:00") },
-      {
-        name: "パターン選択の店舗へ存在しない勤務パターン",
+        name: "パターン選択の店舗へ、バー",
         pattern: SHIFT_TYPE_PATTERN,
-        key: { kind: "shiftType" as const, optionId: "removed" },
-      },
-      { name: "パターン選択の店舗へ終日の区切り", pattern: SHIFT_TYPE_PATTERN, key: { kind: "allDay" as const } },
-      {
-        name: "日付選択の店舗へ時間帯の区切り",
-        pattern: { kind: "dateOnly" as const },
-        key: timeKey("09:00", "22:00"),
+        build: (ids) => timeRequirements([bar(ids.hallPositionId, "09:00", "15:00")]),
+        message: "希望シフトの集め方に合わない必要人数があります",
       },
       {
-        name: "日付選択の店舗へ勤務パターンの区切り",
-        pattern: { kind: "dateOnly" as const },
-        key: { kind: "shiftType" as const, optionId: "early" },
+        name: "パターン選択の店舗へ、店舗にない勤務パターン",
+        pattern: SHIFT_TYPE_PATTERN,
+        build: (ids) => ({
+          kind: "shiftType",
+          options: [{ optionId: "removed", counts: [{ positionId: ids.hallPositionId, count: 1 }] }],
+        }),
+        message: "勤務パターンが見つかりません",
       },
-    ])("$name を保存しようとすると拒否する", async ({ pattern, key }) => {
+      {
+        name: "パターン選択の店舗へ、同じ勤務パターンを2回",
+        pattern: SHIFT_TYPE_PATTERN,
+        build: () => ({
+          kind: "shiftType",
+          options: [
+            { optionId: "early", counts: [] },
+            { optionId: "early", counts: [] },
+          ],
+        }),
+        message: "同じ勤務パターンの必要人数が重複しています",
+      },
+      {
+        name: "パターン選択の店舗へ、上限を超える人数",
+        pattern: SHIFT_TYPE_PATTERN,
+        build: (ids) => ({
+          kind: "shiftType",
+          options: [
+            {
+              optionId: "early",
+              counts: [{ positionId: ids.hallPositionId, count: SHIFT_DAY_TEMPLATE_REQUIRED_COUNT_MAX + 1 }],
+            },
+          ],
+        }),
+        message: "必要人数が正しくありません",
+      },
+      {
+        name: "日付選択の店舗へ、勤務パターンごとの人数",
+        pattern: DATE_ONLY_PATTERN,
+        build: () => ({ kind: "shiftType", options: [] }),
+        message: "希望シフトの集め方に合わない必要人数があります",
+      },
+      {
+        name: "日付選択の店舗へ、整数でない人数",
+        pattern: DATE_ONLY_PATTERN,
+        build: (ids) => ({ kind: "dateOnly", counts: [{ positionId: ids.hallPositionId, count: 1.5 }] }),
+        message: "必要人数が正しくありません",
+      },
+      {
+        name: "日付選択の店舗へ、同じポジションの人数を2回",
+        pattern: DATE_ONLY_PATTERN,
+        build: (ids) => ({
+          kind: "dateOnly",
+          counts: [
+            { positionId: ids.hallPositionId, count: 1 },
+            { positionId: ids.hallPositionId, count: 2 },
+          ],
+        }),
+        message: "同じポジションの必要人数が重複しています",
+      },
+    ])("$name を保存しようとすると拒否する", async ({ pattern, build, message }) => {
       const t = convexTest(schema, modules);
-      const ids = await seedShops(t, pattern ? { submissionPattern: pattern } : undefined);
+      const ids = await seedShops(t, { submissionPattern: pattern });
 
-      await expectRejectedWithoutChange(
-        t,
-        () =>
-          t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shiftSetup.mutations.saveDayTemplates, {
-            ...ids.scope,
-            templates: [template({ slots: [{ key, requirements: [{ positionId: ids.hallPositionId, count: 1 }] }] })],
-          }),
-        "希望シフトの集め方に合わない区切りがあります",
-      );
+      await expectRejectedWithoutChange(t, () => save(t, ids, [template({ requirements: build(ids) })]), message);
     });
 
-    it.each([
+    const foreignPositions = [
       { name: "同じ組織の別店舗のポジション", pick: (ids: SeededIds) => ids.siblingPositionId },
       { name: "別組織のポジション", pick: (ids: SeededIds) => ids.otherPositionId },
       { name: "削除済みのポジション", pick: (ids: SeededIds) => ids.deletedPositionId },
-    ])("必要人数に $name を含む保存は Not found で拒否する", async ({ pick }) => {
+    ];
+
+    it.each(foreignPositions)("バーに $name を含む保存は Not found で拒否する", async ({ pick }) => {
       const t = convexTest(schema, modules);
       const ids = await seedShops(t);
 
       await expectRejectedWithoutChange(
         t,
         () =>
-          t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shiftSetup.mutations.saveDayTemplates, {
-            ...ids.scope,
-            templates: [
-              template({
-                slots: [
-                  {
-                    key: timeKey("09:00", "22:00"),
-                    requirements: [
-                      { positionId: ids.hallPositionId, count: 1 },
-                      { positionId: pick(ids), count: 1 },
-                    ],
-                  },
+          save(t, ids, [
+            template({
+              requirements: timeRequirements([
+                bar(ids.hallPositionId, "09:00", "22:00"),
+                bar(pick(ids), "09:00", "22:00"),
+              ]),
+            }),
+          ]),
+        "Not found",
+      );
+    });
+
+    it.each(foreignPositions)("勤務パターンごとの人数に $name を含む保存は Not found で拒否する", async ({ pick }) => {
+      const t = convexTest(schema, modules);
+      const ids = await seedShops(t, { submissionPattern: SHIFT_TYPE_PATTERN });
+
+      await expectRejectedWithoutChange(
+        t,
+        () =>
+          save(t, ids, [
+            template({
+              requirements: {
+                kind: "shiftType",
+                options: [
+                  { optionId: "early", counts: [{ positionId: ids.hallPositionId, count: 1 }] },
+                  { optionId: "late", counts: [{ positionId: pick(ids), count: 1 }] },
                 ],
-              }),
-            ],
-          }),
+              },
+            }),
+          ]),
+        "Not found",
+      );
+    });
+
+    it.each(foreignPositions)("1日分の人数に $name を含む保存は Not found で拒否する", async ({ pick }) => {
+      const t = convexTest(schema, modules);
+      const ids = await seedShops(t, { submissionPattern: DATE_ONLY_PATTERN });
+
+      await expectRejectedWithoutChange(
+        t,
+        () =>
+          save(t, ids, [
+            template({
+              requirements: {
+                kind: "dateOnly",
+                counts: [
+                  { positionId: ids.hallPositionId, count: 1 },
+                  { positionId: pick(ids), count: 1 },
+                ],
+              },
+            }),
+          ]),
         "Not found",
       );
     });
 
     it.each([
-      { name: "同じ組織の別店舗の型", pick: (ids: SeededIds) => [ids.siblingTemplateId] },
-      { name: "別組織の型", pick: (ids: SeededIds) => [ids.otherTemplateId] },
-      { name: "削除済みの型", pick: (ids: SeededIds) => [ids.deletedTemplateId] },
+      { name: "同じ組織の別店舗の型", pick: (ids: SeededIds) => ids.siblingTemplateId },
+      { name: "別組織の型", pick: (ids: SeededIds) => ids.otherTemplateId },
+      { name: "削除済みの型", pick: (ids: SeededIds) => ids.deletedTemplateId },
     ])("$name のidを渡すと Not found で拒否する", async ({ pick }) => {
       const t = convexTest(schema, modules);
       const ids = await seedShops(t);
@@ -899,13 +1073,10 @@ describe("shiftSetup/mutations", () => {
       await expectRejectedWithoutChange(
         t,
         () =>
-          t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shiftSetup.mutations.saveDayTemplates, {
-            ...ids.scope,
-            templates: [
-              template({ name: "新しい型", weekdays: ["mon"] }),
-              ...pick(ids).map((id) => template({ id, name: "書き換えた型", weekdays: ["tue"] })),
-            ],
-          }),
+          save(t, ids, [
+            template({ name: "新しい型", weekdays: ["mon"] }),
+            template({ id: pick(ids), name: "書き換えた型", weekdays: ["tue"] }),
+          ]),
         "Not found",
       );
     });
@@ -913,52 +1084,58 @@ describe("shiftSetup/mutations", () => {
     it("同じ型のidを一覧に2回渡すと Not found で拒否する", async () => {
       const t = convexTest(schema, modules);
       const ids = await seedShops(t);
-      const templateId = await t.run(async (ctx) =>
-        ctx.db.insert("shiftDayTemplates", {
-          shopId: ids.shopId,
-          name: "平日",
-          weekdays: ["mon"],
-          sortOrder: 0,
-          slots: [],
-        }),
-      );
+      await save(t, ids, [template()]);
+      const templateId = (await readSetupState(t)).dayTemplates.find((item) => item.shopId === ids.shopId)?._id;
+      if (!templateId) throw new Error("expected a saved template");
 
       await expectRejectedWithoutChange(
         t,
         () =>
-          t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shiftSetup.mutations.saveDayTemplates, {
-            ...ids.scope,
-            templates: [
-              template({ id: templateId, name: "平日", weekdays: ["mon"] }),
-              template({ id: templateId, name: "週末", weekdays: ["sat"] }),
-            ],
-          }),
+          save(t, ids, [
+            template({ id: templateId, name: "平日", weekdays: ["mon"] }),
+            template({ id: templateId, name: "週末", weekdays: ["sat"] }),
+          ]),
         "Not found",
       );
     });
 
-    it("日の型は上限の件数まで保存でき、1件でも超えると拒否する", async () => {
+    it("型は上限の件数まで保存でき、1件でも超えると拒否する", async () => {
       const t = convexTest(schema, modules);
       const ids = await seedShops(t);
-      const asManager = t.withIdentity({ subject: MANAGER_SUBJECT });
       const templates = Array.from({ length: SHIFT_DAY_TEMPLATE_LIMIT + 1 }, (_, index) =>
         template({ name: `型${index + 1}`, weekdays: [] }),
       );
 
-      await asManager.mutation(api.shiftSetup.mutations.saveDayTemplates, {
-        ...ids.scope,
-        templates: templates.slice(0, SHIFT_DAY_TEMPLATE_LIMIT),
-      });
+      await save(t, ids, templates.slice(0, SHIFT_DAY_TEMPLATE_LIMIT));
 
       expect(projectTemplates((await readSetupState(t)).dayTemplates, ids.shopId).map(({ name }) => name)).toEqual(
         templates.slice(0, SHIFT_DAY_TEMPLATE_LIMIT).map(({ name }) => name),
       );
-      expect(SHIFT_DAY_TEMPLATE_LIMIT).toBe(6);
-      await expectRejectedWithoutChange(
-        t,
-        () => asManager.mutation(api.shiftSetup.mutations.saveDayTemplates, { ...ids.scope, templates }),
-        "日の型が上限を超えています",
-      );
+      expect(SHIFT_DAY_TEMPLATE_LIMIT).toBe(20);
+      await expectRejectedWithoutChange(t, () => save(t, ids, templates), "型は20件まで作れます");
+    });
+
+    it("バーは、1つの型の上限の本数と、1つのポジションで同時に重なる上限の本数まで保存できる", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedShops(t);
+      // 13の時間帯に、3つのポジションで合わせて200本を置く。ホールは11:00からの1時間に上限まで重ねる。
+      const hours = Array.from({ length: 13 }, (_, index) => 9 + index);
+      const bars = [
+        ...Array.from({ length: SHIFT_DAY_TEMPLATE_CONCURRENT_BAR_LIMIT }, () =>
+          bar(ids.hallPositionId, "11:00", "12:00"),
+        ),
+        ...hours.flatMap((hour) =>
+          [ids.defaultPositionId, ids.kitchenPositionId].flatMap((positionId) =>
+            Array.from({ length: 8 }, () => bar(positionId, `${hour}:00`, `${hour + 1}:00`)),
+          ),
+        ),
+      ].slice(0, SHIFT_DAY_TEMPLATE_BAR_LIMIT);
+
+      await save(t, ids, [template({ requirements: timeRequirements(bars) })]);
+
+      const [saved] = projectTemplates((await readSetupState(t)).dayTemplates, ids.shopId);
+      expect(bars).toHaveLength(SHIFT_DAY_TEMPLATE_BAR_LIMIT);
+      expect(saved.requirements.kind === "time" && saved.requirements.bars).toHaveLength(SHIFT_DAY_TEMPLATE_BAR_LIMIT);
     });
   });
 
@@ -1240,113 +1417,135 @@ describe("shiftSetup/mutations", () => {
     });
   });
 
-  describe("setDayTemplateOverride", () => {
-    async function seedTemplates(t: Test, shopId: Id<"shops">) {
+  describe("applyDayTemplateToDates", () => {
+    async function seedTemplates(t: Test, ids: SeededIds, kind: Requirements["kind"] = "time") {
       return await t.run(async (ctx) => {
         const insert = (name: string, sortOrder: number) =>
-          ctx.db.insert("shiftDayTemplates", { shopId, name, weekdays: [], sortOrder, slots: [] });
+          ctx.db.insert("shiftDayTemplates", {
+            shopId: ids.shopId,
+            name,
+            weekdays: [],
+            sortOrder,
+            appliesToHolidays: false,
+            requirements: buildEmptyDayRequirements(kind),
+          });
         return { eventTemplateId: await insert("イベントの日", 0), quietTemplateId: await insert("ひまな日", 1) };
       });
     }
-    const readOverrides = async (t: Test) =>
-      (await readSetupState(t)).dayTemplateOverrides
-        .map(({ shopId, date, templateId }) => ({ shopId, date, templateId }))
-        .sort((a, b) => a.date.localeCompare(b.date));
+    const apply = (
+      t: Test,
+      ids: SeededIds,
+      args: { recruitmentId?: Id<"recruitments">; dates: string[]; templateId: Id<"shiftDayTemplates"> | null },
+    ) =>
+      t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shiftSetup.mutations.applyDayTemplateToDates, {
+        ...ids.scope,
+        recruitmentId: args.recruitmentId ?? ids.recruitmentId,
+        dates: args.dates,
+        templateId: args.templateId,
+      });
+    const readOverrides = async (t: Test) => projectOverrides((await readSetupState(t)).dayTemplateOverrides);
 
-    it("特別な日を設定し、同じ日付は上書きして1件だけにし、nullで解除する", async () => {
+    it("選んだ複数の日へ型を当て、同じ日の指定を置き換えて1件だけにし、nullで指定を消す", async () => {
       const t = convexTest(schema, modules);
       const ids = await seedShops(t);
-      const templates = await seedTemplates(t, ids.shopId);
-      const asManager = t.withIdentity({ subject: MANAGER_SUBJECT });
+      const templates = await seedTemplates(t, ids);
+      const customRequirements = timeRequirements([bar(ids.hallPositionId, "10:00", "12:00")]);
+      await t.run(async (ctx) => {
+        // その日だけの必要人数がある日、別の型を当てた日、同じ日に指定が2件残っている日を用意する。
+        await ctx.db.insert("shiftDayTemplateOverrides", {
+          shopId: ids.shopId,
+          date: "2026-01-20",
+          kind: "custom",
+          requirements: customRequirements,
+        });
+        for (const date of ["2026-01-21", "2026-01-22", "2026-01-22", "2026-01-25"]) {
+          await ctx.db.insert("shiftDayTemplateOverrides", {
+            shopId: ids.shopId,
+            date,
+            kind: "template",
+            templateId: templates.quietTemplateId,
+          });
+        }
+        // 同じ日付でも、ほかの店舗の指定は変えない。
+        await ctx.db.insert("shiftDayTemplateOverrides", {
+          shopId: ids.siblingShopId,
+          date: "2026-01-20",
+          kind: "template",
+          templateId: ids.siblingTemplateId,
+        });
+      });
       const before = await readSetupState(t);
-
-      await asManager.mutation(api.shiftSetup.mutations.setDayTemplateOverride, {
-        ...ids.scope,
+      const siblingOverride = {
+        shopId: ids.siblingShopId,
         date: "2026-01-20",
+        kind: "template",
+        templateId: ids.siblingTemplateId,
+      };
+      const shopOverride = (date: string, templateId: Id<"shiftDayTemplates">) => ({
+        shopId: ids.shopId,
+        date,
+        kind: "template",
+        templateId,
+      });
+      const sortOverrides = <T extends { shopId: string; date: string }>(overrides: T[]) =>
+        overrides.sort((a, b) => a.shopId.localeCompare(b.shopId) || a.date.localeCompare(b.date));
+
+      await apply(t, ids, {
+        dates: ["2026-01-22", "2026-01-19", "2026-01-20"],
         templateId: templates.eventTemplateId,
       });
-      expect(await readOverrides(t)).toEqual([
-        { shopId: ids.shopId, date: "2026-01-20", templateId: templates.eventTemplateId },
-      ]);
 
-      await asManager.mutation(api.shiftSetup.mutations.setDayTemplateOverride, {
-        ...ids.scope,
-        date: "2026-01-21",
-        templateId: templates.eventTemplateId,
-      });
-      await asManager.mutation(api.shiftSetup.mutations.setDayTemplateOverride, {
-        ...ids.scope,
-        date: "2026-01-20",
-        templateId: templates.quietTemplateId,
-      });
-      expect(await readOverrides(t)).toEqual([
-        { shopId: ids.shopId, date: "2026-01-20", templateId: templates.quietTemplateId },
-        { shopId: ids.shopId, date: "2026-01-21", templateId: templates.eventTemplateId },
-      ]);
+      expect(await readOverrides(t)).toEqual(
+        sortOverrides([
+          shopOverride("2026-01-19", templates.eventTemplateId),
+          shopOverride("2026-01-20", templates.eventTemplateId),
+          shopOverride("2026-01-21", templates.quietTemplateId),
+          shopOverride("2026-01-22", templates.eventTemplateId),
+          shopOverride("2026-01-25", templates.quietTemplateId),
+          siblingOverride,
+        ]),
+      );
 
-      await asManager.mutation(api.shiftSetup.mutations.setDayTemplateOverride, {
-        ...ids.scope,
-        date: "2026-01-20",
-        templateId: null,
-      });
-      expect(await readOverrides(t)).toEqual([
-        { shopId: ids.shopId, date: "2026-01-21", templateId: templates.eventTemplateId },
-      ]);
-      // 特別な日のほかは、どの設定も変えない。
+      await apply(t, ids, { dates: ["2026-01-20", "2026-01-25", "2026-01-23"], templateId: null });
+
+      expect(await readOverrides(t)).toEqual(
+        sortOverrides([
+          shopOverride("2026-01-19", templates.eventTemplateId),
+          shopOverride("2026-01-21", templates.quietTemplateId),
+          shopOverride("2026-01-22", templates.eventTemplateId),
+          siblingOverride,
+        ]),
+      );
+      // その日だけの指定のほかは、型を含めてどの設定も変えない。
       expect({ ...(await readSetupState(t)), dayTemplateOverrides: [] }).toEqual({
         ...before,
         dayTemplateOverrides: [],
       });
     });
 
-    it("同じ日付の指定が複数残っていても、設定し直すと1件だけになる", async () => {
+    it("募集期間の上限の日数まで、1回で当てられる", async () => {
       const t = convexTest(schema, modules);
       const ids = await seedShops(t);
-      const templates = await seedTemplates(t, ids.shopId);
-      await t.run(async (ctx) => {
-        for (const templateId of [templates.eventTemplateId, templates.quietTemplateId]) {
-          await ctx.db.insert("shiftDayTemplateOverrides", { shopId: ids.shopId, date: "2026-01-20", templateId });
-        }
-        // 別店舗の同じ日付の指定は、対象店舗の操作で消さない。
-        await ctx.db.insert("shiftDayTemplateOverrides", {
-          shopId: ids.siblingShopId,
-          date: "2026-01-20",
-          templateId: ids.siblingTemplateId,
-        });
-      });
+      const templates = await seedTemplates(t, ids);
+      const periodEnd = addDays(PERIOD_START, RECRUITMENT_PERIOD_DAYS_MAX - 1);
+      await t.run(async (ctx) => ctx.db.patch(ids.recruitmentId, { periodEnd }));
+      const dates = generateDateRange(PERIOD_START, periodEnd);
 
-      await t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shiftSetup.mutations.setDayTemplateOverride, {
-        ...ids.scope,
-        date: "2026-01-20",
-        templateId: templates.eventTemplateId,
-      });
+      await apply(t, ids, { dates, templateId: templates.eventTemplateId });
 
-      expect((await readOverrides(t)).sort((a, b) => String(a.templateId).localeCompare(String(b.templateId)))).toEqual(
-        [
-          { shopId: ids.shopId, date: "2026-01-20", templateId: templates.eventTemplateId },
-          { shopId: ids.siblingShopId, date: "2026-01-20", templateId: ids.siblingTemplateId },
-        ].sort((a, b) => String(a.templateId).localeCompare(String(b.templateId))),
+      expect(RECRUITMENT_PERIOD_DAYS_MAX).toBe(31);
+      expect(await readOverrides(t)).toEqual(
+        dates.map((date) => ({ shopId: ids.shopId, date, kind: "template", templateId: templates.eventTemplateId })),
       );
     });
 
-    it("指定のない日付をnullで解除しても、何も変えない", async () => {
+    it("日付を1つも渡さなければ、何も変えない", async () => {
       const t = convexTest(schema, modules);
       const ids = await seedShops(t);
-      const templates = await seedTemplates(t, ids.shopId);
-      await t.run(async (ctx) => {
-        await ctx.db.insert("shiftDayTemplateOverrides", {
-          shopId: ids.shopId,
-          date: "2026-01-21",
-          templateId: templates.eventTemplateId,
-        });
-      });
+      const templates = await seedTemplates(t, ids);
       const before = await readSetupState(t);
 
-      await t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shiftSetup.mutations.setDayTemplateOverride, {
-        ...ids.scope,
-        date: "2026-01-20",
-        templateId: null,
-      });
+      await apply(t, ids, { dates: [], templateId: templates.eventTemplateId });
 
       expect(await readSetupState(t)).toEqual(before);
     });
@@ -1355,48 +1554,383 @@ describe("shiftSetup/mutations", () => {
       { name: "同じ組織の別店舗の型", pick: (ids: SeededIds) => ids.siblingTemplateId },
       { name: "別組織の型", pick: (ids: SeededIds) => ids.otherTemplateId },
       { name: "削除済みの型", pick: (ids: SeededIds) => ids.deletedTemplateId },
-    ])("$name を当てようとすると Not found で拒否し、すでにある指定も消さない", async ({ pick }) => {
+    ])("$name を当てようとすると Not found で拒否する", async ({ pick }) => {
       const t = convexTest(schema, modules);
       const ids = await seedShops(t);
-      const templates = await seedTemplates(t, ids.shopId);
-      await t.run(async (ctx) => {
-        await ctx.db.insert("shiftDayTemplateOverrides", {
-          shopId: ids.shopId,
-          date: "2026-01-20",
-          templateId: templates.eventTemplateId,
-        });
-      });
 
       await expectRejectedWithoutChange(
         t,
-        () =>
-          t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shiftSetup.mutations.setDayTemplateOverride, {
-            ...ids.scope,
-            date: "2026-01-20",
-            templateId: pick(ids),
-          }),
+        () => apply(t, ids, { dates: ["2026-01-20"], templateId: pick(ids) }),
         "Not found",
       );
     });
 
     it.each([
-      { name: "存在しない日付", date: "2026-02-31" },
-      { name: "区切りが違う日付", date: "2026/01/20" },
-      { name: "空文字", date: "" },
-    ])("$name は拒否する", async ({ date }) => {
+      { name: "同じ組織の別店舗の募集", pick: (ids: SeededIds) => ids.siblingRecruitmentId },
+      { name: "別組織の募集", pick: (ids: SeededIds) => ids.otherRecruitmentId },
+      { name: "削除済みの募集", pick: (ids: SeededIds) => ids.deletedRecruitmentId },
+    ])("$name を指定すると Not found で拒否する", async ({ pick }) => {
       const t = convexTest(schema, modules);
       const ids = await seedShops(t);
-      const templates = await seedTemplates(t, ids.shopId);
+      const templates = await seedTemplates(t, ids);
+
+      await expectRejectedWithoutChange(
+        t,
+        () => apply(t, ids, { recruitmentId: pick(ids), dates: ["2026-01-20"], templateId: templates.eventTemplateId }),
+        "Not found",
+      );
+      await expectRejectedWithoutChange(
+        t,
+        () => apply(t, ids, { recruitmentId: pick(ids), dates: ["2026-01-20"], templateId: null }),
+        "Not found",
+      );
+    });
+
+    it.each([
+      { name: "募集期間の前の日", dates: ["2026-01-19", "2026-01-18"], message: "募集期間内の日付を選んでください" },
+      { name: "募集期間の後の日", dates: ["2026-01-26"], message: "募集期間内の日付を選んでください" },
+      { name: "存在しない日付", dates: ["2026-01-32"], message: "日付の形式が正しくありません" },
+      { name: "書式の違う日付", dates: ["2026/01/20"], message: "日付の形式が正しくありません" },
+      { name: "重複した日付", dates: ["2026-01-20", "2026-01-21", "2026-01-20"], message: "同じ日付が重複しています" },
+    ])("$name を含む指定は拒否し、ほかの日にも当てない", async ({ dates, message }) => {
+      const t = convexTest(schema, modules);
+      const ids = await seedShops(t);
+      const templates = await seedTemplates(t, ids);
+
+      await expectRejectedWithoutChange(
+        t,
+        () => apply(t, ids, { dates, templateId: templates.eventTemplateId }),
+        message,
+      );
+      await expectRejectedWithoutChange(t, () => apply(t, ids, { dates, templateId: null }), message);
+    });
+
+    it("32日以上の指定は拒否する", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedShops(t);
+      const templates = await seedTemplates(t, ids);
+      const dates = generateDateRange(PERIOD_START, addDays(PERIOD_START, RECRUITMENT_PERIOD_DAYS_MAX));
+      // 日数の上限だけで拒否されることを確かめるため、渡す日付をすべて募集期間の内側にする。
+      await t.run(async (ctx) => ctx.db.patch(ids.recruitmentId, { periodEnd: dates[dates.length - 1] }));
+
+      expect(dates).toHaveLength(32);
+      await expectRejectedWithoutChange(
+        t,
+        () => apply(t, ids, { dates, templateId: templates.eventTemplateId }),
+        "一度に変更できるのは31日までです",
+      );
+    });
+
+    it("確定済みの募集では、型を当てることも、指定を消すこともできない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedShops(t);
+      const templates = await seedTemplates(t, ids);
+      await t.run(async (ctx) => {
+        await ctx.db.patch(ids.recruitmentId, { status: "confirmed", confirmedAt: 1 });
+        await ctx.db.insert("shiftDayTemplateOverrides", {
+          shopId: ids.shopId,
+          date: "2026-01-20",
+          kind: "template",
+          templateId: templates.quietTemplateId,
+        });
+      });
+
+      await expectRejectedWithoutChange(
+        t,
+        () => apply(t, ids, { dates: ["2026-01-20"], templateId: templates.eventTemplateId }),
+        "確定済みのシフトでは、必要人数を変更できません。",
+      );
+      await expectRejectedWithoutChange(
+        t,
+        () => apply(t, ids, { dates: ["2026-01-20"], templateId: null }),
+        "確定済みのシフトでは、必要人数を変更できません。",
+      );
+    });
+
+    it("必要人数の種類が募集の集め方と違う型は当てられない", async () => {
+      const t = convexTest(schema, modules);
+      // 募集を作ったあとで、店舗が集め方を時間指定からパターン選択へ変えた状態。
+      const ids = await seedShops(t, { submissionPattern: SHIFT_TYPE_PATTERN, recruitmentPattern: TIME_PATTERN });
+      const shiftTypeTemplates = await seedTemplates(t, ids, "shiftType");
+
+      await expectRejectedWithoutChange(
+        t,
+        () => apply(t, ids, { dates: ["2026-01-20"], templateId: shiftTypeTemplates.eventTemplateId }),
+        "この募集の集め方に合わない型は当てられません",
+      );
+    });
+  });
+
+  describe("saveDayCustomRequirements", () => {
+    const saveCustom = (
+      t: Test,
+      ids: SeededIds,
+      args: { recruitmentId?: Id<"recruitments">; date?: string; requirements: Requirements },
+    ) =>
+      t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shiftSetup.mutations.saveDayCustomRequirements, {
+        ...ids.scope,
+        recruitmentId: args.recruitmentId ?? ids.recruitmentId,
+        date: args.date ?? "2026-01-20",
+        requirements: args.requirements,
+      });
+    const readShopOverrides = async (t: Test, shopId: Id<"shops">) =>
+      projectOverrides((await readSetupState(t)).dayTemplateOverrides).filter((item) => item.shopId === shopId);
+
+    it("その日だけの必要人数を、バーを並べ直して保存し、その日に当てていた型の指定を置き換える。型は変えない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedShops(t);
+      const templateId = await t.run(async (ctx) => {
+        const id = await ctx.db.insert("shiftDayTemplates", {
+          shopId: ids.shopId,
+          name: "平日",
+          weekdays: ["tue"],
+          sortOrder: 0,
+          appliesToHolidays: false,
+          requirements: timeRequirements([bar(ids.hallPositionId, "09:00", "22:00")]),
+        });
+        for (const date of ["2026-01-20", "2026-01-21"]) {
+          await ctx.db.insert("shiftDayTemplateOverrides", {
+            shopId: ids.shopId,
+            date,
+            kind: "template",
+            templateId: id,
+          });
+        }
+        return id;
+      });
+      const before = await readSetupState(t);
+
+      await saveCustom(t, ids, {
+        requirements: timeRequirements([
+          bar(ids.hallPositionId, "14:00", "18:00"),
+          bar(ids.hallPositionId, "10:00", "14:00"),
+          bar(ids.defaultPositionId, "10:00", "14:00"),
+        ]),
+      });
+
+      const [first, second] = [ids.defaultPositionId, ids.hallPositionId].sort();
+      expect(await readShopOverrides(t, ids.shopId)).toEqual([
+        {
+          shopId: ids.shopId,
+          date: "2026-01-20",
+          kind: "custom",
+          requirements: timeRequirements([
+            bar(first, "10:00", "14:00"),
+            bar(second, "10:00", "14:00"),
+            bar(ids.hallPositionId, "14:00", "18:00"),
+          ]),
+        },
+        { shopId: ids.shopId, date: "2026-01-21", kind: "template", templateId },
+      ]);
+      expect({ ...(await readSetupState(t)), dayTemplateOverrides: [] }).toEqual({
+        ...before,
+        dayTemplateOverrides: [],
+      });
+    });
+
+    it("その日だけの必要人数を保存した日は、型へ戻すと指定が消え、シフト表は曜日の型の必要人数へ戻る", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedShops(t);
+      // 2026-01-20は火曜。
+      const templateId = await t.run(async (ctx) =>
+        ctx.db.insert("shiftDayTemplates", {
+          shopId: ids.shopId,
+          name: "平日",
+          weekdays: ["tue"],
+          sortOrder: 0,
+          appliesToHolidays: false,
+          requirements: timeRequirements([bar(ids.hallPositionId, "09:00", "22:00")]),
+        }),
+      );
+      const readDay = async () => {
+        const staffing = await t
+          .withIdentity({ subject: MANAGER_SUBJECT })
+          .query(api.shiftBoard.queries.getShiftBoardStaffing, { ...ids.scope, recruitmentId: ids.recruitmentId });
+        return staffing?.days.filter((day) => day.date === "2026-01-20");
+      };
+
+      await saveCustom(t, ids, { requirements: timeRequirements([bar(ids.hallPositionId, "10:00", "14:00")]) });
+      expect(await readDay()).toEqual([
+        {
+          date: "2026-01-20",
+          source: "dateCustom",
+          templateId: null,
+          templateName: null,
+          requirements: timeRequirements([bar(ids.hallPositionId, "10:00", "14:00")]),
+        },
+      ]);
+
+      await t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shiftSetup.mutations.applyDayTemplateToDates, {
+        ...ids.scope,
+        recruitmentId: ids.recruitmentId,
+        dates: ["2026-01-20"],
+        templateId: null,
+      });
+
+      expect(await readShopOverrides(t, ids.shopId)).toEqual([]);
+      expect(await readDay()).toEqual([
+        {
+          date: "2026-01-20",
+          source: "weekday",
+          templateId,
+          templateName: "平日",
+          requirements: timeRequirements([bar(ids.hallPositionId, "09:00", "22:00")]),
+        },
+      ]);
+    });
+
+    it("同じ日をもう一度保存すると、その日の必要人数を置き換えて1件だけにする", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedShops(t);
+
+      await saveCustom(t, ids, { requirements: timeRequirements([bar(ids.hallPositionId, "10:00", "14:00")]) });
+      await saveCustom(t, ids, { requirements: timeRequirements([]) });
+
+      expect(await readShopOverrides(t, ids.shopId)).toEqual([
+        { shopId: ids.shopId, date: "2026-01-20", kind: "custom", requirements: timeRequirements([]) },
+      ]);
+    });
+
+    it.each<{ name: string; pattern: ShiftSubmissionPattern; build: (ids: SeededIds) => Requirements }>([
+      {
+        name: "パターン選択",
+        pattern: SHIFT_TYPE_PATTERN,
+        build: (ids) => ({
+          kind: "shiftType",
+          options: [{ optionId: "late", counts: [{ positionId: ids.hallPositionId, count: 2 }] }],
+        }),
+      },
+      {
+        name: "日付選択",
+        pattern: DATE_ONLY_PATTERN,
+        build: (ids) => ({ kind: "dateOnly", counts: [{ positionId: ids.kitchenPositionId, count: 4 }] }),
+      },
+    ])("$name の募集では、人数をその日だけの必要人数として保存する", async ({ pattern, build }) => {
+      const t = convexTest(schema, modules);
+      const ids = await seedShops(t, { submissionPattern: pattern });
+
+      await saveCustom(t, ids, { requirements: build(ids) });
+
+      expect(await readShopOverrides(t, ids.shopId)).toEqual([
+        { shopId: ids.shopId, date: "2026-01-20", kind: "custom", requirements: build(ids) },
+      ]);
+    });
+
+    it("必要人数は、店舗のいまの集め方ではなく、募集の集め方に照らして検証する", async () => {
+      const t = convexTest(schema, modules);
+      // 募集（時間指定 10:00-20:00）を作ったあとで、店舗が集め方をパターン選択へ変えた状態。
+      const ids = await seedShops(t, {
+        submissionPattern: SHIFT_TYPE_PATTERN,
+        recruitmentPattern: { kind: "time", startTime: "10:00", endTime: "20:00" },
+      });
 
       await expectRejectedWithoutChange(
         t,
         () =>
-          t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shiftSetup.mutations.setDayTemplateOverride, {
-            ...ids.scope,
-            date,
-            templateId: templates.eventTemplateId,
+          saveCustom(t, ids, {
+            requirements: {
+              kind: "shiftType",
+              options: [{ optionId: "early", counts: [{ positionId: ids.hallPositionId, count: 1 }] }],
+            },
           }),
-        "日付の形式が正しくありません",
+        "希望シフトの集め方に合わない必要人数があります",
+      );
+      await expectRejectedWithoutChange(
+        t,
+        () => saveCustom(t, ids, { requirements: timeRequirements([bar(ids.hallPositionId, "09:00", "12:00")]) }),
+        "受付時間の外に出ているバーがあります",
+      );
+
+      await saveCustom(t, ids, { requirements: timeRequirements([bar(ids.hallPositionId, "10:00", "20:00")]) });
+
+      expect(await readShopOverrides(t, ids.shopId)).toEqual([
+        {
+          shopId: ids.shopId,
+          date: "2026-01-20",
+          kind: "custom",
+          requirements: timeRequirements([bar(ids.hallPositionId, "10:00", "20:00")]),
+        },
+      ]);
+    });
+
+    it.each<{ name: string; build: (ids: SeededIds) => Requirements; message: string }>([
+      {
+        name: "30分刻みでないバー",
+        build: (ids) => timeRequirements([bar(ids.hallPositionId, "10:00", "10:45")]),
+        message: "バーの時間は30分単位にしてください",
+      },
+      {
+        name: "1つのポジションで同時に上限を超えて重なるバー",
+        build: (ids) =>
+          timeRequirements(
+            Array.from({ length: SHIFT_DAY_TEMPLATE_CONCURRENT_BAR_LIMIT + 1 }, () =>
+              bar(ids.hallPositionId, "11:00", "14:00"),
+            ),
+          ),
+        message: "同じ時間に重ねられるバーは、1つのポジションで10本までです",
+      },
+      {
+        name: "同じ組織の別店舗のポジション",
+        build: (ids) => timeRequirements([bar(ids.siblingPositionId, "10:00", "14:00")]),
+        message: "Not found",
+      },
+      {
+        name: "別組織のポジション",
+        build: (ids) => timeRequirements([bar(ids.otherPositionId, "10:00", "14:00")]),
+        message: "Not found",
+      },
+      {
+        name: "削除済みのポジション",
+        build: (ids) =>
+          timeRequirements([bar(ids.hallPositionId, "10:00", "14:00"), bar(ids.deletedPositionId, "10:00", "14:00")]),
+        message: "Not found",
+      },
+    ])("$name を含む必要人数は拒否する", async ({ build, message }) => {
+      const t = convexTest(schema, modules);
+      const ids = await seedShops(t);
+
+      await expectRejectedWithoutChange(t, () => saveCustom(t, ids, { requirements: build(ids) }), message);
+    });
+
+    it.each([
+      { name: "同じ組織の別店舗の募集", pick: (ids: SeededIds) => ids.siblingRecruitmentId },
+      { name: "別組織の募集", pick: (ids: SeededIds) => ids.otherRecruitmentId },
+      { name: "削除済みの募集", pick: (ids: SeededIds) => ids.deletedRecruitmentId },
+    ])("$name を指定すると Not found で拒否する", async ({ pick }) => {
+      const t = convexTest(schema, modules);
+      const ids = await seedShops(t);
+
+      await expectRejectedWithoutChange(
+        t,
+        () => saveCustom(t, ids, { recruitmentId: pick(ids), requirements: timeRequirements([]) }),
+        "Not found",
+      );
+    });
+
+    it.each([
+      { name: "募集期間の前の日", date: "2026-01-18", message: "募集期間内の日付を選んでください" },
+      { name: "募集期間の後の日", date: "2026-01-26", message: "募集期間内の日付を選んでください" },
+      { name: "存在しない日付", date: "2026-02-30", message: "日付の形式が正しくありません" },
+    ])("$name は拒否する", async ({ date, message }) => {
+      const t = convexTest(schema, modules);
+      const ids = await seedShops(t);
+
+      await expectRejectedWithoutChange(
+        t,
+        () => saveCustom(t, ids, { date, requirements: timeRequirements([]) }),
+        message,
+      );
+    });
+
+    it("確定済みの募集では、その日だけの必要人数を保存できない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedShops(t);
+      await t.run(async (ctx) => ctx.db.patch(ids.recruitmentId, { status: "confirmed", confirmedAt: 1 }));
+
+      await expectRejectedWithoutChange(
+        t,
+        () => saveCustom(t, ids, { requirements: timeRequirements([bar(ids.hallPositionId, "10:00", "14:00")]) }),
+        "確定済みのシフトでは、必要人数を変更できません。",
       );
     });
   });

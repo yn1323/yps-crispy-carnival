@@ -11,11 +11,13 @@ import {
 import {
   type ReminderStatus,
   type ShiftDateNote,
+  type ShiftFormDayRequirements,
   type ShiftFormDetailActions,
   type ShiftFormStaffing,
   shouldDefaultToDetailMode,
 } from "@/src/components/features/Shift/ShiftForm";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
+import { getEditableEndMinutes, getEditableStartMinutes } from "@/src/components/shared/ShiftTimeline/timelineGeometry";
 import { useDialog } from "@/src/components/ui/Dialog";
 import { toaster } from "@/src/components/ui/toaster";
 import { toDisplayIssues } from "@/src/domains/shift/assignmentIssues";
@@ -31,6 +33,7 @@ import {
 } from "@/src/domains/shift/date";
 import { isAssignmentsEqual } from "@/src/domains/shift/isAssignmentsEqual";
 import { insertProvisionalAssignments } from "@/src/domains/shift/provisionalAssignments";
+import { listNewcomerOnlyPeriods, type NewcomerOnlyPeriod } from "@/src/domains/shift/staffing";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { useDeadlineActive } from "@/src/hooks/useDeadlineActive";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
@@ -41,8 +44,10 @@ import { useManagerShopScope } from "@/src/providers/ManagerShopScopeProvider";
 import type { ShiftBoardData, ShiftBoardStaffingData } from "../types";
 import { buildShiftData } from "./buildShiftData";
 import { readStoredDetailMode, storeDetailMode } from "./detailModeStorage";
+import { buildNewcomerOnlyItems } from "./newcomerOnlyPresentation";
+import { toDayRequirementsArg, toDayTemplateIdArg, toShiftFormStaffing } from "./staffingAdapter";
 import type { ShiftBoardPageViewProps } from "./types";
-import { visibleAssignmentWarnings } from "./warningVisibility";
+import { visibleAssignmentWarnings, visibleNewcomerOnlyPeriods } from "./warningVisibility";
 
 const PAST_SHIFT_SAVE_ERROR = "過去のシフトは保存できません";
 const PAST_SHIFT_NOTIFY_ERROR = "過去のシフトはスタッフに通知できません";
@@ -206,19 +211,7 @@ export const useShiftBoardPageController = (
     [breakRuleMinWorkMinutes, breakRuleBreakMinutes],
   );
   const shiftFormStaffing = useMemo<ShiftFormStaffing | undefined>(
-    () =>
-      staffing
-        ? {
-            dayTemplates: staffing.dayTemplates.map((template) => ({
-              id: template._id,
-              name: template.name,
-              weekdays: template.weekdays,
-              slots: template.slots,
-            })),
-            dayTemplateOverrides: staffing.dayTemplateOverrides,
-            breakRule,
-          }
-        : undefined,
+    () => (staffing ? toShiftFormStaffing(staffing, breakRule) : undefined),
     [staffing, breakRule],
   );
   // 表示の初期状態は開いた時点で決める。利用者が選んだ状態があればそれを優先する。
@@ -256,6 +249,8 @@ export const useShiftBoardPageController = (
   // エラーは確定時に表示する。ワーニングは初期表示と編集後に表内バッジ/アイコンへ反映する
   const [validationIssues, setValidationIssues] = useState<AssignmentIssue[]>([]);
   const [validationWarnings, setValidationWarnings] = useState<AssignmentWarning[]>([]);
+  // 新人だけの時間帯（確認事項）。スタッフ1人に結び付かないため、スタッフ別の確認事項とは別に持つ。
+  const [newcomerOnlyPeriods, setNewcomerOnlyPeriods] = useState<NewcomerOnlyPeriod[]>([]);
   const hasAttemptedConfirmRef = useRef(false);
 
   const buildSaveAssignments = useCallback(
@@ -300,16 +295,75 @@ export const useShiftBoardPageController = (
     [assignmentBuildOptions, computeCurrentWarnings, isConfirmed, shopClosedDateSet],
   );
 
+  // 新人だけの時間帯を数える。数えるのは、いま在籍しているシフト対象のスタッフの勤務だけで、定休日は含めない。
+  const computeVisibleNewcomerOnlyPeriods = useCallback(
+    (shifts: ShiftData[]) => {
+      const activeStaffIds = new Set(staffs.filter((staff) => !staff.isRemoved).map((staff) => staff.id));
+      const newcomerStaffIds = new Set(
+        staffs.filter((staff) => !staff.isRemoved && staff.skillLevel === "newcomer").map((staff) => staff.id),
+      );
+      const pattern = data.submissionPattern;
+      const periods = listNewcomerOnlyPeriods({
+        shifts: shifts.filter((shift) => activeStaffIds.has(shift.staffId)),
+        dates: dates.filter((date) => !shopClosedDateSet.has(date)),
+        positionIds: positions.map((position) => position.id),
+        newcomerStaffIds,
+        pattern:
+          pattern.kind === "time"
+            ? {
+                kind: "time",
+                startMinutes: getEditableStartMinutes(data.timeRange),
+                endMinutes: getEditableEndMinutes(data.timeRange),
+              }
+            : pattern.kind === "shiftType"
+              ? { kind: "shiftType", optionIds: pattern.options.map((option) => option.id) }
+              : { kind: "dateOnly" },
+      });
+      return visibleNewcomerOnlyPeriods({
+        periods,
+        currentShifts: shifts,
+        baselineShifts: confirmedWarningBaselineRef.current,
+        closedDateSet: shopClosedDateSet,
+        buildAssignmentsOptions: assignmentBuildOptions,
+        isConfirmed,
+      });
+    },
+    [
+      assignmentBuildOptions,
+      data.submissionPattern,
+      data.timeRange,
+      dates,
+      isConfirmed,
+      positions,
+      shopClosedDateSet,
+      staffs,
+    ],
+  );
+
+  // 確認事項（スタッフ別と、新人だけの時間帯）を再評価し、表内のバッジとアイコン、確定の確認へ反映する。
+  const refreshWarnings = useCallback(
+    (shifts: ShiftData[]) => {
+      setValidationWarnings(computeVisibleWarnings(shifts));
+      setNewcomerOnlyPeriods(computeVisibleNewcomerOnlyPeriods(shifts));
+    },
+    [computeVisibleWarnings, computeVisibleNewcomerOnlyPeriods],
+  );
+
+  const clearWarnings = useCallback(() => {
+    setValidationWarnings([]);
+    setNewcomerOnlyPeriods([]);
+  }, []);
+
   // エラー（確定不可）と確認事項（助言）をまとめて再評価し、一覧・バッジ・ハイライトに反映する。
   // 確定可否の判定に使えるよう、評価したエラーを返す
   const revalidate = useCallback(
     (shifts: ShiftData[]) => {
       const issues = validateCurrentShifts(shifts);
       setValidationIssues(issues);
-      setValidationWarnings(computeVisibleWarnings(shifts));
+      refreshWarnings(shifts);
       return issues;
     },
-    [validateCurrentShifts, computeVisibleWarnings],
+    [validateCurrentShifts, refreshWarnings],
   );
 
   const handleShiftsChange = useCallback(
@@ -320,7 +374,7 @@ export const useShiftBoardPageController = (
       if (shifts === baselineShiftsRef.current) {
         isFormInitializedRef.current = true;
         // 確定シフトを開き直しただけなら、過去の確認事項を編集面に再掲しない。
-        setValidationWarnings(computeVisibleWarnings(shifts));
+        refreshWarnings(shifts);
         if (!hasAttemptedConfirmRef.current) return;
       }
       if (hasAttemptedConfirmRef.current) {
@@ -328,10 +382,10 @@ export const useShiftBoardPageController = (
         return;
       }
       if (isFormInitializedRef.current) {
-        setValidationWarnings(computeVisibleWarnings(shifts));
+        refreshWarnings(shifts);
       }
     },
-    [computeVisibleWarnings, revalidate],
+    [refreshWarnings, revalidate],
   );
 
   const dismissValidationIssues = useCallback(() => {
@@ -340,6 +394,15 @@ export const useShiftBoardPageController = (
   }, []);
 
   const displayWarnings = useMemo(() => toDisplayIssues(validationWarnings, staffs), [validationWarnings, staffs]);
+  const newcomerOnlyItems = useMemo(
+    () =>
+      buildNewcomerOnlyItems({
+        periods: newcomerOnlyPeriods,
+        positions,
+        options: data.submissionPattern.kind === "shiftType" ? data.submissionPattern.options : undefined,
+      }),
+    [newcomerOnlyPeriods, positions, data.submissionPattern],
+  );
 
   // サーバー側バリデーションエラー（二重防御）をエラー一覧UIへマップする。
   // 構造化エラーでなければ従来通りtoastにフォールバックする
@@ -462,7 +525,7 @@ export const useShiftBoardPageController = (
       dismissValidationIssues();
       if (isConfirmed) {
         confirmedWarningBaselineRef.current = shiftsAtSave;
-        setValidationWarnings([]);
+        clearWarnings();
       }
       confirmModal.close();
       if (result?.status !== "no_changes") {
@@ -528,13 +591,13 @@ export const useShiftBoardPageController = (
     isFormInitializedRef.current = false;
     hasAttemptedConfirmRef.current = false;
     setValidationIssues([]);
-    setValidationWarnings([]);
+    clearWarnings();
 
     if (!data.canWriteBusinessData) {
       confirmModal.close();
       blocker.reset?.();
     }
-  }, [blocker.reset, confirmModal.close, data.canWriteBusinessData, initialShifts]);
+  }, [blocker.reset, clearWarnings, confirmModal.close, data.canWriteBusinessData, initialShifts]);
 
   const { run: handleSaveAndLeave, isRunning: isSavingAndLeaving } = useSingleFlight(async () => {
     if (isReadOnly) {
@@ -556,11 +619,12 @@ export const useShiftBoardPageController = (
   });
 
   // ==========================================
-  // くわしく表示の操作（設定ページ、特別な日、仮の勤務）
+  // くわしく表示の操作（設定ページ、その日の必要人数、仮の勤務）
   // ==========================================
   const navigate = useNavigate();
   const convex = useConvex();
-  const setDayTemplateOverride = useShopMutation(api.shiftSetup.mutations.setDayTemplateOverride);
+  const applyDayTemplateToDates = useShopMutation(api.shiftSetup.mutations.applyDayTemplateToDates);
+  const saveDayCustomRequirements = useShopMutation(api.shiftSetup.mutations.saveDayCustomRequirements);
   const applyShiftsRef = useRef<((update: (current: ShiftData[]) => ShiftData[]) => void) | null>(null);
   const setupScope = managerShopScope?.shopId === data.shopId ? managerShopScope : null;
 
@@ -573,14 +637,46 @@ export const useShiftBoardPageController = (
     });
   }, [navigate, setupScope]);
 
-  const handleChangeDayTemplate = useCallback(
-    (date: string, templateId: string | null) => {
-      setDayTemplateOverride({ date, templateId: templateId as Id<"shiftDayTemplates"> | null }).catch(
-        (error: unknown) => showErrorToast(error),
-      );
+  // 型の当て直しと、その日だけの変更。必要人数だけを変え、シフト表の下書き（未保存の勤務）には触れない。
+  const { run: runApplyDayTemplate, isRunning: isApplyingDayTemplate } = useSingleFlight(
+    async (targetDates: string[], templateId: string | null) => {
+      try {
+        await applyDayTemplateToDates({
+          recruitmentId,
+          dates: targetDates,
+          templateId: toDayTemplateIdArg(templateId),
+        });
+        if (targetDates.length > 1) showSuccessToast({ title: `${targetDates.length}日の型を変更しました` });
+        return true;
+      } catch (error) {
+        showErrorToast(error);
+        return false;
+      }
     },
-    [setDayTemplateOverride],
   );
+  const { run: runSaveDayRequirements, isRunning: isSavingDayRequirements } = useSingleFlight(
+    async (date: string, requirements: ShiftFormDayRequirements) => {
+      try {
+        await saveDayCustomRequirements({ recruitmentId, date, requirements: toDayRequirementsArg(requirements) });
+        showSuccessToast({ title: "この日の必要人数を保存しました" });
+        return true;
+      } catch (error) {
+        showErrorToast(error);
+        return false;
+      }
+    },
+  );
+  const handleApplyDayTemplate = useCallback(
+    async (targetDates: string[], templateId: string | null) =>
+      (await runApplyDayTemplate(targetDates, templateId)) ?? false,
+    [runApplyDayTemplate],
+  );
+  const handleSaveDayRequirements = useCallback(
+    async (date: string, requirements: ShiftFormDayRequirements) =>
+      (await runSaveDayRequirements(date, requirements)) ?? false,
+    [runSaveDayRequirements],
+  );
+  const isDayStaffingPending = isApplyingDayTemplate || isSavingDayRequirements;
 
   const { run: handleInsertProvisional, isRunning: isInsertingProvisional } = useSingleFlight(async () => {
     if (!setupScope || !applyShiftsRef.current) return;
@@ -622,20 +718,32 @@ export const useShiftBoardPageController = (
     !isConfirmed &&
     hasUnsubmittedStaff &&
     staffing?.hasPreviousConfirmedRecruitment === true;
+  // 確定済みの募集は、確定した時点の必要人数を残すため、型の当て直しとその日だけの変更を出さない。
+  const canEditDayStaffing = Boolean(setupScope) && !isReadOnly && staffing !== undefined && !staffing.isLocked;
   const detailActions = useMemo<ShiftFormDetailActions>(
     () => ({
       ...(setupScope ? { onOpenSetup: handleOpenSetup } : {}),
-      ...(setupScope && !isReadOnly ? { onChangeDayTemplate: handleChangeDayTemplate } : {}),
+      ...(canEditDayStaffing
+        ? {
+            dayStaffingActions: {
+              onApplyTemplate: handleApplyDayTemplate,
+              onSaveCustom: handleSaveDayRequirements,
+              isPending: isDayStaffingPending,
+            },
+          }
+        : {}),
       ...(canInsertProvisional
         ? { provisionalAction: { onInsert: handleInsertProvisional, isLoading: isInsertingProvisional } }
         : {}),
     }),
     [
       setupScope,
-      isReadOnly,
+      canEditDayStaffing,
       canInsertProvisional,
       handleOpenSetup,
-      handleChangeDayTemplate,
+      handleApplyDayTemplate,
+      handleSaveDayRequirements,
+      isDayStaffingPending,
       handleInsertProvisional,
       isInsertingProvisional,
     ],
@@ -731,6 +839,7 @@ export const useShiftBoardPageController = (
         reminderStatus,
         validationIssues,
         validationWarnings,
+        newcomerOnlyPeriods,
         dateNotes: loadedDateNotes,
         staffing: shiftFormStaffing,
         initialDetailMode,
@@ -743,6 +852,7 @@ export const useShiftBoardPageController = (
         submitLabel: isConfirmed ? "通知する" : "確定する",
         staffCount: staffs.length,
         warnings: displayWarnings,
+        newcomerOnlyItems,
         unsubmittedNames,
         hasUnsubmittedManager: hasUnsubmittedManager(data.staffs),
       },

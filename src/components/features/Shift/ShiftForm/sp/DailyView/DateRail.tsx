@@ -2,8 +2,9 @@ import { Box, Flex } from "@chakra-ui/react";
 import dayjs from "dayjs";
 import type { RefObject } from "react";
 import { getWeekdayLabel } from "@/src/domains/shift/date";
-import { DateIssueBadge, dateIssueBorderColor } from "../../components";
+import { DateIssueBadge, DateStaffingMarks, dateIssueBorderColor } from "../../components";
 import { DisplaySettingsMenu } from "../../DisplaySettingsMenu";
+import type { DayStaffingMarks } from "../../staffingPresentation";
 import { getShiftWeekdayColor } from "../../weekdayPresentation";
 
 type Props = {
@@ -12,6 +13,8 @@ type Props = {
   holidays: string[];
   issueCounts: ReadonlyMap<string, number>;
   warningCounts: ReadonlyMap<string, number>;
+  /** 不足のある日と、多い時間のある日の印。くわしく表示のときだけ値が入る。 */
+  staffingMarks: ReadonlyMap<string, DayStaffingMarks>;
   dateStripRef: RefObject<HTMLDivElement | null>;
   onSelect: (date: string) => void;
 };
@@ -22,6 +25,7 @@ export const DateRail = ({
   holidays,
   issueCounts,
   warningCounts,
+  staffingMarks,
   dateStripRef,
   onSelect,
 }: Props) => {
@@ -97,6 +101,7 @@ export const DateRail = ({
                     </Box>
                   )}
                 </Box>
+                <DateStaffingMarks marks={staffingMarks.get(iso)} reserveSpace={staffingMarks.size > 0} />
               </Box>
             );
           })}

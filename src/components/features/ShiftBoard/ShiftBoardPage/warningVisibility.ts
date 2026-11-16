@@ -1,9 +1,9 @@
 import type { AssignmentWarning } from "@/src/domains/shift/assignmentWarnings";
 import { type BuildAssignmentsOptions, buildAssignments } from "@/src/domains/shift/buildAssignments";
+import type { NewcomerOnlyPeriod } from "@/src/domains/shift/staffing";
 import type { ShiftData } from "@/src/domains/shift/types";
 
-type Params = {
-  warnings: AssignmentWarning[];
+type ChangeParams = {
   currentShifts: ShiftData[];
   baselineShifts: ShiftData[];
   closedDateSet: ReadonlySet<string>;
@@ -11,7 +11,10 @@ type Params = {
   isConfirmed: boolean;
 };
 
-const cellKey = (staffId: string, date: string) => `${staffId}\u0000${date}`;
+type Params = ChangeParams & { warnings: AssignmentWarning[] };
+
+const CELL_KEY_SEPARATOR = "\u0000";
+const cellKey = (staffId: string, date: string) => `${staffId}${CELL_KEY_SEPARATOR}${date}`;
 
 const assignmentSignatureByCell = (
   shifts: ShiftData[],
@@ -63,4 +66,25 @@ export const visibleAssignmentWarnings = ({
   if (changed.size === 0) return [];
 
   return warnings.filter((warning) => changed.has(cellKey(warning.staffId, warning.date)));
+};
+
+/**
+ * 新人だけの時間帯のうち、確認事項として出すものを返す。
+ * スタッフ別の確認事項と同じく、確定済みのシフトでは、開いた時点から勤務を変えた日のものだけを出す。
+ */
+export const visibleNewcomerOnlyPeriods = ({
+  periods,
+  currentShifts,
+  baselineShifts,
+  closedDateSet,
+  buildAssignmentsOptions,
+  isConfirmed,
+}: ChangeParams & { periods: NewcomerOnlyPeriod[] }): NewcomerOnlyPeriod[] => {
+  if (!isConfirmed) return periods;
+
+  const changed = changedCellKeys(currentShifts, baselineShifts, closedDateSet, buildAssignmentsOptions);
+  if (changed.size === 0) return [];
+
+  const changedDates = new Set([...changed].map((key) => key.slice(key.indexOf(CELL_KEY_SEPARATOR) + 1)));
+  return periods.filter((period) => changedDates.has(period.date));
 };

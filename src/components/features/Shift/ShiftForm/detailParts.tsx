@@ -1,19 +1,13 @@
-import { Box, chakra, Flex, Icon, Menu, Portal, Text } from "@chakra-ui/react";
+import { Box, chakra, Flex, Icon, Text } from "@chakra-ui/react";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { createContext, type ReactNode, useContext, useMemo, useState } from "react";
-import { LuCheck, LuChevronDown, LuCoffee, LuSettings2 } from "react-icons/lu";
+import { createContext, type ReactNode, useContext, useMemo } from "react";
+import { LuCoffee, LuSettings2 } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
 import { getEffectiveBreaks } from "@/src/domains/shift/breaks";
 import { resolveDefaultPosition } from "@/src/domains/shift/operations";
 import { formatShiftClockTimeRange } from "@/src/domains/shift/time";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { formatStaffWorkTotal } from "@/src/domains/shift/workTotals";
-import {
-  buildDayStaffingView,
-  type DayStaffingView,
-  formatStaffingCount,
-  selectStaffingShifts,
-} from "./staffingPresentation";
 import {
   breakToolActiveAtom,
   detailModeAtom,
@@ -22,19 +16,29 @@ import {
   isToolPaletteActiveAtom,
   selectedPositionIdAtom,
   shiftConfigAtom,
-  shiftsAtom,
   staffWorkTotalsAtom,
   usesPositionColorsAtom,
 } from "./stores";
+import type { ShiftFormDayRequirements } from "./types";
 
 // ==========================================
-// 画面の外へ出す操作（設定ページへの移動、特別な日、仮の勤務）
+// 画面の外へ出す操作（設定ページへの移動、その日の必要人数、仮の勤務）
 // ==========================================
+/** その日の必要人数を変える操作。どちらも、成功したらtrueを返す。失敗は呼び出し先が利用者へ伝える。 */
+export type ShiftFormDayStaffingActions = {
+  /** 選んだ日へ型を当てる。nullは、その日だけの指定を消して曜日の設定へ戻す。 */
+  onApplyTemplate: (dates: string[], templateId: string | null) => Promise<boolean>;
+  /** その日だけの必要人数を保存する。型は変えない。 */
+  onSaveCustom: (date: string, requirements: ShiftFormDayRequirements) => Promise<boolean>;
+  /** どちらかの操作を処理している間はtrue。 */
+  isPending: boolean;
+};
+
 export type ShiftFormDetailActions = {
   /** 「シフト作成の設定」を開く。渡さない場合は導線を出さない。 */
   onOpenSetup?: () => void;
-  /** その日に当てる日の型を変える。nullで曜日の割り当てへ戻す。 */
-  onChangeDayTemplate?: (date: string, templateId: string | null) => void;
+  /** その日の必要人数を変える操作。渡さない場合は、型の名前だけを出す。 */
+  dayStaffingActions?: ShiftFormDayStaffingActions;
   /** 未提出者へ前回の勤務を仮で入れる。前回確定した募集がない場合は渡さない。 */
   provisionalAction?: { onInsert: () => void; isLoading: boolean };
 };
@@ -407,258 +411,5 @@ export const StaffMeta = ({
         </Text>
       )}
     </Flex>
-  );
-};
-
-// ==========================================
-// 人数と過不足
-// ==========================================
-/** その日の人数と過不足を、表示用にまとめて返す。くわしく表示でない場合はnullを返す。 */
-export const useDayStaffingView = (date: string): DayStaffingView | null => {
-  const detailMode = useAtomValue(detailModeAtom);
-  const config = useAtomValue(shiftConfigAtom);
-  const shifts = useAtomValue(shiftsAtom);
-  return useMemo(() => {
-    // スタッフ向けの確定シフト表示には、人数と過不足を出さない。
-    if (!detailMode || !date || config.holidays.includes(date) || config.displayMode === "confirmed") return null;
-    return buildDayStaffingView({
-      date,
-      shifts: selectStaffingShifts(shifts, config.staffs, date),
-      positions: config.positions,
-      submissionPattern: config.submissionPattern,
-      timeRange: config.timeRange,
-      staffing: config.staffing,
-    });
-  }, [detailMode, date, config, shifts]);
-};
-
-const ShortageMark = ({ shortage }: { shortage: number }) =>
-  shortage > 0 ? (
-    <Box as="span" color="red.600" fontWeight={700} whiteSpace="nowrap">
-      ▲{shortage}
-    </Box>
-  ) : null;
-
-/** ポジションごとの「人数 / 必要」。ポジションが1つだけの場合は名前を出さない。 */
-export const StaffingPositionCounts = ({
-  slot,
-  showNames,
-}: {
-  slot: DayStaffingView["slots"][number];
-  showNames: boolean;
-}) => {
-  // 必要人数が未設定で、誰も入っていないポジションは出さない。内訳を、見るべきポジションだけにする。
-  const positions = slot.positions.filter((position) => position.required !== null || position.count > 0);
-  if (slot.positions.length <= 1 || positions.length === 0) {
-    const only = slot.positions.length <= 1 ? slot.positions[0] : undefined;
-    return (
-      <Flex as="span" align="center" gap={1} fontVariantNumeric="tabular-nums">
-        {formatStaffingCount(only?.count ?? slot.total, only?.required ?? null)}
-        <ShortageMark shortage={only?.shortage ?? 0} />
-      </Flex>
-    );
-  }
-  return (
-    <Flex as="span" align="center" columnGap={2} rowGap={0} flexWrap="wrap" fontVariantNumeric="tabular-nums">
-      {positions.map((position) => (
-        <Flex as="span" key={position.positionId} align="center" gap={1} whiteSpace="nowrap">
-          <Box boxSize="8px" borderRadius="full" bg={position.color} flexShrink={0} aria-hidden />
-          {showNames ? <Box as="span">{position.name}</Box> : <chakra.span srOnly>{position.name}</chakra.span>}
-          {formatStaffingCount(position.count, position.required)}
-          <ShortageMark shortage={position.shortage} />
-        </Flex>
-      ))}
-    </Flex>
-  );
-};
-
-/** その日に当てる日の型を選ぶ（特別な日）。型が1つもない店舗では、設定への導線だけを出す。 */
-export const DayTemplateMenu = ({ date, view }: { date: string; view: DayStaffingView }) => {
-  const config = useAtomValue(shiftConfigAtom);
-  const { onChangeDayTemplate, onOpenSetup } = useShiftFormDetailActions();
-  const templates = config.staffing?.dayTemplates ?? [];
-
-  if (templates.length === 0) {
-    if (!onOpenSetup || config.isReadOnly) return null;
-    return (
-      <Button type="button" size="xs" variant="outline" h="28px" px={2} onClick={onOpenSetup} flexShrink={0}>
-        必要人数を設定
-      </Button>
-    );
-  }
-
-  const label = view.template ? view.template.name : "型なし";
-  if (!onChangeDayTemplate || config.isReadOnly) {
-    return (
-      <Text textStyle="xs" color="gray.600" flexShrink={0}>
-        {label}
-      </Text>
-    );
-  }
-
-  return (
-    <Menu.Root positioning={{ placement: "top-start", gutter: 6 }}>
-      <Menu.Trigger asChild>
-        <Button
-          type="button"
-          size="xs"
-          variant="outline"
-          h="28px"
-          px={2}
-          gap={1}
-          flexShrink={0}
-          maxW="160px"
-          aria-label={`この日の型: ${label}`}
-        >
-          <Box as="span" truncate>
-            {label}
-          </Box>
-          <LuChevronDown aria-hidden />
-        </Button>
-      </Menu.Trigger>
-      <Portal>
-        <Menu.Positioner>
-          <Menu.Content w="min(240px, calc(100vw - 24px))">
-            <Menu.ItemGroup>
-              <Menu.ItemGroupLabel>この日の型</Menu.ItemGroupLabel>
-              {templates.map((template) => {
-                const checked = view.template?.id === template.id;
-                return (
-                  <Menu.Item
-                    key={template.id}
-                    value={template.id}
-                    cursor="pointer"
-                    py={2.5}
-                    onClick={() => {
-                      if (!checked) onChangeDayTemplate(date, template.id);
-                    }}
-                  >
-                    <Box w={4} color="teal.600" flexShrink={0}>
-                      {checked && <LuCheck aria-hidden />}
-                    </Box>
-                    <Menu.ItemText fontSize="sm">{template.name}</Menu.ItemText>
-                  </Menu.Item>
-                );
-              })}
-            </Menu.ItemGroup>
-            {view.isOverridden && (
-              <>
-                <Menu.Separator />
-                <Menu.Item value="reset" cursor="pointer" py={2.5} onClick={() => onChangeDayTemplate(date, null)}>
-                  <Box w={4} flexShrink={0} />
-                  <Menu.ItemText fontSize="sm">曜日の設定に戻す</Menu.ItemText>
-                </Menu.Item>
-              </>
-            )}
-          </Menu.Content>
-        </Menu.Positioner>
-      </Portal>
-    </Menu.Root>
-  );
-};
-
-/**
- * その日の人数と過不足の一覧。スマートフォンの日別表示と、時間軸を持たないPCの表示で使う。
- * 不足のない区切りは畳めるようにし、不足がある区切りを先に目に入れる。
- */
-export const StaffingSummary = ({ date, defaultExpanded = false }: { date: string; defaultExpanded?: boolean }) => {
-  const view = useDayStaffingView(date);
-  const [isExpanded, setExpanded] = useState(defaultExpanded);
-  if (!view) return null;
-
-  const shortageSlots = view.slots.filter((slot) => slot.hasShortage);
-  const visibleSlots = isExpanded ? view.slots : shortageSlots;
-  const hasHiddenSlots = view.slots.length > shortageSlots.length;
-  // 型のない時間指定の日は1時間ごとの人数になるため、行ではなく詰めて並べる。
-  const isHourly = view.template === null && view.slots.length > 0 && view.slots[0].startMinutes !== undefined;
-
-  return (
-    <Box
-      as="section"
-      aria-label="人数"
-      bg="white"
-      borderWidth="1px"
-      borderColor="gray.200"
-      borderRadius="lg"
-      px={3}
-      py={2}
-      textStyle="xs"
-      color="gray.800"
-    >
-      <Flex align="center" justify="space-between" gap={2}>
-        <Flex align="center" gap={2} minW={0}>
-          <Text fontWeight={700} flexShrink={0}>
-            人数
-          </Text>
-          {view.hasShortage ? (
-            <Text color="red.600" fontWeight={700} flexShrink={0}>
-              不足 {shortageSlots.length}か所
-            </Text>
-          ) : view.template ? (
-            <Text color="gray.600" flexShrink={0}>
-              不足なし
-            </Text>
-          ) : null}
-        </Flex>
-        <Flex align="center" gap={1} flexShrink={0}>
-          <DayTemplateMenu date={date} view={view} />
-          {hasHiddenSlots && (
-            <Button
-              type="button"
-              size="xs"
-              variant="ghost"
-              h="28px"
-              px={2}
-              aria-expanded={isExpanded}
-              onClick={() => setExpanded((current) => !current)}
-            >
-              {isExpanded ? "閉じる" : "すべて見る"}
-            </Button>
-          )}
-        </Flex>
-      </Flex>
-      {visibleSlots.length > 0 &&
-        (isHourly ? (
-          <Flex mt={2} gap={1} flexWrap="wrap">
-            {visibleSlots.map((slot) => (
-              <Flex
-                key={slot.id}
-                direction="column"
-                align="center"
-                minW="32px"
-                px={1}
-                py="2px"
-                borderRadius="sm"
-                bg="gray.50"
-                fontVariantNumeric="tabular-nums"
-              >
-                <Box color="gray.500" textStyle="2xs">
-                  {Math.floor((slot.startMinutes ?? 0) / 60)}時
-                </Box>
-                <Box fontWeight={600}>{slot.total}</Box>
-              </Flex>
-            ))}
-          </Flex>
-        ) : (
-          <Box mt={2}>
-            {visibleSlots.map((slot) => (
-              <Flex
-                key={slot.id}
-                align="baseline"
-                justify="space-between"
-                gap={3}
-                py="3px"
-                borderTopWidth="1px"
-                borderColor="gray.100"
-              >
-                <Text flexShrink={0} color="gray.700" fontVariantNumeric="tabular-nums">
-                  {slot.label}
-                </Text>
-                <StaffingPositionCounts slot={slot} showNames />
-              </Flex>
-            ))}
-          </Box>
-        ))}
-    </Box>
   );
 };

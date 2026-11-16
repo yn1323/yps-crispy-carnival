@@ -1,8 +1,8 @@
 import { Box } from "@chakra-ui/react";
 import { useAtomValue } from "jotai";
+import { minutesToPixel } from "@/src/components/shared/ShiftTimeline/timelineGeometry";
 import type { DragMode, TimeRange } from "@/src/domains/shift/types";
 import { hourWidthAtom } from "../../../stores";
-import { minutesToPixel } from "../../../timelineGeometry";
 
 type DragPreviewProps = {
   mode: DragMode;

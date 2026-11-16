@@ -50,6 +50,22 @@ type ShiftSubmissionPattern =
   | { kind: "dateOnly" }
   | { kind: "shiftType"; options: ShiftTypeOption[] };
 
+type DayRequirementsInput =
+  | { kind: "time"; bars: Array<{ positionId: Id<"positions">; startTime: string; endTime: string }> }
+  | {
+      kind: "shiftType";
+      options: Array<{ optionId: string; counts: Array<{ positionId: Id<"positions">; count: number }> }>;
+    }
+  | { kind: "dateOnly"; counts: Array<{ positionId: Id<"positions">; count: number }> };
+
+type DayTemplateInput = {
+  id?: Id<"shiftDayTemplates">;
+  name: string;
+  weekdays: Array<"sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat">;
+  appliesToHolidays: boolean;
+  requirements: DayRequirementsInput;
+};
+
 type ShopSettingsInput = {
   shopName: string;
   submissionPattern?: ShiftSubmissionPattern;
@@ -345,6 +361,35 @@ export function createScenario(t: ScenarioTest) {
         async getShiftBoardStaffing(recruitmentId: Id<"recruitments">) {
           return asManager.query(api.shiftBoard.queries.getShiftBoardStaffing, {
             recruitmentId,
+            ...(await getSelectedManagerScope()),
+          });
+        },
+        async getShiftSetup() {
+          return asManager.query(api.shiftSetup.queries.getShiftSetup, await getSelectedManagerScope());
+        },
+        async saveDayTemplates(templates: DayTemplateInput[]) {
+          return asManager.mutation(api.shiftSetup.mutations.saveDayTemplates, {
+            templates,
+            ...(await getSelectedManagerScope()),
+          });
+        },
+        async applyDayTemplateToDates(args: {
+          recruitmentId: Id<"recruitments">;
+          dates: string[];
+          templateId: Id<"shiftDayTemplates"> | null;
+        }) {
+          return asManager.mutation(api.shiftSetup.mutations.applyDayTemplateToDates, {
+            ...args,
+            ...(await getSelectedManagerScope()),
+          });
+        },
+        async saveDayCustomRequirements(args: {
+          recruitmentId: Id<"recruitments">;
+          date: string;
+          requirements: DayRequirementsInput;
+        }) {
+          return asManager.mutation(api.shiftSetup.mutations.saveDayCustomRequirements, {
+            ...args,
             ...(await getSelectedManagerScope()),
           });
         },

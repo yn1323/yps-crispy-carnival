@@ -114,10 +114,19 @@ import { AppShiftBoardRoutePage } from ".";
 
 const staffing = {
   breakRule: { minWorkMinutes: 360, breakMinutes: 60 },
-  dayTemplates: [],
-  dayTemplateOverrides: [],
   staffProfiles: [],
   hasPreviousConfirmedRecruitment: true,
+  isLocked: false,
+  templates: [{ _id: "template-1", name: "通常" }],
+  days: [
+    {
+      date: "2026-08-17",
+      source: "weekday",
+      templateId: "template-1",
+      templateName: "通常",
+      requirements: { kind: "time", bars: [{ positionId: "position-1", startTime: "09:00", endTime: "22:00" }] },
+    },
+  ],
 };
 const boardData = {
   shopId: "shop-1",

@@ -2707,5 +2707,186 @@ describe("shiftBoard/mutations", () => {
         expect(recruitment?.status).toBe("confirmed");
       });
     });
+
+    describe("確定した時点の必要人数", () => {
+      const bar = (positionId: Id<"positions">, startTime: string, endTime: string) => ({
+        positionId,
+        startTime,
+        endTime,
+      });
+      const confirm = async (
+        t: TestConvex<typeof schema>,
+        ids: { shopId: Id<"shops">; recruitmentId: Id<"recruitments"> },
+        intent?: "confirm" | "resend",
+      ) =>
+        t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.confirmRecruitment, {
+          shopId: ids.shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, ids.shopId),
+          recruitmentId: ids.recruitmentId,
+          ...(intent ? { intent } : {}),
+        });
+      const readSnapshots = async (t: TestConvex<typeof schema>) =>
+        (await t.run(async (ctx) => ctx.db.query("recruitmentStaffingSnapshots").collect())).sort((a, b) =>
+          a.date.localeCompare(b.date),
+        );
+
+      /**
+       * 募集期間（2026-01-20 火 〜 01-26 月、受付時間 09:00-22:00）に、理由の違う必要人数が当たる設定を用意する。
+       * 01-21（水）は祝日、01-22（木）はその日だけの必要人数、01-23（金）は種類の違う型が当たる。
+       */
+      async function seedStaffingSettings(t: TestConvex<typeof schema>) {
+        const base = await setupTestData(t);
+        const ids = await t.run(async (ctx) => {
+          const insertPosition = (name: string, sortOrder: number, isDeleted = false) =>
+            ctx.db.insert("positions", {
+              shopId: base.shopId,
+              name,
+              color: "#3b82f6",
+              sortOrder,
+              isDefault: sortOrder === 0,
+              isDeleted,
+            });
+          const hallPositionId = await insertPosition("ホール", 0);
+          const kitchenPositionId = await insertPosition("キッチン", 1);
+          const deletedPositionId = await insertPosition("削除済みポジション", 2, true);
+          const weekdayTemplateId = await ctx.db.insert("shiftDayTemplates", {
+            shopId: base.shopId,
+            name: "平日",
+            weekdays: ["tue", "wed"],
+            sortOrder: 0,
+            appliesToHolidays: false,
+            requirements: {
+              kind: "time",
+              bars: [
+                bar(hallPositionId, "09:00", "15:00"),
+                bar(hallPositionId, "08:00", "10:00"),
+                bar(deletedPositionId, "09:00", "15:00"),
+              ],
+            },
+          });
+          await ctx.db.insert("shiftDayTemplates", {
+            shopId: base.shopId,
+            name: "祝日",
+            weekdays: [],
+            sortOrder: 1,
+            appliesToHolidays: true,
+            requirements: { kind: "time", bars: [bar(kitchenPositionId, "11:00", "14:00")] },
+          });
+          await ctx.db.insert("shiftDayTemplates", {
+            shopId: base.shopId,
+            name: "集め方を変える前の型",
+            weekdays: ["fri"],
+            sortOrder: 2,
+            appliesToHolidays: false,
+            requirements: { kind: "dateOnly", counts: [{ positionId: hallPositionId, count: 2 }] },
+          });
+          await ctx.db.insert("nationalHolidays", { date: "2026-01-21", name: "テストの祝日" });
+          await ctx.db.insert("shiftDayTemplateOverrides", {
+            shopId: base.shopId,
+            date: "2026-01-22",
+            kind: "custom",
+            requirements: { kind: "time", bars: [bar(kitchenPositionId, "17:00", "22:00")] },
+          });
+          return { hallPositionId, kitchenPositionId, weekdayTemplateId };
+        });
+        return { ...base, ...ids };
+      }
+
+      it("未確定から確定へ変わるとき、型が当たる日の必要人数と型の名前を保存し、当たらない日の行は作らない", async () => {
+        const t = convexTest(schema, modules);
+        const ids = await seedStaffingSettings(t);
+
+        await confirm(t, ids);
+
+        expect(
+          (await readSnapshots(t)).map(({ recruitmentId, shopId, date, templateName, requirements }) => ({
+            recruitmentId,
+            shopId,
+            date,
+            templateName,
+            requirements,
+          })),
+        ).toEqual(
+          [
+            // 火曜: 曜日の型。受付時間をまたぐバーは内側だけにし、削除済みのポジションのバーを除く。
+            {
+              date: "2026-01-20",
+              templateName: "平日",
+              requirements: {
+                kind: "time",
+                bars: [bar(ids.hallPositionId, "09:00", "10:00"), bar(ids.hallPositionId, "09:00", "15:00")],
+              },
+            },
+            // 祝日の水曜: 祝日に使う型。
+            {
+              date: "2026-01-21",
+              templateName: "祝日",
+              requirements: { kind: "time", bars: [bar(ids.kitchenPositionId, "11:00", "14:00")] },
+            },
+            // 木曜: その日だけの必要人数。型の名前を持たない。
+            {
+              date: "2026-01-22",
+              templateName: null,
+              requirements: { kind: "time", bars: [bar(ids.kitchenPositionId, "17:00", "22:00")] },
+            },
+            // 金曜: 当たった型の種類が募集の集め方と違うため、必要人数は未設定になる。
+            { date: "2026-01-23", templateName: "集め方を変える前の型", requirements: null },
+          ].map((snapshot) => ({ recruitmentId: ids.recruitmentId, shopId: ids.shopId, ...snapshot })),
+        );
+      });
+
+      it("確定済みの募集の再確定と再通知では、型を直していても、保存した必要人数を書き直さない", async () => {
+        const t = convexTest(schema, modules);
+        const ids = await seedStaffingSettings(t);
+        await confirm(t, ids);
+        const saved = await readSnapshots(t);
+        expect(saved).toHaveLength(4);
+        await t.run(async (ctx) => {
+          await ctx.db.patch(ids.weekdayTemplateId, {
+            name: "平日（改）",
+            weekdays: ["tue", "wed", "sat"],
+            requirements: { kind: "time", bars: [bar(ids.kitchenPositionId, "09:00", "22:00")] },
+          });
+        });
+
+        await confirm(t, ids, "confirm");
+        await confirm(t, ids, "resend");
+
+        expect(await readSnapshots(t)).toEqual(saved);
+      });
+
+      it("型を持たない店舗の確定では、必要人数を保存しない", async () => {
+        const t = convexTest(schema, modules);
+        const ids = await setupTestData(t);
+
+        await confirm(t, ids);
+
+        expect((await t.run(async (ctx) => ctx.db.get(ids.recruitmentId)))?.status).toBe("confirmed");
+        expect(await readSnapshots(t)).toEqual([]);
+      });
+
+      it("確定が拒否された場合は、必要人数を保存しない", async () => {
+        const t = convexTest(schema, modules);
+        const ids = await seedStaffingSettings(t);
+        await t.run(async (ctx) => {
+          await ctx.db.patch(ids.recruitmentId, { shopClosedDates: ["2026-01-21"] });
+          await ctx.db.insert("shiftAssignments", {
+            recruitmentId: ids.recruitmentId,
+            staffId: ids.staffId1,
+            date: "2026-01-21",
+            startTime: "10:00",
+            endTime: "18:00",
+            positionId: ids.hallPositionId,
+          });
+        });
+
+        await expectValidationIssues(confirm(t, ids), [
+          { code: "CLOSED_DAY", date: "2026-01-21", staffId: ids.staffId1 },
+        ]);
+
+        expect((await t.run(async (ctx) => ctx.db.get(ids.recruitmentId)))?.status).toBe("open");
+        expect(await readSnapshots(t)).toEqual([]);
+      });
+    });
   });
 });

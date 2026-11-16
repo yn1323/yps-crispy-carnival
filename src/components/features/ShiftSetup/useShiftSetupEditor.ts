@@ -7,19 +7,21 @@ import { useDialog } from "@/src/components/ui/Dialog";
 import { toaster } from "@/src/components/ui/toaster";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import {
-  addTimeSlot,
+  changeDayTemplateBars,
   changeRequiredCount,
-  changeTimeSlotRange,
+  copyDayTemplateRequirements,
   createDayTemplateDraft,
+  type DayTemplateSelection,
   findDayTemplateDraftIssues,
   findDayTemplateInputsIssue,
   isSameDayTemplateInputs,
   removeDayTemplate,
-  removeDayTemplateSlot,
   renameDayTemplate,
+  resolveSelectedDayTemplate,
   toDayTemplateDrafts,
   toDayTemplateDraftsFromSuggestion,
   toDayTemplateInputs,
+  toggleDayTemplateHoliday,
   toggleDayTemplateWeekday,
 } from "./dayTemplateDrafts";
 import {
@@ -63,6 +65,7 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
   const [templateDrafts, setTemplateDrafts] = useState<DayTemplateDraft[] | null>(null);
   // 保存済みの値から変えたスタッフだけを持つ。
   const [staffDrafts, setStaffDrafts] = useState<Record<string, StaffProfile>>({});
+  const [templateSelection, setTemplateSelection] = useState<DayTemplateSelection>({ rowKey: null, index: 0 });
   const [hasAttemptedSave, setHasAttemptedSave] = useState(false);
   const [assistMessage, setAssistMessage] = useState<string>();
   const rowKeyCountRef = useRef(0);
@@ -75,10 +78,12 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
   const breakRuleDialog = useDialog();
   const assistDialog = useDialog();
 
-  const savedDrafts = useMemo(() => toDayTemplateDrafts(setup.dayTemplates, pattern), [setup.dayTemplates, pattern]);
-  const savedInputs = useMemo(() => toDayTemplateInputs(savedDrafts, positions), [savedDrafts, positions]);
+  const inputContext = useMemo(() => ({ positions, pattern }), [positions, pattern]);
+  const savedDrafts = useMemo(() => toDayTemplateDrafts(setup.dayTemplates), [setup.dayTemplates]);
+  const savedInputs = useMemo(() => toDayTemplateInputs(savedDrafts, inputContext), [savedDrafts, inputContext]);
   const drafts = templateDrafts ?? savedDrafts;
-  const templateInputs = toDayTemplateInputs(drafts, positions);
+  const selectedDraft = resolveSelectedDayTemplate(drafts, templateSelection);
+  const templateInputs = toDayTemplateInputs(drafts, inputContext);
   const isTemplatesDirty = templateDrafts !== null && !isSameDayTemplateInputs(templateInputs, savedInputs);
   const staffInputs = toStaffProfileInputs(staffs, staffDrafts, positions);
   const pendingSections: PendingSection[] = [
@@ -88,14 +93,12 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
   const hasUnsavedChangesRef = useRef(false);
   hasUnsavedChangesRef.current = canWrite && pendingSections.length > 0;
 
-  const issues = findDayTemplateDraftIssues(drafts, pattern, positions);
+  const issues = findDayTemplateDraftIssues(drafts, inputContext);
   const issueMessages: Record<string, string> = {};
   for (const draft of drafts) {
     const issue = issues[draft.rowKey];
-    // 時間帯の誤りは選んだ直後に見せる。名前の誤りは入力の途中で出さず、保存を試したあとで見せる。
-    if (issue && (hasAttemptedSave || issue.startsWith("SLOT_"))) {
-      issueMessages[draft.rowKey] = DAY_TEMPLATE_ISSUE_MESSAGES[issue];
-    }
+    // 入力の途中では誤りを出さず、保存を試したあとで見せる。
+    if (issue && hasAttemptedSave) issueMessages[draft.rowKey] = DAY_TEMPLATE_ISSUE_MESSAGES[issue];
   }
 
   const { close: closePositionsDialog } = positionsDialog;
@@ -117,7 +120,7 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
     setTemplateDrafts((current) => {
       const next = update(current ?? savedDrafts);
       // 保存済みの値と同じ内容へ戻ったら、編集していない状態へ戻す。
-      return isSameDayTemplateInputs(toDayTemplateInputs(next, positions), savedInputs) ? null : next;
+      return isSameDayTemplateInputs(toDayTemplateInputs(next, inputContext), savedInputs) ? null : next;
     });
   };
 
@@ -140,9 +143,12 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
     try {
       if (isTemplatesDirty) {
         setHasAttemptedSave(true);
-        const firstDraftIssue = drafts.map((draft) => issues[draft.rowKey]).find((issue) => issue !== undefined);
-        const issue = firstDraftIssue ?? findDayTemplateInputsIssue(templateInputs, pattern);
+        const invalidIndex = drafts.findIndex((draft) => issues[draft.rowKey] !== undefined);
+        const invalidDraft = drafts[invalidIndex];
+        const issue = invalidDraft ? issues[invalidDraft.rowKey] : findDayTemplateInputsIssue(templateInputs, pattern);
         if (issue) {
+          // 誤りのある型を開き、その型の中で誤りを読めるようにする。
+          if (invalidDraft) setTemplateSelection({ rowKey: invalidDraft.rowKey, index: invalidIndex });
           toaster.create({ title: DAY_TEMPLATE_ISSUE_MESSAGES[issue], type: "error" });
           return false;
         }
@@ -210,7 +216,9 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
         return;
       }
       // 下書きは編集中の値へ入れるだけにする。設定が変わるのは、利用者が「保存する」を押したときである。
-      setTemplateDrafts(toDayTemplateDraftsFromSuggestion(result.templates, pattern, createRowKey));
+      const suggested = toDayTemplateDraftsFromSuggestion(result.templates, createRowKey);
+      setTemplateDrafts(suggested);
+      setTemplateSelection({ rowKey: suggested[0].rowKey, index: 0 });
       setHasAttemptedSave(false);
       assistDialog.close();
       showSuccessToast({ title: "下書きを表に入れました", description: "内容を確かめてから保存してください。" });
@@ -228,6 +236,7 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
     canWrite,
     dayTemplates: {
       drafts,
+      selectedRowKey: selectedDraft?.rowKey ?? null,
       issueMessages,
       canAdd: drafts.length < SHIFT_DAY_TEMPLATE_LIMIT,
     },
@@ -248,7 +257,12 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
       message: assistMessage,
     },
     intents: {
+      onSelectDayTemplate: (rowKey) => {
+        const index = drafts.findIndex((draft) => draft.rowKey === rowKey);
+        if (index !== -1) setTemplateSelection({ rowKey, index });
+      },
       onAddDayTemplate: () => {
+        if (!canWrite || drafts.length >= SHIFT_DAY_TEMPLATE_LIMIT) return;
         const rowKey = createRowKey();
         editTemplates((current) =>
           current.length >= SHIFT_DAY_TEMPLATE_LIMIT
@@ -263,18 +277,23 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
                 }),
               ],
         );
+        setTemplateSelection({ rowKey, index: drafts.length });
       },
-      onRemoveDayTemplate: (rowKey) => editTemplates((current) => removeDayTemplate(current, rowKey)),
+      onRemoveDayTemplate: (rowKey) => {
+        if (!canWrite) return;
+        const index = drafts.findIndex((draft) => draft.rowKey === rowKey);
+        editTemplates((current) => removeDayTemplate(current, rowKey));
+        // 削除した型を編集していた場合は、同じ位置に来る型へ移る。
+        if (selectedDraft?.rowKey === rowKey) setTemplateSelection({ rowKey: null, index });
+      },
       onRenameDayTemplate: (rowKey, name) => editTemplates((current) => renameDayTemplate(current, rowKey, name)),
       onToggleWeekday: (rowKey, weekday) =>
         editTemplates((current) => toggleDayTemplateWeekday(current, rowKey, weekday)),
-      onChangeRequiredCount: (target, delta) => editTemplates((current) => changeRequiredCount(current, target, delta)),
-      onChangeTimeSlotRange: (target, patch) => editTemplates((current) => changeTimeSlotRange(current, target, patch)),
-      onAddTimeSlot: (templateRowKey) => {
-        const rowKey = createRowKey();
-        editTemplates((current) => addTimeSlot(current, templateRowKey, pattern, rowKey));
-      },
-      onRemoveSlot: (target) => editTemplates((current) => removeDayTemplateSlot(current, target)),
+      onToggleHoliday: (rowKey) => editTemplates((current) => toggleDayTemplateHoliday(current, rowKey)),
+      onChangeBars: (rowKey, bars) => editTemplates((current) => changeDayTemplateBars(current, rowKey, bars)),
+      onChangeRequiredCount: (rowKey, change) =>
+        editTemplates((current) => changeRequiredCount(current, rowKey, change)),
+      onCopyRequirements: (target) => editTemplates((current) => copyDayTemplateRequirements(current, target)),
       onToggleStaffPosition: (staffId, positionId) =>
         editStaff(staffId, (profile) => toggleStaffPosition(profile, positionId, positions)),
       onChangeStaffSkillLevel: (staffId, skillLevel) => editStaff(staffId, (profile) => ({ ...profile, skillLevel })),

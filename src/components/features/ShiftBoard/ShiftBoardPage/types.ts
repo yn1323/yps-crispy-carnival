@@ -10,6 +10,7 @@ import type {
 } from "@/src/components/features/Shift/ShiftForm";
 import type { DisplayIssue } from "@/src/domains/shift/assignmentIssues";
 import type { AssignmentWarning } from "@/src/domains/shift/assignmentWarnings";
+import type { NewcomerOnlyPeriod } from "@/src/domains/shift/staffing";
 import type { PositionType, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
 
 export type ShiftBoardPageViewModel = {
@@ -35,6 +36,7 @@ export type ShiftBoardPageViewModel = {
     reminderStatus: ReminderStatus;
     validationIssues: AssignmentIssue[];
     validationWarnings: AssignmentWarning[];
+    newcomerOnlyPeriods: NewcomerOnlyPeriod[];
     dateNotes: readonly ShiftDateNote[];
     staffing?: ShiftFormStaffing;
     initialDetailMode: boolean;
@@ -47,6 +49,8 @@ export type ShiftBoardPageViewModel = {
     submitLabel: string;
     staffCount: number;
     warnings: DisplayIssue[];
+    /** 新人だけの時間帯。日、ポジション、時間帯の単位で出す。 */
+    newcomerOnlyItems: Array<{ key: string; label: string }>;
     unsubmittedNames: string[];
     hasUnsubmittedManager: boolean;
   };

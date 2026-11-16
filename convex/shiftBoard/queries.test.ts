@@ -2,7 +2,7 @@ import type { TestConvex } from "convex-test";
 import { convexTest } from "convex-test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
-import type { Id } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 import { seedStaff } from "../_test/scenarioBuilders";
 import { seedManagerShop, seedOrganizationManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
@@ -988,6 +988,13 @@ describe("shiftBoard/queries", () => {
   const STAFFING_MANAGER = "manager_shift_staffing";
   const STAFFING_OTHER_MANAGER = "manager_shift_staffing_other";
   const TIME_PATTERN = { kind: "time" as const, startTime: "09:00", endTime: "22:00" };
+  const SHIFT_TYPE_BOARD_PATTERN = {
+    kind: "shiftType" as const,
+    options: [
+      { id: "early", name: "早番", startTime: "09:00", endTime: "15:00", sortOrder: 0 },
+      { id: "late", name: "遅番", startTime: "15:00", endTime: "22:00", sortOrder: 1 },
+    ],
+  };
   type BoardPattern =
     | { kind: "time"; startTime: string; endTime: string }
     | { kind: "dateOnly" }
@@ -1342,59 +1349,133 @@ describe("shiftBoard/queries", () => {
   });
 
   describe("getShiftBoardStaffing", () => {
+    const bar = (positionId: Id<"positions">, startTime: string, endTime: string) => ({
+      positionId,
+      startTime,
+      endTime,
+    });
+    const getStaffing = (t: TestConvex<typeof schema>, ids: StaffingBoardIds) =>
+      t
+        .withIdentity({ subject: STAFFING_MANAGER })
+        .query(api.shiftBoard.queries.getShiftBoardStaffing, { ...ids.scope, recruitmentId: ids.recruitmentId });
+    const PERIOD_DATES = [
+      "2026-08-17",
+      "2026-08-18",
+      "2026-08-19",
+      "2026-08-20",
+      "2026-08-21",
+      "2026-08-22",
+      "2026-08-23",
+    ];
+    const unsetDay = (date: string, source: "none" | "confirmed") => ({
+      date,
+      source,
+      templateId: null,
+      templateName: null,
+      requirements: null,
+    });
+
+    /**
+     * 募集期間（08-17 月 〜 08-23 日）の各日に、理由の違う必要人数が当たる設定を用意する。
+     * 祝日は08-18（火）と08-22（土）。募集の受付時間は09:00-22:00である。
+     */
     async function seedStaffingSettings(t: TestConvex<typeof schema>, ids: StaffingBoardIds) {
       return await t.run(async (ctx) => {
         await ctx.db.patch(ids.shopId, { breakRule: { minWorkMinutes: 360, breakMinutes: 45 } });
-        const weekendTemplateId = await ctx.db.insert("shiftDayTemplates", {
-          shopId: ids.shopId,
+        const insertTemplate = (template: {
+          shopId?: Id<"shops">;
+          name: string;
+          weekdays: Array<"sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat">;
+          sortOrder: number;
+          appliesToHolidays?: boolean;
+          requirements: Doc<"shiftDayTemplates">["requirements"];
+        }) =>
+          ctx.db.insert("shiftDayTemplates", {
+            shopId: template.shopId ?? ids.shopId,
+            name: template.name,
+            weekdays: template.weekdays,
+            sortOrder: template.sortOrder,
+            appliesToHolidays: template.appliesToHolidays ?? false,
+            requirements: template.requirements,
+          });
+        // 並び順は登録順ではなくsortOrderで決まることを確かめるため、登録順をずらす。
+        const weekendTemplateId = await insertTemplate({
           name: "週末",
           weekdays: ["sat", "sun"],
           sortOrder: 1,
-          slots: [],
+          requirements: { kind: "time", bars: [bar(ids.hallPositionId, "10:00", "20:00")] },
         });
-        const weekdayTemplateId = await ctx.db.insert("shiftDayTemplates", {
-          shopId: ids.shopId,
+        const weekdayTemplateId = await insertTemplate({
           name: "平日",
-          weekdays: ["mon", "tue"],
+          weekdays: ["mon", "tue", "wed"],
           sortOrder: 0,
-          slots: [
-            {
-              key: { kind: "time", startTime: "09:00", endTime: "15:00" },
-              requirements: [
-                { positionId: ids.hallPositionId, count: 2 },
-                { positionId: ids.deletedPositionId, count: 3 },
-                { positionId: ids.kitchenPositionId, count: 0 },
-              ],
-            },
-            { key: { kind: "time", startTime: "15:00", endTime: "22:00" }, requirements: [] },
-          ],
+          requirements: {
+            kind: "time",
+            bars: [
+              bar(ids.hallPositionId, "09:00", "15:00"),
+              bar(ids.hallPositionId, "09:00", "15:00"),
+              bar(ids.deletedPositionId, "09:00", "15:00"),
+              // 募集の受付時間より前に始まるバーは内側だけを数え、完全に外のバーは数えない。
+              bar(ids.kitchenPositionId, "07:00", "10:00"),
+              bar(ids.hallPositionId, "22:00", "23:00"),
+            ],
+          },
         });
-        const deletedTemplateId = await ctx.db.insert("shiftDayTemplates", {
-          shopId: ids.shopId,
-          name: "削除する型",
+        const holidayTemplateId = await insertTemplate({
+          name: "祝日",
           weekdays: [],
           sortOrder: 2,
-          slots: [],
+          appliesToHolidays: true,
+          requirements: { kind: "time", bars: [bar(ids.kitchenPositionId, "11:00", "14:00")] },
+        });
+        // 店舗が集め方を変える前に保存した型。必要人数の種類が、募集の集め方（時間指定）と違う。
+        const staleTemplateId = await insertTemplate({
+          name: "集め方を変える前の型",
+          weekdays: ["thu"],
+          sortOrder: 3,
+          requirements: { kind: "dateOnly", counts: [{ positionId: ids.hallPositionId, count: 3 }] },
+        });
+        const deletedTemplateId = await insertTemplate({
+          name: "削除する型",
+          weekdays: ["fri"],
+          sortOrder: 4,
+          requirements: { kind: "time", bars: [bar(ids.hallPositionId, "09:00", "22:00")] },
         });
         await ctx.db.delete(deletedTemplateId);
-        const otherTemplateId = await ctx.db.insert("shiftDayTemplates", {
+        const otherTemplateId = await insertTemplate({
           shopId: ids.otherShopId,
           name: "別組織の型",
-          weekdays: ["mon"],
+          weekdays: ["mon", "fri"],
           sortOrder: 0,
-          slots: [],
+          appliesToHolidays: true,
+          requirements: { kind: "time", bars: [bar(ids.otherPositionId, "09:00", "22:00")] },
         });
-        const overrides: Array<{ shopId: Id<"shops">; date: string; templateId: Id<"shiftDayTemplates"> }> = [
+
+        for (const date of ["2026-08-16", "2026-08-18", "2026-08-22", "2026-08-24"]) {
+          await ctx.db.insert("nationalHolidays", { date, name: "テストの祝日" });
+        }
+
+        const templateOverrides: Array<{ shopId: Id<"shops">; date: string; templateId: Id<"shiftDayTemplates"> }> = [
           { shopId: ids.shopId, date: "2026-08-16", templateId: weekendTemplateId }, // 募集期間の前日
           { shopId: ids.shopId, date: "2026-08-17", templateId: weekendTemplateId }, // 募集期間の初日
-          { shopId: ids.shopId, date: "2026-08-20", templateId: deletedTemplateId }, // 削除された型
-          { shopId: ids.shopId, date: "2026-08-23", templateId: weekdayTemplateId }, // 募集期間の最終日
+          { shopId: ids.shopId, date: "2026-08-18", templateId: deletedTemplateId }, // 削除された型を指す祝日
+          { shopId: ids.shopId, date: "2026-08-19", templateId: deletedTemplateId }, // 削除された型を指す平日
           { shopId: ids.shopId, date: "2026-08-24", templateId: weekdayTemplateId }, // 募集期間の翌日
-          { shopId: ids.otherShopId, date: "2026-08-18", templateId: otherTemplateId }, // 別組織の店舗
+          { shopId: ids.otherShopId, date: "2026-08-21", templateId: otherTemplateId }, // 別組織の店舗
         ];
-        for (const override of overrides) {
-          await ctx.db.insert("shiftDayTemplateOverrides", override);
+        for (const override of templateOverrides) {
+          await ctx.db.insert("shiftDayTemplateOverrides", { ...override, kind: "template" });
         }
+        // 祝日の土曜に、その日だけの必要人数を置く。
+        await ctx.db.insert("shiftDayTemplateOverrides", {
+          shopId: ids.shopId,
+          date: "2026-08-22",
+          kind: "custom",
+          requirements: {
+            kind: "time",
+            bars: [bar(ids.deletedPositionId, "12:00", "13:00"), bar(ids.defaultPositionId, "12:00", "13:00")],
+          },
+        });
 
         await ctx.db.patch(ids.unsubmittedStaffId, {
           unavailablePositionIds: [ids.kitchenPositionId, ids.deletedPositionId],
@@ -1404,7 +1485,7 @@ describe("shiftBoard/queries", () => {
         await ctx.db.patch(ids.resubmissionStaffId, { unavailablePositionIds: [ids.deletedPositionId] });
         await ctx.db.patch(ids.excludedStaffId, { skillLevel: "lead" });
         await ctx.db.patch(ids.deletedStaffId, { skillLevel: "lead" });
-        return { weekdayTemplateId, weekendTemplateId };
+        return { weekdayTemplateId, weekendTemplateId, holidayTemplateId, staleTemplateId };
       });
     }
 
@@ -1450,22 +1531,15 @@ describe("shiftBoard/queries", () => {
       const ids = await seedStaffingBoard(t);
       await t.run(async (ctx) => await ctx.db.patch(ids.recruitmentId, { isDeleted: true }));
 
-      await expect(
-        t.withIdentity({ subject: STAFFING_MANAGER }).query(api.shiftBoard.queries.getShiftBoardStaffing, {
-          ...ids.scope,
-          recruitmentId: ids.recruitmentId,
-        }),
-      ).resolves.toBeNull();
+      await expect(getStaffing(t, ids)).resolves.toBeNull();
     });
 
-    it("店舗の設定、募集期間内の特別な日、標準でないスタッフの属性だけを最小DTOで返す", async () => {
+    it("未確定の募集では、日ごとに決めた必要人数と理由、当てられる型、標準でないスタッフの属性だけを最小DTOで返す", async () => {
       const t = convexTest(schema, modules);
       const ids = await seedStaffingBoard(t);
       const templates = await seedStaffingSettings(t, ids);
 
-      const result = await t
-        .withIdentity({ subject: STAFFING_MANAGER })
-        .query(api.shiftBoard.queries.getShiftBoardStaffing, { ...ids.scope, recruitmentId: ids.recruitmentId });
+      const result = await getStaffing(t, ids);
 
       expect(result).not.toBeNull();
       expect({
@@ -1473,25 +1547,6 @@ describe("shiftBoard/queries", () => {
         staffProfiles: (result?.staffProfiles ?? []).slice().sort((a, b) => a.staffId.localeCompare(b.staffId)),
       }).toEqual({
         breakRule: { minWorkMinutes: 360, breakMinutes: 45 },
-        dayTemplates: [
-          {
-            _id: templates.weekdayTemplateId,
-            name: "平日",
-            weekdays: ["mon", "tue"],
-            slots: [
-              {
-                key: { kind: "time", startTime: "09:00", endTime: "15:00" },
-                requirements: [{ positionId: ids.hallPositionId, count: 2 }],
-              },
-              { key: { kind: "time", startTime: "15:00", endTime: "22:00" }, requirements: [] },
-            ],
-          },
-          { _id: templates.weekendTemplateId, name: "週末", weekdays: ["sat", "sun"], slots: [] },
-        ],
-        dayTemplateOverrides: [
-          { date: "2026-08-17", templateId: templates.weekendTemplateId },
-          { date: "2026-08-23", templateId: templates.weekdayTemplateId },
-        ],
         staffProfiles: [
           {
             staffId: ids.unsubmittedStaffId,
@@ -1501,25 +1556,302 @@ describe("shiftBoard/queries", () => {
           { staffId: ids.submittedStaffId, unavailablePositionIds: [], skillLevel: "newcomer" as const },
         ].sort((a, b) => a.staffId.localeCompare(b.staffId)),
         hasPreviousConfirmedRecruitment: false,
+        isLocked: false,
+        // 募集の集め方（時間指定）と種類が合う型だけを、設定した並び順で返す。
+        templates: [
+          { _id: templates.weekdayTemplateId, name: "平日" },
+          { _id: templates.weekendTemplateId, name: "週末" },
+          { _id: templates.holidayTemplateId, name: "祝日" },
+        ],
+        days: [
+          // 月曜: その日だけ当てた型が、曜日の型より優先する。
+          {
+            date: "2026-08-17",
+            source: "dateTemplate",
+            templateId: templates.weekendTemplateId,
+            templateName: "週末",
+            requirements: { kind: "time", bars: [bar(ids.hallPositionId, "10:00", "20:00")] },
+          },
+          // 祝日の火曜: 削除された型を指す指定を無視し、祝日に使う型を曜日の型より優先する。
+          {
+            date: "2026-08-18",
+            source: "holiday",
+            templateId: templates.holidayTemplateId,
+            templateName: "祝日",
+            requirements: { kind: "time", bars: [bar(ids.kitchenPositionId, "11:00", "14:00")] },
+          },
+          // 水曜: 削除された型を指す指定を無視し、曜日の型を当てる。
+          // 削除済みのポジションのバーと受付時間の外のバーを除き、またぐバーは内側だけにする。
+          {
+            date: "2026-08-19",
+            source: "weekday",
+            templateId: templates.weekdayTemplateId,
+            templateName: "平日",
+            requirements: {
+              kind: "time",
+              bars: [
+                bar(ids.kitchenPositionId, "09:00", "10:00"),
+                bar(ids.hallPositionId, "09:00", "15:00"),
+                bar(ids.hallPositionId, "09:00", "15:00"),
+              ],
+            },
+          },
+          // 木曜: 当たる型の必要人数の種類が募集の集め方と違うため、未設定として扱う。
+          {
+            date: "2026-08-20",
+            source: "weekday",
+            templateId: templates.staleTemplateId,
+            templateName: "集め方を変える前の型",
+            requirements: null,
+          },
+          // 金曜: 当たる型がない。削除された型の曜日と、別組織の店舗の指定は使わない。
+          unsetDay("2026-08-21", "none"),
+          // 祝日の土曜: その日だけの必要人数が、祝日に使う型と曜日の型より優先する。
+          {
+            date: "2026-08-22",
+            source: "dateCustom",
+            templateId: null,
+            templateName: null,
+            requirements: { kind: "time", bars: [bar(ids.defaultPositionId, "12:00", "13:00")] },
+          },
+          {
+            date: "2026-08-23",
+            source: "weekday",
+            templateId: templates.weekendTemplateId,
+            templateName: "週末",
+            requirements: { kind: "time", bars: [bar(ids.hallPositionId, "10:00", "20:00")] },
+          },
+        ],
       });
     });
 
-    it("何も設定していない店舗では、空の設定を返す", async () => {
+    it("何も設定していない店舗では、募集期間の全日を未設定として返す", async () => {
       const t = convexTest(schema, modules);
       const ids = await seedStaffingBoard(t);
 
-      await expect(
-        t.withIdentity({ subject: STAFFING_MANAGER }).query(api.shiftBoard.queries.getShiftBoardStaffing, {
-          ...ids.scope,
-          recruitmentId: ids.recruitmentId,
-        }),
-      ).resolves.toEqual({
+      await expect(getStaffing(t, ids)).resolves.toEqual({
         breakRule: null,
-        dayTemplates: [],
-        dayTemplateOverrides: [],
         staffProfiles: [],
         hasPreviousConfirmedRecruitment: false,
+        isLocked: false,
+        templates: [],
+        days: PERIOD_DATES.map((date) => unsetDay(date, "none")),
       });
+    });
+
+    it("募集の集め方が店舗の型と違う種類の場合は、どの日も未設定として扱い、当てられる型を返さない", async () => {
+      const t = convexTest(schema, modules);
+      // 型は時間指定で作ってあり、募集はパターン選択で集めている。
+      const ids = await seedStaffingBoard(t, { submissionPattern: SHIFT_TYPE_BOARD_PATTERN });
+      const templates = await seedStaffingSettings(t, ids);
+
+      const result = await getStaffing(t, ids);
+
+      expect(result?.templates).toEqual([]);
+      expect(result?.days).toEqual([
+        {
+          date: "2026-08-17",
+          source: "dateTemplate",
+          templateId: templates.weekendTemplateId,
+          templateName: "週末",
+          requirements: null,
+        },
+        {
+          date: "2026-08-18",
+          source: "holiday",
+          templateId: templates.holidayTemplateId,
+          templateName: "祝日",
+          requirements: null,
+        },
+        {
+          date: "2026-08-19",
+          source: "weekday",
+          templateId: templates.weekdayTemplateId,
+          templateName: "平日",
+          requirements: null,
+        },
+        {
+          date: "2026-08-20",
+          source: "weekday",
+          templateId: templates.staleTemplateId,
+          templateName: "集め方を変える前の型",
+          requirements: null,
+        },
+        unsetDay("2026-08-21", "none"),
+        { date: "2026-08-22", source: "dateCustom", templateId: null, templateName: null, requirements: null },
+        {
+          date: "2026-08-23",
+          source: "weekday",
+          templateId: templates.weekendTemplateId,
+          templateName: "週末",
+          requirements: null,
+        },
+      ]);
+    });
+
+    it("パターン選択の募集では、募集の勤務パターンにあるものだけを設定順で返し、削除済みのポジションの人数を除く", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedStaffingBoard(t, { submissionPattern: SHIFT_TYPE_BOARD_PATTERN });
+      const templateId = await t.run(async (ctx) =>
+        ctx.db.insert("shiftDayTemplates", {
+          shopId: ids.shopId,
+          name: "毎日",
+          weekdays: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+          sortOrder: 0,
+          appliesToHolidays: false,
+          requirements: {
+            kind: "shiftType",
+            options: [
+              { optionId: "late", counts: [{ positionId: ids.kitchenPositionId, count: 1 }] },
+              // 募集を作ったあとで店舗が足した勤務パターン。募集にはない。
+              { optionId: "night", counts: [{ positionId: ids.hallPositionId, count: 4 }] },
+              {
+                optionId: "early",
+                counts: [
+                  { positionId: ids.deletedPositionId, count: 2 },
+                  { positionId: ids.hallPositionId, count: 2 },
+                ],
+              },
+            ],
+          },
+        }),
+      );
+
+      const result = await getStaffing(t, ids);
+
+      expect(result?.templates).toEqual([{ _id: templateId, name: "毎日" }]);
+      expect(result?.days).toEqual(
+        PERIOD_DATES.map((date) => ({
+          date,
+          source: "weekday",
+          templateId,
+          templateName: "毎日",
+          requirements: {
+            kind: "shiftType",
+            options: [
+              { optionId: "early", counts: [{ positionId: ids.hallPositionId, count: 2 }] },
+              { optionId: "late", counts: [{ positionId: ids.kitchenPositionId, count: 1 }] },
+            ],
+          },
+        })),
+      );
+    });
+
+    it("日付選択の募集では、1日分のポジション別の人数を返す", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedStaffingBoard(t, { submissionPattern: { kind: "dateOnly" } });
+      const templateId = await t.run(async (ctx) =>
+        ctx.db.insert("shiftDayTemplates", {
+          shopId: ids.shopId,
+          name: "月曜",
+          weekdays: ["mon"],
+          sortOrder: 0,
+          appliesToHolidays: false,
+          requirements: {
+            kind: "dateOnly",
+            counts: [
+              { positionId: ids.hallPositionId, count: 3 },
+              { positionId: ids.deletedPositionId, count: 1 },
+            ],
+          },
+        }),
+      );
+
+      const result = await getStaffing(t, ids);
+
+      expect(result?.days).toEqual([
+        {
+          date: "2026-08-17",
+          source: "weekday",
+          templateId,
+          templateName: "月曜",
+          requirements: { kind: "dateOnly", counts: [{ positionId: ids.hallPositionId, count: 3 }] },
+        },
+        ...PERIOD_DATES.slice(1).map((date) => unsetDay(date, "none")),
+      ]);
+    });
+
+    it("確定済みの募集では、いまの型と指定を使わず、確定時に保存した必要人数だけを返す", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedStaffingBoard(t, { status: "confirmed" });
+      const templates = await seedStaffingSettings(t, ids);
+      await t.run(async (ctx) => {
+        const insertSnapshot = (snapshot: {
+          recruitmentId?: Id<"recruitments">;
+          shopId?: Id<"shops">;
+          date: string;
+          templateName: string | null;
+          requirements: Doc<"recruitmentStaffingSnapshots">["requirements"];
+        }) =>
+          ctx.db.insert("recruitmentStaffingSnapshots", {
+            recruitmentId: snapshot.recruitmentId ?? ids.recruitmentId,
+            shopId: snapshot.shopId ?? ids.shopId,
+            date: snapshot.date,
+            templateName: snapshot.templateName,
+            requirements: snapshot.requirements,
+          });
+        await insertSnapshot({
+          date: "2026-08-19",
+          templateName: "確定したときの平日",
+          requirements: {
+            kind: "time",
+            bars: [bar(ids.hallPositionId, "09:00", "12:00"), bar(ids.deletedPositionId, "09:00", "12:00")],
+          },
+        });
+        // その日だけの必要人数で確定した日は、型の名前を持たない。
+        await insertSnapshot({
+          date: "2026-08-17",
+          templateName: null,
+          requirements: { kind: "time", bars: [bar(ids.kitchenPositionId, "17:00", "22:00")] },
+        });
+        // 当たった型の種類が募集の集め方と違った日は、型の名前だけを持つ。
+        await insertSnapshot({ date: "2026-08-20", templateName: "集め方を変える前の型", requirements: null });
+        // 別組織の募集の保存は、同じ日付でも使わない。
+        await insertSnapshot({
+          recruitmentId: ids.otherRecruitmentId,
+          shopId: ids.otherShopId,
+          date: "2026-08-21",
+          templateName: "別組織の型",
+          requirements: { kind: "time", bars: [bar(ids.otherPositionId, "09:00", "22:00")] },
+        });
+      });
+
+      const result = await getStaffing(t, ids);
+
+      expect(result?.isLocked).toBe(true);
+      expect(result?.templates).toEqual([
+        { _id: templates.weekdayTemplateId, name: "平日" },
+        { _id: templates.weekendTemplateId, name: "週末" },
+        { _id: templates.holidayTemplateId, name: "祝日" },
+      ]);
+      expect(result?.days).toEqual([
+        {
+          date: "2026-08-17",
+          source: "confirmed",
+          templateId: null,
+          templateName: null,
+          requirements: { kind: "time", bars: [bar(ids.kitchenPositionId, "17:00", "22:00")] },
+        },
+        // いまの設定では祝日の型が当たる日でも、確定時に保存がなければ未設定のままにする。
+        unsetDay("2026-08-18", "confirmed"),
+        {
+          date: "2026-08-19",
+          source: "confirmed",
+          templateId: null,
+          templateName: "確定したときの平日",
+          requirements: { kind: "time", bars: [bar(ids.hallPositionId, "09:00", "12:00")] },
+        },
+        {
+          date: "2026-08-20",
+          source: "confirmed",
+          templateId: null,
+          templateName: "集め方を変える前の型",
+          requirements: null,
+        },
+        unsetDay("2026-08-21", "confirmed"),
+        unsetDay("2026-08-22", "confirmed"),
+        unsetDay("2026-08-23", "confirmed"),
+      ]);
     });
 
     it.each([

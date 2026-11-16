@@ -1,118 +1,180 @@
+import type { Id } from "@/convex/_generated/dataModel";
 import {
-  SHIFT_DAY_TEMPLATE_LIMIT,
-  SHIFT_DAY_TEMPLATE_NAME_MAX_LENGTH,
+  SHIFT_DAY_TEMPLATE_BAR_LIMIT,
+  SHIFT_DAY_TEMPLATE_CONCURRENT_BAR_LIMIT,
   SHIFT_DAY_TEMPLATE_REQUIRED_COUNT_MAX,
-  SHIFT_DAY_TEMPLATE_SLOT_LIMIT,
 } from "@/convex/constants";
 import {
-  buildDefaultDayTemplateSlotKeys,
+  compareStaffingBars,
+  type DayRequirements,
   type DayTemplateIssue,
-  type DayTemplateSlotKey,
-  dayTemplateSlotKeyId,
   findDayTemplateIssue,
-  projectDayTemplateSlotsForPattern,
   SHIFT_SETUP_WEEKDAYS,
   type ShiftSetupWeekday,
 } from "@/convex/shiftSetup/dayTemplates";
 import {
-  formatShiftClockTimeRange,
-  generateShiftTimeOptions,
-  minutesToTime,
-  type ShiftTimeOption,
-  timeToMinutes,
-} from "@/src/domains/shift/time";
+  type EditableStaffingBar,
+  type StaffingBarLimits,
+  type StaffingBarRange,
+  toEditableStaffingBars,
+} from "@/src/domains/shift/staffingBars";
+import { formatShiftClockTimeRange, timeToMinutes } from "@/src/domains/shift/time";
+import { WEEKDAY_OPTIONS } from "./script";
 import type {
   DayTemplateDraft,
   DayTemplateInput,
-  DayTemplateSlotDraft,
+  DayTemplateRequirementsDraft,
+  RequiredCountChange,
+  ShiftSetupAssistTemplate,
+  ShiftSetupDayTemplate,
   ShiftSetupPosition,
   ShiftSetupSubmissionPattern,
 } from "./types";
 
-// 日の型（曜日ごとの必要人数）を編集するための純粋処理。
-// 検証と区切りの形は convex/shiftSetup/dayTemplates.ts を正とし、ここでは編集中の値の操作だけを持つ。
+// 日の型（名前を付けた1日分の必要人数）を編集するための純粋処理。
+// 検証は convex/shiftSetup/dayTemplates.ts、バーの操作は src/domains/shift/staffingBars.ts を正とし、
+// ここでは保存の形と編集中の値の変換、型の一覧の操作だけを持つ。
 
-type SlotSource = {
-  key: DayTemplateSlotKey;
-  requirements: ReadonlyArray<{ positionId: string; count: number }>;
-};
-
-type TemplateSource = {
-  name: string;
-  weekdays: readonly ShiftSetupWeekday[];
-  slots: readonly SlotSource[];
-};
-
-const DAY_TEMPLATE_LIMITS = {
-  templates: SHIFT_DAY_TEMPLATE_LIMIT,
-  nameLength: SHIFT_DAY_TEMPLATE_NAME_MAX_LENGTH,
-  slots: SHIFT_DAY_TEMPLATE_SLOT_LIMIT,
-  requiredCount: SHIFT_DAY_TEMPLATE_REQUIRED_COUNT_MAX,
-};
+type PositionRef = Pick<ShiftSetupPosition, "_id">;
+type StoredRequirements = DayRequirements<Id<"positions">>;
 
 const FIRST_TEMPLATE_NAME = "通常";
-const TIME_SLOT_STEP_MINUTES = 30;
-/** 2つに分けられる時間帯の最短の長さ。分けたあとの両方が30分以上になる。 */
-const SPLITTABLE_SLOT_MINUTES = TIME_SLOT_STEP_MINUTES * 2;
+const UNNAMED_TEMPLATE_LABEL = "名前のない型";
 
-function toCounts(requirements: SlotSource["requirements"]): Record<string, number> {
-  const counts: Record<string, number> = {};
-  for (const requirement of requirements) {
-    if (requirement.count > 0) counts[requirement.positionId] = requirement.count;
+/** 日付選択の必要人数を表に出すときの、1行だけの行のID。 */
+export const ALL_DAY_ROW_ID = "allDay";
+
+/** バーの編集部品へ渡す上限。サーバーの検証と同じ値にする。 */
+export const DAY_TEMPLATE_BAR_LIMITS: StaffingBarLimits = {
+  maxConcurrentPerPosition: SHIFT_DAY_TEMPLATE_CONCURRENT_BAR_LIMIT,
+  maxBars: SHIFT_DAY_TEMPLATE_BAR_LIMIT,
+};
+
+function toCountRecord(counts: ReadonlyArray<{ positionId: string; count: number }>): Record<string, number> {
+  const record: Record<string, number> = {};
+  for (const entry of counts) {
+    if (entry.count > 0) record[entry.positionId] = entry.count;
   }
-  return counts;
+  return record;
 }
 
-/**
- * 保存済みの区切りを、いまの提出方法で編集する行へ直す。
- * パターン選択は勤務パターンごと、日付選択は1日の1行を必ず出す。
- */
-function toSlotDrafts(slots: readonly SlotSource[], pattern: ShiftSetupSubmissionPattern): DayTemplateSlotDraft[] {
-  if (pattern.kind === "shiftType") {
-    return pattern.options.map((option) => {
-      const key: DayTemplateSlotKey = { kind: "shiftType", optionId: option.id };
-      const saved = slots.find((slot) => slot.key.kind === "shiftType" && slot.key.optionId === option.id);
-      return { rowKey: dayTemplateSlotKeyId(key), key, counts: toCounts(saved?.requirements ?? []) };
-    });
+/** 保存の形の必要人数を、編集中の形へ直す。バーには編集用のidを振る。 */
+function toRequirementsDraft(requirements: StoredRequirements): DayTemplateRequirementsDraft {
+  if (requirements.kind === "time") {
+    return {
+      kind: "time",
+      bars: toEditableStaffingBars(
+        requirements.bars.map((bar) => ({ positionId: bar.positionId, start: bar.startTime, end: bar.endTime })),
+      ),
+    };
   }
-  if (pattern.kind === "dateOnly") {
-    const key: DayTemplateSlotKey = { kind: "allDay" };
-    const saved = slots.find((slot) => slot.key.kind === "allDay");
-    return [{ rowKey: dayTemplateSlotKeyId(key), key, counts: toCounts(saved?.requirements ?? []) }];
+  if (requirements.kind === "shiftType") {
+    const counts: Record<string, Record<string, number>> = {};
+    for (const option of requirements.options) {
+      const record = toCountRecord(option.counts);
+      if (Object.keys(record).length > 0) counts[option.optionId] = record;
+    }
+    return { kind: "shiftType", counts };
   }
-  return projectDayTemplateSlotsForPattern(slots, pattern).map((slot) => ({
-    rowKey: dayTemplateSlotKeyId(slot.key),
-    key: slot.key,
-    counts: toCounts(slot.requirements),
-  }));
+  return { kind: "dateOnly", counts: toCountRecord(requirements.counts) };
+}
+
+function createEmptyRequirementsDraft(kind: DayTemplateRequirementsDraft["kind"]): DayTemplateRequirementsDraft {
+  if (kind === "time") return { kind: "time", bars: [] };
+  if (kind === "shiftType") return { kind: "shiftType", counts: {} };
+  return { kind: "dateOnly", counts: {} };
 }
 
 /** 保存済みの日の型を、編集中の形へ直す。 */
-export function toDayTemplateDrafts(
-  templates: ReadonlyArray<TemplateSource & { _id: DayTemplateDraft["id"] & string }>,
-  pattern: ShiftSetupSubmissionPattern,
-): DayTemplateDraft[] {
+export function toDayTemplateDrafts(templates: readonly ShiftSetupDayTemplate[]): DayTemplateDraft[] {
   return templates.map((template) => ({
     rowKey: template._id,
     id: template._id,
     name: template.name,
     weekdays: [...template.weekdays],
-    slots: toSlotDrafts(template.slots, pattern),
+    appliesToHolidays: template.appliesToHolidays,
+    requirements: toRequirementsDraft(template.requirements),
+    requiresReentry: template.requiresReentry,
   }));
 }
 
 /** AIサポートの下書きを、まだ保存していない新しい型として編集中の形へ直す。 */
 export function toDayTemplateDraftsFromSuggestion(
-  templates: readonly TemplateSource[],
-  pattern: ShiftSetupSubmissionPattern,
+  templates: readonly ShiftSetupAssistTemplate[],
   createRowKey: () => string,
 ): DayTemplateDraft[] {
   return templates.map((template) => ({
     rowKey: createRowKey(),
     name: template.name,
     weekdays: [...template.weekdays],
-    slots: toSlotDrafts(template.slots, pattern),
+    appliesToHolidays: template.appliesToHolidays,
+    requirements: toRequirementsDraft(template.requirements),
+    requiresReentry: false,
   }));
+}
+
+type InputContext = {
+  /** いまあるポジション。並び順は表示順。一覧にないポジションのバーと人数は送らない。 */
+  positions: readonly PositionRef[];
+  pattern: ShiftSetupSubmissionPattern;
+};
+
+function toStoredRequirements(requirements: DayTemplateRequirementsDraft, context: InputContext): StoredRequirements {
+  const positionIds = new Map<string, Id<"positions">>(
+    context.positions.map((position) => [position._id, position._id]),
+  );
+  const toCounts = (record: Readonly<Record<string, number>> | undefined) =>
+    context.positions.flatMap((position) => {
+      const count = record?.[position._id] ?? 0;
+      return count > 0 ? [{ positionId: position._id, count }] : [];
+    });
+
+  if (requirements.kind === "time") {
+    return {
+      kind: "time",
+      bars: requirements.bars
+        .flatMap((bar) => {
+          const positionId = positionIds.get(bar.positionId);
+          return positionId ? [{ positionId, startTime: bar.start, endTime: bar.end }] : [];
+        })
+        .sort(compareStaffingBars),
+    };
+  }
+  if (requirements.kind === "shiftType") {
+    // 勤務パターンは、店舗の設定順に並べる。人数を入れていない勤務パターンは送らない。
+    const optionIds =
+      context.pattern.kind === "shiftType"
+        ? context.pattern.options.map((option) => option.id)
+        : Object.keys(requirements.counts);
+    return {
+      kind: "shiftType",
+      options: optionIds.flatMap((optionId) => {
+        const counts = toCounts(requirements.counts[optionId]);
+        return counts.length > 0 ? [{ optionId, counts }] : [];
+      }),
+    };
+  }
+  return { kind: "dateOnly", counts: toCounts(requirements.counts) };
+}
+
+/**
+ * 保存する形へ直す。
+ * 人数0と、いまは無いポジションのバーと人数は送らない。
+ * 曜日は日曜から、バーは開始の早い順に並べ、行の識別子とバーのidは外す。
+ */
+export function toDayTemplateInputs(drafts: readonly DayTemplateDraft[], context: InputContext): DayTemplateInput[] {
+  return drafts.map((draft) => ({
+    ...(draft.id ? { id: draft.id } : {}),
+    name: draft.name,
+    weekdays: SHIFT_SETUP_WEEKDAYS.filter((weekday) => draft.weekdays.includes(weekday)),
+    appliesToHolidays: draft.appliesToHolidays,
+    requirements: toStoredRequirements(draft.requirements, context),
+  }));
+}
+
+/** 保存内容として同じかを返す。変更の有無の判定に使う。 */
+export function isSameDayTemplateInputs(left: readonly DayTemplateInput[], right: readonly DayTemplateInput[]) {
+  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 /** どの型にも割り当てていない曜日を返す。 */
@@ -132,8 +194,8 @@ function createDefaultName(drafts: readonly DayTemplateDraft[]): string {
 
 /**
  * 新しく足す型を作る。
- * 曜日は、まだ割り当てていない営業日を初期値にする。
- * 区切りと人数は、直前の型があればそれを写し、なければ提出方法から作る。
+ * 曜日は、まだ割り当てていない営業日を初期値にする。祝日は選ばない。
+ * 必要人数は空で始める。ほかの型と同じ内容から始めたいときは、画面の「ほかの型からコピー」で写す。
  */
 export function createDayTemplateDraft(input: {
   drafts: readonly DayTemplateDraft[];
@@ -142,20 +204,13 @@ export function createDayTemplateDraft(input: {
   rowKey: string;
 }): DayTemplateDraft {
   const closedDays = new Set(input.regularClosedDays);
-  const previous = input.drafts.at(-1);
-  const slots: DayTemplateSlotDraft[] = previous
-    ? previous.slots.map((slot) => ({ ...slot, counts: { ...slot.counts } }))
-    : buildDefaultDayTemplateSlotKeys(input.pattern).map((key) => ({
-        rowKey: dayTemplateSlotKeyId(key),
-        key,
-        counts: {},
-      }));
-
   return {
     rowKey: input.rowKey,
     name: createDefaultName(input.drafts),
     weekdays: getUnassignedWeekdays(input.drafts).filter((weekday) => !closedDays.has(weekday)),
-    slots,
+    appliesToHolidays: false,
+    requirements: createEmptyRequirementsDraft(input.pattern.kind),
+    requiresReentry: false,
   };
 }
 
@@ -167,24 +222,35 @@ function updateDraft(
   return drafts.map((draft) => (draft.rowKey === rowKey ? update(draft) : draft));
 }
 
-function updateSlot(
-  drafts: readonly DayTemplateDraft[],
-  templateRowKey: string,
-  slotRowKey: string,
-  update: (slot: DayTemplateSlotDraft) => DayTemplateSlotDraft,
-): DayTemplateDraft[] {
-  return updateDraft(drafts, templateRowKey, (draft) => ({
-    ...draft,
-    slots: draft.slots.map((slot) => (slot.rowKey === slotRowKey ? update(slot) : slot)),
-  }));
-}
-
 export function renameDayTemplate(drafts: readonly DayTemplateDraft[], rowKey: string, name: string) {
   return updateDraft(drafts, rowKey, (draft) => ({ ...draft, name }));
 }
 
 export function removeDayTemplate(drafts: readonly DayTemplateDraft[], rowKey: string) {
   return drafts.filter((draft) => draft.rowKey !== rowKey);
+}
+
+export type DayTemplateSelection = {
+  /** 選んだ型の`rowKey`。 */
+  rowKey: string | null;
+  /** 選んだ型の、一覧の中の位置。`rowKey`の型が一覧からなくなったときに使う。 */
+  index: number;
+};
+
+/**
+ * 編集する型を返す。型が1つもなければnullを返す。
+ * 選んだ型が一覧からなくなった場合は、同じ位置の型、なければ最後の型を選ぶ。
+ * 型を削除したあとはすぐ下の型へ移り、新しい型を保存してidが変わったあとも同じ型を選んだままにするためである。
+ */
+export function resolveSelectedDayTemplate(
+  drafts: readonly DayTemplateDraft[],
+  selection: DayTemplateSelection,
+): DayTemplateDraft | null {
+  return (
+    drafts.find((draft) => draft.rowKey === selection.rowKey) ??
+    drafts[Math.min(Math.max(selection.index, 0), drafts.length - 1)] ??
+    null
+  );
 }
 
 /**
@@ -213,194 +279,141 @@ export function toggleDayTemplateWeekday(
   });
 }
 
-/** 必要人数を増減する。0から上限までの範囲に収める。 */
-export function changeRequiredCount(
-  drafts: readonly DayTemplateDraft[],
-  target: { templateRowKey: string; slotRowKey: string; positionId: string },
-  delta: number,
-): DayTemplateDraft[] {
-  return updateSlot(drafts, target.templateRowKey, target.slotRowKey, (slot) => {
-    const current = slot.counts[target.positionId] ?? 0;
-    const next = Math.min(SHIFT_DAY_TEMPLATE_REQUIRED_COUNT_MAX, Math.max(0, current + delta));
-    const counts = { ...slot.counts };
-    if (next > 0) counts[target.positionId] = next;
-    else delete counts[target.positionId];
-    return { ...slot, counts };
+/**
+ * 祝日に使うかどうかを切り替える。
+ * 祝日に使える型は1つだけのため、選んだら、別の型の祝日を外して移す。
+ */
+export function toggleDayTemplateHoliday(drafts: readonly DayTemplateDraft[], rowKey: string): DayTemplateDraft[] {
+  const target = drafts.find((draft) => draft.rowKey === rowKey);
+  if (!target) return [...drafts];
+  const next = !target.appliesToHolidays;
+
+  return drafts.map((draft) => {
+    if (draft.rowKey === rowKey) return { ...draft, appliesToHolidays: next };
+    return next && draft.appliesToHolidays ? { ...draft, appliesToHolidays: false } : draft;
   });
 }
 
-export function changeTimeSlotRange(
+/** 時間指定の型のバーを置き換える。時間指定でない型は変えない。 */
+export function changeDayTemplateBars(
   drafts: readonly DayTemplateDraft[],
-  target: { templateRowKey: string; slotRowKey: string },
-  patch: { startTime?: string; endTime?: string },
+  rowKey: string,
+  bars: readonly EditableStaffingBar[],
 ): DayTemplateDraft[] {
-  return updateSlot(drafts, target.templateRowKey, target.slotRowKey, (slot) =>
-    slot.key.kind === "time" ? { ...slot, key: { ...slot.key, ...patch } } : slot,
+  return updateDraft(drafts, rowKey, (draft) =>
+    draft.requirements.kind === "time" ? { ...draft, requirements: { kind: "time", bars: [...bars] } } : draft,
   );
 }
 
-export function removeDayTemplateSlot(
-  drafts: readonly DayTemplateDraft[],
-  target: { templateRowKey: string; slotRowKey: string },
-): DayTemplateDraft[] {
-  return updateDraft(drafts, target.templateRowKey, (draft) => ({
-    ...draft,
-    slots: draft.slots.filter((slot) => slot.rowKey !== target.slotRowKey),
-  }));
-}
-
-type TimeSlotRange = { rowKey: string; start: number; end: number };
-
-function toTimeRanges(slots: readonly DayTemplateSlotDraft[]): TimeSlotRange[] {
-  return slots
-    .flatMap((slot) =>
-      slot.key.kind === "time"
-        ? [{ rowKey: slot.rowKey, start: timeToMinutes(slot.key.startTime), end: timeToMinutes(slot.key.endTime) }]
-        : [],
-    )
-    .sort((left, right) => left.start - right.start || left.end - right.end);
-}
-
-type TimeSlotAddition =
-  | { kind: "fill"; start: number; end: number }
-  | { kind: "split"; rowKey: string; at: number }
-  | null;
-
-/**
- * 時間帯の足し方を決める。
- * 受付時間の中に空きがあれば、最初の空きを埋める。空きがなければ、最後の時間帯を2つに分ける。
- */
-function planTimeSlotAddition(
-  slots: readonly DayTemplateSlotDraft[],
-  pattern: ShiftSetupSubmissionPattern,
-): TimeSlotAddition {
-  if (pattern.kind !== "time" || slots.length >= SHIFT_DAY_TEMPLATE_SLOT_LIMIT) return null;
-
-  const ranges = toTimeRanges(slots);
-  const patternEnd = timeToMinutes(pattern.endTime);
-  let cursor = timeToMinutes(pattern.startTime);
-  for (const range of ranges) {
-    if (range.start > cursor) return { kind: "fill", start: cursor, end: Math.min(range.start, patternEnd) };
-    cursor = Math.max(cursor, range.end);
-  }
-  if (cursor < patternEnd) return { kind: "fill", start: cursor, end: patternEnd };
-
-  const splittable = ranges.filter((range) => range.end - range.start >= SPLITTABLE_SLOT_MINUTES);
-  const last = ranges.at(-1);
-  const target =
-    last && splittable.includes(last)
-      ? last
-      : splittable.reduce<TimeSlotRange | null>(
-          (longest, range) => (!longest || range.end - range.start >= longest.end - longest.start ? range : longest),
-          null,
-        );
-  if (!target) return null;
-
-  const middle = (target.start + target.end) / 2;
-  const onTheHour = Math.round(middle / 60) * 60;
-  const at =
-    onTheHour > target.start && onTheHour < target.end
-      ? onTheHour
-      : Math.floor(middle / TIME_SLOT_STEP_MINUTES) * TIME_SLOT_STEP_MINUTES;
-  return { kind: "split", rowKey: target.rowKey, at };
-}
-
-export function canAddTimeSlot(draft: DayTemplateDraft, pattern: ShiftSetupSubmissionPattern): boolean {
-  return planTimeSlotAddition(draft.slots, pattern) !== null;
+function setCount(record: Readonly<Record<string, number>>, positionId: string, count: number) {
+  const next = { ...record };
+  if (count > 0) next[positionId] = count;
+  else delete next[positionId];
+  return next;
 }
 
 /**
- * 時間帯を1つ足す。
- * 分けて足した時間帯には、元の時間帯の必要人数を写す。
+ * パターン選択と日付選択の型の、1マスの人数を変える。
+ * 0から上限までの整数に収め、0は「未設定」として持たない。
  */
-export function addTimeSlot(
+export function changeRequiredCount(
   drafts: readonly DayTemplateDraft[],
-  templateRowKey: string,
-  pattern: ShiftSetupSubmissionPattern,
   rowKey: string,
+  change: RequiredCountChange,
 ): DayTemplateDraft[] {
-  return updateDraft(drafts, templateRowKey, (draft) => {
-    const plan = planTimeSlotAddition(draft.slots, pattern);
-    if (!plan) return draft;
+  const count = Number.isFinite(change.count)
+    ? Math.min(SHIFT_DAY_TEMPLATE_REQUIRED_COUNT_MAX, Math.max(0, Math.trunc(change.count)))
+    : 0;
 
-    const slots: DayTemplateSlotDraft[] =
-      plan.kind === "fill"
-        ? [
-            ...draft.slots,
-            {
-              rowKey,
-              key: { kind: "time", startTime: minutesToTime(plan.start), endTime: minutesToTime(plan.end) },
-              counts: {},
-            },
-          ]
-        : draft.slots.flatMap((slot) => {
-            if (slot.rowKey !== plan.rowKey || slot.key.kind !== "time") return [slot];
-            const at = minutesToTime(plan.at);
-            return [
-              { ...slot, key: { ...slot.key, endTime: at } },
-              { rowKey, key: { ...slot.key, startTime: at }, counts: { ...slot.counts } },
-            ];
-          });
-    return { ...draft, slots: sortSlots(slots) };
+  return updateDraft(drafts, rowKey, (draft) => {
+    const { requirements } = draft;
+    if (requirements.kind === "dateOnly") {
+      return {
+        ...draft,
+        requirements: { kind: "dateOnly", counts: setCount(requirements.counts, change.positionId, count) },
+      };
+    }
+    if (requirements.kind === "shiftType") {
+      const { [change.rowId]: current = {}, ...rest } = requirements.counts;
+      const row = setCount(current, change.positionId, count);
+      return {
+        ...draft,
+        requirements: {
+          kind: "shiftType",
+          counts: Object.keys(row).length > 0 ? { ...rest, [change.rowId]: row } : rest,
+        },
+      };
+    }
+    return draft;
   });
 }
 
-function sortSlots(slots: readonly DayTemplateSlotDraft[]): DayTemplateSlotDraft[] {
-  return slots.slice().sort((left, right) => {
-    if (left.key.kind !== "time" || right.key.kind !== "time") return 0;
-    return (
-      timeToMinutes(left.key.startTime) - timeToMinutes(right.key.startTime) ||
-      timeToMinutes(left.key.endTime) - timeToMinutes(right.key.endTime)
-    );
-  });
+function cloneRequirementsDraft(requirements: DayTemplateRequirementsDraft): DayTemplateRequirementsDraft {
+  // バーのidは型の中だけで一意ならよいため、写した先で振り直す。
+  if (requirements.kind === "time") return { kind: "time", bars: toEditableStaffingBars(requirements.bars) };
+  if (requirements.kind === "dateOnly") return { kind: "dateOnly", counts: { ...requirements.counts } };
+  return {
+    kind: "shiftType",
+    counts: Object.fromEntries(
+      Object.entries(requirements.counts).map(([optionId, counts]) => [optionId, { ...counts }]),
+    ),
+  };
 }
 
-/**
- * 保存する形へ直す。
- * 人数0と、いまは無いポジションの人数は送らない。時間帯は開始の早い順に並べる。
- */
-export function toDayTemplateInputs(
+/** 別の型の必要人数を写して、いまの必要人数を置き換える。名前と使う日は変えない。 */
+export function copyDayTemplateRequirements(
   drafts: readonly DayTemplateDraft[],
-  positions: ReadonlyArray<Pick<ShiftSetupPosition, "_id">>,
-): DayTemplateInput[] {
-  return drafts.map((draft) => ({
-    ...(draft.id ? { id: draft.id } : {}),
-    name: draft.name,
-    weekdays: SHIFT_SETUP_WEEKDAYS.filter((weekday) => draft.weekdays.includes(weekday)),
-    slots: sortSlots(draft.slots).map((slot) => ({
-      key: slot.key,
-      requirements: positions.flatMap((position) => {
-        const count = slot.counts[position._id] ?? 0;
-        return count > 0 ? [{ positionId: position._id, count }] : [];
-      }),
-    })),
+  target: { fromRowKey: string; toRowKey: string },
+): DayTemplateDraft[] {
+  const source = drafts.find((draft) => draft.rowKey === target.fromRowKey);
+  if (!source || target.fromRowKey === target.toRowKey) return [...drafts];
+  return updateDraft(drafts, target.toRowKey, (draft) => ({
+    ...draft,
+    requirements: cloneRequirementsDraft(source.requirements),
   }));
 }
 
-export function isSameDayTemplateInputs(left: readonly DayTemplateInput[], right: readonly DayTemplateInput[]) {
-  return JSON.stringify(left) === JSON.stringify(right);
+/** 必要人数を1つも入れていないかを返す。 */
+function isDayTemplateRequirementsEmpty(requirements: DayTemplateRequirementsDraft): boolean {
+  if (requirements.kind === "time") return requirements.bars.length === 0;
+  return Object.keys(requirements.counts).length === 0;
+}
+
+/** 希望シフトの集め方を変えたあと、まだ必要人数を入れ直していない型かを返す。 */
+export function needsDayTemplateReentry(draft: DayTemplateDraft): boolean {
+  return draft.requiresReentry && isDayTemplateRequirementsEmpty(draft.requirements);
 }
 
 /**
  * 型ごとの入力の誤りを返す。誤りのない型は結果に含めない。
- * 型をまたぐ誤りのうち名前の重複は、あとから出てくる型の誤りとして返す。
+ * 型をまたぐ誤り（名前、曜日、祝日の重複）は、あとから出てくる型の誤りとして返す。
  */
 export function findDayTemplateDraftIssues(
   drafts: readonly DayTemplateDraft[],
-  pattern: ShiftSetupSubmissionPattern,
-  positions: ReadonlyArray<Pick<ShiftSetupPosition, "_id">>,
+  context: InputContext,
 ): Record<string, DayTemplateIssue> {
-  const inputs = toDayTemplateInputs(drafts, positions);
+  const inputs = toDayTemplateInputs(drafts, context);
   const issues: Record<string, DayTemplateIssue> = {};
   const names = new Set<string>();
+  const weekdays = new Set<ShiftSetupWeekday>();
+  let hasHolidayTemplate = false;
 
   drafts.forEach((draft, index) => {
+    const input = inputs[index];
     const name = draft.name.trim();
-    const issue =
-      findDayTemplateIssue({ templates: [inputs[index]], pattern, limits: DAY_TEMPLATE_LIMITS }) ??
-      (names.has(name) ? "NAME_DUPLICATED" : null);
+    const crossTemplateIssue: DayTemplateIssue | null = names.has(name)
+      ? "NAME_DUPLICATED"
+      : input.weekdays.some((weekday) => weekdays.has(weekday))
+        ? "WEEKDAY_DUPLICATED"
+        : input.appliesToHolidays && hasHolidayTemplate
+          ? "HOLIDAY_DUPLICATED"
+          : null;
+    const issue = findDayTemplateIssue({ templates: [input], pattern: context.pattern }) ?? crossTemplateIssue;
     if (issue) issues[draft.rowKey] = issue;
+
     names.add(name);
+    for (const weekday of input.weekdays) weekdays.add(weekday);
+    hasHolidayTemplate ||= input.appliesToHolidays;
   });
   return issues;
 }
@@ -410,42 +423,67 @@ export function findDayTemplateInputsIssue(
   inputs: readonly DayTemplateInput[],
   pattern: ShiftSetupSubmissionPattern,
 ): DayTemplateIssue | null {
-  return findDayTemplateIssue({ templates: inputs, pattern, limits: DAY_TEMPLATE_LIMITS });
+  return findDayTemplateIssue({ templates: inputs, pattern });
 }
 
-export type DayTemplateSlotLabel = { title: string; detail?: string };
-
-/** 区切りの見出しを返す。勤務パターンは名前と時刻、日付選択は「1日」を出す。 */
-export function getDayTemplateSlotLabel(
-  key: DayTemplateSlotKey,
-  pattern: ShiftSetupSubmissionPattern,
-): DayTemplateSlotLabel {
-  if (key.kind === "time") return { title: formatShiftClockTimeRange(key.startTime, key.endTime) };
-  if (key.kind === "allDay") return { title: "1日" };
-
-  const option = pattern.kind === "shiftType" ? pattern.options.find((item) => item.id === key.optionId) : undefined;
-  if (!option) return { title: "勤務パターン" };
-  return { title: option.name, detail: formatShiftClockTimeRange(option.startTime, option.endTime) };
+/** 型の見出しに出す名前。名前が空の型も一覧で選べるようにする。 */
+export function getDayTemplateLabel(draft: Pick<DayTemplateDraft, "name">): string {
+  return draft.name.trim() || UNNAMED_TEMPLATE_LABEL;
 }
 
-/** 時間帯の開始に選べる時刻。受付時間の中で、終了より前に限る。 */
-export function getTimeSlotStartOptions(pattern: ShiftSetupSubmissionPattern, endTime: string): ShiftTimeOption[] {
-  if (pattern.kind !== "time") return [];
-  return generateShiftTimeOptions({
-    startMinutes: timeToMinutes(pattern.startTime),
-    endMinutes: Math.min(timeToMinutes(pattern.endTime), timeToMinutes(endTime)) - TIME_SLOT_STEP_MINUTES,
-  });
+/**
+ * 型を使う日を「月〜金」「土・日・祝日」の形で返す。
+ * 3日以上続く曜日は「〜」でつなぐ。曜日も祝日も選んでいない型は「個別に当てる」と返す。
+ */
+export function formatDayTemplateUsage(draft: Pick<DayTemplateDraft, "weekdays" | "appliesToHolidays">): string {
+  const selected = WEEKDAY_OPTIONS.filter((day) => draft.weekdays.includes(day.value));
+  const parts: string[] = [];
+
+  if (selected.length === WEEKDAY_OPTIONS.length) {
+    parts.push("毎日");
+  } else {
+    let run: string[] = [];
+    const flush = () => {
+      if (run.length >= 3) parts.push(`${run[0]}〜${run[run.length - 1]}`);
+      else parts.push(...run);
+      run = [];
+    };
+    for (const day of WEEKDAY_OPTIONS) {
+      if (draft.weekdays.includes(day.value)) run.push(day.label);
+      else flush();
+    }
+    flush();
+  }
+  if (draft.appliesToHolidays) parts.push("祝日");
+  return parts.length > 0 ? parts.join("・") : "個別に当てる";
 }
 
-/** 時間帯の終了に選べる時刻。受付時間の中で、開始より後に限る。 */
-export function getTimeSlotEndOptions(pattern: ShiftSetupSubmissionPattern, startTime: string): ShiftTimeOption[] {
-  if (pattern.kind !== "time") return [];
-  const patternStart = timeToMinutes(pattern.startTime);
-  const firstEnd = Math.max(patternStart, timeToMinutes(startTime)) + TIME_SLOT_STEP_MINUTES;
-  // 受付時間の開始から30分刻みの時刻にそろえ、開始より後の最初の時刻から並べる。
-  const offset = (firstEnd - patternStart) % TIME_SLOT_STEP_MINUTES;
-  return generateShiftTimeOptions({
-    startMinutes: offset === 0 ? firstEnd : firstEnd + TIME_SLOT_STEP_MINUTES - offset,
-    endMinutes: timeToMinutes(pattern.endTime),
-  });
+export type RequiredCountRow = { id: string; label: string; detail?: string };
+
+/** 数字で入れる必要人数の表の行。パターン選択は勤務パターンごと、日付選択は「1日」の1行。 */
+export function getRequiredCountRows(pattern: ShiftSetupSubmissionPattern): RequiredCountRow[] {
+  if (pattern.kind === "shiftType") {
+    return pattern.options.map((option) => ({
+      id: option.id,
+      label: option.name,
+      detail: formatShiftClockTimeRange(option.startTime, option.endTime),
+    }));
+  }
+  if (pattern.kind === "dateOnly") return [{ id: ALL_DAY_ROW_ID, label: "1日" }];
+  return [];
+}
+
+/** 編集中の人数を、表へ渡す「行のID → ポジションのID → 人数」の形へ直す。 */
+export function getRequiredCountTableCounts(
+  requirements: DayTemplateRequirementsDraft,
+): Record<string, Record<string, number>> {
+  if (requirements.kind === "shiftType") return requirements.counts;
+  if (requirements.kind === "dateOnly") return { [ALL_DAY_ROW_ID]: requirements.counts };
+  return {};
+}
+
+/** バーを置ける範囲（分）。時間指定でない集め方ではnullを返す。 */
+export function getStaffingBarRange(pattern: ShiftSetupSubmissionPattern): StaffingBarRange | null {
+  if (pattern.kind !== "time") return null;
+  return { startMinutes: timeToMinutes(pattern.startTime), endMinutes: timeToMinutes(pattern.endTime) };
 }

@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { BREAK_POSITION } from "./constants";
 import {
+  buildPositionStaffingBands,
   countStaffingByDay,
-  countStaffingByHour,
   countStaffingByShiftType,
-  countStaffingByTimeSlots,
+  listNewcomerOnlyPeriods,
 } from "./staffing";
-import type { PositionSegment, ShiftData, StaffingSlot } from "./types";
+import type { PositionSegment, ShiftData, StaffingBar } from "./types";
 
 const HALL = "hall";
 const KITCHEN = "kitchen";
@@ -37,360 +37,6 @@ const shift = (staffId: string, positions: PositionSegment[], breaks?: ShiftData
   ...(breaks ? { breaks } : {}),
 });
 
-const timeSlot = (
-  startTime: string,
-  endTime: string,
-  requirements: StaffingSlot["requirements"] = [],
-): StaffingSlot => ({
-  key: { kind: "time", startTime, endTime },
-  requirements,
-});
-
-describe("countStaffingByTimeSlots", () => {
-  it("時間帯ごとに、ポジション別の人数、必要人数、不足を返す", () => {
-    const result = countStaffingByTimeSlots({
-      shifts: [
-        shift("a", [segment("10:00", "18:00", HALL)]),
-        shift("b", [segment("10:00", "14:00", HALL)]),
-        shift("c", [segment("10:00", "18:00", KITCHEN)]),
-      ],
-      positionIds,
-      slots: [
-        timeSlot("10:00", "14:00", [
-          { positionId: HALL, count: 2 },
-          { positionId: KITCHEN, count: 1 },
-        ]),
-        timeSlot("14:00", "18:00", [
-          { positionId: HALL, count: 2 },
-          { positionId: KITCHEN, count: 3 },
-        ]),
-      ],
-    });
-
-    expect(result).toEqual([
-      {
-        key: { kind: "time", startTime: "10:00", endTime: "14:00" },
-        total: 3,
-        positions: [
-          { positionId: HALL, count: 2, required: 2, shortage: 0 },
-          { positionId: KITCHEN, count: 1, required: 1, shortage: 0 },
-        ],
-        hasShortage: false,
-      },
-      {
-        key: { kind: "time", startTime: "14:00", endTime: "18:00" },
-        total: 2,
-        positions: [
-          { positionId: HALL, count: 1, required: 2, shortage: 1 },
-          { positionId: KITCHEN, count: 1, required: 3, shortage: 2 },
-        ],
-        hasShortage: true,
-      },
-    ]);
-  });
-
-  it("時間帯の途中から入る人は数えない", () => {
-    const [result] = countStaffingByTimeSlots({
-      shifts: [shift("through", [segment("10:00", "14:00", HALL)]), shift("late", [segment("10:30", "14:00", HALL)])],
-      positionIds,
-      slots: [timeSlot("10:00", "14:00")],
-    });
-
-    expect(result.total).toBe(1);
-    expect(result.positions.map((position) => [position.positionId, position.count])).toEqual([
-      [HALL, 1],
-      [KITCHEN, 0],
-    ]);
-  });
-
-  it("時間帯の途中で抜ける人は数えない", () => {
-    const [result] = countStaffingByTimeSlots({
-      shifts: [
-        shift("through", [segment("10:00", "14:00", HALL)]),
-        shift("early", [segment("10:00", "13:30", KITCHEN)]),
-      ],
-      positionIds,
-      slots: [timeSlot("10:00", "14:00")],
-    });
-
-    expect(result.total).toBe(1);
-    expect(result.positions.map((position) => [position.positionId, position.count])).toEqual([
-      [HALL, 1],
-      [KITCHEN, 0],
-    ]);
-  });
-
-  it("人の出入りがある時間帯は、最も少ない時点の人数にする", () => {
-    // 10:00と13:00の時点が最も少なく、2人になる。11:00〜13:00は3人いるが、その人数では数えない。
-    const [result] = countStaffingByTimeSlots({
-      shifts: [
-        shift("through", [segment("10:00", "14:00", HALL)]),
-        shift("late", [segment("11:00", "14:00", HALL)]),
-        shift("early", [segment("10:00", "13:00", KITCHEN)]),
-      ],
-      positionIds,
-      slots: [timeSlot("10:00", "14:00")],
-    });
-
-    expect(result.total).toBe(2);
-    expect(result.positions.map((position) => [position.positionId, position.count])).toEqual([
-      [HALL, 1],
-      [KITCHEN, 0],
-    ]);
-  });
-
-  it("入れ替わりで常に1人いても、通していられる人がいないポジションは0人にする", () => {
-    const [result] = countStaffingByTimeSlots({
-      shifts: [
-        shift("first", [segment("10:00", "12:00", HALL)]),
-        shift("second", [segment("12:00", "14:00", KITCHEN)]),
-      ],
-      positionIds,
-      slots: [timeSlot("10:00", "14:00")],
-    });
-
-    expect(result.total).toBe(1);
-    expect(result.positions.map((position) => position.count)).toEqual([0, 0]);
-  });
-
-  it("時間帯の終わりちょうどに終わる勤務と、始まりちょうどに始まる勤務は数える", () => {
-    const result = countStaffingByTimeSlots({
-      shifts: [shift("a", [segment("10:00", "14:00", HALL)]), shift("b", [segment("14:00", "18:00", HALL)])],
-      positionIds,
-      slots: [timeSlot("10:00", "14:00"), timeSlot("14:00", "18:00")],
-    });
-
-    expect(result.map((slot) => slot.total)).toEqual([1, 1]);
-  });
-
-  it("休憩と重なる時間帯ではその人を数えず、重ならない時間帯では数える", () => {
-    const shifts = [shift("a", [segment("10:00", "18:00", HALL)], [{ start: "12:00", end: "13:00" }])];
-    const result = countStaffingByTimeSlots({
-      shifts,
-      positionIds,
-      slots: [timeSlot("10:00", "12:00"), timeSlot("12:00", "14:00"), timeSlot("14:00", "18:00")],
-    });
-
-    expect(result.map((slot) => [slot.total, slot.positions[0].count])).toEqual([
-      [1, 1],
-      [0, 0],
-      [1, 1],
-    ]);
-  });
-
-  it("時間帯の一部だけが15分の休憩と重なる場合も、その人を数えない", () => {
-    const [result] = countStaffingByTimeSlots({
-      shifts: [shift("a", [segment("10:00", "18:00", HALL)], [{ start: "13:45", end: "14:00" }])],
-      positionIds,
-      slots: [timeSlot("10:00", "14:00")],
-    });
-
-    expect(result.total).toBe(0);
-  });
-
-  it("15分に満たない休憩が時間帯の途中にある場合も、その人を数えない", () => {
-    const [result] = countStaffingByTimeSlots({
-      shifts: [shift("a", [segment("09:00", "10:00", HALL)], [{ start: "09:05", end: "09:10" }])],
-      positionIds,
-      slots: [timeSlot("09:00", "10:00", [{ positionId: HALL, count: 1 }])],
-    });
-
-    expect(result.total).toBe(0);
-    expect(result.positions.filter((position) => position.positionId === HALL)).toEqual([
-      { positionId: HALL, count: 0, required: 1, shortage: 1 },
-    ]);
-    expect(result.hasShortage).toBe(true);
-  });
-
-  it("15分刻みに乗らない時刻で入れ替わる場合も、誰もいない時間があれば0人にする", () => {
-    const [result] = countStaffingByTimeSlots({
-      shifts: [shift("a", [segment("09:00", "09:20", HALL)]), shift("b", [segment("09:25", "10:00", HALL)])],
-      positionIds,
-      slots: [timeSlot("09:00", "10:00")],
-    });
-
-    expect(result.total).toBe(0);
-  });
-
-  it("勤務の外にある休憩では人数を変えない", () => {
-    const [result] = countStaffingByTimeSlots({
-      shifts: [shift("a", [segment("10:00", "14:00", HALL)], [{ start: "14:00", end: "15:00" }])],
-      positionIds,
-      slots: [timeSlot("10:00", "14:00")],
-    });
-
-    expect(result.total).toBe(1);
-  });
-
-  it("必要人数が未設定のポジションは、必要人数なし・不足0で返す", () => {
-    const [result] = countStaffingByTimeSlots({
-      shifts: [],
-      positionIds,
-      slots: [timeSlot("10:00", "14:00", [{ positionId: HALL, count: 1 }])],
-    });
-
-    expect(result).toEqual({
-      key: { kind: "time", startTime: "10:00", endTime: "14:00" },
-      total: 0,
-      positions: [
-        { positionId: HALL, count: 0, required: 1, shortage: 1 },
-        { positionId: KITCHEN, count: 0, required: null, shortage: 0 },
-      ],
-      hasShortage: true,
-    });
-  });
-
-  it("必要人数より多い場合と、必要人数が0の場合は不足にしない", () => {
-    const [result] = countStaffingByTimeSlots({
-      shifts: [shift("a", [segment("10:00", "14:00", HALL)]), shift("b", [segment("10:00", "14:00", HALL)])],
-      positionIds,
-      slots: [
-        timeSlot("10:00", "14:00", [
-          { positionId: HALL, count: 1 },
-          { positionId: KITCHEN, count: 0 },
-        ]),
-      ],
-    });
-
-    expect(result.positions).toEqual([
-      { positionId: HALL, count: 2, required: 1, shortage: 0 },
-      { positionId: KITCHEN, count: 0, required: 0, shortage: 0 },
-    ]);
-    expect(result.hasShortage).toBe(false);
-  });
-
-  it("人数を出すポジションに含まれない勤務は、全体の人数にだけ数える", () => {
-    const [result] = countStaffingByTimeSlots({
-      shifts: [shift("a", [segment("10:00", "14:00", "removed-position")])],
-      positionIds,
-      slots: [timeSlot("10:00", "14:00")],
-    });
-
-    expect(result.total).toBe(1);
-    expect(result.positions.map((position) => position.count)).toEqual([0, 0]);
-  });
-
-  it("休憩のポジションの区間にいる人は数えない", () => {
-    const [result] = countStaffingByTimeSlots({
-      shifts: [shift("a", [segment("10:00", "14:00", BREAK_POSITION.id)])],
-      positionIds,
-      slots: [timeSlot("10:00", "14:00")],
-    });
-
-    expect(result.total).toBe(0);
-  });
-
-  it("時間帯ではない区切りは結果に含めない", () => {
-    const result = countStaffingByTimeSlots({
-      shifts: [],
-      positionIds,
-      slots: [
-        { key: { kind: "allDay" }, requirements: [] },
-        { key: { kind: "shiftType", optionId: "early" }, requirements: [] },
-        timeSlot("10:00", "14:00"),
-      ],
-    });
-
-    expect(result.map((slot) => slot.key)).toEqual([{ kind: "time", startTime: "10:00", endTime: "14:00" }]);
-  });
-});
-
-describe("countStaffingByHour", () => {
-  it("1時間ごとに人数を数え、必要人数は付けない", () => {
-    const result = countStaffingByHour({
-      shifts: [shift("a", [segment("09:00", "11:00", HALL)]), shift("b", [segment("10:00", "12:00", KITCHEN)])],
-      positionIds,
-      startMinutes: 9 * 60,
-      endMinutes: 12 * 60,
-    });
-
-    expect(result).toEqual([
-      {
-        key: { kind: "time", startTime: "09:00", endTime: "10:00" },
-        total: 1,
-        positions: [
-          { positionId: HALL, count: 1, required: null, shortage: 0 },
-          { positionId: KITCHEN, count: 0, required: null, shortage: 0 },
-        ],
-        hasShortage: false,
-      },
-      {
-        key: { kind: "time", startTime: "10:00", endTime: "11:00" },
-        total: 2,
-        positions: [
-          { positionId: HALL, count: 1, required: null, shortage: 0 },
-          { positionId: KITCHEN, count: 1, required: null, shortage: 0 },
-        ],
-        hasShortage: false,
-      },
-      {
-        key: { kind: "time", startTime: "11:00", endTime: "12:00" },
-        total: 1,
-        positions: [
-          { positionId: HALL, count: 0, required: null, shortage: 0 },
-          { positionId: KITCHEN, count: 1, required: null, shortage: 0 },
-        ],
-        hasShortage: false,
-      },
-    ]);
-  });
-
-  it("開始と終了が半端な時刻でも、端の区切りを受付時間の内側に収める", () => {
-    const result = countStaffingByHour({
-      shifts: [shift("a", [segment("09:30", "11:30", HALL)])],
-      positionIds,
-      startMinutes: 9 * 60 + 30,
-      endMinutes: 11 * 60 + 30,
-    });
-
-    expect(result.map((slot) => [slot.key, slot.total])).toEqual([
-      [{ kind: "time", startTime: "09:30", endTime: "10:00" }, 1],
-      [{ kind: "time", startTime: "10:00", endTime: "11:00" }, 1],
-      [{ kind: "time", startTime: "11:00", endTime: "11:30" }, 1],
-    ]);
-  });
-
-  it("1時間の途中で出入りする人は、その1時間には数えない", () => {
-    const result = countStaffingByHour({
-      shifts: [shift("a", [segment("09:30", "11:30", HALL)])],
-      positionIds,
-      startMinutes: 9 * 60,
-      endMinutes: 12 * 60,
-    });
-
-    expect(result.map((slot) => slot.total)).toEqual([0, 1, 0]);
-  });
-
-  it("休憩と重なる1時間ではその人を数えない", () => {
-    const result = countStaffingByHour({
-      shifts: [shift("a", [segment("09:00", "12:00", HALL)], [{ start: "10:30", end: "11:00" }])],
-      positionIds,
-      startMinutes: 9 * 60,
-      endMinutes: 12 * 60,
-    });
-
-    expect(result.map((slot) => slot.total)).toEqual([1, 0, 1]);
-  });
-
-  it("24時を超える受付時間も1時間ごとに区切る", () => {
-    const result = countStaffingByHour({
-      shifts: [shift("a", [segment("23:00", "25:00", HALL)])],
-      positionIds,
-      startMinutes: 23 * 60,
-      endMinutes: 25 * 60,
-    });
-
-    expect(result.map((slot) => [slot.key, slot.total])).toEqual([
-      [{ kind: "time", startTime: "23:00", endTime: "24:00" }, 1],
-      [{ kind: "time", startTime: "24:00", endTime: "25:00" }, 1],
-    ]);
-  });
-
-  it("開始と終了が同じなら区切りを返さない", () => {
-    expect(countStaffingByHour({ shifts: [], positionIds, startMinutes: 540, endMinutes: 540 })).toEqual([]);
-  });
-});
-
 describe("countStaffingByShiftType", () => {
   const early = { shiftTypeOptionId: "early" };
   const late = { shiftTypeOptionId: "late" };
@@ -419,19 +65,21 @@ describe("countStaffingByShiftType", () => {
         key: { kind: "shiftType", optionId: "early" },
         total: 2,
         positions: [
-          { positionId: HALL, count: 1, required: 2, shortage: 1 },
-          { positionId: KITCHEN, count: 1, required: 1, shortage: 0 },
+          { positionId: HALL, count: 1, required: 2, shortage: 1, excess: 0, isNewcomerOnly: false },
+          { positionId: KITCHEN, count: 1, required: 1, shortage: 0, excess: 0, isNewcomerOnly: false },
         ],
         hasShortage: true,
+        hasExcess: false,
       },
       {
         key: { kind: "shiftType", optionId: "late" },
         total: 1,
         positions: [
-          { positionId: HALL, count: 0, required: null, shortage: 0 },
-          { positionId: KITCHEN, count: 1, required: null, shortage: 0 },
+          { positionId: HALL, count: 0, required: null, shortage: 0, excess: 0, isNewcomerOnly: false },
+          { positionId: KITCHEN, count: 1, required: null, shortage: 0, excess: 0, isNewcomerOnly: false },
         ],
         hasShortage: false,
+        hasExcess: false,
       },
     ]);
   });
@@ -448,7 +96,7 @@ describe("countStaffingByShiftType", () => {
     expect(result.positions[0].count).toBe(1);
   });
 
-  it("日の型がない日は、すべての勤務パターンを必要人数なしで返す", () => {
+  it("必要人数が未設定の日は、すべての勤務パターンを必要人数なしで返す", () => {
     const result = countStaffingByShiftType({ shifts: [], positionIds, optionIds: ["early", "late"], slots: [] });
 
     expect(result.map((slot) => slot.key)).toEqual([
@@ -480,10 +128,11 @@ describe("countStaffingByShiftType", () => {
         key: { kind: "shiftType", optionId: "early" },
         total: 0,
         positions: [
-          { positionId: HALL, count: 0, required: null, shortage: 0 },
-          { positionId: KITCHEN, count: 0, required: null, shortage: 0 },
+          { positionId: HALL, count: 0, required: null, shortage: 0, excess: 0, isNewcomerOnly: false },
+          { positionId: KITCHEN, count: 0, required: null, shortage: 0, excess: 0, isNewcomerOnly: false },
         ],
         hasShortage: false,
+        hasExcess: false,
       },
     ]);
   });
@@ -514,10 +163,11 @@ describe("countStaffingByDay", () => {
       key: { kind: "allDay" },
       total: 3,
       positions: [
-        { positionId: HALL, count: 1, required: 3, shortage: 2 },
-        { positionId: KITCHEN, count: 2, required: 2, shortage: 0 },
+        { positionId: HALL, count: 1, required: 3, shortage: 2, excess: 0, isNewcomerOnly: false },
+        { positionId: KITCHEN, count: 2, required: 2, shortage: 0, excess: 0, isNewcomerOnly: false },
       ],
       hasShortage: true,
+      hasExcess: false,
     });
   });
 
@@ -532,15 +182,16 @@ describe("countStaffingByDay", () => {
     expect(result.positions[0].count).toBe(1);
   });
 
-  it("日の型がない日は、必要人数なしで返す", () => {
+  it("必要人数が未設定の日は、必要人数なしで返す", () => {
     expect(countStaffingByDay({ shifts: [], positionIds, slots: [] })).toEqual({
       key: { kind: "allDay" },
       total: 0,
       positions: [
-        { positionId: HALL, count: 0, required: null, shortage: 0 },
-        { positionId: KITCHEN, count: 0, required: null, shortage: 0 },
+        { positionId: HALL, count: 0, required: null, shortage: 0, excess: 0, isNewcomerOnly: false },
+        { positionId: KITCHEN, count: 0, required: null, shortage: 0, excess: 0, isNewcomerOnly: false },
       ],
       hasShortage: false,
+      hasExcess: false,
     });
   });
 
@@ -548,10 +199,500 @@ describe("countStaffingByDay", () => {
     const result = countStaffingByDay({
       shifts: [],
       positionIds,
-      slots: [timeSlot("09:00", "22:00", [{ positionId: HALL, count: 2 }])],
+      slots: [{ key: { kind: "shiftType", optionId: "early" }, requirements: [{ positionId: HALL, count: 2 }] }],
     });
 
     expect(result.positions.map((position) => position.required)).toEqual([null, null]);
     expect(result.hasShortage).toBe(false);
+  });
+});
+
+describe("countStaffingByShiftType / countStaffingByDay の多い人数と新人だけの印", () => {
+  const early = { shiftTypeOptionId: "early" };
+  const newcomerStaffIds = new Set(["new1", "new2"]);
+
+  it("パターン選択: 必要人数より多い人数を返し、ちょうどと不足は0にする", () => {
+    const [result] = countStaffingByShiftType({
+      shifts: [
+        shift("a", [segment("09:00", "15:00", HALL, early)]),
+        shift("b", [segment("09:00", "15:00", HALL, early)]),
+        shift("c", [segment("09:00", "15:00", HALL, early)]),
+        shift("d", [segment("09:00", "15:00", KITCHEN, early)]),
+      ],
+      positionIds: [HALL, KITCHEN, "register"],
+      optionIds: ["early"],
+      slots: [
+        {
+          key: { kind: "shiftType", optionId: "early" },
+          requirements: [
+            { positionId: HALL, count: 1 },
+            { positionId: KITCHEN, count: 1 },
+            { positionId: "register", count: 1 },
+          ],
+        },
+      ],
+    });
+
+    expect(result.positions).toEqual([
+      { positionId: HALL, count: 3, required: 1, shortage: 0, excess: 2, isNewcomerOnly: false },
+      { positionId: KITCHEN, count: 1, required: 1, shortage: 0, excess: 0, isNewcomerOnly: false },
+      { positionId: "register", count: 0, required: 1, shortage: 1, excess: 0, isNewcomerOnly: false },
+    ]);
+    expect(result.hasExcess).toBe(true);
+    expect(result.hasShortage).toBe(true);
+  });
+
+  it("パターン選択: 必要人数が未設定のポジションは、人が入っていても多い人数を0にする", () => {
+    const [result] = countStaffingByShiftType({
+      shifts: [shift("a", [segment("09:00", "15:00", HALL, early)])],
+      positionIds,
+      optionIds: ["early"],
+      slots: [],
+    });
+
+    expect(result.positions.map((position) => position.excess)).toEqual([0, 0]);
+    expect(result.hasExcess).toBe(false);
+  });
+
+  it("パターン選択: 入っている人が全員新人のポジションだけに印を付ける", () => {
+    const [result] = countStaffingByShiftType({
+      shifts: [
+        shift("new1", [segment("09:00", "15:00", HALL, early)]),
+        shift("new2", [segment("09:00", "15:00", HALL, early)]),
+        shift("new1-other-day", []),
+        shift("a", [segment("09:00", "15:00", KITCHEN, early)]),
+        shift("new2", [segment("09:00", "15:00", KITCHEN, early)]),
+      ],
+      positionIds: [HALL, KITCHEN, "register"],
+      optionIds: ["early"],
+      slots: [],
+      newcomerStaffIds,
+    });
+
+    // ホールは新人2人、キッチンは標準と新人、レジはだれもいない。
+    expect(result.positions.map((position) => position.isNewcomerOnly)).toEqual([true, false, false]);
+  });
+
+  it("新人のstaffIdを渡さなければ、新人だけの印は付かない", () => {
+    const [result] = countStaffingByShiftType({
+      shifts: [shift("new1", [segment("09:00", "15:00", HALL, early)])],
+      positionIds,
+      optionIds: ["early"],
+      slots: [],
+    });
+
+    expect(result.positions.map((position) => position.isNewcomerOnly)).toEqual([false, false]);
+  });
+
+  it("日付選択: 多い人数と新人だけの印を返す", () => {
+    const result = countStaffingByDay({
+      shifts: [
+        shift("new1", [segment("09:00", "22:00", HALL)]),
+        shift("new2", [segment("09:00", "22:00", HALL)]),
+        shift("a", [segment("09:00", "22:00", KITCHEN)]),
+      ],
+      positionIds,
+      slots: [
+        {
+          key: { kind: "allDay" },
+          requirements: [
+            { positionId: HALL, count: 1 },
+            { positionId: KITCHEN, count: 2 },
+          ],
+        },
+      ],
+      newcomerStaffIds,
+    });
+
+    expect(result).toEqual({
+      key: { kind: "allDay" },
+      total: 3,
+      positions: [
+        { positionId: HALL, count: 2, required: 1, shortage: 0, excess: 1, isNewcomerOnly: true },
+        { positionId: KITCHEN, count: 1, required: 2, shortage: 1, excess: 0, isNewcomerOnly: false },
+      ],
+      hasShortage: true,
+      hasExcess: true,
+    });
+  });
+});
+
+describe("buildPositionStaffingBands", () => {
+  const bar = (start: string, end: string, positionId: string = HALL): StaffingBar => ({ positionId, start, end });
+  // 数える範囲は 9:00〜22:00。
+  const range = { startMinutes: 9 * 60, endMinutes: 22 * 60 };
+  const band = (input: Partial<Parameters<typeof buildPositionStaffingBands>[0]>) =>
+    buildPositionStaffingBands({ shifts: [], bars: [], positionIds: [HALL], ...range, ...input });
+
+  it("バーと勤務の開始と終了で区切り、人数、必要人数、差を返す", () => {
+    const [hall] = band({
+      shifts: [shift("a", [segment("09:00", "22:00")]), shift("b", [segment("11:00", "15:00")])],
+      bars: [bar("09:00", "22:00"), bar("11:00", "14:00"), bar("17:00", "22:00")],
+    });
+
+    expect(hall).toEqual({
+      positionId: HALL,
+      isConfigured: true,
+      segments: [
+        { start: "09:00", end: "11:00", count: 1, required: 1, diff: 0, isNewcomerOnly: false },
+        { start: "11:00", end: "14:00", count: 2, required: 2, diff: 0, isNewcomerOnly: false },
+        { start: "14:00", end: "15:00", count: 2, required: 1, diff: 1, isNewcomerOnly: false },
+        { start: "15:00", end: "17:00", count: 1, required: 1, diff: 0, isNewcomerOnly: false },
+        { start: "17:00", end: "22:00", count: 1, required: 2, diff: -1, isNewcomerOnly: false },
+      ],
+    });
+  });
+
+  it("値が同じ隣どうしの区間は、バーや勤務の境目があっても1つにまとめる", () => {
+    const [hall] = band({
+      // 人は14:00で交代し、バーも14:00で隣り合う。人数も必要人数も変わらない。
+      shifts: [shift("a", [segment("09:00", "14:00")]), shift("b", [segment("14:00", "22:00")])],
+      bars: [bar("09:00", "14:00"), bar("14:00", "22:00")],
+    });
+
+    expect(hall.segments).toEqual([
+      { start: "09:00", end: "22:00", count: 1, required: 1, diff: 0, isNewcomerOnly: false },
+    ]);
+  });
+
+  it("休憩中の人は数えず、休憩の開始と終了で区切る", () => {
+    const [hall] = band({
+      shifts: [shift("a", [segment("09:00", "22:00")], [{ start: "13:00", end: "13:45" }])],
+      bars: [bar("09:00", "22:00")],
+    });
+
+    expect(hall.segments).toEqual([
+      { start: "09:00", end: "13:00", count: 1, required: 1, diff: 0, isNewcomerOnly: false },
+      { start: "13:00", end: "13:45", count: 0, required: 1, diff: -1, isNewcomerOnly: false },
+      { start: "13:45", end: "22:00", count: 1, required: 1, diff: 0, isNewcomerOnly: false },
+    ]);
+  });
+
+  it("休憩として入れた区間（休憩のポジション）は人数に数えない", () => {
+    const [hall] = band({
+      shifts: [
+        shift("a", [
+          segment("09:00", "12:00"),
+          segment("12:00", "13:00", BREAK_POSITION.id),
+          segment("13:00", "22:00"),
+        ]),
+      ],
+      bars: [bar("09:00", "22:00")],
+    });
+
+    expect(hall.segments.map((item) => [item.start, item.end, item.count])).toEqual([
+      ["09:00", "12:00", 1],
+      ["12:00", "13:00", 0],
+      ["13:00", "22:00", 1],
+    ]);
+  });
+
+  it("人のいない時間と必要人数のない時間も、範囲の端から端まで区間にする", () => {
+    const [hall] = band({ shifts: [shift("a", [segment("10:00", "12:00")])], bars: [bar("11:00", "13:00")] });
+
+    expect(hall.segments).toEqual([
+      { start: "09:00", end: "10:00", count: 0, required: 0, diff: 0, isNewcomerOnly: false },
+      { start: "10:00", end: "11:00", count: 1, required: 0, diff: 1, isNewcomerOnly: false },
+      { start: "11:00", end: "12:00", count: 1, required: 1, diff: 0, isNewcomerOnly: false },
+      { start: "12:00", end: "13:00", count: 0, required: 1, diff: -1, isNewcomerOnly: false },
+      { start: "13:00", end: "22:00", count: 0, required: 0, diff: 0, isNewcomerOnly: false },
+    ]);
+  });
+
+  it("バーが1本もないポジションは未設定とし、人が入っていても差を0にする", () => {
+    const result = band({
+      shifts: [shift("a", [segment("09:00", "22:00", KITCHEN)])],
+      bars: [bar("09:00", "22:00", HALL)],
+      positionIds: [HALL, KITCHEN],
+    });
+
+    expect(result).toEqual([
+      {
+        positionId: HALL,
+        isConfigured: true,
+        segments: [{ start: "09:00", end: "22:00", count: 0, required: 1, diff: -1, isNewcomerOnly: false }],
+      },
+      {
+        positionId: KITCHEN,
+        isConfigured: false,
+        segments: [{ start: "09:00", end: "22:00", count: 1, required: null, diff: 0, isNewcomerOnly: false }],
+      },
+    ]);
+  });
+
+  it("必要人数が未設定の日は、全ポジションを未設定とする", () => {
+    const result = band({
+      shifts: [shift("a", [segment("09:00", "15:00", HALL)]), shift("b", [segment("12:00", "22:00", KITCHEN)])],
+      bars: null,
+      positionIds: [HALL, KITCHEN],
+    });
+
+    expect(result).toEqual([
+      {
+        positionId: HALL,
+        isConfigured: false,
+        segments: [
+          { start: "09:00", end: "15:00", count: 1, required: null, diff: 0, isNewcomerOnly: false },
+          { start: "15:00", end: "22:00", count: 0, required: null, diff: 0, isNewcomerOnly: false },
+        ],
+      },
+      {
+        positionId: KITCHEN,
+        isConfigured: false,
+        segments: [
+          { start: "09:00", end: "12:00", count: 0, required: null, diff: 0, isNewcomerOnly: false },
+          { start: "12:00", end: "22:00", count: 1, required: null, diff: 0, isNewcomerOnly: false },
+        ],
+      },
+    ]);
+  });
+
+  it("ほかのポジションの勤務の境目では区切らない", () => {
+    const [hall] = band({
+      shifts: [shift("a", [segment("09:00", "22:00", HALL)]), shift("b", [segment("12:00", "15:00", KITCHEN)])],
+      bars: [bar("09:00", "22:00")],
+    });
+
+    expect(hall.segments).toEqual([
+      { start: "09:00", end: "22:00", count: 1, required: 1, diff: 0, isNewcomerOnly: false },
+    ]);
+  });
+
+  describe("新人だけの区間", () => {
+    const newcomerStaffIds = new Set(["new1", "new2"]);
+
+    it("1人以上いて全員が新人の区間だけに印を付け、印が変わる時刻で区切る", () => {
+      const [hall] = band({
+        shifts: [
+          shift("new1", [segment("09:00", "18:00")]),
+          shift("new2", [segment("12:00", "15:00")]),
+          shift("a", [segment("15:00", "17:00")]),
+        ],
+        bars: null,
+        newcomerStaffIds,
+      });
+
+      expect(hall.segments).toEqual([
+        { start: "09:00", end: "12:00", count: 1, required: null, diff: 0, isNewcomerOnly: true },
+        { start: "12:00", end: "15:00", count: 2, required: null, diff: 0, isNewcomerOnly: true },
+        { start: "15:00", end: "17:00", count: 2, required: null, diff: 0, isNewcomerOnly: false },
+        { start: "17:00", end: "18:00", count: 1, required: null, diff: 0, isNewcomerOnly: true },
+        { start: "18:00", end: "22:00", count: 0, required: null, diff: 0, isNewcomerOnly: false },
+      ]);
+    });
+
+    it("標準の人が休憩に入り、新人だけが残る区間に印を付ける", () => {
+      const [hall] = band({
+        shifts: [
+          shift("new1", [segment("09:00", "22:00")]),
+          shift("a", [segment("09:00", "22:00")], [{ start: "13:00", end: "14:00" }]),
+        ],
+        bars: null,
+        newcomerStaffIds,
+      });
+
+      expect(hall.segments.map((item) => [item.start, item.end, item.count, item.isNewcomerOnly])).toEqual([
+        ["09:00", "13:00", 2, false],
+        ["13:00", "14:00", 1, true],
+        ["14:00", "22:00", 2, false],
+      ]);
+    });
+
+    it("ほかのポジションに標準の人がいても、そのポジションが新人だけなら印を付ける", () => {
+      const result = band({
+        shifts: [shift("new1", [segment("09:00", "22:00", HALL)]), shift("a", [segment("09:00", "22:00", KITCHEN)])],
+        bars: null,
+        positionIds: [HALL, KITCHEN],
+        newcomerStaffIds,
+      });
+
+      expect(result.map((item) => item.segments.map((segmentItem) => segmentItem.isNewcomerOnly))).toEqual([
+        [true],
+        [false],
+      ]);
+    });
+
+    it("新人のstaffIdを渡さなければ印は付かない", () => {
+      const [hall] = band({ shifts: [shift("new1", [segment("09:00", "22:00")])], bars: null });
+
+      expect(hall.segments.map((item) => item.isNewcomerOnly)).toEqual([false]);
+    });
+  });
+
+  describe("数える範囲", () => {
+    it("範囲の外にある勤務とバーは数えず、またぐものは内側だけを数える", () => {
+      const [hall] = band({
+        shifts: [shift("a", [segment("07:00", "10:00")]), shift("b", [segment("21:00", "23:00")])],
+        bars: [bar("08:00", "11:00"), bar("06:00", "08:00"), bar("22:00", "23:00")],
+      });
+
+      expect(hall.segments).toEqual([
+        { start: "09:00", end: "10:00", count: 1, required: 1, diff: 0, isNewcomerOnly: false },
+        { start: "10:00", end: "11:00", count: 0, required: 1, diff: -1, isNewcomerOnly: false },
+        { start: "11:00", end: "21:00", count: 0, required: 0, diff: 0, isNewcomerOnly: false },
+        { start: "21:00", end: "22:00", count: 1, required: 0, diff: 1, isNewcomerOnly: false },
+      ]);
+    });
+
+    it("バーが範囲の外にしかないポジションは未設定とする", () => {
+      const [hall] = band({
+        shifts: [shift("a", [segment("09:00", "22:00")])],
+        bars: [bar("06:00", "09:00"), bar("22:00", "23:00")],
+      });
+
+      expect(hall).toEqual({
+        positionId: HALL,
+        isConfigured: false,
+        segments: [{ start: "09:00", end: "22:00", count: 1, required: null, diff: 0, isNewcomerOnly: false }],
+      });
+    });
+
+    it("範囲の開始と終了が同じなら、区間を返さない", () => {
+      const result = band({
+        shifts: [shift("a", [segment("09:00", "22:00")])],
+        bars: [bar("09:00", "22:00")],
+        startMinutes: 600,
+        endMinutes: 600,
+      });
+
+      expect(result.map((item) => item.segments)).toEqual([[]]);
+    });
+  });
+
+  it("表示するポジションの並び順で返し、一覧にないポジションは返さない", () => {
+    const result = band({
+      shifts: [shift("a", [segment("09:00", "22:00", "removed")])],
+      bars: [bar("09:00", "22:00", "removed")],
+      positionIds: [KITCHEN, HALL],
+    });
+
+    expect(result.map((item) => item.positionId)).toEqual([KITCHEN, HALL]);
+  });
+});
+
+describe("listNewcomerOnlyPeriods", () => {
+  const newcomerStaffIds = new Set(["new1", "new2"]);
+  const on = (date: string, item: ShiftData): ShiftData => ({ ...item, id: `${item.id}-${date}`, date });
+  const timePattern = { kind: "time" as const, startMinutes: 9 * 60, endMinutes: 22 * 60 };
+
+  it("時間指定: 新人だけの時間を、日、ポジション、時間帯の単位で返す", () => {
+    const result = listNewcomerOnlyPeriods({
+      shifts: [
+        on("2026-05-21", shift("a", [segment("09:00", "17:00", HALL)])),
+        on("2026-05-21", shift("new1", [segment("15:00", "22:00", HALL)])),
+        on("2026-05-21", shift("new2", [segment("18:00", "22:00", KITCHEN)])),
+        on("2026-05-22", shift("new1", [segment("09:00", "12:00", HALL)])),
+      ],
+      dates: ["2026-05-21", "2026-05-22"],
+      positionIds,
+      newcomerStaffIds,
+      pattern: timePattern,
+    });
+
+    expect(result).toEqual([
+      { date: "2026-05-21", positionId: HALL, scope: { kind: "time", start: "17:00", end: "22:00" } },
+      { date: "2026-05-21", positionId: KITCHEN, scope: { kind: "time", start: "18:00", end: "22:00" } },
+      { date: "2026-05-22", positionId: HALL, scope: { kind: "time", start: "09:00", end: "12:00" } },
+    ]);
+  });
+
+  it("時間指定: 新人の人数が途中で変わっても、新人だけが続く時間は1件にまとめる", () => {
+    const result = listNewcomerOnlyPeriods({
+      shifts: [shift("new1", [segment("10:00", "18:00", HALL)]), shift("new2", [segment("12:00", "15:00", HALL)])],
+      dates: ["2026-05-21"],
+      positionIds,
+      newcomerStaffIds,
+      pattern: timePattern,
+    });
+
+    expect(result).toEqual([
+      { date: "2026-05-21", positionId: HALL, scope: { kind: "time", start: "10:00", end: "18:00" } },
+    ]);
+  });
+
+  it("時間指定: 標準の人が入る時間をはさむと、前後を別の件にする", () => {
+    const result = listNewcomerOnlyPeriods({
+      shifts: [shift("new1", [segment("09:00", "18:00", HALL)]), shift("a", [segment("12:00", "14:00", HALL)])],
+      dates: ["2026-05-21"],
+      positionIds,
+      newcomerStaffIds,
+      pattern: timePattern,
+    });
+
+    expect(result.map((period) => period.scope)).toEqual([
+      { kind: "time", start: "09:00", end: "12:00" },
+      { kind: "time", start: "14:00", end: "18:00" },
+    ]);
+  });
+
+  it("時間指定: 標準の人の休憩で新人だけが残る時間も返す", () => {
+    const result = listNewcomerOnlyPeriods({
+      shifts: [
+        shift("a", [segment("09:00", "18:00", HALL)], [{ start: "12:00", end: "13:00" }]),
+        shift("new1", [segment("09:00", "18:00", HALL)]),
+      ],
+      dates: ["2026-05-21"],
+      positionIds,
+      newcomerStaffIds,
+      pattern: timePattern,
+    });
+
+    expect(result).toEqual([
+      { date: "2026-05-21", positionId: HALL, scope: { kind: "time", start: "12:00", end: "13:00" } },
+    ]);
+  });
+
+  it("パターン選択: 新人だけの勤務パターンとポジションを返す", () => {
+    const early = { shiftTypeOptionId: "early" };
+    const late = { shiftTypeOptionId: "late" };
+    const result = listNewcomerOnlyPeriods({
+      shifts: [
+        shift("new1", [segment("09:00", "15:00", HALL, early), segment("15:00", "21:00", KITCHEN, late)]),
+        shift("a", [segment("15:00", "21:00", KITCHEN, late)]),
+        shift("new2", [segment("15:00", "21:00", HALL, late)]),
+      ],
+      dates: ["2026-05-21"],
+      positionIds,
+      newcomerStaffIds,
+      pattern: { kind: "shiftType", optionIds: ["early", "late"] },
+    });
+
+    expect(result).toEqual([
+      { date: "2026-05-21", positionId: HALL, scope: { kind: "shiftType", optionId: "early" } },
+      { date: "2026-05-21", positionId: HALL, scope: { kind: "shiftType", optionId: "late" } },
+    ]);
+  });
+
+  it("日付選択: 新人だけのポジションを1日の単位で返す", () => {
+    const result = listNewcomerOnlyPeriods({
+      shifts: [
+        shift("new1", [segment("09:00", "22:00", HALL)]),
+        shift("new2", [segment("09:00", "22:00", KITCHEN)]),
+        shift("a", [segment("09:00", "22:00", KITCHEN)]),
+      ],
+      dates: ["2026-05-21"],
+      positionIds,
+      newcomerStaffIds,
+      pattern: { kind: "dateOnly" },
+    });
+
+    expect(result).toEqual([{ date: "2026-05-21", positionId: HALL, scope: { kind: "allDay" } }]);
+  });
+
+  it("渡した日だけを数え、新人がいない店舗では何も返さない", () => {
+    const shifts = [on("2026-05-23", shift("new1", [segment("09:00", "12:00", HALL)]))];
+
+    expect(
+      listNewcomerOnlyPeriods({ shifts, dates: ["2026-05-21"], positionIds, newcomerStaffIds, pattern: timePattern }),
+    ).toEqual([]);
+    expect(
+      listNewcomerOnlyPeriods({
+        shifts,
+        dates: ["2026-05-23"],
+        positionIds,
+        newcomerStaffIds: new Set(),
+        pattern: timePattern,
+      }),
+    ).toEqual([]);
   });
 });

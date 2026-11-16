@@ -1,6 +1,17 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
-import { POSITION_ACTIVE_LIMIT, SHIFT_DAY_TEMPLATE_LIMIT } from "../constants";
+import { generateDateRange } from "../_lib/dateFormat";
+import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
+import { POSITION_ACTIVE_LIMIT, RECRUITMENT_PERIOD_DAYS_MAX, SHIFT_DAY_TEMPLATE_LIMIT } from "../constants";
+import { listNationalHolidayDates } from "../nationalHoliday/service";
+import {
+  buildEmptyDayRequirements,
+  type DayRequirements,
+  type DayStaffingSource,
+  filterDayRequirementsByPositions,
+  projectDayRequirementsForPattern,
+  resolveDayStaffing,
+} from "./dayTemplates";
 
 type DbCtx = Pick<QueryCtx | MutationCtx, "db">;
 
@@ -24,17 +35,85 @@ export async function listDayTemplates(ctx: DbCtx, shopId: Id<"shops">): Promise
     .sort((left, right) => left.sortOrder - right.sortOrder || left._creationTime - right._creationTime);
 }
 
-/** 削除済みのポジションを指す必要人数を除いた、返却用の区切りを作る。 */
-export function toDayTemplateSlotsDto(
+/**
+ * 設定ページへ返す型を作る。
+ * 保存済みの必要人数の種類が店舗のいまの集め方と違う型は、いまの種類の空の必要人数にして、入れ直しが要ることを伝える。
+ * 時間指定で受付時間の外に出たバーは、消さずにそのまま返す。
+ * 削除済みのポジションを指すバーと人数、店舗の勤務パターンにないものは返さない。
+ */
+export function toDayTemplateDto(
   template: Doc<"shiftDayTemplates">,
+  pattern: ShiftSubmissionPattern,
   activePositionIds: ReadonlySet<Id<"positions">>,
 ) {
-  return template.slots.map((slot) => ({
-    key: slot.key,
-    requirements: slot.requirements
-      .filter((requirement) => activePositionIds.has(requirement.positionId) && requirement.count > 0)
-      .map((requirement) => ({ positionId: requirement.positionId, count: requirement.count })),
+  const requiresReentry = template.requirements.kind !== pattern.kind;
+  const requirements: DayRequirements<Id<"positions">> = requiresReentry
+    ? buildEmptyDayRequirements(pattern.kind)
+    : template.requirements.kind === "time"
+      ? template.requirements
+      : (projectDayRequirementsForPattern(template.requirements, pattern) ?? buildEmptyDayRequirements(pattern.kind));
+  return {
+    _id: template._id,
+    name: template.name,
+    weekdays: template.weekdays,
+    appliesToHolidays: template.appliesToHolidays,
+    requirements: filterDayRequirementsByPositions(requirements, activePositionIds),
+    requiresReentry,
+  };
+}
+
+export type RecruitmentStaffingDay = {
+  date: string;
+  source: DayStaffingSource;
+  templateId: Id<"shiftDayTemplates"> | null;
+  templateName: string | null;
+  requirements: DayRequirements<Id<"positions">> | null;
+};
+
+/**
+ * 募集期間の各日に当たる必要人数を、いまの型、その日だけの指定、祝日の表から決める。
+ * 必要人数は募集の集め方へ写し、削除済みのポジションを除く。
+ * 未確定の募集のシフト表と、確定時の保存の両方が同じ結果を使う。
+ */
+export async function resolveRecruitmentStaffingDays(
+  ctx: DbCtx,
+  args: {
+    shopId: Id<"shops">;
+    recruitment: Pick<Doc<"recruitments">, "periodStart" | "periodEnd" | "submissionPattern">;
+    templates: ReadonlyArray<Doc<"shiftDayTemplates">>;
+    activePositionIds: ReadonlySet<Id<"positions">>;
+  },
+): Promise<RecruitmentStaffingDay[]> {
+  const { recruitment } = args;
+  const [overrides, holidayDates] = await Promise.all([
+    // その日だけの指定は1日1件で、募集期間は最大31日である。
+    ctx.db
+      .query("shiftDayTemplateOverrides")
+      .withIndex("by_shopId_and_date", (q) =>
+        q.eq("shopId", args.shopId).gte("date", recruitment.periodStart).lte("date", recruitment.periodEnd),
+      )
+      .take(RECRUITMENT_PERIOD_DAYS_MAX),
+    listNationalHolidayDates(ctx, recruitment.periodStart, recruitment.periodEnd),
+  ]);
+  const templates = args.templates.map((template) => ({
+    id: template._id,
+    name: template.name,
+    weekdays: template.weekdays,
+    appliesToHolidays: template.appliesToHolidays,
+    requirements: template.requirements,
   }));
+
+  return generateDateRange(recruitment.periodStart, recruitment.periodEnd).map((date) => {
+    const resolved = resolveDayStaffing({ date, templates, overrides, holidayDates });
+    const projected = projectDayRequirementsForPattern(resolved.requirements, recruitment.submissionPattern);
+    return {
+      date,
+      source: resolved.source,
+      templateId: resolved.templateId,
+      templateName: resolved.templateName,
+      requirements: projected ? filterDayRequirementsByPositions(projected, args.activePositionIds) : null,
+    };
+  });
 }
 
 /**

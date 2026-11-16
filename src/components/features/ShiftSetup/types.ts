@@ -1,13 +1,15 @@
 import type { FunctionArgs, FunctionReturnType } from "convex/server";
 import type { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import type { DayTemplateSlotKey, ShiftSetupWeekday } from "@/convex/shiftSetup/dayTemplates";
+import type { ShiftSetupWeekday } from "@/convex/shiftSetup/dayTemplates";
+import type { EditableStaffingBar } from "@/src/domains/shift/staffingBars";
 
 /** 「シフト作成の設定」ページが表示する、店舗の設定とスタッフの属性。 */
 export type ShiftSetupData = NonNullable<FunctionReturnType<typeof api.shiftSetup.queries.getShiftSetup>>;
 
 export type ShiftSetupPosition = ShiftSetupData["positions"][number];
 export type ShiftSetupStaff = ShiftSetupData["staffs"][number];
+export type ShiftSetupDayTemplate = ShiftSetupData["dayTemplates"][number];
 export type ShiftSetupSubmissionPattern = ShiftSetupData["submissionPattern"];
 export type ShiftSetupBreakRule = NonNullable<ShiftSetupData["breakRule"]>;
 export type StaffSkillLevel = ShiftSetupStaff["skillLevel"];
@@ -18,22 +20,27 @@ export type StaffShiftProfileInput = FunctionArgs<
   typeof api.shiftSetup.mutations.saveStaffShiftProfiles
 >["profiles"][number];
 export type ShiftSetupAssistResult = FunctionReturnType<typeof api.shiftSetup.actions.suggestShiftSetup>;
+export type ShiftSetupAssistTemplate = Extract<ShiftSetupAssistResult, { status: "ok" }>["templates"][number];
 
-/** 編集中の区切り。必要人数はポジションIDごとに持ち、0と未設定を区別しない。 */
-export type DayTemplateSlotDraft = {
-  /** 時刻を変えても変わらない、画面上の行の識別子。 */
-  rowKey: string;
-  key: DayTemplateSlotKey;
-  counts: Record<string, number>;
-};
+/** 編集中の必要人数。種類は希望シフトの集め方に対応する。 */
+export type DayTemplateRequirementsDraft =
+  | { kind: "time"; bars: EditableStaffingBar[] }
+  /** 勤務パターンのID → ポジションのID → 人数。0人は持たない。 */
+  | { kind: "shiftType"; counts: Record<string, Record<string, number>> }
+  /** ポジションのID → 人数。0人は持たない。 */
+  | { kind: "dateOnly"; counts: Record<string, number> };
 
 /** 編集中の日の型。保存済みの型は`id`を持つ。 */
 export type DayTemplateDraft = {
+  /** 名前を変えても変わらない、画面上の型の識別子。 */
   rowKey: string;
   id?: Id<"shiftDayTemplates">;
   name: string;
   weekdays: ShiftSetupWeekday[];
-  slots: DayTemplateSlotDraft[];
+  appliesToHolidays: boolean;
+  requirements: DayTemplateRequirementsDraft;
+  /** 保存済みの必要人数の種類が、いまの集め方と違っていた型。入れ直すまで知らせを出す。 */
+  requiresReentry: boolean;
 };
 
 export type StaffProfile = {
@@ -60,18 +67,19 @@ export type DialogState = {
   close: () => void;
 };
 
-export type RequiredCountTarget = { templateRowKey: string; slotRowKey: string; positionId: string };
-export type DayTemplateSlotTarget = { templateRowKey: string; slotRowKey: string };
+/** 数字で入れる必要人数の1マス。`rowId`は勤務パターンのID、日付選択では`ALL_DAY_ROW_ID`。 */
+export type RequiredCountChange = { rowId: string; positionId: string; count: number };
 
 export type ShiftSetupIntents = {
+  onSelectDayTemplate: (rowKey: string) => void;
   onAddDayTemplate: () => void;
   onRemoveDayTemplate: (rowKey: string) => void;
   onRenameDayTemplate: (rowKey: string, name: string) => void;
   onToggleWeekday: (rowKey: string, weekday: ShiftSetupWeekday) => void;
-  onChangeRequiredCount: (target: RequiredCountTarget, delta: number) => void;
-  onChangeTimeSlotRange: (target: DayTemplateSlotTarget, patch: { startTime?: string; endTime?: string }) => void;
-  onAddTimeSlot: (templateRowKey: string) => void;
-  onRemoveSlot: (target: DayTemplateSlotTarget) => void;
+  onToggleHoliday: (rowKey: string) => void;
+  onChangeBars: (rowKey: string, bars: EditableStaffingBar[]) => void;
+  onChangeRequiredCount: (rowKey: string, change: RequiredCountChange) => void;
+  onCopyRequirements: (target: { fromRowKey: string; toRowKey: string }) => void;
   onToggleStaffPosition: (staffId: Id<"staffs">, positionId: Id<"positions">) => void;
   onChangeStaffSkillLevel: (staffId: Id<"staffs">, skillLevel: StaffSkillLevel) => void;
   onResetChanges: () => void;
@@ -87,6 +95,8 @@ export type ShiftSetupEditorView = {
   canWrite: boolean;
   dayTemplates: {
     drafts: DayTemplateDraft[];
+    /** 編集している型の`rowKey`。型が1つもなければnull。 */
+    selectedRowKey: string | null;
     /** 型ごとに表示する入力の誤り。キーは型の`rowKey`。 */
     issueMessages: Record<string, string>;
     canAdd: boolean;
