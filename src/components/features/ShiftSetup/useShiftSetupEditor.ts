@@ -26,10 +26,23 @@ import {
   toggleDayTemplateHoliday,
   toggleDayTemplateWeekday,
 } from "./dayTemplateDrafts";
+import {
+  applyPositionInputs,
+  createDraftPositionId,
+  isSamePositions,
+  keepPositionsInDayTemplateDrafts,
+  reconcileStaffDrafts,
+  replacePositionIds,
+  replacePositionIdsInDayTemplateDrafts,
+  replacePositionIdsInStaffDrafts,
+  resolveSavedPositionIds,
+  type SavedPositionIds,
+  toPositionSaveInputs,
+} from "./positionDrafts";
 import { formatPendingSections } from "./script";
 import {
+  changeStaffPositionMarks,
   isSameStaffPositionLevels,
-  setPositionLevelForAllStaffs,
   setStaffPositionLevel,
   toStaffPositionLevels,
   toStaffProfileInputs,
@@ -40,8 +53,10 @@ import type {
   PositionInput,
   ShiftSetupData,
   ShiftSetupEditorView,
+  ShiftSetupPosition,
   ShiftSetupRemote,
   StaffPositionLevels,
+  StaffPositionMarkChange,
 } from "./types";
 
 const ASSIST_UNAVAILABLE_MESSAGE = "いまはAIの下書きを使えません。\n「型を作る」から手で作れます。";
@@ -56,14 +71,17 @@ type Input = {
 
 /**
  * 「シフト作成の設定」の編集中の値と保存の流れを持つ。
- * 必要人数とスタッフの条件は編集中の値として持ち、保存の帯の「保存する」でまとめて保存する。
- * ポジションは、Dialogの保存でその場で保存する。
+ * ポジション、必要人数、スタッフの条件は編集中の値として持ち、ページの「保存する」でまとめて保存する。
+ * ポジションのDialogは、決めた一覧を編集中の値へ反映するだけで、保存しない。
  */
 export function useShiftSetupEditor({ setup, remote }: Input) {
   const canWrite = setup.canWriteBusinessData;
-  const { positions, staffs, submissionPattern: pattern } = setup;
+  const { positions: savedPositions, staffs, submissionPattern: pattern } = setup;
 
   // nullは「編集していない」を表し、保存済みの値をそのまま表示する。
+  const [positionDrafts, setPositionDrafts] = useState<ShiftSetupPosition[] | null>(null);
+  // 編集中のポジション。必要人数とスタッフの表は、保存の前からこの一覧で表示する。
+  const positions = positionDrafts ?? savedPositions;
   const [templateDrafts, setTemplateDrafts] = useState<DayTemplateDraft[] | null>(null);
   // 保存済みの値から変えたスタッフだけを持つ。
   const [staffDrafts, setStaffDrafts] = useState<Record<string, StaffPositionLevels>>({});
@@ -78,20 +96,32 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
     rowKeyCountRef.current += 1;
     return `new-${rowKeyCountRef.current}`;
   };
+  const draftPositionCountRef = useRef(0);
+  const createNextDraftPositionId = () => {
+    draftPositionCountRef.current += 1;
+    return createDraftPositionId(draftPositionCountRef.current);
+  };
 
   const positionsDialog = useDialog();
   const assistDialog = useDialog();
 
+  const viewSetup = useMemo(() => ({ ...setup, positions }), [setup, positions]);
   const inputContext = useMemo(() => ({ positions, pattern }), [positions, pattern]);
-  const savedDrafts = useMemo(() => toDayTemplateDrafts(setup.dayTemplates), [setup.dayTemplates]);
+  // 編集中の一覧から外したポジションのバーと人数は、保存済みの型からも外して表示する。
+  const savedDrafts = useMemo(
+    () => keepPositionsInDayTemplateDrafts(toDayTemplateDrafts(setup.dayTemplates), positions),
+    [setup.dayTemplates, positions],
+  );
   const savedInputs = useMemo(() => toDayTemplateInputs(savedDrafts, inputContext), [savedDrafts, inputContext]);
   const drafts = templateDrafts ?? savedDrafts;
   const selectedDraft = resolveSelectedDayTemplate(drafts, templateSelection);
   const templateInputs = toDayTemplateInputs(drafts, inputContext);
   // 作ったまま何も入れていない新しい型だけが違いのときは、保存していない変更に数えない。
   const hasTemplateChanges = templateDrafts !== null && hasPendingDayTemplateChanges(drafts, savedInputs, inputContext);
+  const hasPositionChanges = positionDrafts !== null && !isSamePositions(positionDrafts, savedPositions);
   const staffInputs = toStaffProfileInputs(staffs, staffDrafts, positions);
   const pendingSections: PendingSection[] = [
+    ...(hasPositionChanges ? (["positions"] as const) : []),
     ...(hasTemplateChanges ? (["dayTemplates"] as const) : []),
     ...(staffInputs.length > 0 ? (["staffs"] as const) : []),
   ];
@@ -111,6 +141,7 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
   useEffect(() => {
     if (canWrite) return;
     // 書き込めなくなったら、保存できない編集中の値を残さない。
+    setPositionDrafts(null);
     setTemplateDrafts(null);
     setStaffDrafts({});
     setHasAttemptedSave(false);
@@ -153,9 +184,9 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
     setStaffDrafts((current) => toStaffDrafts(update(resolveStaffProfiles(current))));
   };
 
-  const setPositionLevelForAll = (positionId: string, level: "standard" | "unavailable") => {
+  const changePositionMarks = (change: StaffPositionMarkChange) => {
     if (!canEdit()) return;
-    const result = setPositionLevelForAllStaffs(resolveStaffProfiles(staffDrafts), positionId, level, positions);
+    const result = changeStaffPositionMarks(resolveStaffProfiles(staffDrafts), change, positions);
     setStaffDrafts(toStaffDrafts(result.profiles));
     // 入れるポジションがなくなるスタッフは変えていないため、その人数を伝える。
     if (result.skippedCount > 0) {
@@ -180,13 +211,42 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
           toaster.create({ title: DAY_TEMPLATE_ISSUE_MESSAGES[issue], type: "error" });
           return false;
         }
-        await remote.saveDayTemplates(templateInputs);
+      }
+
+      // 新しく足したポジションは、保存するまでIDがない。ポジションを先に保存してIDを受け取り、
+      // 型とスタッフの編集中の値が指す仮のIDを置き換えてから、続きを保存する。
+      let savedIds: SavedPositionIds = new Map();
+      if (hasPositionChanges) {
+        const ids = await remote.savePositions(toPositionSaveInputs(positions));
+        // ここから先で失敗しても、もう一度の保存でポジションを作り直さないよう、編集中の一覧を先に捨てる。
+        setPositionDrafts(null);
+        saved.push("positions");
+        savedIds = resolveSavedPositionIds(positions, ids);
+        const replaceIds = savedIds;
+        setTemplateDrafts((current) => current && replacePositionIdsInDayTemplateDrafts(current, replaceIds));
+        setStaffDrafts((current) => replacePositionIdsInStaffDrafts(current, replaceIds));
+      }
+      // 保存の引数は、保存後のIDを持つ一覧から作る。一覧にないIDのバー、人数、熟練度は引数に入らない。
+      const positionsToSave = replacePositionIds(positions, savedIds);
+
+      if (hasTemplateChanges) {
+        await remote.saveDayTemplates(
+          toDayTemplateInputs(replacePositionIdsInDayTemplateDrafts(drafts, savedIds), {
+            positions: positionsToSave,
+            pattern,
+          }),
+        );
         setTemplateDrafts(null);
         setHasAttemptedSave(false);
         saved.push("dayTemplates");
       }
-      if (staffInputs.length > 0) {
-        await remote.saveStaffShiftProfiles(staffInputs);
+      const staffInputsToSave = toStaffProfileInputs(
+        staffs,
+        replacePositionIdsInStaffDrafts(staffDrafts, savedIds),
+        positionsToSave,
+      );
+      if (staffInputsToSave.length > 0) {
+        await remote.saveStaffShiftProfiles(staffInputsToSave);
         setStaffDrafts({});
         saved.push("staffs");
       }
@@ -196,21 +256,21 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
       return false;
     } finally {
       isSavingRef.current = false;
-      // 片方だけ保存できた場合も、保存できた分を伝える。
+      // 途中まで保存できた場合も、保存できた分を伝える。
       if (saved.length > 0) showSuccessToast({ title: `${formatPendingSections(saved)}の設定を保存しました` });
     }
   });
 
-  const { run: savePositions, isRunning: isSavingPositions } = useSingleFlight(async (inputs: PositionInput[]) => {
-    if (!canWrite) return;
-    try {
-      await remote.savePositions(inputs);
-      positionsDialog.close();
-      showSuccessToast({ title: "ポジションを保存しました" });
-    } catch (error) {
-      showErrorToast(error);
-    }
-  });
+  /** Dialogで決めたポジションの一覧を、編集中の値へ反映する。保存はしない。 */
+  const applyPositions = (inputs: PositionInput[]) => {
+    if (!canEdit()) return;
+    const next = applyPositionInputs(inputs, positions, createNextDraftPositionId);
+    setPositionDrafts(isSamePositions(next, savedPositions) ? null : next);
+    // 外したポジションのバー、人数、熟練度は、編集中の値からも外す。「元に戻す」で保存済みの内容へ戻る。
+    setTemplateDrafts((current) => current && keepPositionsInDayTemplateDrafts(current, next));
+    setStaffDrafts((current) => reconcileStaffDrafts(staffs, current, next));
+    positionsDialog.close();
+  };
 
   const { run: requestAssist, isRunning: isAssistRunning } = useSingleFlight(async (situation: string) => {
     if (!canEdit() || !setup.assistAvailable) return;
@@ -232,7 +292,11 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
         return;
       }
       // 下書きは編集中の値へ入れるだけにする。設定が変わるのは、利用者が「保存する」を押したときである。
-      const suggested = toDayTemplateDraftsFromSuggestion(result.templates, createRowKey);
+      // 下書きは保存済みのポジションから作られるため、編集中の一覧から外したポジションの分を除く。
+      const suggested = keepPositionsInDayTemplateDrafts(
+        toDayTemplateDraftsFromSuggestion(result.templates, createRowKey),
+        positions,
+      );
       setTemplateDrafts(suggested);
       setTemplateSelection({ rowKey: suggested[0].rowKey, index: 0 });
       setHasAttemptedSave(false);
@@ -257,7 +321,8 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
   };
 
   const view: ShiftSetupEditorView = {
-    setup,
+    setup: viewSetup,
+    savedPositions,
     canWrite,
     dayTemplates: {
       drafts,
@@ -268,7 +333,7 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
     staffProfiles: resolveStaffProfiles(staffDrafts),
     pendingSections: canWrite ? pendingSections : [],
     isSaving,
-    positionsDialog: { ...positionsDialog, open: openWhenWritable(positionsDialog.open), isSaving: isSavingPositions },
+    positionsDialog: { ...positionsDialog, open: openWhenWritable(positionsDialog.open) },
     assistDialog: {
       ...assistDialog,
       open: openWhenWritable(() => {
@@ -323,15 +388,16 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
             ? { ...profiles, [staffId]: setStaffPositionLevel(levels, positionId, level, positions) }
             : profiles;
         }),
-      onSetPositionLevelForAllStaffs: setPositionLevelForAll,
+      onChangeStaffPositionMarks: changePositionMarks,
       onResetChanges: () => {
         if (isSavingRef.current) return;
+        setPositionDrafts(null);
         setTemplateDrafts(null);
         setStaffDrafts({});
         setHasAttemptedSave(false);
       },
       onSaveChanges: () => void saveChanges(),
-      onSavePositions: (inputs) => void savePositions(inputs),
+      onApplyPositions: applyPositions,
       onRequestAssist: (situation) => void requestAssist(situation),
     },
   };

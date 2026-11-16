@@ -38,12 +38,14 @@ import { ACTIVE_POSITION_LIMIT_MESSAGE, listActivePositions, listDayTemplates } 
  * 並び順は配列の順。一覧にない既存のポジションは論理削除する。
  * 既定のポジションを一覧から外した場合は、一覧の先頭を新しい既定にする。
  * 既定は、ポジションを持たない勤務と、削除したポジションの勤務の表示先である。
+ * 保存したポジションのIDを、入力と同じ順で返す。画面は、新しく足したポジションのIDをここで受け取り、
+ * そのポジションを指す必要人数と熟練度を続けて保存する。
  */
 export const savePositions = managerMutation({
   args: {
     positions: v.array(v.object({ id: v.optional(v.id("positions")), name: v.string(), color: v.string() })),
   },
-  returns: v.null(),
+  returns: v.array(v.id("positions")),
   handler: async (ctx, args) => {
     const parsed = savePositionsSchema.safeParse(args);
     if (!parsed.success) {
@@ -84,7 +86,7 @@ export const savePositions = managerMutation({
         .filter((position) => !keptIds.has(position._id))
         .map((position) => ctx.db.patch(position._id, { isDeleted: true, isDefault: false })),
     );
-    await Promise.all(
+    return await Promise.all(
       parsed.data.positions.map(async (position, index) => {
         const id = args.positions[index].id;
         const becomesDefault = replacesDefault && index === 0;
@@ -95,9 +97,9 @@ export const savePositions = managerMutation({
             sortOrder: index + sortOffset,
             ...(becomesDefault ? { isDefault: true } : {}),
           });
-          return;
+          return id;
         }
-        await ctx.db.insert("positions", {
+        return await ctx.db.insert("positions", {
           shopId: ctx.shop._id,
           name: position.name,
           color: resolveColor(position.color),
@@ -107,7 +109,6 @@ export const savePositions = managerMutation({
         });
       }),
     );
-    return null;
   },
 });
 

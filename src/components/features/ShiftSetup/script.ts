@@ -18,11 +18,12 @@ export const WEEKDAY_OPTIONS: ReadonlyArray<{ value: ShiftSetupWeekday; label: s
 ];
 
 const PENDING_SECTION_LABELS: Record<PendingSection, string> = {
+  positions: "ポジション",
   dayTemplates: "必要人数",
   staffs: "スタッフ",
 };
 
-/** 保存していない変更を持つセクションの名前を「必要人数とスタッフ」の形でつなぐ。 */
+/** 保存していない変更を持つセクションの名前を「ポジションと必要人数とスタッフ」の形でつなぐ。 */
 export function formatPendingSections(sections: readonly PendingSection[]): string {
   return sections.map((section) => PENDING_SECTION_LABELS[section]).join("と");
 }
@@ -122,6 +123,10 @@ export function movePositionDraft(drafts: readonly PositionDraft[], index: numbe
   return next;
 }
 
+/**
+ * Dialogの行を、入力の形へ直す。入力の検証と、Dialogで決めた一覧をページへ渡すために使う。
+ * 前に足してまだ保存していないポジションは仮のIDを持つため、保存の引数は`toPositionSaveInputs`で作る。
+ */
 export function toPositionInputs(drafts: readonly PositionDraft[]): PositionInput[] {
   return drafts.map((draft) => ({
     ...(draft.id ? { id: draft.id } : {}),

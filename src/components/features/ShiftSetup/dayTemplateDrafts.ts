@@ -376,6 +376,48 @@ export function copyDayTemplateRequirements(
   }));
 }
 
+function remapCounts(
+  record: Readonly<Record<string, number>>,
+  resolve: (positionId: string) => string | null,
+): Record<string, number> {
+  const next: Record<string, number> = {};
+  for (const [positionId, count] of Object.entries(record)) {
+    const resolved = resolve(positionId);
+    if (resolved !== null) next[resolved] = count;
+  }
+  return next;
+}
+
+/**
+ * 型の下書きが指すポジションのIDを、`resolve`の返す値へ置き換える。nullを返したポジションのバーと人数は外す。
+ * ポジションを削除したときと、新しく足したポジションの仮のIDを保存後のIDへ直すときに使う。
+ * 人数がなくなった勤務パターンの行は持たない。
+ */
+export function remapDayTemplateDraftPositions(
+  drafts: readonly DayTemplateDraft[],
+  resolve: (positionId: string) => string | null,
+): DayTemplateDraft[] {
+  return drafts.map((draft) => {
+    const { requirements } = draft;
+    if (requirements.kind === "time") {
+      const bars = requirements.bars.flatMap((bar) => {
+        const positionId = resolve(bar.positionId);
+        return positionId === null ? [] : [{ ...bar, positionId }];
+      });
+      return { ...draft, requirements: { kind: "time", bars } };
+    }
+    if (requirements.kind === "dateOnly") {
+      return { ...draft, requirements: { kind: "dateOnly", counts: remapCounts(requirements.counts, resolve) } };
+    }
+    const counts: Record<string, Record<string, number>> = {};
+    for (const [optionId, record] of Object.entries(requirements.counts)) {
+      const row = remapCounts(record, resolve);
+      if (Object.keys(row).length > 0) counts[optionId] = row;
+    }
+    return { ...draft, requirements: { kind: "shiftType", counts } };
+  });
+}
+
 /** 必要人数を1つも入れていないかを返す。 */
 function isDayTemplateRequirementsEmpty(requirements: DayTemplateRequirementsDraft): boolean {
   if (requirements.kind === "time") return requirements.bars.length === 0;

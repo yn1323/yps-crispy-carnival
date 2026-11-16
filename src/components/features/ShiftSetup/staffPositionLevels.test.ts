@@ -1,15 +1,17 @@
 import { describe, expect, it } from "vitest";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
+  changeStaffPositionMarks,
   filterStaffsByName,
   getStaffPositionLevel,
   getStaffPositionLevelLabel,
-  getStaffPositionLevelOptions,
+  getStaffPositionMarkOptions,
+  getStaffPositionMarkSymbol,
+  getStampedStaffPositionLevel,
   isLastAvailablePosition,
   isSameStaffPositionLevels,
-  setPositionLevelForAllStaffs,
+  isStaffPositionMarkBlocked,
   setStaffPositionLevel,
-  summarizeStaffPositionLevels,
   toStaffPositionLevels,
   toStaffProfileInputs,
 } from "./staffPositionLevels";
@@ -29,28 +31,31 @@ function staff(overrides: Partial<ShiftSetupStaff> = {}): ShiftSetupStaff {
   return { _id: staffA, name: "佐藤 花子", positionSkills: [], ...overrides };
 }
 
-describe("選べる値", () => {
-  it("ポジションが2件以上の店舗では、入れない、新人、標準、責任者の4つを選べる", () => {
-    expect(getStaffPositionLevelOptions(positions)).toEqual([
-      { value: "unavailable", label: "入れない" },
+describe("付けられる印", () => {
+  it("ポジションが2件以上の店舗では、新人、責任者、入れないの順に3つを付けられる", () => {
+    expect(getStaffPositionMarkOptions(positions)).toEqual([
       { value: "newcomer", label: "新人" },
-      { value: "standard", label: "標準" },
       { value: "lead", label: "責任者" },
+      { value: "unavailable", label: "入れない" },
     ]);
   });
 
   it("ポジションが1件の店舗では、入れないを出さない", () => {
-    expect(getStaffPositionLevelOptions([{ _id: hall }]).map((option) => option.value)).toEqual([
-      "newcomer",
-      "standard",
-      "lead",
-    ]);
+    expect(getStaffPositionMarkOptions([{ _id: hall }]).map((option) => option.value)).toEqual(["newcomer", "lead"]);
   });
 
   it("値の名前を返す", () => {
     expect(
       (["unavailable", "newcomer", "standard", "lead"] as const).map((level) => getStaffPositionLevelLabel(level)),
     ).toEqual(["入れない", "新人", "標準", "責任者"]);
+  });
+
+  it("マスに出す短い印を返す", () => {
+    expect((["newcomer", "lead", "unavailable"] as const).map((mark) => getStaffPositionMarkSymbol(mark))).toEqual([
+      "新",
+      "責",
+      "×",
+    ]);
   });
 });
 
@@ -170,27 +175,95 @@ describe("変更の有無と保存する形", () => {
   });
 });
 
-describe("まとめて設定", () => {
+describe("マスを押して印を付ける", () => {
+  it("印のないマスには、選んでいる印が付く", () => {
+    expect(
+      (["newcomer", "lead", "unavailable"] as const).map((mark) => getStampedStaffPositionLevel("standard", mark)),
+    ).toEqual(["newcomer", "lead", "unavailable"]);
+  });
+
+  it("選んでいる印と同じ印のマスは、標準へ戻る", () => {
+    expect(
+      (["newcomer", "lead", "unavailable"] as const).map((mark) => getStampedStaffPositionLevel(mark, mark)),
+    ).toEqual(["standard", "standard", "standard"]);
+  });
+
+  it("別の印が付いたマスは、選んでいる印に置き換わる", () => {
+    expect(getStampedStaffPositionLevel("lead", "newcomer")).toBe("newcomer");
+    expect(getStampedStaffPositionLevel("unavailable", "lead")).toBe("lead");
+    expect(getStampedStaffPositionLevel("newcomer", "unavailable")).toBe("unavailable");
+  });
+
+  it("最後に残った入れるポジションには、入れないだけを付けられない", () => {
+    const levels: StaffPositionLevels = { [hall]: "unavailable", [kitchen]: "unavailable" };
+
+    expect(
+      (["newcomer", "lead", "unavailable"] as const).map((mark) =>
+        isStaffPositionMarkBlocked(levels, register, mark, positions),
+      ),
+    ).toEqual([false, false, true]);
+    // すでに入れないのマスは、もう一度押して外せる。
+    expect(isStaffPositionMarkBlocked(levels, hall, "unavailable", positions)).toBe(false);
+  });
+
+  it("入れるポジションが2つ以上あれば、入れないを付けられる", () => {
+    expect(isStaffPositionMarkBlocked({ [kitchen]: "unavailable" }, hall, "unavailable", positions)).toBe(false);
+  });
+
+  it("ポジションが1件の店舗では、その1件に入れないを付けられない", () => {
+    expect(isStaffPositionMarkBlocked({}, hall, "unavailable", [{ _id: hall }])).toBe(true);
+  });
+});
+
+describe("まとめて印を付ける、外す", () => {
   const profiles: Record<string, StaffPositionLevels> = {
     [staffA]: { [kitchen]: "lead" },
     // 入れるのはキッチンだけ。
     [staffB]: { [hall]: "unavailable", [register]: "unavailable" },
     [staffC]: { [kitchen]: "unavailable" },
   };
+  const everyone = [staffA, staffB, staffC];
 
-  it("全員を標準にすると、そのポジションの値だけがなくなり、だれも飛ばさない", () => {
-    expect(setPositionLevelForAllStaffs(profiles, kitchen, "standard", positions)).toEqual({
+  it("選んだスタッフ全員に印を付け、別の印が付いていたスタッフは置き換える", () => {
+    expect(
+      changeStaffPositionMarks(
+        profiles,
+        { positionId: kitchen, staffIds: everyone, mark: "newcomer", action: "apply" },
+        positions,
+      ),
+    ).toEqual({
       profiles: {
-        [staffA]: {},
-        [staffB]: { [hall]: "unavailable", [register]: "unavailable" },
-        [staffC]: {},
+        [staffA]: { [kitchen]: "newcomer" },
+        [staffB]: { [hall]: "unavailable", [kitchen]: "newcomer", [register]: "unavailable" },
+        [staffC]: { [kitchen]: "newcomer" },
       },
       skippedCount: 0,
     });
   });
 
-  it("全員を入れないにすると、入れるポジションがなくなるスタッフは変えず、その人数を返す", () => {
-    expect(setPositionLevelForAllStaffs(profiles, kitchen, "unavailable", positions)).toEqual({
+  it("選んでいないスタッフの値は変えない", () => {
+    const result = changeStaffPositionMarks(
+      profiles,
+      { positionId: kitchen, staffIds: [staffC], mark: "newcomer", action: "apply" },
+      positions,
+    );
+
+    expect(result).toEqual({
+      profiles: { ...profiles, [staffC]: { [kitchen]: "newcomer" } },
+      skippedCount: 0,
+    });
+    // 変えていないスタッフは、同じ値をそのまま返す。
+    expect(result.profiles[staffA]).toBe(profiles[staffA]);
+  });
+
+  it("入れないを付けると入れるポジションがなくなるスタッフは変えず、その人数を返す", () => {
+    expect(
+      changeStaffPositionMarks(
+        profiles,
+        { positionId: kitchen, staffIds: everyone, mark: "unavailable", action: "apply" },
+        positions,
+      ),
+    ).toEqual({
       profiles: {
         [staffA]: { [kitchen]: "unavailable" },
         [staffB]: { [hall]: "unavailable", [register]: "unavailable" },
@@ -200,13 +273,53 @@ describe("まとめて設定", () => {
     });
   });
 
-  it("ポジションが1件の店舗では、全員を入れないにしても、全員を飛ばす", () => {
-    const single = { [staffA]: {}, [staffB]: { [hall]: "lead" as const } };
+  it("選んでいないスタッフは、入れるポジションがなくなる人数に数えない", () => {
+    expect(
+      changeStaffPositionMarks(
+        profiles,
+        { positionId: kitchen, staffIds: [staffA], mark: "unavailable", action: "apply" },
+        positions,
+      ).skippedCount,
+    ).toBe(0);
+  });
 
-    expect(setPositionLevelForAllStaffs(single, hall, "unavailable", [{ _id: hall }])).toEqual({
-      profiles: single,
-      skippedCount: 2,
+  it("外すときは、その印が付いているスタッフだけを標準へ戻し、別の印は残す", () => {
+    expect(
+      changeStaffPositionMarks(
+        profiles,
+        { positionId: kitchen, staffIds: everyone, mark: "unavailable", action: "remove" },
+        positions,
+      ),
+    ).toEqual({
+      profiles: {
+        [staffA]: { [kitchen]: "lead" },
+        [staffB]: { [hall]: "unavailable", [register]: "unavailable" },
+        [staffC]: {},
+      },
+      skippedCount: 0,
     });
+  });
+
+  it("対象のスタッフがいなければ、何も変えない", () => {
+    expect(
+      changeStaffPositionMarks(
+        profiles,
+        { positionId: kitchen, staffIds: [], mark: "newcomer", action: "apply" },
+        positions,
+      ),
+    ).toEqual({ profiles, skippedCount: 0 });
+  });
+
+  it("一覧にないスタッフと、重ねて渡したスタッフは数えない", () => {
+    const unknown = "staff-unknown" as Id<"staffs">;
+
+    expect(
+      changeStaffPositionMarks(
+        profiles,
+        { positionId: kitchen, staffIds: [unknown, staffB, staffB], mark: "unavailable", action: "apply" },
+        positions,
+      ),
+    ).toEqual({ profiles, skippedCount: 1 });
   });
 });
 
@@ -227,35 +340,5 @@ describe("名前の絞り込み", () => {
     expect(filterStaffsByName(staffs, "佐藤花子")).toEqual([{ name: "佐藤 花子" }]);
     expect(filterStaffsByName(staffs, "佐藤　花")).toEqual([{ name: "佐藤 花子" }]);
     expect(filterStaffsByName(staffs, "john smith")).toEqual([{ name: "Ｊｏｈｎ Smith" }]);
-  });
-});
-
-describe("標準以外の値の要約", () => {
-  const levels: StaffPositionLevels = { [register]: "lead", [hall]: "newcomer", [kitchen]: "unavailable" };
-
-  it("標準以外の値を、ポジションの並び順で返す", () => {
-    expect(summarizeStaffPositionLevels({ [register]: "lead" }, positions, 3)).toEqual({
-      items: [{ position: { _id: register }, level: "lead" }],
-      restCount: 0,
-    });
-    expect(summarizeStaffPositionLevels(levels, positions, 3).items.map((item) => item.position._id)).toEqual([
-      hall,
-      kitchen,
-      register,
-    ]);
-  });
-
-  it("上限を超えた分は、件数だけを返す", () => {
-    expect(summarizeStaffPositionLevels(levels, positions, 2)).toEqual({
-      items: [
-        { position: { _id: hall }, level: "newcomer" },
-        { position: { _id: kitchen }, level: "unavailable" },
-      ],
-      restCount: 1,
-    });
-  });
-
-  it("すべて標準なら、何も返さない", () => {
-    expect(summarizeStaffPositionLevels({}, positions, 3)).toEqual({ items: [], restCount: 0 });
   });
 });

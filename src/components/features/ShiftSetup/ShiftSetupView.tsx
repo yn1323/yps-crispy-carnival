@@ -1,4 +1,4 @@
-import { Box, Stack } from "@chakra-ui/react";
+import { Box, Link, Stack, Text } from "@chakra-ui/react";
 import { LuSlidersHorizontal } from "react-icons/lu";
 import { ReadOnlyNotice } from "@/src/components/shared/ReadOnlyNotice";
 import { AUTHENTICATED_APP_HEADER_HEIGHT } from "@/src/components/templates/Header";
@@ -16,6 +16,8 @@ import type { LeaveDialogState, ShiftSetupEditorView } from "./types";
 type Props = ShiftSetupEditorView & {
   leaveDialog: LeaveDialogState;
   onBack: () => void;
+  /** シフトの一覧を開く。設定の結果を確かめる先として、ページの説明に置く。 */
+  onOpenShifts?: () => void;
 };
 
 /** PCで上端に留める見出しの行の高さ（px）。見出しのボタン44px、上下の余白16px、下の罫線1px。 */
@@ -25,6 +27,7 @@ const STICKY_SURFACE = { bg: "gray.50", borderBottomWidth: "1px", borderColor: "
 
 export function ShiftSetupView({
   setup,
+  savedPositions,
   canWrite,
   dayTemplates,
   staffProfiles,
@@ -35,6 +38,7 @@ export function ShiftSetupView({
   leaveDialog,
   intents,
   onBack,
+  onOpenShifts,
 }: Props) {
   // アプリのヘッダーは下へスクロールすると隠れる。隠れている間は、留める位置を画面の上端まで上げる。
   const isAppHeaderHidden = useHideOnScrollDown();
@@ -53,6 +57,7 @@ export function ShiftSetupView({
           display={{ base: "contents", md: "flex" }}
           alignItems="center"
           gap={3}
+          data-sticky-row=""
           position={{ md: "sticky" }}
           top={{ md: stickyTop }}
           zIndex={{ md: "docked" }}
@@ -70,6 +75,7 @@ export function ShiftSetupView({
           </Box>
           <Box
             flexShrink={0}
+            data-sticky-row=""
             position={{ base: "sticky", md: "static" }}
             top={{ base: stickyTop, md: "auto" }}
             zIndex={{ base: "docked", md: "auto" }}
@@ -102,11 +108,29 @@ export function ShiftSetupView({
         />
       )}
 
+      <Text fontSize="sm" color="fg.muted" lineHeight="tall">
+        より詳細にシフトを作成するため下準備です。
+        <br />
+        シフトの「くわしく」表示で利用可能です。
+        {onOpenShifts && (
+          <>
+            {" "}
+            <Link asChild color="teal.700" fontWeight="semibold">
+              <button type="button" onClick={onOpenShifts}>
+                シフトを開く
+              </button>
+            </Link>
+          </>
+        )}
+      </Text>
+
       <PositionsSection
         positions={setup.positions}
+        savedPositions={savedPositions}
         canWrite={canWrite}
+        isSaving={isSaving}
         dialog={positionsDialog}
-        onSave={intents.onSavePositions}
+        onApply={intents.onApplyPositions}
       />
       <DayTemplatesSection
         setup={setup}

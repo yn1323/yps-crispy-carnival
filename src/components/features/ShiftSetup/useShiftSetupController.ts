@@ -16,6 +16,7 @@ type Input = {
 export type ShiftSetupController = ShiftSetupEditorView & {
   leaveDialog: LeaveDialogState;
   onBack: () => void;
+  onOpenShifts: () => void;
 };
 
 /** 編集の状態を、対象店舗のConvex APIと、保存していない変更の離脱確認へつなぐ。 */
@@ -63,5 +64,6 @@ export function useShiftSetupController({ shopId, organizationId, setup }: Input
       onSaveAndLeave: () => void saveAndLeave(),
     },
     onBack: () => router.history.back(),
+    onOpenShifts: () => void router.navigate({ to: "/shifts", search: { org: organizationId } }),
   };
 }

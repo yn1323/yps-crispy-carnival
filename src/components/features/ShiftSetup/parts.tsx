@@ -4,6 +4,8 @@ import type { ReactNode } from "react";
 type SectionProps = {
   headingId: string;
   title: string;
+  /** 設定する順番。見出しの左に番号で示す。読み上げ名には入れない。 */
+  step?: number;
   description?: ReactNode;
   action?: ReactNode;
   /** 保存の応答を待っている間。セクションの中を操作できない状態にする。 */
@@ -12,7 +14,7 @@ type SectionProps = {
 };
 
 /** 見出し行と本文を持つ、設定ページのセクション。店舗詳細のセクションと同じ見た目にそろえる。 */
-export function SetupSection({ headingId, title, description, action, isBusy = false, children }: SectionProps) {
+export function SetupSection({ headingId, title, step, description, action, isBusy = false, children }: SectionProps) {
   return (
     <Stack
       as="section"
@@ -26,16 +28,35 @@ export function SetupSection({ headingId, title, description, action, isBusy = f
       transitionDelay={isBusy ? "600ms" : "0ms"}
     >
       <Flex align="center" justify="space-between" gap={3} minH="36px">
-        <Text
-          id={headingId}
-          as="h2"
-          fontSize={{ base: "lg", lg: "xl" }}
-          lineHeight={{ base: "1.75rem", lg: "1.875rem" }}
-          fontWeight="bold"
-          color="gray.900"
-        >
-          {title}
-        </Text>
+        <Flex align="center" gap={2} minW={0}>
+          {step !== undefined && (
+            <Flex
+              aria-hidden
+              align="center"
+              justify="center"
+              boxSize="24px"
+              flexShrink={0}
+              borderRadius="full"
+              bg="gray.800"
+              color="white"
+              fontSize="sm"
+              fontWeight="bold"
+              lineHeight="1"
+            >
+              {step}
+            </Flex>
+          )}
+          <Text
+            id={headingId}
+            as="h2"
+            fontSize={{ base: "lg", lg: "xl" }}
+            lineHeight={{ base: "1.75rem", lg: "1.875rem" }}
+            fontWeight="bold"
+            color="gray.900"
+          >
+            {title}
+          </Text>
+        </Flex>
         {action}
       </Flex>
       {description && (
@@ -48,9 +69,24 @@ export function SetupSection({ headingId, title, description, action, isBusy = f
   );
 }
 
-export function SetupCard({ children }: { children: ReactNode }) {
+type SetupCardProps = {
+  children: ReactNode;
+  /**
+   * 角からはみ出す内容を切るか。中に画面の上端へ留める行を持つカードでは、留める動きを止めないようfalseにする。
+   * falseにしたカードでは、角に触れる内容の側で角を丸める。
+   */
+  clipsOverflow?: boolean;
+};
+
+export function SetupCard({ children, clipsOverflow = true }: SetupCardProps) {
   return (
-    <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" overflow="hidden">
+    <Box
+      borderWidth="1px"
+      borderColor="blackAlpha.100"
+      borderRadius="xl"
+      bg="white"
+      overflow={clipsOverflow ? "hidden" : undefined}
+    >
       {children}
     </Box>
   );
@@ -98,7 +134,8 @@ type SegmentedRadioProps<Value extends string> = {
   name: string;
   label: string;
   value: Value;
-  options: ReadonlyArray<{ value: Value; label: string }>;
+  /** `prefix`は、名前の前に添える印。 */
+  options: ReadonlyArray<{ value: Value; label: string; prefix?: ReactNode }>;
   disabled?: boolean;
   /** 選べない値。ほかの値は選べるまま、その選択肢だけを無効にする。 */
   disabledValues?: readonly Value[];
@@ -126,9 +163,11 @@ export function SegmentedRadio<Value extends string>({
             display="flex"
             alignItems="center"
             justifyContent="center"
-            flex={{ base: 1, md: "none" }}
+            gap={1.5}
+            // スマートフォンでは幅いっぱいに並べ、名前の長い選択肢へ多めに幅を配る。
+            flex={{ base: "1 1 auto", md: "none" }}
             minH={{ base: "44px", md: "32px" }}
-            // スマートフォンでは、4つの選択肢が1行に収まるよう左右の余白を詰める。
+            // スマートフォンでは、選択肢が1行に収まるよう左右の余白を詰める。
             px={{ base: 0.5, md: 3 }}
             borderWidth="1px"
             borderColor="gray.300"
@@ -172,6 +211,7 @@ export function SegmentedRadio<Value extends string>({
               cursor="inherit"
               onChange={() => onChange(option.value)}
             />
+            {option.prefix}
             {option.label}
           </chakra.label>
         );

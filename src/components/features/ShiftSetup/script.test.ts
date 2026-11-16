@@ -125,5 +125,7 @@ describe("保存していない変更の表示", () => {
     expect(formatPendingSections(["dayTemplates"])).toBe("必要人数");
     expect(formatPendingSections(["staffs"])).toBe("スタッフ");
     expect(formatPendingSections(["dayTemplates", "staffs"])).toBe("必要人数とスタッフ");
+    expect(formatPendingSections(["positions"])).toBe("ポジション");
+    expect(formatPendingSections(["positions", "dayTemplates", "staffs"])).toBe("ポジションと必要人数とスタッフ");
   });
 });

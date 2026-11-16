@@ -81,15 +81,11 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const mobile1 = {
-  tags: ["vrt-mobile1"],
-  globals: { viewport: { value: "mobile1", isRotated: false } },
-} satisfies Partial<Story>;
+// tagはStorybookが静的に読むため、Storyごとに直接書く。スプレッドで渡したtagは読まれない。
+const mobile1Globals = { viewport: { value: "mobile1", isRotated: false } };
 
-const mobile2 = {
-  tags: ["vrt-mobile2"],
-  globals: { viewport: { value: "mobile2", isRotated: false } },
-} satisfies Partial<Story>;
+// tagはStorybookが静的に読むため、Storyごとに直接書く。スプレッドで渡したtagは読まれない。
+const mobile2Globals = { viewport: { value: "mobile2", isRotated: false } };
 
 const behaviorOnly = { screenshot: { skip: true } };
 
@@ -140,25 +136,30 @@ const manyPositionsArgs = {
 export const ManyPositions: Story = { args: manyPositionsArgs };
 
 /** スマートフォン: 1日を画面の幅に収めたバーの表。左の列は行の番号だけにし、ポジションごとに必要人数を出す。 */
-export const Mobile: Story = { ...mobile2 };
+export const Mobile: Story = { tags: ["vrt-mobile2"], globals: mobile2Globals };
 
 /** スマートフォン（幅320px）: 1時間の幅が狭くなり、時刻の見出しを間引く。 */
-export const MobileSmall: Story = { ...mobile1 };
+export const MobileSmall: Story = { tags: ["vrt-mobile1"], globals: mobile1Globals };
 
-export const MobileEmpty: Story = { ...mobile2, args: { bars: [] } };
+export const MobileEmpty: Story = { tags: ["vrt-mobile2"], globals: mobile2Globals, args: { bars: [] } };
 
-export const MobileOutsideRange: Story = { ...mobile2, args: { bars: outsideBars } };
+export const MobileOutsideRange: Story = {
+  tags: ["vrt-mobile2"],
+  globals: mobile2Globals,
+  args: { bars: outsideBars },
+};
 
-export const MobileReadOnly: Story = { ...mobile2, args: { isReadOnly: true } };
+export const MobileReadOnly: Story = { tags: ["vrt-mobile2"], globals: mobile2Globals, args: { isReadOnly: true } };
 
-export const MobileHalfHourRange: Story = { ...mobile2, args: halfHourArgs };
+export const MobileHalfHourRange: Story = { tags: ["vrt-mobile2"], globals: mobile2Globals, args: halfHourArgs };
 
 /** スマートフォン: 長いポジション名は見出しの中で省き、「時刻を選んで足す」を押せる幅で残す。 */
-export const MobileManyPositions: Story = { ...mobile1, args: manyPositionsArgs };
+export const MobileManyPositions: Story = { tags: ["vrt-mobile1"], globals: mobile1Globals, args: manyPositionsArgs };
 
 /** スマートフォン: 受付時間が長く、1時間が16pxより狭くなる店舗。1時間を16pxで止め、表を横にスクロールさせる。 */
 export const MobileLongRange: Story = {
-  ...mobile1,
+  tags: ["vrt-mobile1"],
+  globals: mobile1Globals,
   args: {
     range: { startMinutes: 5 * 60, endMinutes: 29 * 60 },
     bars: toEditableStaffingBars([
@@ -251,7 +252,8 @@ const getRequiredCounts = (root: HTMLElement, positionName: string) =>
 
 /** スマートフォン: 指でなぞっている途中。プレビューの上に、開始と終了の時刻を出す。 */
 export const MobileDragging: Story = {
-  ...mobile2,
+  tags: ["vrt-mobile2"],
+  globals: mobile2Globals,
   play: async ({ canvasElement }) => {
     const track = await findTrack(canvasElement, "hall");
     await touch("pointerDown", track, pointAt(track, "14:30", 5, MOBILE_METRICS));
@@ -262,7 +264,8 @@ export const MobileDragging: Story = {
 
 /** スマートフォン: 「時刻を選んで足す」の入力。足すと人数がどう変わるかを出す。 */
 export const MobileAddForm: Story = {
-  ...mobile2,
+  tags: ["vrt-mobile2"],
+  globals: mobile2Globals,
   play: async ({ canvasElement }) => {
     const section = within(await within(canvasElement).findByRole("region", { name: "ホールのバー" }));
     await userEvent.click(section.getByRole("button", { name: "時刻を選んで足す" }));
@@ -780,7 +783,8 @@ export const InlineFormInteractive: Story = {
 
 /** スマートフォンでは、指で空いた場所をなぞるとバーが増える。なぞっている間は、開始と終了の時刻を出す。 */
 export const MobileSwipeToCreateInteractive: Story = {
-  ...mobile2,
+  tags: ["vrt-mobile2"],
+  globals: mobile2Globals,
   name: "Mobile Swipe To Create Interactive",
   parameters: behaviorOnly,
   play: async ({ canvasElement }) => {
@@ -838,7 +842,8 @@ export const MobileSwipeToCreateInteractive: Story = {
 
 /** なぞっている途中で画面のスクロールになった場合（pointercancel）は、バーを足さずに捨てる。 */
 export const MobileSwipeCancelInteractive: Story = {
-  ...mobile2,
+  tags: ["vrt-mobile2"],
+  globals: mobile2Globals,
   name: "Mobile Swipe Cancel Interactive",
   parameters: behaviorOnly,
   play: async ({ canvasElement }) => {
@@ -863,7 +868,8 @@ export const MobileSwipeCancelInteractive: Story = {
 
 /** スマートフォンでは、バーを押すと入力のDialogが開き、その1本の時刻を変え、削除できる。 */
 export const MobileEditAndDeleteInteractive: Story = {
-  ...mobile2,
+  tags: ["vrt-mobile2"],
+  globals: mobile2Globals,
   name: "Mobile Edit And Delete Interactive",
   parameters: behaviorOnly,
   play: async ({ canvasElement }) => {
@@ -914,7 +920,8 @@ export const MobileEditAndDeleteInteractive: Story = {
 
 /** スマートフォンでも、端が接しているバーと短いバーは、押したバーの入力が開き、そのバーだけを削除できる。 */
 export const MobileTouchingBarsInteractive: Story = {
-  ...mobile2,
+  tags: ["vrt-mobile2"],
+  globals: mobile2Globals,
   name: "Mobile Touching Bars Interactive",
   parameters: behaviorOnly,
   args: touchingArgs,
@@ -979,7 +986,8 @@ export const MobileTouchingBarsInteractive: Story = {
 
 /** スマートフォンでも、「時刻を選んで足す」で選んだ時間のバーが本数分だけ増える。 */
 export const MobileAddByFormInteractive: Story = {
-  ...mobile2,
+  tags: ["vrt-mobile2"],
+  globals: mobile2Globals,
   name: "Mobile Add By Form Interactive",
   parameters: behaviorOnly,
   play: async ({ canvasElement }) => {
@@ -1015,7 +1023,8 @@ export const MobileAddByFormInteractive: Story = {
 
 /** スマートフォンでも、上限を超える操作は受け付けず、理由を出す。 */
 export const MobileLimitInteractive: Story = {
-  ...mobile2,
+  tags: ["vrt-mobile2"],
+  globals: mobile2Globals,
   name: "Mobile Limit Interactive",
   parameters: behaviorOnly,
   args: { limits: { maxConcurrentPerPosition: 3, maxBars: 200 } },
@@ -1047,7 +1056,8 @@ export const MobileLimitInteractive: Story = {
 
 /** スマートフォンでも、受付時間の外のバーを知らせ、切りそろえると押して変えられるようになる。 */
 export const MobileTrimOutsideRangeInteractive: Story = {
-  ...mobile2,
+  tags: ["vrt-mobile2"],
+  globals: mobile2Globals,
   name: "Mobile Trim Outside Range Interactive",
   parameters: behaviorOnly,
   args: { bars: outsideBars },
@@ -1072,7 +1082,8 @@ export const MobileTrimOutsideRangeInteractive: Story = {
 
 /** スマートフォンの読み取り専用では、なぞってもバーは増えず、バーを押しても入力は開かない。 */
 export const MobileReadOnlyInteractive: Story = {
-  ...mobile2,
+  tags: ["vrt-mobile2"],
+  globals: mobile2Globals,
   name: "Mobile Read Only Interactive",
   parameters: behaviorOnly,
   args: { isReadOnly: true },
@@ -1099,7 +1110,8 @@ export const MobileReadOnlyInteractive: Story = {
 
 /** スマートフォンで formPresentation="inline" にすると、バーを押したときの入力も、Dialogではなくその場に出す。 */
 export const MobileInlineFormInteractive: Story = {
-  ...mobile2,
+  tags: ["vrt-mobile2"],
+  globals: mobile2Globals,
   name: "Mobile Inline Form Interactive",
   parameters: behaviorOnly,
   args: { formPresentation: "inline" },

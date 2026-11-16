@@ -73,6 +73,14 @@ export function DayTemplatesSection({ setup, canWrite, isSaving, dayTemplates, i
     <SetupSection
       headingId="shift-setup-day-templates-heading"
       title="必要人数"
+      step={2}
+      description={
+        <>
+          曜日ごとに、時間帯の必要人数を決めます。
+          <br />
+          シフト表で、人が足りない時間と多い時間が分かります。
+        </>
+      }
       isBusy={isSaving}
       action={drafts.length > 0 && canUseAssist ? assistButton("ghost") : undefined}
     >
@@ -82,7 +90,9 @@ export function DayTemplatesSection({ setup, canWrite, isSaving, dayTemplates, i
           title="必要人数はまだ設定していません"
           titleAs="h3"
           description={
-            canWrite ? "最初の型には営業日のすべての曜日が入ります。\n使う日と人数はあとから変えられます。" : undefined
+            canWrite
+              ? "曜日ごとの必要人数を「型」として作ります。\n最初の型には営業日のすべての曜日が入ります。\n平日と土日で分けるのは、あとからできます。"
+              : undefined
           }
           variant="section"
           py={8}

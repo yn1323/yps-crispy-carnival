@@ -262,7 +262,7 @@ describe("shiftSetup/mutations", () => {
   describe("認証と組織の境界", () => {
     const mutations: Array<{
       name: string;
-      run: (client: MutationClient, ids: SeededIds, scope: SeededIds["scope"]) => Promise<null>;
+      run: (client: MutationClient, ids: SeededIds, scope: SeededIds["scope"]) => Promise<unknown>;
     }> = [
       {
         name: "savePositions",
@@ -355,7 +355,7 @@ describe("shiftSetup/mutations", () => {
         seedOrganizationManagerShop(ctx, { subject: "shift_setup_no_default_manager", shopName: "既定なし店舗" }),
       );
 
-      await t
+      const savedIds = await t
         .withIdentity({ subject: "shift_setup_no_default_manager" })
         .mutation(api.shiftSetup.mutations.savePositions, {
           shopId: actor.shopId,
@@ -373,6 +373,11 @@ describe("shiftSetup/mutations", () => {
           .withIndex("by_shopId", (q) => q.eq("shopId", actor.shopId))
           .collect(),
       );
+      // 返すIDは入力の順で、ここで作った既定のポジションは含めない。
+      expect(savedIds.map((id) => positions.find((position) => position._id === id)?.name)).toEqual([
+        "ホール",
+        "キッチン",
+      ]);
       expect(
         positions
           .map(({ name, color, sortOrder, isDefault, isDeleted }) => ({ name, color, sortOrder, isDefault, isDeleted }))
@@ -390,16 +395,22 @@ describe("shiftSetup/mutations", () => {
       const ids = await seedShops(t);
       const before = await readSetupState(t);
 
-      await t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shiftSetup.mutations.savePositions, {
-        ...ids.scope,
-        positions: [
-          { id: ids.kitchenPositionId, name: "キッチン", color: "#c2410c" },
-          { id: ids.defaultPositionId, name: " フロア ", color: "#0f766e" },
-          { name: "レジ", color: "#db2777" },
-        ],
-      });
+      const savedIds = await t
+        .withIdentity({ subject: MANAGER_SUBJECT })
+        .mutation(api.shiftSetup.mutations.savePositions, {
+          ...ids.scope,
+          positions: [
+            { id: ids.kitchenPositionId, name: "キッチン", color: "#c2410c" },
+            { id: ids.defaultPositionId, name: " フロア ", color: "#0f766e" },
+            { name: "レジ", color: "#db2777" },
+          ],
+        });
 
       const after = await readSetupState(t);
+      // 保存したポジションのIDを入力の順で返す。既存のポジションは同じID、足したポジションは作ったIDである。
+      const created = after.positions.filter((position) => position.shopId === ids.shopId && position.name === "レジ");
+      expect(created).toHaveLength(1);
+      expect(savedIds).toEqual([ids.kitchenPositionId, ids.defaultPositionId, created[0]._id]);
       const labels = new Map([
         [ids.defaultPositionId, "default"],
         [ids.hallPositionId, "hall"],

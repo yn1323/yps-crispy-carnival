@@ -72,10 +72,8 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const mobile1 = {
-  tags: ["vrt-mobile1"],
-  globals: { viewport: { value: "mobile1", isRotated: false } },
-} satisfies Partial<Story>;
+// tagはStorybookが静的に読むため、Storyごとに直接書く。スプレッドで渡したtagは読まれない。
+const mobile1Globals = { viewport: { value: "mobile1", isRotated: false } };
 
 const behaviorOnly = { screenshot: { skip: true } };
 
@@ -117,9 +115,9 @@ export const ManyPositions: Story = {
 };
 
 /** スマートフォン: 勤務パターンごとに、ポジションを縦に並べる。 */
-export const Mobile: Story = { ...mobile1 };
+export const Mobile: Story = { tags: ["vrt-mobile1"], globals: mobile1Globals };
 
-export const MobileDateOnly: Story = { ...mobile1, args: DateOnly.args };
+export const MobileDateOnly: Story = { tags: ["vrt-mobile1"], globals: mobile1Globals, args: DateOnly.args };
 
 // ==========================================
 // Behavior
@@ -150,7 +148,8 @@ export const TypeCountInteractive: Story = {
 };
 
 export const MobileTypeCountInteractive: Story = {
-  ...mobile1,
+  tags: ["vrt-mobile1"],
+  globals: mobile1Globals,
   parameters: behaviorOnly,
   play: typeCounts,
 };

@@ -27,17 +27,26 @@ const ICON_BUTTON_SIZE = { base: "44px", md: "36px" };
 const LAST_POSITION_NOTE_ID = `${FORM_ID}-last-position-note`;
 
 type Props = {
+  /** 編集中の値を反映したポジション。 */
   positions: readonly ShiftSetupPosition[];
+  /** 最後に保存したポジション。 */
+  savedPositions: readonly ShiftSetupPosition[];
   canWrite: boolean;
-  dialog: DialogState & { isSaving: boolean };
-  onSave: (positions: PositionInput[]) => void;
+  /** 保存の応答を待っている間。ポジションを操作できない状態にする。 */
+  isSaving: boolean;
+  dialog: DialogState;
+  /** Dialogで決めた一覧を、ページの編集中の値へ反映する。保存はページの「保存する」で行う。 */
+  onApply: (positions: PositionInput[]) => void;
 };
 
-export function PositionsSection({ positions, canWrite, dialog, onSave }: Props) {
+export function PositionsSection({ positions, savedPositions, canWrite, isSaving, dialog, onApply }: Props) {
   return (
     <SetupSection
       headingId="shift-setup-positions-heading"
       title="ポジション"
+      step={1}
+      description="ホールやキッチンなど、持ち場を分ける店舗だけ設定します"
+      isBusy={isSaving}
       action={
         <Button
           type="button"
@@ -71,8 +80,7 @@ export function PositionsSection({ positions, canWrite, dialog, onSave }: Props)
         onOpenChange={dialog.onOpenChange}
         onClose={dialog.close}
         formId={FORM_ID}
-        submitLabel="保存する"
-        isLoading={dialog.isSaving}
+        submitLabel="反映する"
         mobileFullScreen
         maxW={{ md: "560px" }}
         maxH={{ md: "85dvh" }}
@@ -81,8 +89,8 @@ export function PositionsSection({ positions, canWrite, dialog, onSave }: Props)
         <PositionsForm
           key={dialog.isOpen ? "open" : "closed"}
           positions={positions}
-          disabled={dialog.isSaving}
-          onSubmit={onSave}
+          savedPositions={savedPositions}
+          onSubmit={onApply}
         />
       </Dialog>
     </SetupSection>
@@ -91,11 +99,11 @@ export function PositionsSection({ positions, canWrite, dialog, onSave }: Props)
 
 type FormProps = {
   positions: readonly ShiftSetupPosition[];
-  disabled: boolean;
+  savedPositions: readonly ShiftSetupPosition[];
   onSubmit: (positions: PositionInput[]) => void;
 };
 
-function PositionsForm({ positions, disabled, onSubmit }: FormProps) {
+function PositionsForm({ positions, savedPositions, onSubmit }: FormProps) {
   const [drafts, setDrafts] = useState(() => toPositionDrafts(positions));
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [paletteRowKey, setPaletteRowKey] = useState<string | null>(null);
@@ -103,7 +111,7 @@ function PositionsForm({ positions, disabled, onSubmit }: FormProps) {
   const focusRowKeyRef = useRef<string | null>(null);
 
   const errors = hasSubmitted ? findPositionDraftErrors(drafts) : null;
-  const removedNames = getRemovedPositionNames(positions, drafts);
+  const removedNames = getRemovedPositionNames(savedPositions, drafts);
   const fallbackPositionName = getFallbackPositionName(drafts);
   const canRemove = canRemovePositionDraft(drafts);
   const canAdd = canAddPosition(drafts);
@@ -153,7 +161,6 @@ function PositionsForm({ positions, disabled, onSubmit }: FormProps) {
                     aria-label={`${label}の色を変更`}
                     aria-expanded={isPaletteOpen}
                     aria-controls={paletteId}
-                    disabled={disabled}
                     display="flex"
                     alignItems="center"
                     justifyContent="center"
@@ -184,7 +191,6 @@ function PositionsForm({ positions, disabled, onSubmit }: FormProps) {
                       maxLength={POSITION_NAME_MAX_LENGTH}
                       placeholder="キッチン"
                       bg="white"
-                      disabled={disabled}
                       onChange={(event) => updateDraft(draft.rowKey, { name: event.target.value })}
                     />
                   </Field.Root>
@@ -195,7 +201,7 @@ function PositionsForm({ positions, disabled, onSubmit }: FormProps) {
                       aria-label={`${label}を上へ移動`}
                       variant="ghost"
                       boxSize={ICON_BUTTON_SIZE}
-                      disabled={disabled || !canMovePositionDraft(drafts, index, -1)}
+                      disabled={!canMovePositionDraft(drafts, index, -1)}
                       onClick={() => setDrafts((current) => movePositionDraft(current, index, -1))}
                     >
                       <LuArrowUp aria-hidden />
@@ -205,7 +211,7 @@ function PositionsForm({ positions, disabled, onSubmit }: FormProps) {
                       aria-label={`${label}を下へ移動`}
                       variant="ghost"
                       boxSize={ICON_BUTTON_SIZE}
-                      disabled={disabled || !canMovePositionDraft(drafts, index, 1)}
+                      disabled={!canMovePositionDraft(drafts, index, 1)}
                       onClick={() => setDrafts((current) => movePositionDraft(current, index, 1))}
                     >
                       <LuArrowDown aria-hidden />
@@ -218,7 +224,7 @@ function PositionsForm({ positions, disabled, onSubmit }: FormProps) {
                       colorPalette="red"
                       color="red.600"
                       boxSize={ICON_BUTTON_SIZE}
-                      disabled={disabled || !canRemove}
+                      disabled={!canRemove}
                       onClick={() => setDrafts((current) => current.filter((item) => item.rowKey !== draft.rowKey))}
                     >
                       <LuTrash2 aria-hidden />
@@ -236,7 +242,6 @@ function PositionsForm({ positions, disabled, onSubmit }: FormProps) {
                           type="button"
                           aria-label={option.label}
                           aria-pressed={isSelected}
-                          disabled={disabled}
                           display="flex"
                           alignItems="center"
                           justifyContent="center"
@@ -277,7 +282,7 @@ function PositionsForm({ positions, disabled, onSubmit }: FormProps) {
             variant="outline"
             bg="white"
             minH={{ base: "44px", md: "40px" }}
-            disabled={disabled || !canAdd}
+            disabled={!canAdd}
             onClick={handleAdd}
           >
             <LuPlus aria-hidden />
@@ -305,10 +310,16 @@ function PositionsForm({ positions, disabled, onSubmit }: FormProps) {
           <Text fontSize="sm" color="orange.700" lineHeight="tall" bg="orange.50" borderRadius="md" px={3} py={2.5}>
             保存すると「{removedNames.join("」「")}」を削除します。
             <br />
+            削除したポジションの必要人数と熟練度もなくなります。
+            <br />
             削除したポジションの勤務は、シフト表で「{fallbackPositionName || "残したポジション"}
             」として表示されます。
           </Text>
         )}
+
+        <Text fontSize="xs" color="fg.muted" lineHeight="tall">
+          反映した内容はページの「保存する」で保存します
+        </Text>
       </Stack>
     </chakra.form>
   );
