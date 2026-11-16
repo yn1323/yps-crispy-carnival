@@ -161,6 +161,16 @@ export function StaffProfilesSection({
           variant="section"
           py={8}
         />
+      ) : positions.length === 0 ? (
+        // 熟練度はポジションごとに持つため、ポジションが1件もない店舗では設定できない。
+        <Empty
+          icon={LuUsers}
+          title="ポジションがまだありません"
+          titleAs="h3"
+          description="ポジションを登録すると、ここで熟練度を設定できます。"
+          variant="section"
+          py={8}
+        />
       ) : (
         // 付ける印の行を画面の上端に留めるため、このカードでは角からはみ出す内容を切らない。
         <SetupCard clipsOverflow={false}>
