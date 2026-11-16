@@ -118,7 +118,9 @@ export const StaffingBand = ({ leftWidth }: { leftWidth: number }) => {
   if (!view) return null;
 
   const summary = summarizeStaffingBands(view, isExpanded);
-  const hasNewcomer = staffs.some((staff) => staff.skillLevel === "newcomer" && !staff.isRemoved);
+  const hasNewcomer = staffs.some(
+    (staff) => !staff.isRemoved && staff.positionSkills?.some((skill) => skill.level === "newcomer"),
+  );
 
   return (
     <Box

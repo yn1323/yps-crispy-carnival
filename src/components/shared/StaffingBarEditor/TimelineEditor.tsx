@@ -1,49 +1,46 @@
-import { Box, chakra, Flex, Popover, Portal, Stack, Text } from "@chakra-ui/react";
-import { type MutableRefObject, type MouseEvent as ReactMouseEvent, useId, useMemo, useRef, useState } from "react";
-import { LuChevronDown, LuChevronRight, LuPlus, LuTrash2, LuX } from "react-icons/lu";
+import { Box, chakra, Flex, Text } from "@chakra-ui/react";
+import { type MutableRefObject, type PointerEvent as ReactPointerEvent, useId, useMemo, useRef, useState } from "react";
+import { LuChevronDown, LuChevronRight, LuPlus } from "react-icons/lu";
 import { TimelineGridLines, TimelineHourLabels } from "@/src/components/shared/ShiftTimeline";
-import { RESIZE_EDGE_THRESHOLD } from "@/src/components/shared/ShiftTimeline/constants";
 import {
   getDisplayEndMinutes,
   getDisplayStartMinutes,
+  getTimeAxisWidth,
   isWithinEditableRange,
   minutesToPixel,
   pixelToEditableMinutes,
   pixelToRawMinutes,
 } from "@/src/components/shared/ShiftTimeline/timelineGeometry";
-import { Button, IconButton } from "@/src/components/ui/Button";
+import { Button } from "@/src/components/ui/Button";
 import {
   addStaffingBar,
+  countRequiredSegments,
   type EditableStaffingBar,
+  getResizedStaffingBarTime,
   isStaffingBarWithinRange,
   packStaffingBars,
+  type RequiredSegment,
   removeStaffingBar,
   resizeStaffingBar,
   type StaffingBarResult,
   type StaffingBarRules,
-  updateStaffingBar,
 } from "@/src/domains/shift/staffingBars";
-import {
-  formatShiftClockTime,
-  formatShiftClockTimeRange,
-  minutesToTime,
-  timeToMinutes,
-} from "@/src/domains/shift/time";
+import { formatShiftClockTimeRange, minutesToTime, timeToMinutes } from "@/src/domains/shift/time";
 import type { TimeRange } from "@/src/domains/shift/types";
-import { BarTimeFields } from "./BarTimeFields";
+import { RequiredCountSegments } from "./RequiredCountSegments";
 import {
-  BAR_HEIGHT_PX,
-  BAR_ROW_HEIGHT_PX,
   buildTimelineRange,
-  buildTimeOptions,
-  canShowBarLabel,
+  getDragTimeLabelCenter,
   getMinTrackWidth,
   getRejectionMessage,
+  getTimelineMetrics,
   isBarOnTimeline,
-  LABEL_COLUMN_WIDTH_PX,
   type StaffingBarEditorPosition,
+  type StaffingBarLayout,
+  type TimelineMetrics,
 } from "./script";
-import { type StaffingBarDrag, useStaffingBarDrag } from "./useStaffingBarDrag";
+import { TimelineBar } from "./TimelineBar";
+import { type StaffingBarDrag, type StaffingBarDragSource, useStaffingBarDrag } from "./useStaffingBarDrag";
 import { useTimelineHourWidth } from "./useTimelineHourWidth";
 
 type TimelineEditorProps = {
@@ -51,19 +48,44 @@ type TimelineEditorProps = {
   bars: readonly EditableStaffingBar[];
   rules: StaffingBarRules;
   isReadOnly: boolean;
+  /** narrowでは、左の列を行の番号だけにし、ポジションごとに「できあがる必要人数」を出す。 */
+  layout: StaffingBarLayout;
+  /** 指で操作する画面か。バーを押すと onOpenEdit の入力を開き、端の伸び縮みは出さない。なぞっている間は時刻を出す。 */
+  isTouch: boolean;
   onChange: (bars: EditableStaffingBar[]) => void;
   /** 「時刻を選んで足す」を押したとき */
   onOpenAdd: (position: StaffingBarEditorPosition) => void;
+  /** 指で操作する画面で、バーを押したとき */
+  onOpenEdit: (position: StaffingBarEditorPosition, bar: EditableStaffingBar) => void;
 };
 
 type Notice = { positionId: string; message: string };
 
-const BAR_TOP_OFFSET_PX = (BAR_ROW_HEIGHT_PX - BAR_HEIGHT_PX) / 2;
+// 「できあがる必要人数」の帯の高さ。
+const COUNT_ROW_HEIGHT_PX = 28;
+// なぞっている間の時刻の札の高さと、行との間隔。札は指で隠れないよう、行の上に出す。
+const DRAG_TIME_LABEL_HEIGHT_PX = 24;
+const DRAG_TIME_LABEL_GAP_PX = 6;
 
-/** PCのバーの表。空いた場所をドラッグするとバーが引け、端をドラッグすると伸び縮みする。 */
-export const TimelineEditor = ({ positions, bars, rules, isReadOnly, onChange, onOpenAdd }: TimelineEditorProps) => {
+/**
+ * バーの表。空いた場所をなぞるとバーが引ける。マウスでも指でも同じ操作になる。
+ * マウスで使う画面では、バーの端をドラッグして伸び縮みできる。
+ * 足す、伸び縮みさせる、時刻を変える操作のあと、同じ行で端が接したバーは1本にまとまる。
+ */
+export const TimelineEditor = ({
+  positions,
+  bars,
+  rules,
+  isReadOnly,
+  layout,
+  isTouch,
+  onChange,
+  onOpenAdd,
+  onOpenEdit,
+}: TimelineEditorProps) => {
+  const metrics = useMemo(() => getTimelineMetrics(layout), [layout]);
   const timeRange = useMemo(() => buildTimelineRange(rules.range, rules.unitMinutes), [rules]);
-  const { measureRef, hourWidth } = useTimelineHourWidth(timeRange.end - timeRange.start);
+  const { measureRef, hourWidth } = useTimelineHourWidth(timeRange.end - timeRange.start, metrics);
   const [collapsedIds, setCollapsedIds] = useState<ReadonlySet<string>>(new Set());
   const [notice, setNotice] = useState<Notice | null>(null);
   // 端のドラッグでバーを動かした直後のclickでは、バーの欄を開かない。
@@ -76,6 +98,18 @@ export const TimelineEditor = ({ positions, bars, rules, isReadOnly, onChange, o
         positionIds: positions.map((position) => position.id),
       }),
     [bars, positions, timeRange],
+  );
+  // 狭い画面では、ポジションごとの必要人数を、バーの行のすぐ下に出す。
+  const requiredSegments = useMemo(
+    () =>
+      layout === "narrow"
+        ? countRequiredSegments({ bars, positionIds: positions.map((position) => position.id), range: rules.range })
+        : [],
+    [layout, bars, positions, rules.range],
+  );
+  const maxRequiredCount = Math.max(
+    1,
+    ...requiredSegments.flatMap((item) => item.segments.map((segment) => segment.count)),
   );
 
   const apply = (positionId: string, result: StaffingBarResult) => {
@@ -104,11 +138,12 @@ export const TimelineEditor = ({ positions, bars, rules, isReadOnly, onChange, o
       return;
     }
     const before = bars.find((bar) => bar.id === drag.barId);
-    const result = resizeStaffingBar({ bars, barId: drag.barId, edge: drag.edge, minutes: drag.currentMinutes, rules });
-    const after = result.ok ? result.bars.find((bar) => bar.id === drag.barId) : undefined;
+    const after =
+      before && getResizedStaffingBarTime({ bar: before, edge: drag.edge, minutes: drag.currentMinutes, rules });
     // 動かさずに離した場合は、押しただけとして扱い、バーの欄を開く。
-    if (result.ok && before && after && before.start === after.start && before.end === after.end) return;
-    // mouseupに続くclickだけを止める。離した場所がバーの外でclickが来ない場合に備え、すぐ戻す。
+    if (before && after && before.start === after.start && before.end === after.end) return;
+    const result = resizeStaffingBar({ bars, barId: drag.barId, edge: drag.edge, minutes: drag.currentMinutes, rules });
+    // pointerupに続くclickだけを止める。離した場所がバーの外でclickが来ない場合に備え、すぐ戻す。
     suppressOpenRef.current = true;
     window.setTimeout(() => {
       suppressOpenRef.current = false;
@@ -117,7 +152,13 @@ export const TimelineEditor = ({ positions, bars, rules, isReadOnly, onChange, o
   };
 
   const { drag, startDrag } = useStaffingBarDrag({
-    toMinutes: (clientX, trackRect) => pixelToEditableMinutes({ x: clientX - trackRect.left, timeRange, hourWidth }),
+    toMinutes: (clientX, trackRect) =>
+      pixelToEditableMinutes({
+        x: clientX - trackRect.left,
+        timeRange,
+        hourWidth,
+        axisPadding: metrics.axisPadding,
+      }),
     onCommit: handleCommit,
   });
 
@@ -131,11 +172,11 @@ export const TimelineEditor = ({ positions, bars, rules, isReadOnly, onChange, o
 
   return (
     <Box overflowX="auto">
-      <Box minW={`${LABEL_COLUMN_WIDTH_PX + getMinTrackWidth(timeRange)}px`}>
+      <Box minW={`${metrics.labelColumnWidth + getMinTrackWidth(timeRange, metrics)}px`}>
         <Flex>
-          <Box w={`${LABEL_COLUMN_WIDTH_PX}px`} flexShrink={0} />
+          <Box w={`${metrics.labelColumnWidth}px`} flexShrink={0} />
           <Box flex={1} minW={0} ref={measureRef}>
-            <TimelineHourLabels timeRange={timeRange} hourWidth={hourWidth} />
+            <TimelineHourLabels timeRange={timeRange} hourWidth={hourWidth} axisPadding={metrics.axisPadding} />
           </Box>
         </Flex>
         {positions.map((position, index) => (
@@ -143,11 +184,16 @@ export const TimelineEditor = ({ positions, bars, rules, isReadOnly, onChange, o
             key={position.id}
             position={position}
             rows={packed[index]?.rows ?? [[]]}
+            requiredSegments={layout === "narrow" ? (requiredSegments[index]?.segments ?? []) : null}
+            maxRequiredCount={maxRequiredCount}
             bars={bars}
             rules={rules}
             timeRange={timeRange}
             hourWidth={hourWidth}
+            metrics={metrics}
+            layout={layout}
             isReadOnly={isReadOnly}
+            isTouch={isTouch}
             isCollapsed={collapsedIds.has(position.id)}
             notice={notice?.positionId === position.id ? notice.message : null}
             drag={drag?.positionId === position.id ? drag : null}
@@ -155,6 +201,7 @@ export const TimelineEditor = ({ positions, bars, rules, isReadOnly, onChange, o
             suppressOpenRef={suppressOpenRef}
             onToggleCollapsed={() => toggleCollapsed(position.id)}
             onOpenAdd={() => onOpenAdd(position)}
+            onOpenEdit={(bar) => onOpenEdit(position, bar)}
             onStartDrag={startDrag}
             onApply={(result) => apply(position.id, result)}
             onChange={(next) => {
@@ -172,11 +219,18 @@ type PositionBlockProps = {
   position: StaffingBarEditorPosition;
   /** 行へ詰めたバー。最後の行は常に空。 */
   rows: EditableStaffingBar[][];
+  /** バーの行のすぐ下に出す、このポジションの必要人数。出さない場合はnull。 */
+  requiredSegments: readonly RequiredSegment[] | null;
+  /** 必要人数の色の濃さの基準にする、いちばん多い人数 */
+  maxRequiredCount: number;
   bars: readonly EditableStaffingBar[];
   rules: StaffingBarRules;
   timeRange: TimeRange;
   hourWidth: number;
+  metrics: TimelineMetrics;
+  layout: StaffingBarLayout;
   isReadOnly: boolean;
+  isTouch: boolean;
   isCollapsed: boolean;
   notice: string | null;
   /** このポジションで進んでいるドラッグ */
@@ -186,7 +240,8 @@ type PositionBlockProps = {
   suppressOpenRef: MutableRefObject<boolean>;
   onToggleCollapsed: () => void;
   onOpenAdd: () => void;
-  onStartDrag: (drag: StaffingBarDrag, trackRect: DOMRect) => void;
+  onOpenEdit: (bar: EditableStaffingBar) => void;
+  onStartDrag: (drag: StaffingBarDrag, source: StaffingBarDragSource) => void;
   onApply: (result: StaffingBarResult) => void;
   onChange: (bars: EditableStaffingBar[]) => void;
 };
@@ -194,11 +249,16 @@ type PositionBlockProps = {
 const PositionBlock = ({
   position,
   rows,
+  requiredSegments,
+  maxRequiredCount,
   bars,
   rules,
   timeRange,
   hourWidth,
+  metrics,
+  layout,
   isReadOnly,
+  isTouch,
   isCollapsed,
   notice,
   drag,
@@ -206,6 +266,7 @@ const PositionBlock = ({
   suppressOpenRef,
   onToggleCollapsed,
   onOpenAdd,
+  onOpenEdit,
   onStartDrag,
   onApply,
   onChange,
@@ -213,32 +274,44 @@ const PositionBlock = ({
   const bodyId = useId();
   const trackRef = useRef<HTMLDivElement>(null);
   const addButtonRef = useRef<HTMLButtonElement>(null);
+  const { labelColumnWidth, axisPadding, rowHeight, barHeight } = metrics;
+  const barTopOffset = (rowHeight - barHeight) / 2;
   // 見出しの本数は、表示範囲の外にあって表に出ないバーも含めて数える。
   const barCount = bars.filter((bar) => bar.positionId === position.id).length;
   // 読み取り専用では、バーを引くための空の行を出さない。表に出るバーがないときだけ、空であることを伝える行を残す。
   const hasEmptyRow = !isReadOnly || rows.length === 1;
   const visibleRows = hasEmptyRow ? rows : rows.slice(0, -1);
   const emptyRowIndex = hasEmptyRow ? visibleRows.length - 1 : -1;
+  const toPixel = (minutes: number) => minutesToPixel(minutes, timeRange, hourWidth, axisPadding);
 
-  const handleTrackMouseDown = (event: ReactMouseEvent<HTMLDivElement>) => {
-    if (event.button !== 0) return;
-    const trackRect = event.currentTarget.getBoundingClientRect();
+  const handleTrackPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    // 左ボタンと、1本目の指だけで始める。
+    if (event.button !== 0 || !event.isPrimary) return;
+    const track = event.currentTarget;
+    // バーの欄（Popover）は表の外へ描画するが、Reactのイベントは表まで伝わる。
+    // 欄の中を押した操作でバーを引き始めないよう、表の中で始まった操作だけを受け取る。
+    if (!(event.target instanceof Node) || !track.contains(event.target)) return;
+    const trackRect = track.getBoundingClientRect();
     const x = event.clientX - trackRect.left;
-    if (!isWithinEditableRange(pixelToRawMinutes({ x, timeRange, hourWidth }), timeRange)) return;
-    const minutes = pixelToEditableMinutes({ x, timeRange, hourWidth });
+    if (!isWithinEditableRange(pixelToRawMinutes({ x, timeRange, hourWidth, axisPadding }), timeRange)) return;
+    const minutes = pixelToEditableMinutes({ x, timeRange, hourWidth, axisPadding });
     const rowIndex = Math.min(
       visibleRows.length - 1,
-      Math.max(0, Math.floor((event.clientY - trackRect.top) / BAR_ROW_HEIGHT_PX)),
+      Math.max(0, Math.floor((event.clientY - trackRect.top) / rowHeight)),
     );
     onStartDrag(
       { kind: "create", positionId: position.id, rowIndex, anchorMinutes: minutes, currentMinutes: minutes },
-      trackRect,
+      { pointerId: event.pointerId, track, captureTarget: track },
     );
   };
 
-  const handleResizeStart = (bar: EditableStaffingBar, edge: "start" | "end") => {
-    const trackRect = trackRef.current?.getBoundingClientRect();
-    if (!trackRect) return;
+  const handleResizeStart = (
+    bar: EditableStaffingBar,
+    edge: "start" | "end",
+    event: ReactPointerEvent<HTMLElement>,
+  ) => {
+    const track = trackRef.current;
+    if (!track) return;
     onStartDrag(
       {
         kind: "resize",
@@ -247,20 +320,36 @@ const PositionBlock = ({
         edge,
         currentMinutes: timeToMinutes(edge === "start" ? bar.start : bar.end),
       },
-      trackRect,
+      // 動かさずに離したときのclickがバーへ届くよう、押した端でポインタを捕まえる。
+      { pointerId: event.pointerId, track, captureTarget: event.currentTarget },
     );
   };
 
-  /** 端をドラッグしている間の、バーの見た目の時刻。受け付けられない位置では、もとの時刻のままにする。 */
+  /**
+   * 端をドラッグしている間の、バーの見た目の時刻。受け付けられない位置では、もとの時刻のままにする。
+   * 隣のバーに接しても、離すまではまとめた形にせず、動かしているバーだけを伸び縮みさせる。
+   */
   const getDisplayedTime = (bar: EditableStaffingBar) => {
     if (drag?.kind !== "resize" || drag.barId !== bar.id) return bar;
     const result = resizeStaffingBar({ bars, barId: bar.id, edge: drag.edge, minutes: drag.currentMinutes, rules });
-    return (result.ok ? result.bars.find((item) => item.id === bar.id) : undefined) ?? bar;
+    return result.ok ? getResizedStaffingBarTime({ bar, edge: drag.edge, minutes: drag.currentMinutes, rules }) : bar;
   };
+
+  // バーを引いている間のプレビュー。刻み1つ分も動かしていない間は出さない。
+  const preview =
+    drag?.kind === "create" && Math.abs(drag.currentMinutes - drag.anchorMinutes) >= rules.unitMinutes
+      ? {
+          rowIndex: drag.rowIndex,
+          start: Math.min(drag.anchorMinutes, drag.currentMinutes),
+          end: Math.max(drag.anchorMinutes, drag.currentMinutes),
+        }
+      : null;
+  const previewLeft = preview ? toPixel(preview.start) : 0;
+  const previewWidth = preview ? toPixel(preview.end) - previewLeft : 0;
 
   return (
     <Box as="section" aria-label={`${position.name}のバー`} borderTopWidth="1px" borderColor="gray.200">
-      <Flex align="center" justify="space-between" gap={2} minH="36px" pl={1} pr={2} bg="gray.50">
+      <Flex align="center" justify="space-between" gap={2} minH="44px" pl={1} pr={2} bg="gray.50">
         <chakra.button
           type="button"
           aria-expanded={!isCollapsed}
@@ -269,9 +358,12 @@ const PositionBlock = ({
           display="inline-flex"
           alignItems="center"
           gap={2}
-          minH="36px"
+          minH="44px"
           px={2}
           minW={0}
+          // 表を横にスクロールしても、見出しは見える位置に留める。
+          position="sticky"
+          left={1}
           borderRadius="md"
           cursor="pointer"
           color="gray.800"
@@ -289,20 +381,25 @@ const PositionBlock = ({
           </Text>
         </chakra.button>
         {!isReadOnly && (
-          <Button
-            ref={addButtonRef}
-            type="button"
-            variant="ghost"
-            colorPalette="teal"
-            size="xs"
-            gap={1}
-            fontWeight="semibold"
-            flexShrink={0}
-            onClick={onOpenAdd}
-          >
-            <LuPlus aria-hidden />
-            時刻を選んで足す
-          </Button>
+          // 表を横にスクロールしても押せるよう、右端に留める。長いポジション名とは、地色で重なりを隠す。
+          <Box position="sticky" right={2} flexShrink={0} bg="gray.50">
+            <Button
+              ref={addButtonRef}
+              type="button"
+              data-staffing-add={position.id}
+              variant="ghost"
+              colorPalette="teal"
+              // 狭い画面では、ポジション名を省かずに並べられるよう、文字を小さくする。押せる高さは44pxを保つ。
+              size={layout === "narrow" ? "xs" : "sm"}
+              minH={isTouch ? "44px" : undefined}
+              gap={1}
+              fontWeight="semibold"
+              onClick={onOpenAdd}
+            >
+              <LuPlus aria-hidden />
+              時刻を選んで足す
+            </Button>
+          </Box>
         )}
       </Flex>
       {notice && (
@@ -310,123 +407,186 @@ const PositionBlock = ({
           {notice}
         </Text>
       )}
-      <Flex id={bodyId} display={isCollapsed ? "none" : "flex"} bg="white">
-        <Box w={`${LABEL_COLUMN_WIDTH_PX}px`} flexShrink={0} aria-hidden>
-          {visibleRows.map((_, rowIndex) => (
-            <Flex
-              key={rowIndex}
-              h={`${BAR_ROW_HEIGHT_PX}px`}
-              align="center"
-              justify="flex-end"
-              pr={3}
-              borderTopWidth="1px"
-              borderColor="gray.100"
-            >
-              {rowIndex !== emptyRowIndex && (
-                <Text textStyle="2xs" color="gray.400" fontVariantNumeric="tabular-nums">
-                  {rowIndex + 1}
+      <Box id={bodyId} display={isCollapsed ? "none" : "block"} position="relative" bg="white">
+        <Flex>
+          <Box w={`${labelColumnWidth}px`} flexShrink={0} aria-hidden>
+            {visibleRows.map((_, rowIndex) => (
+              <Flex
+                key={rowIndex}
+                h={`${rowHeight}px`}
+                align="center"
+                justify="flex-end"
+                pr={layout === "narrow" ? 1 : 3}
+                borderTopWidth="1px"
+                borderColor="gray.100"
+              >
+                {rowIndex !== emptyRowIndex && (
+                  <Text textStyle="2xs" color="gray.400" fontVariantNumeric="tabular-nums">
+                    {rowIndex + 1}
+                  </Text>
+                )}
+              </Flex>
+            ))}
+          </Box>
+          <Box
+            ref={trackRef}
+            data-staffing-track={position.id}
+            position="relative"
+            flex={1}
+            minW={0}
+            h={`${visibleRows.length * rowHeight}px`}
+            overflow="hidden"
+            userSelect="none"
+            // 指の縦の動きは画面のスクロール、横の動きはバーを引く操作にする。
+            touchAction={isReadOnly ? undefined : "pan-y pinch-zoom"}
+            css={{ WebkitTouchCallout: "none" }}
+            onPointerDown={isReadOnly ? undefined : handleTrackPointerDown}
+          >
+            {visibleRows.map((_, rowIndex) => (
+              <Box
+                key={rowIndex}
+                position="absolute"
+                insetX={0}
+                top={`${rowIndex * rowHeight}px`}
+                h={`${rowHeight}px`}
+                borderTopWidth="1px"
+                borderColor="gray.100"
+                pointerEvents="none"
+              />
+            ))}
+            <NonEditableOverlay timeRange={timeRange} toPixel={toPixel} />
+            <TimelineGridLines unitMinutes={rules.unitMinutes} hourWidth={hourWidth} axisPadding={axisPadding} />
+            {hasEmptyRow && (
+              <EmptyRowHint
+                top={emptyRowIndex * rowHeight + barTopOffset}
+                height={barHeight}
+                timeRange={timeRange}
+                toPixel={toPixel}
+                label={isReadOnly ? "バーはありません" : "空いたところをなぞると、バーを足せます"}
+                // 空の行でバーを引いている間は、プレビューを隠さないよう説明を消す。
+                isHidden={drag?.kind === "create" && drag.rowIndex === emptyRowIndex}
+              />
+            )}
+            {rows.flatMap((row, rowIndex) =>
+              row.map((bar) => {
+                const displayed = getDisplayedTime(bar);
+                const left = toPixel(Math.max(timeToMinutes(displayed.start), getDisplayStartMinutes(timeRange)));
+                const right = toPixel(Math.min(timeToMinutes(displayed.end), getDisplayEndMinutes(timeRange)));
+                return (
+                  <TimelineBar
+                    key={bar.id}
+                    bar={bar}
+                    displayedTime={displayed}
+                    position={position}
+                    bars={bars}
+                    rules={rules}
+                    left={left}
+                    width={right - left}
+                    top={rowIndex * rowHeight + barTopOffset}
+                    height={barHeight}
+                    rowHeight={rowHeight}
+                    isReadOnly={isReadOnly}
+                    isLocked={!isStaffingBarWithinRange(bar, rules.range)}
+                    isDragging={isDragging}
+                    isResizing={drag?.kind === "resize" && drag.barId === bar.id}
+                    suppressOpenRef={suppressOpenRef}
+                    onOpenEdit={isTouch ? () => onOpenEdit(bar) : undefined}
+                    onResizeStart={handleResizeStart}
+                    onApply={(result) => {
+                      onApply(result);
+                      // 隣のバーとまとまって押したバーがなくなると、開いていた欄も消える。フォーカスを見出しのボタンへ移す。
+                      if (result.ok && !result.bars.some((item) => item.id === bar.id)) addButtonRef.current?.focus();
+                    }}
+                    onDelete={() => {
+                      onChange(removeStaffingBar(bars, bar.id));
+                      addButtonRef.current?.focus();
+                    }}
+                  />
+                );
+              }),
+            )}
+            {preview && (
+              <Box
+                data-staffing-preview
+                position="absolute"
+                left={`${previewLeft}px`}
+                width={`${previewWidth.toFixed(2)}px`}
+                top={`${preview.rowIndex * rowHeight + barTopOffset}px`}
+                h={`${barHeight}px`}
+                borderRadius="md"
+                opacity={0.5}
+                pointerEvents="none"
+                zIndex={3}
+                style={{ background: position.color }}
+              />
+            )}
+          </Box>
+        </Flex>
+        {preview && isTouch && (
+          // 指で操作する画面ではバーの中に時刻が入らないため、引いている間の時刻を、指で隠れない行の上に出す。
+          <Text
+            data-staffing-drag-time
+            aria-hidden
+            position="absolute"
+            left={`${
+              labelColumnWidth +
+              getDragTimeLabelCenter({
+                previewLeft,
+                previewWidth,
+                trackWidth: getTimeAxisWidth(timeRange, hourWidth, axisPadding),
+              })
+            }px`}
+            top={`${preview.rowIndex * rowHeight - DRAG_TIME_LABEL_HEIGHT_PX - DRAG_TIME_LABEL_GAP_PX}px`}
+            h={`${DRAG_TIME_LABEL_HEIGHT_PX}px`}
+            lineHeight={`${DRAG_TIME_LABEL_HEIGHT_PX}px`}
+            transform="translateX(-50%)"
+            px={2}
+            borderRadius="md"
+            bg="gray.900"
+            color="white"
+            textStyle="xs"
+            fontWeight={700}
+            fontVariantNumeric="tabular-nums"
+            whiteSpace="nowrap"
+            boxShadow="md"
+            pointerEvents="none"
+            zIndex={5}
+          >
+            {formatShiftClockTimeRange(minutesToTime(preview.start), minutesToTime(preview.end))}
+          </Text>
+        )}
+        {requiredSegments && (!isReadOnly || requiredSegments.length > 0) && (
+          <Box borderTopWidth="1px" borderColor="gray.200" bg="gray.50" pt={1.5} pb={1}>
+            <Text pl={`${labelColumnWidth + axisPadding}px`} textStyle="2xs" fontWeight={700} color="gray.600">
+              できあがる必要人数
+            </Text>
+            <Flex h={`${COUNT_ROW_HEIGHT_PX}px`} align="center">
+              <Box w={`${labelColumnWidth}px`} flexShrink={0} />
+              {requiredSegments.length === 0 ? (
+                <Text pl={`${axisPadding}px`} textStyle="xs" color="fg.muted">
+                  バーを足すと人数が出ます
                 </Text>
+              ) : (
+                <RequiredCountSegments
+                  position={position}
+                  segments={requiredSegments}
+                  timeRange={timeRange}
+                  hourWidth={hourWidth}
+                  axisPadding={axisPadding}
+                  maxCount={maxRequiredCount}
+                  allowsNumberOnly
+                />
               )}
             </Flex>
-          ))}
-        </Box>
-        <Box
-          ref={trackRef}
-          data-staffing-track={position.id}
-          position="relative"
-          flex={1}
-          minW={0}
-          h={`${visibleRows.length * BAR_ROW_HEIGHT_PX}px`}
-          overflow="hidden"
-          userSelect="none"
-          onMouseDown={isReadOnly ? undefined : handleTrackMouseDown}
-        >
-          {visibleRows.map((_, rowIndex) => (
-            <Box
-              key={rowIndex}
-              position="absolute"
-              insetX={0}
-              top={`${rowIndex * BAR_ROW_HEIGHT_PX}px`}
-              h={`${BAR_ROW_HEIGHT_PX}px`}
-              borderTopWidth="1px"
-              borderColor="gray.100"
-              pointerEvents="none"
-            />
-          ))}
-          <NonEditableOverlay timeRange={timeRange} hourWidth={hourWidth} />
-          <TimelineGridLines unitMinutes={rules.unitMinutes} hourWidth={hourWidth} />
-          {hasEmptyRow && (
-            <EmptyRowHint
-              top={emptyRowIndex * BAR_ROW_HEIGHT_PX}
-              timeRange={timeRange}
-              hourWidth={hourWidth}
-              label={isReadOnly ? "バーはありません" : "空いたところをなぞると、バーを足せます"}
-              // 空の行でバーを引いている間は、プレビューを隠さないよう説明を消す。
-              isHidden={drag?.kind === "create" && drag.rowIndex === emptyRowIndex}
-            />
-          )}
-          {rows.flatMap((row, rowIndex) =>
-            row.map((bar) => {
-              const displayed = getDisplayedTime(bar);
-              const left = minutesToPixel(
-                Math.max(timeToMinutes(displayed.start), getDisplayStartMinutes(timeRange)),
-                timeRange,
-                hourWidth,
-              );
-              const right = minutesToPixel(
-                Math.min(timeToMinutes(displayed.end), getDisplayEndMinutes(timeRange)),
-                timeRange,
-                hourWidth,
-              );
-              return (
-                <BarItem
-                  key={bar.id}
-                  bar={bar}
-                  displayedTime={displayed}
-                  position={position}
-                  bars={bars}
-                  rules={rules}
-                  left={left}
-                  width={right - left}
-                  top={rowIndex * BAR_ROW_HEIGHT_PX + BAR_TOP_OFFSET_PX}
-                  isReadOnly={isReadOnly}
-                  isLocked={!isStaffingBarWithinRange(bar, rules.range)}
-                  isDragging={isDragging}
-                  isResizing={drag?.kind === "resize" && drag.barId === bar.id}
-                  suppressOpenRef={suppressOpenRef}
-                  onResizeStart={handleResizeStart}
-                  onApply={onApply}
-                  onDelete={() => {
-                    onChange(removeStaffingBar(bars, bar.id));
-                    addButtonRef.current?.focus();
-                  }}
-                />
-              );
-            }),
-          )}
-          {drag?.kind === "create" && Math.abs(drag.currentMinutes - drag.anchorMinutes) >= rules.unitMinutes && (
-            <Box
-              data-staffing-preview
-              position="absolute"
-              left={`${minutesToPixel(Math.min(drag.anchorMinutes, drag.currentMinutes), timeRange, hourWidth)}px`}
-              width={`${((Math.abs(drag.currentMinutes - drag.anchorMinutes) / 60) * hourWidth).toFixed(2)}px`}
-              top={`${drag.rowIndex * BAR_ROW_HEIGHT_PX + BAR_TOP_OFFSET_PX}px`}
-              h={`${BAR_HEIGHT_PX}px`}
-              borderRadius="md"
-              opacity={0.5}
-              pointerEvents="none"
-              zIndex={3}
-              style={{ background: position.color }}
-            />
-          )}
-        </Box>
-      </Flex>
+          </Box>
+        )}
+      </Box>
     </Box>
   );
 };
 
 /** 受付時間の外の時間。表示は1時間単位へ広げているため、端に残る編集できない時間を灰色にする。 */
-const NonEditableOverlay = ({ timeRange, hourWidth }: { timeRange: TimeRange; hourWidth: number }) => {
+const NonEditableOverlay = ({ timeRange, toPixel }: { timeRange: TimeRange; toPixel: (minutes: number) => number }) => {
   const displayStart = getDisplayStartMinutes(timeRange);
   const displayEnd = getDisplayEndMinutes(timeRange);
   const ranges = [
@@ -437,13 +597,13 @@ const NonEditableOverlay = ({ timeRange, hourWidth }: { timeRange: TimeRange; ho
   return (
     <>
       {ranges.map((range) => {
-        const left = minutesToPixel(range.start, timeRange, hourWidth);
+        const left = toPixel(range.start);
         return (
           <Box
             key={range.start}
             position="absolute"
             left={`${left}px`}
-            width={`${minutesToPixel(range.end, timeRange, hourWidth) - left}px`}
+            width={`${toPixel(range.end) - left}px`}
             top={0}
             bottom={0}
             bg="gray.100"
@@ -458,27 +618,24 @@ const NonEditableOverlay = ({ timeRange, hourWidth }: { timeRange: TimeRange; ho
 
 type EmptyRowHintProps = {
   top: number;
+  height: number;
   timeRange: TimeRange;
-  hourWidth: number;
+  toPixel: (minutes: number) => number;
   label: string;
   isHidden: boolean;
 };
 
 /** 一番下の空の行の説明。行は人を表さない置き場所なので、点線の枠で空いていることを示す。 */
-const EmptyRowHint = ({ top, timeRange, hourWidth, label, isHidden }: EmptyRowHintProps) => {
-  const left = minutesToPixel(
-    timeRange.editableStartMinutes ?? getDisplayStartMinutes(timeRange),
-    timeRange,
-    hourWidth,
-  );
-  const right = minutesToPixel(timeRange.editableEndMinutes ?? getDisplayEndMinutes(timeRange), timeRange, hourWidth);
+const EmptyRowHint = ({ top, height, timeRange, toPixel, label, isHidden }: EmptyRowHintProps) => {
+  const left = toPixel(timeRange.editableStartMinutes ?? getDisplayStartMinutes(timeRange));
+  const right = toPixel(timeRange.editableEndMinutes ?? getDisplayEndMinutes(timeRange));
   return (
     <Flex
       position="absolute"
       left={`${left}px`}
       width={`${right - left}px`}
-      top={`${top + BAR_TOP_OFFSET_PX}px`}
-      h={`${BAR_HEIGHT_PX}px`}
+      top={`${top}px`}
+      h={`${height}px`}
       align="center"
       justify="center"
       borderWidth="1px"
@@ -494,230 +651,5 @@ const EmptyRowHint = ({ top, timeRange, hourWidth, label, isHidden }: EmptyRowHi
         {label}
       </Text>
     </Flex>
-  );
-};
-
-type BarItemProps = {
-  bar: EditableStaffingBar;
-  /** 端をドラッグしている間の見た目の時刻 */
-  displayedTime: { start: string; end: string };
-  position: StaffingBarEditorPosition;
-  bars: readonly EditableStaffingBar[];
-  rules: StaffingBarRules;
-  left: number;
-  width: number;
-  top: number;
-  isReadOnly: boolean;
-  /** 受付時間の外にかかるバー。切りそろえるまで動かせない。 */
-  isLocked: boolean;
-  isDragging: boolean;
-  isResizing: boolean;
-  suppressOpenRef: MutableRefObject<boolean>;
-  onResizeStart: (bar: EditableStaffingBar, edge: "start" | "end") => void;
-  onApply: (result: StaffingBarResult) => void;
-  onDelete: () => void;
-};
-
-const BarItem = ({
-  bar,
-  displayedTime,
-  position,
-  bars,
-  rules,
-  left,
-  width,
-  top,
-  isReadOnly,
-  isLocked,
-  isDragging,
-  isResizing,
-  suppressOpenRef,
-  onResizeStart,
-  onApply,
-  onDelete,
-}: BarItemProps) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [fieldError, setFieldError] = useState<string | null>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const timeOptions = useMemo(() => buildTimeOptions(rules), [rules]);
-  const timeLabel = `${formatShiftClockTime(displayedTime.start)}–${formatShiftClockTime(displayedTime.end)}`;
-  const accessibleLabel = `${position.name} ${formatShiftClockTimeRange(bar.start, bar.end)}`;
-  const layout = {
-    position: "absolute",
-    left: `${left}px`,
-    width: `${Math.max(0, width)}px`,
-    top: `${top}px`,
-    h: `${BAR_HEIGHT_PX}px`,
-    borderRadius: "md",
-    zIndex: 2,
-  } as const;
-  const label = canShowBarLabel(width) && (
-    <Text
-      as="span"
-      textStyle="caption"
-      fontWeight={600}
-      color="white"
-      fontVariantNumeric="tabular-nums"
-      whiteSpace="nowrap"
-      px="8px"
-      pointerEvents="none"
-    >
-      {timeLabel}
-    </Text>
-  );
-
-  if (isReadOnly || isLocked) {
-    return (
-      <Flex
-        data-staffing-bar={bar.id}
-        role="img"
-        aria-label={isLocked ? `${accessibleLabel}（受付時間の外）` : accessibleLabel}
-        title={isLocked ? "受付時間の外にかかっています" : undefined}
-        {...layout}
-        align="center"
-        overflow="hidden"
-        pointerEvents="none"
-        opacity={isLocked ? 0.55 : 1}
-        outline={isLocked ? "1.5px dashed rgba(255,255,255,0.9)" : undefined}
-        outlineOffset="-3px"
-        style={{ background: position.color }}
-      >
-        {label}
-      </Flex>
-    );
-  }
-
-  const handleSize = `${Math.min(RESIZE_EDGE_THRESHOLD, Math.max(0, width) / 3)}px`;
-  const startResize = (edge: "start" | "end") => (event: ReactMouseEvent) => {
-    if (event.button !== 0) return;
-    onResizeStart(bar, edge);
-  };
-
-  return (
-    <Popover.Root
-      open={isOpen}
-      onOpenChange={(details) => {
-        // 端をドラッグで動かした直後のclickは、欄を開く操作として扱わない。
-        if (details.open && suppressOpenRef.current) {
-          suppressOpenRef.current = false;
-          return;
-        }
-        setIsOpen(details.open);
-        setFieldError(null);
-      }}
-      positioning={{ placement: "bottom-start", gutter: 6 }}
-      // 開いたら、閉じるボタンではなく開始の選択へフォーカスを移す。
-      initialFocusEl={() => contentRef.current?.querySelector("select") ?? null}
-      lazyMount
-      unmountOnExit
-    >
-      <Popover.Trigger asChild>
-        <chakra.button
-          type="button"
-          data-staffing-bar={bar.id}
-          aria-label={accessibleLabel}
-          {...layout}
-          display="flex"
-          alignItems="center"
-          overflow="hidden"
-          cursor="pointer"
-          boxShadow="0 1px 2px rgba(0,0,0,0.2)"
-          // 端を動かしている間は、同じ行のほかのバーより手前に出す。
-          zIndex={isResizing ? 4 : 2}
-          pointerEvents={isDragging && !isResizing ? "none" : "auto"}
-          transition={isResizing ? "none" : "filter 0.15s"}
-          _hover={{ filter: "brightness(1.08)" }}
-          _active={{ filter: "brightness(0.92)" }}
-          _focusVisible={{ outline: "2px solid", outlineColor: "gray.900", outlineOffset: "1px" }}
-          style={{ background: position.color }}
-          // 空いた場所のドラッグ（バーを引く操作）を、バーの上では始めない。
-          onMouseDown={(event) => {
-            event.stopPropagation();
-            suppressOpenRef.current = false;
-          }}
-        >
-          {label}
-          <Box
-            as="span"
-            data-staffing-bar-edge="start"
-            position="absolute"
-            left={0}
-            top={0}
-            bottom={0}
-            w={handleSize}
-            cursor="ew-resize"
-            onMouseDown={startResize("start")}
-          />
-          <Box
-            as="span"
-            data-staffing-bar-edge="end"
-            position="absolute"
-            right={0}
-            top={0}
-            bottom={0}
-            w={handleSize}
-            cursor="ew-resize"
-            onMouseDown={startResize("end")}
-          />
-        </chakra.button>
-      </Popover.Trigger>
-      <Portal>
-        <Popover.Positioner>
-          {/* 欄の名前はaria-labelで付ける。開くまで中身を作らないため、見出しとの結び付けに頼らない。 */}
-          <Popover.Content ref={contentRef} w="280px" p={3} aria-label={`${position.name}のバー`}>
-            <Stack gap={3}>
-              <Flex align="center" justify="space-between" gap={2}>
-                <Flex align="center" gap={2} minW={0}>
-                  <Box
-                    boxSize="10px"
-                    borderRadius="full"
-                    flexShrink={0}
-                    style={{ background: position.color }}
-                    aria-hidden
-                  />
-                  <Text textStyle="sm" fontWeight={700} truncate>
-                    {position.name}のバー
-                  </Text>
-                </Flex>
-                <Popover.CloseTrigger asChild>
-                  <IconButton type="button" size="xs" variant="ghost" colorPalette="gray" aria-label="閉じる">
-                    <LuX />
-                  </IconButton>
-                </Popover.CloseTrigger>
-              </Flex>
-              <BarTimeFields
-                start={bar.start}
-                end={bar.end}
-                options={timeOptions}
-                onChange={(time) => {
-                  const result = updateStaffingBar({ bars, barId: bar.id, ...time, rules });
-                  setFieldError(result.ok ? null : getRejectionMessage(result.reason, rules));
-                  if (result.ok) onApply(result);
-                }}
-              />
-              {fieldError && (
-                <Text role="alert" fontSize="sm" color="red.600">
-                  {fieldError}
-                </Text>
-              )}
-              <Flex justify="flex-end">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  colorPalette="red"
-                  color="red.600"
-                  size="sm"
-                  gap={1.5}
-                  onClick={onDelete}
-                >
-                  <LuTrash2 aria-hidden />
-                  削除
-                </Button>
-              </Flex>
-            </Stack>
-          </Popover.Content>
-        </Popover.Positioner>
-      </Portal>
-    </Popover.Root>
   );
 };

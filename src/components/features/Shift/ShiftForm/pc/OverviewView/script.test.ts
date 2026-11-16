@@ -121,7 +121,7 @@ describe("buildOverviewWeeks", () => {
   });
 
   it("くわしく表示に使う、その日のポジションと休憩をセルへ持たせる", () => {
-    const staff: StaffType = { id: "staff-1", name: "田中", isSubmitted: true, skillLevel: "lead" };
+    const staff: StaffType = { id: "staff-1", name: "田中", isSubmitted: true };
     const work = (id: string, positionId: string, positionName: string, start: string, end: string) => ({
       id,
       positionId,

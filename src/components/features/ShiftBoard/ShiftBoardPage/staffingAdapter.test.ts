@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { ShiftBoardStaffingData } from "../types";
-import { toDayRequirementsArg, toDayTemplateIdArg, toShiftFormStaffing } from "./staffingAdapter";
+import {
+  toDayRequirementsArg,
+  toDayTemplateIdArg,
+  toPositionSkillsByStaffId,
+  toShiftFormStaffing,
+} from "./staffingAdapter";
 
 const templateId = "template-1" as Id<"shiftDayTemplates">;
 const hallId = "hall" as Id<"positions">;
@@ -87,5 +92,49 @@ describe("mutationの引数への変換", () => {
       bars: [{ positionId: "hall", startTime: "09:00", endTime: "14:00" }],
     };
     expect(toDayRequirementsArg(requirements)).toEqual(requirements);
+  });
+});
+
+describe("toPositionSkillsByStaffId", () => {
+  const kitchenId = "kitchen" as Id<"positions">;
+  const staffA = "staff-a" as Id<"staffs">;
+  const staffB = "staff-b" as Id<"staffs">;
+  const staffC = "staff-c" as Id<"staffs">;
+
+  it("スタッフごとのポジションの値を、staffIdから引ける形にする", () => {
+    const result = toPositionSkillsByStaffId([
+      {
+        staffId: staffA,
+        positionSkills: [
+          { positionId: hallId, level: "lead" },
+          { positionId: kitchenId, level: "unavailable" },
+        ],
+      },
+      { staffId: staffB, positionSkills: [{ positionId: kitchenId, level: "newcomer" }] },
+    ]);
+
+    expect([...result]).toEqual([
+      [
+        "staff-a",
+        [
+          { positionId: "hall", level: "lead" },
+          { positionId: "kitchen", level: "unavailable" },
+        ],
+      ],
+      ["staff-b", [{ positionId: "kitchen", level: "newcomer" }]],
+    ]);
+  });
+
+  it("値を1つも持たないスタッフは含めない", () => {
+    const result = toPositionSkillsByStaffId([
+      { staffId: staffA, positionSkills: [] },
+      { staffId: staffC, positionSkills: [{ positionId: hallId, level: "newcomer" }] },
+    ]);
+
+    expect([...result.keys()]).toEqual(["staff-c"]);
+  });
+
+  it("店舗の設定を受け取っていない場合は、空の結果を返す", () => {
+    expect(toPositionSkillsByStaffId(undefined).size).toBe(0);
   });
 });

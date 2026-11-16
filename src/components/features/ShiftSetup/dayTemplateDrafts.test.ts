@@ -16,7 +16,9 @@ import {
   getRequiredCountTableCounts,
   getStaffingBarRange,
   getUnassignedWeekdays,
+  hasPendingDayTemplateChanges,
   isSameDayTemplateInputs,
+  isUntouchedNewDayTemplate,
   needsDayTemplateReentry,
   removeDayTemplate,
   renameDayTemplate,
@@ -389,6 +391,8 @@ describe("新しく足す型の初期値", () => {
       appliesToHolidays: false,
       requirements: { kind: "time", bars: [] },
       requiresReentry: false,
+      // 作ったときの名前と曜日を控え、何も入れていない型かを見分ける。
+      initial: { name: "通常", weekdays: ["sun", "mon", "tue", "thu", "fri", "sat"] },
     });
   });
 
@@ -417,6 +421,96 @@ describe("新しく足す型の初期値", () => {
     expect(
       getUnassignedWeekdays([draft({ weekdays: ["mon", "tue", "wed", "thu"] }), draft({ weekdays: ["sat"] })]),
     ).toEqual(["sun", "fri"]);
+  });
+});
+
+describe("作ったまま何も入れていない新しい型", () => {
+  const saved = [
+    savedTemplate({
+      requirements: { kind: "time", bars: [{ positionId: hall, startTime: "09:00", endTime: "22:00" }] },
+    }),
+  ];
+  const savedDrafts = toDayTemplateDrafts(saved);
+  const savedInputs = toDayTemplateInputs(savedDrafts, timeContext);
+  const added = createDayTemplateDraft({
+    drafts: savedDrafts,
+    pattern: timePattern,
+    regularClosedDays: ["wed"],
+    rowKey: "new-1",
+  });
+  const withAdded = [...savedDrafts, added];
+
+  it("足したままの型は、何も入れていない型で、保存していない変更に数えない", () => {
+    expect(isUntouchedNewDayTemplate(added)).toBe(true);
+    expect(hasPendingDayTemplateChanges(withAdded, savedInputs, timeContext)).toBe(false);
+    // 保存する内容としては、型が1つ増えている。
+    expect(isSameDayTemplateInputs(toDayTemplateInputs(withAdded, timeContext), savedInputs)).toBe(false);
+  });
+
+  it("最初の型を作っただけのときも、保存していない変更に数えない", () => {
+    const first = createDayTemplateDraft({ drafts: [], pattern: timePattern, regularClosedDays: [], rowKey: "new-1" });
+
+    expect(hasPendingDayTemplateChanges([first], [], timeContext)).toBe(false);
+  });
+
+  it.each([
+    ["名前を変える", renameDayTemplate(withAdded, "new-1", "土日")],
+    ["名前の末尾に空白を足す", renameDayTemplate(withAdded, "new-1", `${added.name} `)],
+    ["曜日を外す", toggleDayTemplateWeekday(withAdded, "new-1", "sat")],
+    ["別の型の曜日を移す", toggleDayTemplateWeekday(withAdded, "new-1", "mon")],
+    ["祝日を選ぶ", toggleDayTemplateHoliday(withAdded, "new-1")],
+    [
+      "バーを1本足す",
+      changeDayTemplateBars(withAdded, "new-1", [{ id: "bar-1", positionId: hall, start: "10:00", end: "15:00" }]),
+    ],
+    ["ほかの型からコピーする", copyDayTemplateRequirements(withAdded, { fromRowKey: templateId, toRowKey: "new-1" })],
+  ])("足した型で%sと、保存していない変更に数える", (_, changed) => {
+    expect(isUntouchedNewDayTemplate(changed[1])).toBe(false);
+    expect(hasPendingDayTemplateChanges(changed, savedInputs, timeContext)).toBe(true);
+  });
+
+  it.each([
+    [shiftTypePattern, { rowId: "early", positionId: hall, count: 2 }],
+    [dateOnlyPattern, { rowId: ALL_DAY_ROW_ID, positionId: hall, count: 2 }],
+  ] as const)("数字で入れる型は、人数を入れると変更に数え、0へ戻すと数えない", (pattern, change) => {
+    const first = createDayTemplateDraft({ drafts: [], pattern, regularClosedDays: [], rowKey: "new-1" });
+    const context = { positions, pattern };
+    const entered = changeRequiredCount([first], "new-1", change);
+
+    expect(hasPendingDayTemplateChanges(entered, [], context)).toBe(true);
+    expect(
+      hasPendingDayTemplateChanges(changeRequiredCount(entered, "new-1", { ...change, count: 0 }), [], context),
+    ).toBe(false);
+  });
+
+  it("変えた名前と曜日を作ったときの値へ戻すと、何も入れていない型へ戻る", () => {
+    const renamed = renameDayTemplate(withAdded, "new-1", "土日");
+    const toggled = toggleDayTemplateWeekday(renamed, "new-1", "sat");
+    expect(isUntouchedNewDayTemplate(toggled[1])).toBe(false);
+
+    const restored = toggleDayTemplateWeekday(renameDayTemplate(toggled, "new-1", added.name), "new-1", "sat");
+
+    expect(isUntouchedNewDayTemplate(restored[1])).toBe(true);
+    expect(hasPendingDayTemplateChanges(restored, savedInputs, timeContext)).toBe(false);
+  });
+
+  it("足した型が何も入れていなくても、保存済みの型を変えていれば変更に数える", () => {
+    const changed = renameDayTemplate(withAdded, templateId, "平日昼");
+
+    expect(isUntouchedNewDayTemplate(changed[1])).toBe(true);
+    expect(hasPendingDayTemplateChanges(changed, savedInputs, timeContext)).toBe(true);
+  });
+
+  it("保存済みの型とAIの下書きは、何も入れていない新しい型として扱わない", () => {
+    const emptySaved = toDayTemplateDrafts([savedTemplate()]);
+    const suggested = toDayTemplateDraftsFromSuggestion(
+      [{ name: "通常", weekdays: ["mon"], appliesToHolidays: false, requirements: { kind: "time", bars: [] } }],
+      () => "new-1",
+    );
+
+    expect(isUntouchedNewDayTemplate(emptySaved[0])).toBe(false);
+    expect(isUntouchedNewDayTemplate(suggested[0])).toBe(false);
+    expect(hasPendingDayTemplateChanges(suggested, [], timeContext)).toBe(true);
   });
 });
 

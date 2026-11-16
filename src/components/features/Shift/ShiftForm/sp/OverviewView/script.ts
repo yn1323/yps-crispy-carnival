@@ -9,6 +9,7 @@ export type OverviewWeekdayTone = ShiftWeekdayTone;
 
 export type OverviewPositionMarkViewModel = {
   key: string;
+  positionId: string;
   positionName: string;
   color: string;
 };
@@ -65,6 +66,7 @@ const getPositionMarks = (shift: ShiftData): OverviewPositionMarkViewModel[] => 
     if (!marks.has(position.positionId)) {
       marks.set(position.positionId, {
         key: position.positionId,
+        positionId: position.positionId,
         positionName: position.positionName,
         color: position.color,
       });

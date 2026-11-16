@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
 import type { PositionType, ShiftData, StaffType } from "@/src/domains/shift/types";
 import { ShiftForm } from "../..";
-import { mockShiftTypePattern, mockShiftTypeStaffs } from "../../stories/fixtures";
+import { mockShiftTypePattern, mockShiftTypeStaffs, withPositionSkills } from "../../stories/fixtures";
 import { desktopGlobals, fullscreenParameters, shiftFormDecorators, shiftTypeArgs } from "../../stories/shared";
 
 type ShiftFormArgs = ComponentProps<typeof ShiftForm>;
@@ -17,13 +17,12 @@ const register: PositionType = { id: "register", name: "レジ", color: "#7c3aed
 
 const shiftTypeOptions = mockShiftTypePattern.kind === "shiftType" ? mockShiftTypePattern.options : [];
 
-const detailStaffs: StaffType[] = mockShiftTypeStaffs.map((staff) =>
-  staff.id === "staff1"
-    ? { ...staff, skillLevel: "lead" }
-    : staff.id === "staff4"
-      ? { ...staff, skillLevel: "newcomer" }
-      : staff,
-);
+// 田中さんは、ホールでは責任者、キッチンでは新人。山田さんは、レジで新人。鈴木さんは、ホールに入れない。
+const detailStaffs: StaffType[] = withPositionSkills(mockShiftTypeStaffs, {
+  staff1: { [hall.id]: "lead", [kitchen.id]: "newcomer" },
+  staff4: { [register.id]: "newcomer" },
+  staff5: { [hall.id]: "unavailable" },
+});
 
 const shift = (
   staffId: string,

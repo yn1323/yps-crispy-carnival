@@ -51,13 +51,17 @@ export type StaffType = {
   isRemoved?: boolean;
   displayOrder?: number;
   createdAt?: number;
-  // 熟練度。省略は標準。
-  skillLevel?: StaffSkillLevel;
-  // 入れないポジション。省略は全ポジション可。
-  unavailablePositionIds?: string[];
+  // ポジションごとの値（入れない、新人、責任者）。ここにないポジションは標準。
+  positionSkills?: StaffPositionSkill[];
 };
 
-export type StaffSkillLevel = "newcomer" | "lead";
+// そのポジションに入れない（unavailable）か、入れる場合の熟練度（newcomer、lead）。標準は持たない。
+export type PositionSkillLevel = "unavailable" | "newcomer" | "lead";
+
+export type StaffPositionSkill = {
+  positionId: string;
+  level: PositionSkillLevel;
+};
 
 // 店舗の休憩の決まり（何分以上の勤務に何分）
 export type ShiftBreakRule = {

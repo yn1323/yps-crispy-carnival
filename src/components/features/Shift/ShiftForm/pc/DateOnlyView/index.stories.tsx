@@ -3,7 +3,7 @@ import type { ComponentProps } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import type { PositionType, ShiftData, StaffType } from "@/src/domains/shift/types";
 import { ShiftForm } from "../..";
-import { mockDateOnlyDates, mockDateOnlyStaffs } from "../../stories/fixtures";
+import { mockDateOnlyDates, mockDateOnlyStaffs, withPositionSkills } from "../../stories/fixtures";
 import {
   dateOnlyArgs,
   dateOnlyDateNotesArgs,
@@ -33,13 +33,12 @@ const kitchen: PositionType = { id: "kitchen", name: "キッチン", color: "#c2
 const register: PositionType = { id: "register", name: "レジ", color: "#7c3aed", isDefault: false };
 const detailPositions = [hall, kitchen, register];
 
-const detailStaffs: StaffType[] = mockDateOnlyStaffs.map((staff) =>
-  staff.id === "staff1"
-    ? { ...staff, skillLevel: "lead" }
-    : staff.id === "staff4"
-      ? { ...staff, skillLevel: "newcomer" }
-      : staff,
-);
+// 田中さんは、ホールでは責任者、キッチンでは新人。山田さんは、レジで新人。吉田さんは、キッチンに入れない。
+const detailStaffs: StaffType[] = withPositionSkills(mockDateOnlyStaffs, {
+  staff1: { [hall.id]: "lead", [kitchen.id]: "newcomer" },
+  staff3: { [kitchen.id]: "unavailable" },
+  staff4: { [register.id]: "newcomer" },
+});
 
 const request = { start: "09:00", end: "22:00" };
 
@@ -245,16 +244,20 @@ export const DetailAssignInteractive: Story = {
     // 選んだポジションで入る。
     await userEvent.click(await canvas.findByRole("radio", { name: "レジ" }));
     await userEvent.click(await findVisibleByLabelText(canvas, "山田 一郎 6/3(水) 勤務なし"));
-    await expect(await findVisibleByLabelText(canvas, "山田 一郎 6/3(水) 勤務あり、レジ")).toHaveTextContent("レジ");
+    const registerCell = await findVisibleByLabelText(canvas, "山田 一郎 6/3(水) 勤務あり、レジ");
+    await expect(registerCell).toHaveTextContent("レジ");
+    // 山田さんはレジで新人なので、入れた勤務に「新」の印が付く。
+    await expect(within(registerCell).getByText("新")).toHaveAttribute("title", "レジでは新人です");
     // 新人の山田さんだけが入ったレジには、新人だけの印が付く。
     await expect(await findWednesdayCount("1日 ホール 1/2 ▲1、キッチン 1/1、レジ 1（新人だけ）")).toBeInTheDocument();
 
     // 別のポジションを選んで勤務のあるセルを押すと、外れずに入れ替わる。
     await userEvent.click(await canvas.findByRole("radio", { name: "ホール" }));
     await userEvent.click(await findVisibleByLabelText(canvas, "山田 一郎 6/3(水) 勤務あり、レジ"));
-    await expect(await findVisibleByLabelText(canvas, "山田 一郎 6/3(水) 勤務あり、ホール")).toHaveTextContent(
-      "ホール",
-    );
+    const hallCell = await findVisibleByLabelText(canvas, "山田 一郎 6/3(水) 勤務あり、ホール");
+    await expect(hallCell).toHaveTextContent("ホール");
+    // ホールでは標準なので、同じ人の勤務でも印は付かない。
+    await expect(within(hallCell).queryByText("新")).not.toBeInTheDocument();
     await expect(await findWednesdayCount("1日 ホール 2/2、キッチン 1/1、レジ 0")).toBeInTheDocument();
 
     // 同じポジションでもう一度押すと外れる。

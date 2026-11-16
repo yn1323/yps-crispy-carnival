@@ -204,13 +204,16 @@ export function createDayTemplateDraft(input: {
   rowKey: string;
 }): DayTemplateDraft {
   const closedDays = new Set(input.regularClosedDays);
+  const name = createDefaultName(input.drafts);
+  const weekdays = getUnassignedWeekdays(input.drafts).filter((weekday) => !closedDays.has(weekday));
   return {
     rowKey: input.rowKey,
-    name: createDefaultName(input.drafts),
-    weekdays: getUnassignedWeekdays(input.drafts).filter((weekday) => !closedDays.has(weekday)),
+    name,
+    weekdays,
     appliesToHolidays: false,
     requirements: createEmptyRequirementsDraft(input.pattern.kind),
     requiresReentry: false,
+    initial: { name, weekdays: [...weekdays] },
   };
 }
 
@@ -377,6 +380,35 @@ export function copyDayTemplateRequirements(
 function isDayTemplateRequirementsEmpty(requirements: DayTemplateRequirementsDraft): boolean {
   if (requirements.kind === "time") return requirements.bars.length === 0;
   return Object.keys(requirements.counts).length === 0;
+}
+
+/**
+ * 作ったまま、まだ何も入れていない新しい型かを返す。
+ * 名前と使う日が作ったときのままで、必要人数が空の型を指す。
+ */
+export function isUntouchedNewDayTemplate(draft: DayTemplateDraft): boolean {
+  const { initial } = draft;
+  if (draft.id || !initial) return false;
+  return (
+    draft.name === initial.name &&
+    draft.weekdays.length === initial.weekdays.length &&
+    initial.weekdays.every((weekday) => draft.weekdays.includes(weekday)) &&
+    !draft.appliesToHolidays &&
+    isDayTemplateRequirementsEmpty(draft.requirements)
+  );
+}
+
+/**
+ * 保存していない変更として扱う型の変更があるかを返す。
+ * 作ったまま何も入れていない新しい型は変更に数えない。「型を追加」を押しただけで、保存と離脱の確認を求めないためである。
+ */
+export function hasPendingDayTemplateChanges(
+  drafts: readonly DayTemplateDraft[],
+  savedInputs: readonly DayTemplateInput[],
+  context: InputContext,
+): boolean {
+  const entered = drafts.filter((draft) => !isUntouchedNewDayTemplate(draft));
+  return !isSameDayTemplateInputs(toDayTemplateInputs(entered, context), savedInputs);
 }
 
 /** 希望シフトの集め方を変えたあと、まだ必要人数を入れ直していない型かを返す。 */

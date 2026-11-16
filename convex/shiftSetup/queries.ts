@@ -5,12 +5,13 @@ import {
   dayRequirementsValidator,
   shiftBreakRuleValidator,
   shiftDayTemplateWeekdayValidator,
+  staffPositionSkillValidator,
 } from "../_lib/shiftSetupValidators";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
 import { SHIFT_BOARD_STAFF_LIMIT } from "../constants";
 import { getOrganizationAccessPolicy } from "../organizationBilling/service";
 import { isShiftTargetStaff } from "../staff/service";
-import { listActivePositions, listDayTemplates, toDayTemplateDto, toUnavailablePositionIdsDto } from "./service";
+import { listActivePositions, listDayTemplates, toDayTemplateDto, toPositionSkillsDto } from "./service";
 
 const shiftSetupWriteBlockReasonValidator = v.union(
   v.literal("paymentResultPending"),
@@ -43,8 +44,8 @@ const shiftSetupValidator = v.object({
     v.object({
       _id: v.id("staffs"),
       name: v.string(),
-      unavailablePositionIds: v.array(v.id("positions")),
-      skillLevel: v.union(v.literal("newcomer"), v.literal("standard"), v.literal("lead")),
+      // 標準（入れる・熟練度が標準）のポジションは含めない。並びはpositionsと同じ順。
+      positionSkills: v.array(staffPositionSkillValidator),
     }),
   ),
   // AIサポートを出せる環境かどうか。無効な環境では、画面にボタンを出さない。
@@ -94,8 +95,7 @@ export const getShiftSetup = managerQuery({
         .map((staff) => ({
           _id: staff._id,
           name: staff.name,
-          unavailablePositionIds: toUnavailablePositionIdsDto(staff, activePositionIds),
-          skillLevel: staff.skillLevel ?? ("standard" as const),
+          positionSkills: toPositionSkillsDto(staff, positions),
         })),
       assistAvailable: getShiftSetupAssistMode() !== "off",
     };

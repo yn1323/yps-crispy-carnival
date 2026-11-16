@@ -278,11 +278,20 @@ describe("computeAssignmentWarnings: 入れないポジション（POSITION_UNAV
     { id: "pos2", name: "キッチン" },
     { id: "pos3", name: "レジ" },
   ];
-  // staff1は提出済みでキッチンとレジに入れない。staff2は未提出でキッチンに入れない。staff3は提出済みで全ポジションに入れる。
+  // staff1は提出済みでキッチンとレジに入れない。staff2は未提出でキッチンに入れない。
+  // staff3は提出済みで全ポジションに入れる（キッチンでは新人、レジでは責任者）。入れる場合の熟練度は、この確認事項に関係しない。
+  const unavailable = (positionId: string) => ({ positionId, level: "unavailable" as const });
   const profiledStaffs = [
-    { id: "staff1", isSubmitted: true, unavailablePositionIds: ["pos2", "pos3"] },
-    { id: "staff2", isSubmitted: false, unavailablePositionIds: ["pos2"] },
-    { id: "staff3", isSubmitted: true },
+    { id: "staff1", isSubmitted: true, positionSkills: [unavailable("pos2"), unavailable("pos3")] },
+    { id: "staff2", isSubmitted: false, positionSkills: [unavailable("pos2")] },
+    {
+      id: "staff3",
+      isSubmitted: true,
+      positionSkills: [
+        { positionId: "pos2", level: "newcomer" as const },
+        { positionId: "pos3", level: "lead" as const },
+      ],
+    },
   ];
   const kitchen = (overrides: Partial<PositionSegment> = {}) =>
     seg({ id: "seg-kitchen", positionId: "pos2", positionName: "キッチン", ...overrides });
@@ -306,8 +315,31 @@ describe("computeAssignmentWarnings: 入れないポジション（POSITION_UNAV
     expect(runWithProfiles([shift({ ...requested, positions: [seg({})] })])).toEqual([]);
   });
 
-  it("入れないポジションを設定していないスタッフには出さない", () => {
-    expect(runWithProfiles([shift({ staffId: "staff3", ...requested, positions: [kitchen()] })])).toEqual([]);
+  it("新人や責任者として入れるポジションへの割当では出さない", () => {
+    const register = seg({
+      id: "seg-register",
+      positionId: "pos3",
+      positionName: "レジ",
+      start: "14:00",
+      end: "18:00",
+    });
+
+    expect(
+      runWithProfiles([
+        shift({ staffId: "staff3", ...requested, positions: [kitchen({ start: "10:00", end: "14:00" }), register] }),
+      ]),
+    ).toEqual([]);
+  });
+
+  it("ポジションの値を1つも持たないスタッフには出さない", () => {
+    expect(
+      computeAssignmentWarnings({
+        shifts: [shift({ staffId: "staff4", ...requested, positions: [kitchen()] })],
+        staffs: [...profiledStaffs, { id: "staff4", isSubmitted: true }],
+        pattern: timePattern,
+        positions,
+      }),
+    ).toEqual([]);
   });
 
   it("ほかのスタッフが入れないポジションは、そのスタッフにだけ当てる", () => {

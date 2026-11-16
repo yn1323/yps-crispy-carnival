@@ -1,6 +1,7 @@
+import { getPositionSkill } from "./positionSkills";
 import { isCanonicalWorkPosition } from "./positions";
 import { formatShiftClockTime, timeToMinutes } from "./time";
-import type { ShiftData } from "./types";
+import type { ShiftData, StaffPositionSkill } from "./types";
 
 // 確定をブロックしない「確認事項」（ワーニング）。希望と割当の食い違いを助言として知らせる。
 // エラー（convex/shiftBoard/validation.ts）と違いサーバー強制は不要なので、クライアントのみの純粋関数。
@@ -25,7 +26,7 @@ export type AssignmentWarningPattern =
 
 export type AssignmentWarningInput = {
   shifts: ShiftData[];
-  staffs: Array<{ id: string; isSubmitted: boolean; unavailablePositionIds?: readonly string[] }>;
+  staffs: Array<{ id: string; isSubmitted: boolean; positionSkills?: readonly StaffPositionSkill[] }>;
   pattern: AssignmentWarningPattern;
   // ポジション名。入れないポジションの確認事項に使う。
   positions?: ReadonlyArray<{ id: string; name: string }>;
@@ -40,9 +41,7 @@ export function computeAssignmentWarnings(input: AssignmentWarningInput): Assign
     input.pattern.kind === "shiftType" ? input.pattern.options.map((option) => [option.id, option.name]) : [],
   );
 
-  const unavailableByStaffId = new Map(
-    input.staffs.map((staff) => [staff.id, new Set(staff.unavailablePositionIds ?? [])]),
-  );
+  const staffById = new Map(input.staffs.map((staff) => [staff.id, staff]));
   const positionNameById = new Map((input.positions ?? []).map((position) => [position.id, position.name]));
 
   const warnings: AssignmentWarning[] = [];
@@ -58,11 +57,11 @@ export function computeAssignmentWarnings(input: AssignmentWarningInput): Assign
       warnings.push({ code, date: shift.date, staffId: shift.staffId, message });
 
     // 入れないポジションは、希望との食い違いより先に知らせる。1セル1件の決まりは保つ。
-    const unavailable = unavailableByStaffId.get(shift.staffId);
+    const staff = staffById.get(shift.staffId);
     const unavailableNames = [
       ...new Set(
         work
-          .filter((position) => unavailable?.has(position.positionId))
+          .filter((position) => getPositionSkill(staff, position.positionId) === "unavailable")
           .map((position) => positionNameById.get(position.positionId) ?? position.positionName),
       ),
     ];

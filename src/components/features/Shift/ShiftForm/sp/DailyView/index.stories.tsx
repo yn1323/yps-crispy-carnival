@@ -136,8 +136,9 @@ export const OverlapErrorInteractive: Story = {
     await selectTime(sheet, "勤務時間1の終了時間", "13:00");
     await waitFor(() => expect(sheet.queryByRole("alert")).not.toBeInTheDocument());
     await userEvent.click(sheet.getByRole("button", { name: "変更する" }));
+    // Aさんはホールで責任者なので、ポジションの名前と時刻の間に、熟練度の印が入る。
     await waitFor(() =>
-      expect(canvas.getByRole("button", { name: "Aさんの勤務を編集" })).toHaveTextContent("ホール10:00〜13:00"),
+      expect(canvas.getByRole("button", { name: "Aさんの勤務を編集" })).toHaveTextContent("ホール責任者10:00〜13:00"),
     );
   },
 };

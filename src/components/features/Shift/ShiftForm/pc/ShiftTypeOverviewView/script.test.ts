@@ -113,14 +113,14 @@ describe("buildShiftTypeOverviewViewModel", () => {
           label: "早番",
           bg: "#f0fdfa",
           color: "#0f766e",
-          position: { positionName: "勤務", color: "#000" },
+          position: { positionId: "default", positionName: "勤務", color: "#000" },
         },
         {
           key: "late",
           label: "遅番",
           bg: "#eff6ff",
           color: "#2563eb",
-          position: { positionName: "勤務", color: "#000" },
+          position: { positionId: "default", positionName: "勤務", color: "#000" },
         },
       ],
     });

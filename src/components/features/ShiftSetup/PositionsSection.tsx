@@ -5,12 +5,14 @@ import { POSITION_ACTIVE_LIMIT, POSITION_NAME_MAX_LENGTH } from "@/convex/consta
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
 import { Input } from "@/src/components/ui/FormControls";
-import { PositionDot, SetupCard, SetupSection } from "./parts";
+import { PositionBadge, PositionDot, SetupCard, SetupSection } from "./parts";
 import {
   addPositionDraft,
   canAddPosition,
   canMovePositionDraft,
+  canRemovePositionDraft,
   findPositionDraftErrors,
+  getFallbackPositionName,
   getRemovedPositionNames,
   movePositionDraft,
   POSITION_COLOR_OPTIONS,
@@ -22,6 +24,7 @@ import type { DialogState, PositionInput, ShiftSetupPosition } from "./types";
 
 const FORM_ID = "shift-setup-positions-form";
 const ICON_BUTTON_SIZE = { base: "44px", md: "36px" };
+const LAST_POSITION_NOTE_ID = `${FORM_ID}-last-position-note`;
 
 type Props = {
   positions: readonly ShiftSetupPosition[];
@@ -53,14 +56,11 @@ export function PositionsSection({ positions, canWrite, dialog, onSave }: Props)
       }
     >
       <SetupCard>
-        <Flex as="ul" listStyleType="none" wrap="wrap" columnGap={5} rowGap={2.5} px={{ base: 4, md: 5 }} py={4}>
+        <Flex as="ul" listStyleType="none" wrap="wrap" gap={2} px={{ base: 4, md: 5 }} py={4}>
           {positions.map((position) => (
-            <HStack as="li" key={position._id} gap={2} minW={0}>
-              <PositionDot color={position.color} />
-              <Text fontSize="sm" fontWeight="semibold" color="gray.900" overflowWrap="anywhere">
-                {position.name}
-              </Text>
-            </HStack>
+            <chakra.li key={position._id} display="flex" minW={0}>
+              <PositionBadge name={position.name} color={position.color} />
+            </chakra.li>
           ))}
         </Flex>
       </SetupCard>
@@ -104,7 +104,8 @@ function PositionsForm({ positions, disabled, onSubmit }: FormProps) {
 
   const errors = hasSubmitted ? findPositionDraftErrors(drafts) : null;
   const removedNames = getRemovedPositionNames(positions, drafts);
-  const defaultPositionName = drafts.find((draft) => draft.isDefault)?.name.trim();
+  const fallbackPositionName = getFallbackPositionName(drafts);
+  const canRemove = canRemovePositionDraft(drafts);
   const canAdd = canAddPosition(drafts);
 
   const updateDraft = (rowKey: string, patch: Partial<PositionDraft>) =>
@@ -139,7 +140,6 @@ function PositionsForm({ positions, disabled, onSubmit }: FormProps) {
             const error = errors?.rows[draft.rowKey];
             const isPaletteOpen = paletteRowKey === draft.rowKey;
             const paletteId = `${FORM_ID}-palette-${draft.rowKey}`;
-            const lockedNoteId = `${FORM_ID}-locked-${draft.rowKey}`;
 
             return (
               <Stack as="li" key={draft.rowKey} gap={2} py={3}>
@@ -213,12 +213,12 @@ function PositionsForm({ positions, disabled, onSubmit }: FormProps) {
                     <IconButton
                       type="button"
                       aria-label={`${label}を削除`}
-                      aria-describedby={draft.isDefault ? lockedNoteId : undefined}
+                      aria-describedby={canRemove ? undefined : LAST_POSITION_NOTE_ID}
                       variant="ghost"
                       colorPalette="red"
                       color="red.600"
                       boxSize={ICON_BUTTON_SIZE}
-                      disabled={disabled || draft.isDefault}
+                      disabled={disabled || !canRemove}
                       onClick={() => setDrafts((current) => current.filter((item) => item.rowKey !== draft.rowKey))}
                     >
                       <LuTrash2 aria-hidden />
@@ -266,11 +266,6 @@ function PositionsForm({ positions, disabled, onSubmit }: FormProps) {
                     {error}
                   </Text>
                 )}
-                {draft.isDefault && (
-                  <Text id={lockedNoteId} fontSize="xs" color="fg.muted">
-                    最初からあるポジションは、削除と並び替えができません
-                  </Text>
-                )}
               </Stack>
             );
           })}
@@ -288,6 +283,11 @@ function PositionsForm({ positions, disabled, onSubmit }: FormProps) {
             <LuPlus aria-hidden />
             ポジションを追加
           </Button>
+          {!canRemove && (
+            <Text id={LAST_POSITION_NOTE_ID} fontSize="xs" color="fg.muted">
+              ポジションは1件以上必要なため、最後の1件は削除できません
+            </Text>
+          )}
           {!canAdd && (
             <Text fontSize="xs" color="fg.muted">
               ポジションは{POSITION_ACTIVE_LIMIT}件まで登録できます
@@ -305,7 +305,7 @@ function PositionsForm({ positions, disabled, onSubmit }: FormProps) {
           <Text fontSize="sm" color="orange.700" lineHeight="tall" bg="orange.50" borderRadius="md" px={3} py={2.5}>
             保存すると「{removedNames.join("」「")}」を削除します。
             <br />
-            削除したポジションの勤務は、シフト表で「{defaultPositionName || "最初からあるポジション"}
+            削除したポジションの勤務は、シフト表で「{fallbackPositionName || "残したポジション"}
             」として表示されます。
           </Text>
         )}

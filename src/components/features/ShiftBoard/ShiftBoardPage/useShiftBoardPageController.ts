@@ -32,6 +32,7 @@ import {
   isPastShiftPeriod,
 } from "@/src/domains/shift/date";
 import { isAssignmentsEqual } from "@/src/domains/shift/isAssignmentsEqual";
+import { collectNewcomerStaffIdsByPositionId } from "@/src/domains/shift/positionSkills";
 import { insertProvisionalAssignments } from "@/src/domains/shift/provisionalAssignments";
 import { listNewcomerOnlyPeriods, type NewcomerOnlyPeriod } from "@/src/domains/shift/staffing";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
@@ -45,7 +46,12 @@ import type { ShiftBoardData, ShiftBoardStaffingData } from "../types";
 import { buildShiftData } from "./buildShiftData";
 import { readStoredDetailMode, storeDetailMode } from "./detailModeStorage";
 import { buildNewcomerOnlyItems } from "./newcomerOnlyPresentation";
-import { toDayRequirementsArg, toDayTemplateIdArg, toShiftFormStaffing } from "./staffingAdapter";
+import {
+  toDayRequirementsArg,
+  toDayTemplateIdArg,
+  toPositionSkillsByStaffId,
+  toShiftFormStaffing,
+} from "./staffingAdapter";
 import type { ShiftBoardPageViewProps } from "./types";
 import { visibleAssignmentWarnings, visibleNewcomerOnlyPeriods } from "./warningVisibility";
 
@@ -165,23 +171,20 @@ export const useShiftBoardPageController = (
   );
   const periodLabel = useMemo(() => generatePeriodLabel(dates), [dates]);
   const staffProfiles = staffing?.staffProfiles;
+  const positionSkillsByStaffId = useMemo(() => toPositionSkillsByStaffId(staffProfiles), [staffProfiles]);
   const staffs: StaffType[] = useMemo(() => {
-    const profileByStaffId = new Map((staffProfiles ?? []).map((profile) => [profile.staffId, profile]));
     return data.staffs.map((staff) => {
-      const profile = profileByStaffId.get(staff._id);
+      const positionSkills = positionSkillsByStaffId.get(staff._id);
       return {
         id: staff._id,
         name: staff.isRemoved ? `${staff.name}（削除済み）` : staff.name,
         isSubmitted: staff.isSubmitted,
         isRemoved: staff.isRemoved,
         createdAt: staff.createdAt,
-        ...(profile && profile.skillLevel !== "standard" ? { skillLevel: profile.skillLevel } : {}),
-        ...(profile && profile.unavailablePositionIds.length > 0
-          ? { unavailablePositionIds: profile.unavailablePositionIds }
-          : {}),
+        ...(positionSkills ? { positionSkills } : {}),
       };
     });
-  }, [data.staffs, staffProfiles]);
+  }, [data.staffs, positionSkillsByStaffId]);
   const positions = useMemo(
     () =>
       data.positions.length > 0
@@ -221,7 +224,7 @@ export const useShiftBoardPageController = (
       shouldDefaultToDetailMode({
         positionCount: data.positions.length,
         staffing: shiftFormStaffing,
-        hasStaffProfiles: (staffProfiles?.length ?? 0) > 0,
+        hasStaffProfiles: positionSkillsByStaffId.size > 0,
       }),
   );
   // シンプル表示は休憩を見せないため、シンプルで開いた場合は、希望から作る勤務の候補に休憩の初期値を入れない。
@@ -299,15 +302,12 @@ export const useShiftBoardPageController = (
   const computeVisibleNewcomerOnlyPeriods = useCallback(
     (shifts: ShiftData[]) => {
       const activeStaffIds = new Set(staffs.filter((staff) => !staff.isRemoved).map((staff) => staff.id));
-      const newcomerStaffIds = new Set(
-        staffs.filter((staff) => !staff.isRemoved && staff.skillLevel === "newcomer").map((staff) => staff.id),
-      );
       const pattern = data.submissionPattern;
       const periods = listNewcomerOnlyPeriods({
         shifts: shifts.filter((shift) => activeStaffIds.has(shift.staffId)),
         dates: dates.filter((date) => !shopClosedDateSet.has(date)),
         positionIds: positions.map((position) => position.id),
-        newcomerStaffIds,
+        newcomerStaffIdsByPositionId: collectNewcomerStaffIdsByPositionId(staffs),
         pattern:
           pattern.kind === "time"
             ? {

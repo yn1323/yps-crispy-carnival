@@ -14,6 +14,8 @@ import {
   type DayTemplateSelection,
   findDayTemplateDraftIssues,
   findDayTemplateInputsIssue,
+  getDayTemplateLabel,
+  hasPendingDayTemplateChanges,
   isSameDayTemplateInputs,
   removeDayTemplate,
   renameDayTemplate,
@@ -24,22 +26,22 @@ import {
   toggleDayTemplateHoliday,
   toggleDayTemplateWeekday,
 } from "./dayTemplateDrafts";
+import { formatPendingSections } from "./script";
 import {
-  formatPendingSections,
-  isSameStaffProfile,
-  resolveStaffProfile,
-  toggleStaffPosition,
+  isSameStaffPositionLevels,
+  setPositionLevelForAllStaffs,
+  setStaffPositionLevel,
+  toStaffPositionLevels,
   toStaffProfileInputs,
-} from "./script";
+} from "./staffPositionLevels";
 import type {
   DayTemplateDraft,
   PendingSection,
   PositionInput,
-  ShiftSetupBreakRule,
   ShiftSetupData,
   ShiftSetupEditorView,
   ShiftSetupRemote,
-  StaffProfile,
+  StaffPositionLevels,
 } from "./types";
 
 const ASSIST_UNAVAILABLE_MESSAGE = "いまはAIの下書きを使えません。\n「型を作る」から手で作れます。";
@@ -54,8 +56,8 @@ type Input = {
 
 /**
  * 「シフト作成の設定」の編集中の値と保存の流れを持つ。
- * 必要人数とスタッフの条件は編集中の値として持ち、操作バーの「保存する」でまとめて保存する。
- * ポジションと休憩の決まりは、Dialogの保存でその場で保存する。
+ * 必要人数とスタッフの条件は編集中の値として持ち、保存の帯の「保存する」でまとめて保存する。
+ * ポジションは、Dialogの保存でその場で保存する。
  */
 export function useShiftSetupEditor({ setup, remote }: Input) {
   const canWrite = setup.canWriteBusinessData;
@@ -64,10 +66,13 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
   // nullは「編集していない」を表し、保存済みの値をそのまま表示する。
   const [templateDrafts, setTemplateDrafts] = useState<DayTemplateDraft[] | null>(null);
   // 保存済みの値から変えたスタッフだけを持つ。
-  const [staffDrafts, setStaffDrafts] = useState<Record<string, StaffProfile>>({});
+  const [staffDrafts, setStaffDrafts] = useState<Record<string, StaffPositionLevels>>({});
   const [templateSelection, setTemplateSelection] = useState<DayTemplateSelection>({ rowKey: null, index: 0 });
   const [hasAttemptedSave, setHasAttemptedSave] = useState(false);
   const [assistMessage, setAssistMessage] = useState<string>();
+  // 保存の応答を待っている間は編集を受け付けない。応答のあとで編集中の値を捨てるため、待っている間の編集が消えるのを防ぐ。
+  // 描画を待たずに止めるため、stateではなくrefで持つ。
+  const isSavingRef = useRef(false);
   const rowKeyCountRef = useRef(0);
   const createRowKey = () => {
     rowKeyCountRef.current += 1;
@@ -75,7 +80,6 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
   };
 
   const positionsDialog = useDialog();
-  const breakRuleDialog = useDialog();
   const assistDialog = useDialog();
 
   const inputContext = useMemo(() => ({ positions, pattern }), [positions, pattern]);
@@ -84,10 +88,11 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
   const drafts = templateDrafts ?? savedDrafts;
   const selectedDraft = resolveSelectedDayTemplate(drafts, templateSelection);
   const templateInputs = toDayTemplateInputs(drafts, inputContext);
-  const isTemplatesDirty = templateDrafts !== null && !isSameDayTemplateInputs(templateInputs, savedInputs);
+  // 作ったまま何も入れていない新しい型だけが違いのときは、保存していない変更に数えない。
+  const hasTemplateChanges = templateDrafts !== null && hasPendingDayTemplateChanges(drafts, savedInputs, inputContext);
   const staffInputs = toStaffProfileInputs(staffs, staffDrafts, positions);
   const pendingSections: PendingSection[] = [
-    ...(isTemplatesDirty ? (["dayTemplates"] as const) : []),
+    ...(hasTemplateChanges ? (["dayTemplates"] as const) : []),
     ...(staffInputs.length > 0 ? (["staffs"] as const) : []),
   ];
   const hasUnsavedChangesRef = useRef(false);
@@ -102,7 +107,6 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
   }
 
   const { close: closePositionsDialog } = positionsDialog;
-  const { close: closeBreakRuleDialog } = breakRuleDialog;
   const { close: closeAssistDialog } = assistDialog;
   useEffect(() => {
     if (canWrite) return;
@@ -111,12 +115,13 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
     setStaffDrafts({});
     setHasAttemptedSave(false);
     closePositionsDialog();
-    closeBreakRuleDialog();
     closeAssistDialog();
-  }, [canWrite, closeAssistDialog, closeBreakRuleDialog, closePositionsDialog]);
+  }, [canWrite, closeAssistDialog, closePositionsDialog]);
+
+  const canEdit = () => canWrite && !isSavingRef.current;
 
   const editTemplates = (update: (current: DayTemplateDraft[]) => DayTemplateDraft[]) => {
-    if (!canWrite) return;
+    if (!canEdit()) return;
     setTemplateDrafts((current) => {
       const next = update(current ?? savedDrafts);
       // 保存済みの値と同じ内容へ戻ったら、編集していない状態へ戻す。
@@ -124,24 +129,47 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
     });
   };
 
-  const editStaff = (staffId: string, update: (profile: StaffProfile) => StaffProfile) => {
-    const staff = staffs.find((candidate) => candidate._id === staffId);
-    if (!canWrite || !staff) return;
-    setStaffDrafts((current) => {
-      const { [staffId]: currentDraft, ...rest } = current;
-      const next = update(resolveStaffProfile(staff, currentDraft));
-      return isSameStaffProfile(next, resolveStaffProfile(staff, undefined), positions)
-        ? rest
-        : { ...rest, [staffId]: next };
-    });
+  /** スタッフごとの、編集中の値を反映したポジションごとの値。 */
+  const resolveStaffProfiles = (drafts: Readonly<Record<string, StaffPositionLevels>>) =>
+    Object.fromEntries(
+      staffs.map((staff) => [staff._id, drafts[staff._id] ?? toStaffPositionLevels(staff, positions)]),
+    );
+
+  /** 保存済みの値と同じになったスタッフを、編集中の値から外す。 */
+  const toStaffDrafts = (profiles: Readonly<Record<string, StaffPositionLevels>>) =>
+    Object.fromEntries(
+      staffs.flatMap((staff) => {
+        const levels = profiles[staff._id];
+        const isChanged =
+          levels && !isSameStaffPositionLevels(levels, toStaffPositionLevels(staff, positions), positions);
+        return isChanged ? [[staff._id, levels]] : [];
+      }),
+    );
+
+  const editStaffs = (
+    update: (profiles: Record<string, StaffPositionLevels>) => Record<string, StaffPositionLevels>,
+  ) => {
+    if (!canEdit()) return;
+    setStaffDrafts((current) => toStaffDrafts(update(resolveStaffProfiles(current))));
+  };
+
+  const setPositionLevelForAll = (positionId: string, level: "standard" | "unavailable") => {
+    if (!canEdit()) return;
+    const result = setPositionLevelForAllStaffs(resolveStaffProfiles(staffDrafts), positionId, level, positions);
+    setStaffDrafts(toStaffDrafts(result.profiles));
+    // 入れるポジションがなくなるスタッフは変えていないため、その人数を伝える。
+    if (result.skippedCount > 0) {
+      toaster.create({ title: `入れるポジションがなくなる${result.skippedCount}人は変えていません`, type: "info" });
+    }
   };
 
   const { run: saveChanges, isRunning: isSaving } = useSingleFlight(async (): Promise<boolean> => {
     if (!canWrite) return false;
 
     const saved: PendingSection[] = [];
+    isSavingRef.current = true;
     try {
-      if (isTemplatesDirty) {
+      if (hasTemplateChanges) {
         setHasAttemptedSave(true);
         const invalidIndex = drafts.findIndex((draft) => issues[draft.rowKey] !== undefined);
         const invalidDraft = drafts[invalidIndex];
@@ -167,6 +195,7 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
       showErrorToast(error);
       return false;
     } finally {
+      isSavingRef.current = false;
       // 片方だけ保存できた場合も、保存できた分を伝える。
       if (saved.length > 0) showSuccessToast({ title: `${formatPendingSections(saved)}の設定を保存しました` });
     }
@@ -183,21 +212,8 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
     }
   });
 
-  const { run: saveBreakRule, isRunning: isSavingBreakRule } = useSingleFlight(
-    async (breakRule: ShiftSetupBreakRule | null) => {
-      if (!canWrite) return;
-      try {
-        await remote.saveBreakRule(breakRule);
-        breakRuleDialog.close();
-        showSuccessToast({ title: breakRule ? "休憩の決まりを保存しました" : "休憩の決まりをなくしました" });
-      } catch (error) {
-        showErrorToast(error);
-      }
-    },
-  );
-
   const { run: requestAssist, isRunning: isAssistRunning } = useSingleFlight(async (situation: string) => {
-    if (!canWrite || !setup.assistAvailable) return;
+    if (!canEdit() || !setup.assistAvailable) return;
     const parsed = assistSituationSchema.safeParse(situation);
     if (!parsed.success) {
       setAssistMessage(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
@@ -231,6 +247,15 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
     if (canWrite) open();
   };
 
+  const copyRequirements = (target: { fromRowKey: string; toRowKey: string }) => {
+    const source = drafts.find((draft) => draft.rowKey === target.fromRowKey);
+    const hasTarget = drafts.some((draft) => draft.rowKey === target.toRowKey);
+    if (!canEdit() || !source || !hasTarget || target.fromRowKey === target.toRowKey) return;
+    editTemplates((current) => copyDayTemplateRequirements(current, target));
+    // 写したあとも見えている範囲がほとんど変わらないため、どの型から写したかを伝える。
+    showSuccessToast({ title: `「${getDayTemplateLabel(source)}」の必要人数をコピーしました` });
+  };
+
   const view: ShiftSetupEditorView = {
     setup,
     canWrite,
@@ -240,13 +265,10 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
       issueMessages,
       canAdd: drafts.length < SHIFT_DAY_TEMPLATE_LIMIT,
     },
-    staffProfiles: Object.fromEntries(
-      staffs.map((staff) => [staff._id, resolveStaffProfile(staff, staffDrafts[staff._id])]),
-    ),
+    staffProfiles: resolveStaffProfiles(staffDrafts),
     pendingSections: canWrite ? pendingSections : [],
     isSaving,
     positionsDialog: { ...positionsDialog, open: openWhenWritable(positionsDialog.open), isSaving: isSavingPositions },
-    breakRuleDialog: { ...breakRuleDialog, open: openWhenWritable(breakRuleDialog.open), isSaving: isSavingBreakRule },
     assistDialog: {
       ...assistDialog,
       open: openWhenWritable(() => {
@@ -262,7 +284,7 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
         if (index !== -1) setTemplateSelection({ rowKey, index });
       },
       onAddDayTemplate: () => {
-        if (!canWrite || drafts.length >= SHIFT_DAY_TEMPLATE_LIMIT) return;
+        if (!canEdit() || drafts.length >= SHIFT_DAY_TEMPLATE_LIMIT) return;
         const rowKey = createRowKey();
         editTemplates((current) =>
           current.length >= SHIFT_DAY_TEMPLATE_LIMIT
@@ -280,7 +302,7 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
         setTemplateSelection({ rowKey, index: drafts.length });
       },
       onRemoveDayTemplate: (rowKey) => {
-        if (!canWrite) return;
+        if (!canEdit()) return;
         const index = drafts.findIndex((draft) => draft.rowKey === rowKey);
         editTemplates((current) => removeDayTemplate(current, rowKey));
         // 削除した型を編集していた場合は、同じ位置に来る型へ移る。
@@ -293,18 +315,23 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
       onChangeBars: (rowKey, bars) => editTemplates((current) => changeDayTemplateBars(current, rowKey, bars)),
       onChangeRequiredCount: (rowKey, change) =>
         editTemplates((current) => changeRequiredCount(current, rowKey, change)),
-      onCopyRequirements: (target) => editTemplates((current) => copyDayTemplateRequirements(current, target)),
-      onToggleStaffPosition: (staffId, positionId) =>
-        editStaff(staffId, (profile) => toggleStaffPosition(profile, positionId, positions)),
-      onChangeStaffSkillLevel: (staffId, skillLevel) => editStaff(staffId, (profile) => ({ ...profile, skillLevel })),
+      onCopyRequirements: copyRequirements,
+      onChangeStaffPositionLevel: (staffId, positionId, level) =>
+        editStaffs((profiles) => {
+          const levels = profiles[staffId];
+          return levels
+            ? { ...profiles, [staffId]: setStaffPositionLevel(levels, positionId, level, positions) }
+            : profiles;
+        }),
+      onSetPositionLevelForAllStaffs: setPositionLevelForAll,
       onResetChanges: () => {
+        if (isSavingRef.current) return;
         setTemplateDrafts(null);
         setStaffDrafts({});
         setHasAttemptedSave(false);
       },
       onSaveChanges: () => void saveChanges(),
       onSavePositions: (inputs) => void savePositions(inputs),
-      onSaveBreakRule: (breakRule) => void saveBreakRule(breakRule),
       onRequestAssist: (situation) => void requestAssist(situation),
     },
   };

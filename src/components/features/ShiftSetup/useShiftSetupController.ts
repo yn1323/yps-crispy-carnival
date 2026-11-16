@@ -22,7 +22,6 @@ export type ShiftSetupController = ShiftSetupEditorView & {
 export function useShiftSetupController({ shopId, organizationId, setup }: Input): ShiftSetupController {
   const savePositions = useMutation(api.shiftSetup.mutations.savePositions);
   const saveDayTemplates = useMutation(api.shiftSetup.mutations.saveDayTemplates);
-  const saveBreakRule = useMutation(api.shiftSetup.mutations.saveBreakRule);
   const saveStaffShiftProfiles = useMutation(api.shiftSetup.mutations.saveStaffShiftProfiles);
   const suggestShiftSetup = useAction(api.shiftSetup.actions.suggestShiftSetup);
   const router = useRouter();
@@ -31,7 +30,6 @@ export function useShiftSetupController({ shopId, organizationId, setup }: Input
   const remote: ShiftSetupRemote = {
     savePositions: (positions) => savePositions({ ...scope, positions }),
     saveDayTemplates: (templates) => saveDayTemplates({ ...scope, templates }),
-    saveBreakRule: (breakRule) => saveBreakRule({ ...scope, breakRule }),
     saveStaffShiftProfiles: (profiles) => saveStaffShiftProfiles({ ...scope, profiles }),
     suggestShiftSetup: (situation) => suggestShiftSetup({ ...scope, situation }),
   };

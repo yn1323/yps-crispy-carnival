@@ -9,13 +9,21 @@ import { formatShiftClockTimeRange } from "@/src/domains/shift/time";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { formatStaffWorkTotal } from "@/src/domains/shift/workTotals";
 import {
+  buildNameSkillMark,
+  buildSegmentSkillMark,
+  type NameSkillMarkView,
+  SKILL_MARK_COLORS,
+} from "./skillPresentation";
+import {
   breakToolActiveAtom,
   detailModeAtom,
   isBreakToolActiveAtom,
   isPositionSelectableAtom,
   isToolPaletteActiveAtom,
+  nameSkillPositionAtom,
   selectedPositionIdAtom,
   shiftConfigAtom,
+  showsSegmentSkillMarksAtom,
   staffWorkTotalsAtom,
   usesPositionColorsAtom,
 } from "./stores";
@@ -291,14 +299,20 @@ export const useWorkColor = () => {
  */
 export const PositionMark = ({
   segment,
+  staff,
   onColor = false,
 }: {
-  segment: { positionName: string; color: string } | undefined;
+  segment: { positionId: string; positionName: string; color: string } | undefined;
+  /** 勤務しているスタッフ。渡すと、そのポジションでの熟練度の印（新・責）を添える。 */
+  staff?: StaffType;
   /** 色の付いた面の上に置く場合はtrue。丸を白にして見分けられるようにする。 */
   onColor?: boolean;
 }) => {
   const usesPositionColors = useAtomValue(usesPositionColorsAtom);
-  if (!usesPositionColors || !segment) return null;
+  if (!segment) return null;
+  const skillMark = staff ? <SegmentSkillMark staff={staff} segment={segment} /> : null;
+  // ポジションが1つの店舗では色と名前を出さず、熟練度の印だけを出す。
+  if (!usesPositionColors) return skillMark;
   return (
     <Flex as="span" align="center" gap="4px" minW={0} textStyle="2xs" fontWeight={600} lineHeight={1.2}>
       <Box
@@ -312,7 +326,41 @@ export const PositionMark = ({
       <Box as="span" truncate>
         {segment.positionName}
       </Box>
+      {skillMark}
     </Flex>
+  );
+};
+
+/**
+ * 勤務の区間に添える、そのポジションでの熟練度の印（新・責）。帯の「新」の印と同じ見た目にする。
+ * くわしく表示の、担当者の画面だけに出す。スタッフ向けの確定シフト表示には出さない。
+ */
+export const SegmentSkillMark = ({
+  staff,
+  segment,
+}: {
+  staff: StaffType | undefined;
+  segment: { positionId: string; positionName: string } | undefined;
+}) => {
+  const shows = useAtomValue(showsSegmentSkillMarksAtom);
+  const mark = shows ? buildSegmentSkillMark(staff, segment) : null;
+  if (!mark) return null;
+  return (
+    <Box
+      as="span"
+      px="3px"
+      borderRadius="sm"
+      textStyle="2xs"
+      fontWeight={700}
+      lineHeight={1.4}
+      flexShrink={0}
+      title={mark.title}
+      data-skill-mark={mark.level}
+      {...SKILL_MARK_COLORS[mark.level]}
+    >
+      {mark.label}
+      <chakra.span srOnly>{mark.hiddenSuffix}</chakra.span>
+    </Box>
   );
 };
 
@@ -350,16 +398,37 @@ export const BreakMark = ({ shift, compact = false }: { shift: ShiftData | undef
 // ==========================================
 // スタッフ名に添える印（熟練度、仮の勤務、合計）
 // ==========================================
-const SKILL_LABELS = { newcomer: "新人", lead: "責任者" } as const;
-const SKILL_STYLES = {
-  newcomer: { bg: "orange.100", color: "orange.800" },
-  lead: { bg: "green.100", color: "green.800" },
-} as const;
-
-const MetaBadge = ({ bg, color, children }: { bg: string; color: string; children: ReactNode }) => (
-  <Box px="6px" py="1px" borderRadius="full" bg={bg} color={color} textStyle="2xs" fontWeight={700} flexShrink={0}>
-    {children}
-  </Box>
+/** 名前の横の熟練度の印。ポジションが2つ以上の店舗では、どのポジションでの値かを色の丸で添える。 */
+const NameSkillBadge = ({ mark }: { mark: NameSkillMarkView }) => (
+  <Flex
+    as="span"
+    align="center"
+    gap="4px"
+    px="6px"
+    py="1px"
+    borderRadius="full"
+    textStyle="2xs"
+    fontWeight={700}
+    flexShrink={0}
+    title={mark.title ?? undefined}
+    data-skill-badge={mark.level}
+    {...SKILL_MARK_COLORS[mark.level]}
+  >
+    {mark.position && (
+      <>
+        <Box
+          as="span"
+          boxSize="8px"
+          borderRadius="full"
+          flexShrink={0}
+          style={{ background: mark.position.color }}
+          aria-hidden
+        />
+        <chakra.span srOnly>{mark.position.name}：</chakra.span>
+      </>
+    )}
+    {mark.label}
+  </Flex>
 );
 
 /**
@@ -377,17 +446,20 @@ export const StaffMeta = ({
 }) => {
   const detailMode = useAtomValue(detailModeAtom);
   const totals = useAtomValue(staffWorkTotalsAtom);
-  const isConfirmedDisplay = useAtomValue(shiftConfigAtom).displayMode === "confirmed";
+  const config = useAtomValue(shiftConfigAtom);
+  const skillPosition = useAtomValue(nameSkillPositionAtom);
   if (!detailMode) return null;
 
   // 人ごとの合計は担当者が偏りを確かめるためのもので、スタッフ向けの確定シフト表示には出さない。
-  const total = isConfirmedDisplay ? undefined : totals.get(staff.id);
-  const hasContent = staff.skillLevel || shift?.isProvisional || (showTotal && total);
+  const total = config.displayMode === "confirmed" ? undefined : totals.get(staff.id);
+  // 熟練度は「入れるもの」で選んでいるポジションでの値を出す。入れる前に、入れないポジションも分かるようにする。
+  const skillMark = buildNameSkillMark({ staff, position: skillPosition, positionCount: config.positions.length });
+  const hasContent = skillMark || shift?.isProvisional || (showTotal && total);
   if (!hasContent) return null;
 
   return (
     <Flex align="center" gap={1} minW={0} flexWrap="nowrap">
-      {staff.skillLevel && <MetaBadge {...SKILL_STYLES[staff.skillLevel]}>{SKILL_LABELS[staff.skillLevel]}</MetaBadge>}
+      {skillMark && <NameSkillBadge mark={skillMark} />}
       {shift?.isProvisional && (
         <Box
           px="6px"

@@ -1,13 +1,16 @@
 import { Box, Text } from "@chakra-ui/react";
 import { useAtomValue } from "jotai";
 import { memo } from "react";
-import type { LinkedResizeTarget, ShiftData, TimeRange } from "@/src/domains/shift/types";
-import { useWorkColor } from "../../../detailParts";
-import { detailModeAtom, hourWidthAtom } from "../../../stores";
-import { buildShiftBarViewModel } from "./script";
+import type { LinkedResizeTarget, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
+import { SegmentSkillMark, useWorkColor } from "../../../detailParts";
+import { buildSegmentSkillMark } from "../../../skillPresentation";
+import { detailModeAtom, hourWidthAtom, showsSegmentSkillMarksAtom } from "../../../stores";
+import { buildShiftBarViewModel, SKILL_MARK_INSET_PX } from "./script";
 
 type ShiftBarProps = {
   shift: ShiftData;
+  /** 勤務しているスタッフ。くわしく表示で、区間のポジションでの熟練度の印に使う。 */
+  staff?: StaffType;
   timeRange: TimeRange;
   onHover: (shiftId: string | null) => void;
   onClick: (shiftId: string, positionId: string | null, e: React.MouseEvent) => void;
@@ -47,6 +50,7 @@ const BORDER_RADIUS_PROPS = {
 
 export const ShiftBar = memo(function ShiftBar({
   shift,
+  staff,
   timeRange,
   onHover,
   onClick,
@@ -57,6 +61,7 @@ export const ShiftBar = memo(function ShiftBar({
 }: ShiftBarProps) {
   const hourWidth = useAtomValue(hourWidthAtom);
   const detailMode = useAtomValue(detailModeAtom);
+  const showsSkillMarks = useAtomValue(showsSegmentSkillMarksAtom);
   const getWorkColor = useWorkColor();
   const viewModel = buildShiftBarViewModel({
     shift,
@@ -118,6 +123,8 @@ export const ShiftBar = memo(function ShiftBar({
           // 仮の勤務は、点線の枠で確定前の候補であることを示す。
           outline={detailMode && shift.isProvisional ? "1.5px dashed rgba(255,255,255,0.9)" : undefined}
           outlineOffset="-3px"
+          // 印が入らない狭いバーでも、そのポジションでの熟練度が分かるようにする。
+          title={showsSkillMarks ? buildSegmentSkillMark(staff, bar.workPosition)?.title : undefined}
           style={{ background: getWorkColor(bar, BAR_BG) }}
           {...BORDER_RADIUS_PROPS[bar.edgeShape]}
           top="50%"
@@ -166,6 +173,32 @@ export const ShiftBar = memo(function ShiftBar({
             style={EXPLICIT_BREAK_STYLE}
           />
         ))}
+
+      {/* そのポジションでの熟練度の印（新・責）。バーの右端に置き、入らないバーでは省く。 */}
+      {showsSkillMarks &&
+        viewModel.workBars.map(
+          (bar) =>
+            bar.fitsSkillMark && (
+              <Box
+                key={bar.key}
+                position="absolute"
+                left={`${bar.left}px`}
+                width={`${bar.width}px`}
+                height="22px"
+                top="50%"
+                transform="translateY(-50%)"
+                display="flex"
+                alignItems="center"
+                justifyContent="flex-end"
+                pr={`${SKILL_MARK_INSET_PX}px`}
+                pointerEvents="none"
+                zIndex={4}
+                _empty={{ display: "none" }}
+              >
+                <SegmentSkillMark staff={staff} segment={bar.workPosition} />
+              </Box>
+            ),
+        )}
 
       {/* 勤務時刻ラベル（バーの左側に白文字、リサイズ中は非表示） */}
       {viewModel.workLabel && (

@@ -117,13 +117,21 @@ export async function resolveRecruitmentStaffingDays(
 }
 
 /**
- * スタッフが入れないポジションのうち、いまも有効なものだけを返す。
- * ポジションの削除で、残ったポジションのすべてが「入れない」になったスタッフは、制限なしとして返す。
+ * スタッフのポジションごとの扱いのうち、いまも有効なポジションの項目だけを、ポジションの並び順で返す。
+ * ポジションの削除で、残ったポジションのすべてが「入れない」になったスタッフは、「入れない」の項目を返さない。
  * どこにも入れないスタッフを作らないためである。
  */
-export function toUnavailablePositionIdsDto(staff: Doc<"staffs">, activePositionIds: ReadonlySet<Id<"positions">>) {
-  const unavailable = (staff.unavailablePositionIds ?? []).filter((positionId) => activePositionIds.has(positionId));
-  return unavailable.length >= activePositionIds.size ? [] : unavailable;
+export function toPositionSkillsDto(
+  staff: Pick<Doc<"staffs">, "positionSkills">,
+  activePositions: ReadonlyArray<Pick<Doc<"positions">, "_id">>,
+) {
+  const levelByPositionId = new Map((staff.positionSkills ?? []).map((skill) => [skill.positionId, skill.level]));
+  const skills = activePositions.flatMap((position) => {
+    const level = levelByPositionId.get(position._id);
+    return level ? [{ positionId: position._id, level }] : [];
+  });
+  const unavailableCount = skills.filter((skill) => skill.level === "unavailable").length;
+  return unavailableCount >= activePositions.length ? skills.filter((skill) => skill.level !== "unavailable") : skills;
 }
 
 export const ACTIVE_POSITION_LIMIT_MESSAGE = `ポジションは${POSITION_ACTIVE_LIMIT}件まで登録できます`;

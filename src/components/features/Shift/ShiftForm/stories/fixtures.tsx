@@ -1,10 +1,33 @@
 import { Provider } from "jotai";
 import type { ReactNode } from "react";
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
-import type { PositionType, ShiftData, SortMode, StaffType, TimeRange, ViewMode } from "@/src/domains/shift/types";
+import type {
+  PositionSkillLevel,
+  PositionType,
+  ShiftData,
+  SortMode,
+  StaffType,
+  TimeRange,
+  ViewMode,
+} from "@/src/domains/shift/types";
 import { DEFAULT_TIME_PATTERN } from "@/src/domains/shop/submissionPattern";
 import { useShiftFormInit } from "../hooks/useShiftFormInit";
 import type { ShiftFormStaffing } from "../stores";
+
+/**
+ * スタッフへ、ポジションごとの値（入れない、新人、責任者）を付ける。
+ * `{ staff1: { hall: "lead", kitchen: "newcomer" } }` の形で、標準以外のポジションだけを渡す。
+ */
+export const withPositionSkills = (
+  staffs: readonly StaffType[],
+  levelsByStaffId: Record<string, Record<string, PositionSkillLevel>>,
+): StaffType[] =>
+  staffs.map((staff) => {
+    const levels = levelsByStaffId[staff.id];
+    return levels
+      ? { ...staff, positionSkills: Object.entries(levels).map(([positionId, level]) => ({ positionId, level })) }
+      : staff;
+  });
 
 export const mockStaffs: StaffType[] = [
   { id: "staff1", name: "Aさん", isSubmitted: true },

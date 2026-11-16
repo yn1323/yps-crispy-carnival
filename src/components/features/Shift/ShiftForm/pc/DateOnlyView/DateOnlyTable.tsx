@@ -17,7 +17,7 @@ import {
   useAllShiftDateNotes,
   type useShiftDateNotes,
 } from "../../dateNotes";
-import { BreakMark, StaffMeta } from "../../detailParts";
+import { BreakMark, SegmentSkillMark, StaffMeta } from "../../detailParts";
 import type { DayStaffingView } from "../../staffingPresentation";
 import { DateStaffingCell, StaffingRowLabel } from "./DateStaffingCell";
 import { buildRowWeekNotes, type DateOnlyRowNote } from "./script";
@@ -175,6 +175,7 @@ export const DateOnlyTable = ({
                   isReadOnly={isReadOnly}
                   detailMode={detailMode}
                   positionSegment={usesPositionColors ? cell.segment : undefined}
+                  skillMark={<SegmentSkillMark staff={row.staff} segment={cell.segment} />}
                   breakShift={detailMode ? cell.breakShift : undefined}
                   isProvisional={detailMode && cell.isProvisional}
                   isNarrow={hasNotes}
@@ -476,6 +477,7 @@ const DateOnlyCell = ({
   isReadOnly,
   detailMode,
   positionSegment,
+  skillMark,
   breakShift,
   isProvisional,
   isNarrow,
@@ -492,6 +494,8 @@ const DateOnlyCell = ({
   detailMode: boolean;
   /** ポジションを塗り分ける表示のときだけ渡す、その日の勤務。 */
   positionSegment?: PositionSegment;
+  /** その日のポジションでの熟練度の印（新・責）。くわしく表示の、勤務のある日にだけ出す。 */
+  skillMark: ReactNode;
   /** くわしく表示で、休憩のある勤務の日だけ渡す。 */
   breakShift?: ShiftData;
   /** くわしく表示で、前回の勤務を仮で入れた日だけtrueにする。 */
@@ -565,14 +569,17 @@ const DateOnlyCell = ({
       {detailMode && isAssignedCell ? (
         <Flex direction="column" align="center" justify="center" gap="2px" minW={0} maxW="100%" px="4px">
           {coloredSegment ? (
-            // セルをポジションの色で塗っているため、色の丸は添えず、名前だけを出す。
-            <Box as="span" maxW="100%" textStyle={isNarrow ? "2xs" : "xs"} fontWeight={700} truncate>
-              {coloredSegment.positionName}
-            </Box>
+            // セルをポジションの色で塗っているため、色の丸は添えず、名前だけを出す。熟練度の印は名前の右に添える。
+            <Flex as="span" align="center" gap="3px" maxW="100%" minW={0}>
+              <Box as="span" minW={0} textStyle={isNarrow ? "2xs" : "xs"} fontWeight={700} truncate>
+                {coloredSegment.positionName}
+              </Box>
+              {skillMark}
+            </Flex>
           ) : (
-            <Box as="span" lineHeight={1}>
-              ○
-            </Box>
+            <Flex as="span" align="center" gap="4px" lineHeight={1}>
+              ○{skillMark}
+            </Flex>
           )}
           {visibleBreakShift && (
             // 休憩の印は、色の付いた面の上でも見えるよう白い丸に載せる。

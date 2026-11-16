@@ -1,25 +1,10 @@
 import type { Id } from "@/convex/_generated/dataModel";
 import { POSITION_ACTIVE_LIMIT, POSITION_COLOR_PALETTE } from "@/convex/constants";
 import type { ShiftSetupWeekday } from "@/convex/shiftSetup/dayTemplates";
-import {
-  BREAK_RULE_BREAK_UNIT_MINUTES,
-  BREAK_RULE_WORK_UNIT_MINUTES,
-  breakRuleSchema,
-  savePositionsSchema,
-} from "@/convex/shiftSetup/schemas";
-import type {
-  PendingSection,
-  PositionInput,
-  ShiftSetupBreakRule,
-  ShiftSetupData,
-  ShiftSetupPosition,
-  ShiftSetupStaff,
-  StaffProfile,
-  StaffShiftProfileInput,
-  StaffSkillLevel,
-} from "./types";
+import { savePositionsSchema } from "@/convex/shiftSetup/schemas";
+import type { PendingSection, PositionInput, ShiftSetupData, ShiftSetupPosition } from "./types";
 
-// ポジション、スタッフの条件、休憩の決まりを編集するための純粋処理。
+// ポジションを編集するための純粋処理と、ページ全体で使う表示の変換。
 
 /** 画面に並べる曜日。店舗詳細の定休日と同じく月曜から始める。 */
 export const WEEKDAY_OPTIONS: ReadonlyArray<{ value: ShiftSetupWeekday; label: string }> = [
@@ -30,12 +15,6 @@ export const WEEKDAY_OPTIONS: ReadonlyArray<{ value: ShiftSetupWeekday; label: s
   { value: "fri", label: "金" },
   { value: "sat", label: "土" },
   { value: "sun", label: "日" },
-];
-
-export const SKILL_LEVEL_OPTIONS: ReadonlyArray<{ value: StaffSkillLevel; label: string }> = [
-  { value: "newcomer", label: "新人" },
-  { value: "standard", label: "標準" },
-  { value: "lead", label: "責任者" },
 ];
 
 const PENDING_SECTION_LABELS: Record<PendingSection, string> = {
@@ -117,14 +96,23 @@ export function addPositionDraft(drafts: readonly PositionDraft[], rowKey: strin
   return [...drafts, { rowKey, name: "", color: pickUnusedPositionColor(drafts), isDefault: false }];
 }
 
-/**
- * 並び替えられるかを返す。
- * 最初からあるポジションは、設定ページでは先頭に固定し、並び替えの対象にしない。
- */
+/** 並び替えられるかを返す。 */
 export function canMovePositionDraft(drafts: readonly PositionDraft[], index: number, direction: -1 | 1): boolean {
-  const source = drafts[index];
-  const destination = drafts[index + direction];
-  return Boolean(source && destination && !source.isDefault && !destination.isDefault);
+  return Boolean(drafts[index] && drafts[index + direction]);
+}
+
+/** ポジションは1件以上必要なため、最後の1件は削除できない。 */
+export function canRemovePositionDraft(drafts: readonly PositionDraft[]): boolean {
+  return drafts.length > 1;
+}
+
+/**
+ * 削除したポジションの勤務の表示先になるポジションの名前を返す。
+ * 既定のポジションが残っていればそのポジション、削除していれば保存後に既定になる先頭のポジション。
+ */
+export function getFallbackPositionName(drafts: readonly PositionDraft[]): string | undefined {
+  const fallback = drafts.find((draft) => draft.isDefault) ?? drafts[0];
+  return fallback?.name.trim() || undefined;
 }
 
 export function movePositionDraft(drafts: readonly PositionDraft[], index: number, direction: -1 | 1): PositionDraft[] {
@@ -171,143 +159,4 @@ export function getRemovedPositionNames(
 ): string[] {
   const keptIds = new Set(drafts.flatMap((draft) => (draft.id ? [draft.id] : [])));
   return positions.filter((position) => !keptIds.has(position._id)).map((position) => position.name);
-}
-
-// ---- スタッフ ----
-
-type PositionRef = Pick<ShiftSetupPosition, "_id">;
-
-/** 入れないポジションを、いまあるポジションの並び順にそろえる。比較と保存の両方で使う。 */
-function normalizeUnavailablePositionIds(
-  unavailablePositionIds: readonly Id<"positions">[],
-  positions: readonly PositionRef[],
-): Id<"positions">[] {
-  const unavailable = new Set(unavailablePositionIds);
-  return positions.filter((position) => unavailable.has(position._id)).map((position) => position._id);
-}
-
-export function resolveStaffProfile(staff: ShiftSetupStaff, draft: StaffProfile | undefined): StaffProfile {
-  return draft ?? { unavailablePositionIds: staff.unavailablePositionIds, skillLevel: staff.skillLevel };
-}
-
-/** そのポジションが、スタッフに残った最後の「入れるポジション」かを返す。最後の1つは外せない。 */
-export function isLastAvailablePosition(
-  profile: StaffProfile,
-  positionId: Id<"positions">,
-  positions: readonly PositionRef[],
-): boolean {
-  const unavailable = normalizeUnavailablePositionIds(profile.unavailablePositionIds, positions);
-  return !unavailable.includes(positionId) && unavailable.length >= positions.length - 1;
-}
-
-/** ポジションに入れるかどうかを切り替える。最後の1つを外す操作は無視する。 */
-export function toggleStaffPosition(
-  profile: StaffProfile,
-  positionId: Id<"positions">,
-  positions: readonly PositionRef[],
-): StaffProfile {
-  if (profile.unavailablePositionIds.includes(positionId)) {
-    return {
-      ...profile,
-      unavailablePositionIds: profile.unavailablePositionIds.filter((id) => id !== positionId),
-    };
-  }
-  if (isLastAvailablePosition(profile, positionId, positions)) return profile;
-  return { ...profile, unavailablePositionIds: [...profile.unavailablePositionIds, positionId] };
-}
-
-export function isSameStaffProfile(
-  left: StaffProfile,
-  right: StaffProfile,
-  positions: readonly PositionRef[],
-): boolean {
-  return (
-    left.skillLevel === right.skillLevel &&
-    normalizeUnavailablePositionIds(left.unavailablePositionIds, positions).join() ===
-      normalizeUnavailablePositionIds(right.unavailablePositionIds, positions).join()
-  );
-}
-
-/** 保存する形へ直す。保存済みの値から変えたスタッフだけを返す。 */
-export function toStaffProfileInputs(
-  staffs: readonly ShiftSetupStaff[],
-  drafts: Readonly<Record<string, StaffProfile>>,
-  positions: readonly PositionRef[],
-): StaffShiftProfileInput[] {
-  return staffs.flatMap((staff) => {
-    const draft = drafts[staff._id];
-    if (!draft || isSameStaffProfile(draft, resolveStaffProfile(staff, undefined), positions)) return [];
-    return [
-      {
-        staffId: staff._id,
-        unavailablePositionIds: normalizeUnavailablePositionIds(draft.unavailablePositionIds, positions),
-        skillLevel: draft.skillLevel,
-      },
-    ];
-  });
-}
-
-// ---- 休憩の決まり ----
-
-const WORK_OPTION_MIN_MINUTES = 60;
-const WORK_OPTION_MAX_MINUTES = 12 * 60;
-const BREAK_OPTION_MAX_MINUTES = 2 * 60;
-
-/** 分を「6時間」「6時間30分」「45分」の形で返す。 */
-export function formatDurationMinutes(totalMinutes: number): string {
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (hours === 0) return `${minutes}分`;
-  return minutes === 0 ? `${hours}時間` : `${hours}時間${minutes}分`;
-}
-
-function buildDurationOptions(min: number, max: number, step: number, current: number | undefined) {
-  const values = new Set<number>();
-  for (let minutes = min; minutes <= max; minutes += step) values.add(minutes);
-  // 選択肢の範囲外で保存済みの値も、選んだ状態で表示できるようにする。
-  if (current !== undefined) values.add(current);
-  return [...values]
-    .sort((left, right) => left - right)
-    .map((minutes) => ({ value: String(minutes), label: formatDurationMinutes(minutes) }));
-}
-
-/** 勤務の長さの選択肢（30分単位）。 */
-export function getBreakRuleWorkOptions(current?: number) {
-  return buildDurationOptions(WORK_OPTION_MIN_MINUTES, WORK_OPTION_MAX_MINUTES, BREAK_RULE_WORK_UNIT_MINUTES, current);
-}
-
-/** 休憩の長さの選択肢（15分単位）。 */
-export function getBreakRuleBreakOptions(current?: number) {
-  return buildDurationOptions(
-    BREAK_RULE_BREAK_UNIT_MINUTES,
-    BREAK_OPTION_MAX_MINUTES,
-    BREAK_RULE_BREAK_UNIT_MINUTES,
-    current,
-  );
-}
-
-export function formatBreakRule(rule: ShiftSetupBreakRule | null): string {
-  if (!rule) return "決まりなし";
-  return `${formatDurationMinutes(rule.minWorkMinutes)}以上の勤務に${formatDurationMinutes(rule.breakMinutes)}`;
-}
-
-export type BreakRuleFormErrors = { minWorkMinutes?: string; breakMinutes?: string };
-
-/** 選んだ値を共有schemaで検証する。未選択は0として扱い、選ぶよう促す文言を返す。 */
-export function parseBreakRuleForm(form: {
-  minWorkMinutes: string;
-  breakMinutes: string;
-}): { rule: ShiftSetupBreakRule } | { errors: BreakRuleFormErrors } {
-  const parsed = breakRuleSchema.safeParse({
-    minWorkMinutes: Number(form.minWorkMinutes || 0),
-    breakMinutes: Number(form.breakMinutes || 0),
-  });
-  if (parsed.success) return { rule: parsed.data };
-
-  const errors: BreakRuleFormErrors = {};
-  for (const issue of parsed.error.issues) {
-    const field = issue.path[0];
-    if (field === "minWorkMinutes" || field === "breakMinutes") errors[field] ??= issue.message;
-  }
-  return { errors };
 }

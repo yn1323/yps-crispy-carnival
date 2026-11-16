@@ -4,24 +4,18 @@ import { POSITION_COLOR_PALETTE } from "@/convex/constants";
 import {
   addPositionDraft,
   canMovePositionDraft,
+  canRemovePositionDraft,
   findPositionDraftErrors,
-  formatBreakRule,
-  formatDurationMinutes,
   formatPendingSections,
-  getBreakRuleBreakOptions,
-  getBreakRuleWorkOptions,
+  getFallbackPositionName,
   getRemovedPositionNames,
-  isLastAvailablePosition,
   movePositionDraft,
   type PositionDraft,
-  parseBreakRuleForm,
   pickUnusedPositionColor,
-  toggleStaffPosition,
   toPositionDrafts,
   toPositionInputs,
-  toStaffProfileInputs,
 } from "./script";
-import type { ShiftSetupPosition, ShiftSetupStaff } from "./types";
+import type { ShiftSetupPosition } from "./types";
 
 const hall = "position-hall" as Id<"positions">;
 const kitchen = "position-kitchen" as Id<"positions">;
@@ -72,14 +66,24 @@ describe("ポジションの編集", () => {
     expect(addPositionDraft(ten, "new-1")).toEqual(ten);
   });
 
-  it("最初からあるポジションは先頭から動かせず、ほかの行もその上へは動かせない", () => {
-    expect(canMovePositionDraft(drafts, 0, 1)).toBe(false);
-    expect(canMovePositionDraft(drafts, 1, -1)).toBe(false);
+  it("どのポジションも並び替えられ、端より先へは動かせない", () => {
+    expect(canMovePositionDraft(drafts, 0, -1)).toBe(false);
     expect(canMovePositionDraft(drafts, 2, 1)).toBe(false);
-    expect(names(movePositionDraft(drafts, 1, -1))).toEqual(["ホール", "キッチン", "レジ"]);
 
-    expect(names(movePositionDraft(drafts, 1, 1))).toEqual(["ホール", "レジ", "キッチン"]);
+    expect(names(movePositionDraft(drafts, 0, 1))).toEqual(["キッチン", "ホール", "レジ"]);
     expect(names(movePositionDraft(drafts, 2, -1))).toEqual(["ホール", "レジ", "キッチン"]);
+    expect(names(movePositionDraft(drafts, 2, 1))).toEqual(["ホール", "キッチン", "レジ"]);
+  });
+
+  it("最後の1件は削除できず、2件以上あれば最初からあるポジションも削除できる", () => {
+    expect(canRemovePositionDraft(drafts)).toBe(true);
+    expect(canRemovePositionDraft(drafts.slice(0, 1))).toBe(false);
+  });
+
+  it("削除したポジションの勤務の表示先は、既定が残ればそのポジション、削除すれば先頭のポジションになる", () => {
+    expect(getFallbackPositionName([drafts[1], drafts[0]])).toBe("ホール");
+    expect(getFallbackPositionName(drafts.slice(1))).toBe("キッチン");
+    expect(getFallbackPositionName([])).toBeUndefined();
   });
 
   it("保存する形では、保存済みの行だけがidを持ち、名前の前後の空白を除く", () => {
@@ -113,111 +117,6 @@ describe("ポジションの編集", () => {
 
     expect(getRemovedPositionNames(positions, kept)).toEqual(["キッチン", "レジ"]);
     expect(getRemovedPositionNames(positions, drafts)).toEqual([]);
-  });
-});
-
-describe("スタッフの条件", () => {
-  const staff = (id: string, overrides: Partial<ShiftSetupStaff> = {}): ShiftSetupStaff => ({
-    _id: id as Id<"staffs">,
-    name: id,
-    unavailablePositionIds: [],
-    skillLevel: "standard",
-    ...overrides,
-  });
-
-  it("入れるポジションを外し、もう一度押すと入れ直せる", () => {
-    const removed = toggleStaffPosition({ unavailablePositionIds: [], skillLevel: "standard" }, kitchen, positions);
-    expect(removed.unavailablePositionIds).toEqual([kitchen]);
-
-    expect(toggleStaffPosition(removed, kitchen, positions).unavailablePositionIds).toEqual([]);
-  });
-
-  it("最後に残った1つは外せない", () => {
-    const onlyHall = { unavailablePositionIds: [kitchen, register], skillLevel: "standard" as const };
-
-    expect(isLastAvailablePosition(onlyHall, hall, positions)).toBe(true);
-    expect(isLastAvailablePosition(onlyHall, kitchen, positions)).toBe(false);
-    expect(toggleStaffPosition(onlyHall, hall, positions)).toBe(onlyHall);
-
-    const twoLeft = { unavailablePositionIds: [register], skillLevel: "standard" as const };
-    expect(isLastAvailablePosition(twoLeft, hall, positions)).toBe(false);
-  });
-
-  it("削除済みのポジションは、残りの数に数えない", () => {
-    const removedPosition = "position-removed" as Id<"positions">;
-    const profile = { unavailablePositionIds: [removedPosition, kitchen], skillLevel: "standard" as const };
-
-    // 有効な3つのうち外しているのはキッチンだけなので、ホールはまだ外せる。
-    expect(isLastAvailablePosition(profile, hall, positions)).toBe(false);
-  });
-
-  it("保存済みの値から変えたスタッフだけを、ポジションの並び順にそろえて返す", () => {
-    const staffs = [
-      staff("staff-1"),
-      staff("staff-2", { unavailablePositionIds: [kitchen] }),
-      staff("staff-3", { skillLevel: "lead" }),
-      staff("staff-4"),
-    ];
-    const removedPosition = "position-removed" as Id<"positions">;
-
-    const inputs = toStaffProfileInputs(
-      staffs,
-      {
-        "staff-1": { unavailablePositionIds: [register, removedPosition, kitchen], skillLevel: "standard" },
-        // 保存済みと同じ内容は送らない。
-        "staff-2": { unavailablePositionIds: [kitchen], skillLevel: "standard" },
-        "staff-3": { unavailablePositionIds: [], skillLevel: "newcomer" },
-        // 一覧にいないスタッフの編集中の値は送らない。
-        "staff-gone": { unavailablePositionIds: [kitchen], skillLevel: "lead" },
-      },
-      positions,
-    );
-
-    expect(inputs).toEqual([
-      { staffId: "staff-1", unavailablePositionIds: [kitchen, register], skillLevel: "standard" },
-      { staffId: "staff-3", unavailablePositionIds: [], skillLevel: "newcomer" },
-    ]);
-  });
-});
-
-describe("休憩の決まり", () => {
-  it("分を時間と分の表記へ直す", () => {
-    expect(formatDurationMinutes(45)).toBe("45分");
-    expect(formatDurationMinutes(60)).toBe("1時間");
-    expect(formatDurationMinutes(390)).toBe("6時間30分");
-  });
-
-  it("決まりを1文で表し、決まりがなければ「決まりなし」と表す", () => {
-    expect(formatBreakRule({ minWorkMinutes: 360, breakMinutes: 45 })).toBe("6時間以上の勤務に45分");
-    expect(formatBreakRule(null)).toBe("決まりなし");
-  });
-
-  it("勤務の長さは30分単位、休憩の長さは15分単位の選択肢を出す", () => {
-    const work = getBreakRuleWorkOptions().map((option) => option.value);
-    expect(work.slice(0, 3)).toEqual(["60", "90", "120"]);
-    expect(work.at(-1)).toBe("720");
-
-    const breaks = getBreakRuleBreakOptions().map((option) => option.value);
-    expect(breaks).toEqual(["15", "30", "45", "60", "75", "90", "105", "120"]);
-  });
-
-  it("選択肢の範囲外で保存済みの値も、選択肢に含める", () => {
-    expect(getBreakRuleWorkOptions(30)[0]).toEqual({ value: "30", label: "30分" });
-    expect(getBreakRuleBreakOptions(180).at(-1)).toEqual({ value: "180", label: "3時間" });
-    // 範囲内の値は重複させない。
-    expect(getBreakRuleBreakOptions(45)).toHaveLength(8);
-  });
-
-  it("選んだ値を決まりへ直し、選んでいない項目と勤務より長い休憩を誤りにする", () => {
-    expect(parseBreakRuleForm({ minWorkMinutes: "360", breakMinutes: "45" })).toEqual({
-      rule: { minWorkMinutes: 360, breakMinutes: 45 },
-    });
-    expect(parseBreakRuleForm({ minWorkMinutes: "", breakMinutes: "" })).toEqual({
-      errors: { minWorkMinutes: "勤務の長さを選んでください", breakMinutes: "休憩の長さを選んでください" },
-    });
-    expect(parseBreakRuleForm({ minWorkMinutes: "60", breakMinutes: "60" })).toEqual({
-      errors: { breakMinutes: "休憩は勤務より短くしてください" },
-    });
   });
 });
 

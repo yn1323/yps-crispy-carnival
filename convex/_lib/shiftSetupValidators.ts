@@ -10,8 +10,14 @@ export const shiftDayTemplateWeekdayValidator = v.union(
   v.literal("sat"),
 );
 
-/** 省略を「標準」として扱うため、保存する値は標準以外だけにする。 */
-export const staffSkillLevelValidator = v.union(v.literal("newcomer"), v.literal("lead"));
+/**
+ * スタッフとポジションの組み合わせごとの扱い。
+ * 項目がないポジションは「入れる・熟練度が標準」として扱うため、標準以外だけを持つ。
+ */
+export const staffPositionSkillValidator = v.object({
+  positionId: v.id("positions"),
+  level: v.union(v.literal("unavailable"), v.literal("newcomer"), v.literal("lead")),
+});
 
 export const shiftBreakRuleValidator = v.object({
   minWorkMinutes: v.number(),

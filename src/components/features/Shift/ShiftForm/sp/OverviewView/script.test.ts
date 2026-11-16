@@ -85,7 +85,7 @@ describe("buildOverviewViewModel", () => {
         assignedTimeLabel: "09:00–18:00",
         staff: staffs[1],
         shift: shifts[1],
-        positionMarks: [{ key: "default", positionName: "勤務", color: "#000" }],
+        positionMarks: [{ key: "default", positionId: "default", positionName: "勤務", color: "#000" }],
       },
       {
         key: "late-staff",
@@ -93,7 +93,7 @@ describe("buildOverviewViewModel", () => {
         assignedTimeLabel: "13:00–17:00",
         staff: staffs[0],
         shift: shifts[0],
-        positionMarks: [{ key: "default", positionName: "勤務", color: "#000" }],
+        positionMarks: [{ key: "default", positionId: "default", positionName: "勤務", color: "#000" }],
       },
     ]);
     expect(viewModel.weeks[0].rows[3]).toMatchObject({
@@ -128,8 +128,8 @@ describe("buildOverviewViewModel", () => {
 
     expect(viewModel.weeks[0].rows[2].staffRows.map((row) => row.positionMarks)).toEqual([
       [
-        { key: "hall", positionName: "ホール", color: "#111" },
-        { key: "kitchen", positionName: "キッチン", color: "#222" },
+        { key: "hall", positionId: "hall", positionName: "ホール", color: "#111" },
+        { key: "kitchen", positionId: "kitchen", positionName: "キッチン", color: "#222" },
       ],
     ]);
   });

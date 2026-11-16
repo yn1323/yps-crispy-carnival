@@ -1477,14 +1477,27 @@ describe("shiftBoard/queries", () => {
           },
         });
 
+        // 保存の順はポジションの並び順とずらし、削除済みと別組織のポジションを指す項目も混ぜる。
         await ctx.db.patch(ids.unsubmittedStaffId, {
-          unavailablePositionIds: [ids.kitchenPositionId, ids.deletedPositionId],
+          positionSkills: [
+            { positionId: ids.defaultPositionId, level: "newcomer" },
+            { positionId: ids.kitchenPositionId, level: "unavailable" },
+            { positionId: ids.deletedPositionId, level: "unavailable" },
+            { positionId: ids.otherPositionId, level: "lead" },
+            { positionId: ids.hallPositionId, level: "lead" },
+          ],
         });
-        await ctx.db.patch(ids.submittedStaffId, { skillLevel: "newcomer" });
-        // 入れないポジションが削除済みだけのスタッフは、標準のスタッフと同じ扱いになる。
-        await ctx.db.patch(ids.resubmissionStaffId, { unavailablePositionIds: [ids.deletedPositionId] });
-        await ctx.db.patch(ids.excludedStaffId, { skillLevel: "lead" });
-        await ctx.db.patch(ids.deletedStaffId, { skillLevel: "lead" });
+        await ctx.db.patch(ids.submittedStaffId, {
+          positionSkills: [{ positionId: ids.hallPositionId, level: "newcomer" }],
+        });
+        // 項目が削除済みのポジションだけのスタッフは、全ポジションが標準のスタッフと同じ扱いになる。
+        await ctx.db.patch(ids.resubmissionStaffId, {
+          positionSkills: [{ positionId: ids.deletedPositionId, level: "lead" }],
+        });
+        await ctx.db.patch(ids.excludedStaffId, {
+          positionSkills: [{ positionId: ids.hallPositionId, level: "lead" }],
+        });
+        await ctx.db.patch(ids.deletedStaffId, { positionSkills: [{ positionId: ids.hallPositionId, level: "lead" }] });
         return { weekdayTemplateId, weekendTemplateId, holidayTemplateId, staleTemplateId };
       });
     }
@@ -1550,10 +1563,14 @@ describe("shiftBoard/queries", () => {
         staffProfiles: [
           {
             staffId: ids.unsubmittedStaffId,
-            unavailablePositionIds: [ids.kitchenPositionId],
-            skillLevel: "standard" as const,
+            // 削除済みと別組織のポジションを指す項目を除き、ポジションの並び順（ホール、キッチン、既定）で返す。
+            positionSkills: [
+              { positionId: ids.hallPositionId, level: "lead" },
+              { positionId: ids.kitchenPositionId, level: "unavailable" },
+              { positionId: ids.defaultPositionId, level: "newcomer" },
+            ],
           },
-          { staffId: ids.submittedStaffId, unavailablePositionIds: [], skillLevel: "newcomer" as const },
+          { staffId: ids.submittedStaffId, positionSkills: [{ positionId: ids.hallPositionId, level: "newcomer" }] },
         ].sort((a, b) => a.staffId.localeCompare(b.staffId)),
         hasPreviousConfirmedRecruitment: false,
         isLocked: false,
@@ -1623,6 +1640,54 @@ describe("shiftBoard/queries", () => {
           },
         ],
       });
+    });
+
+    it("ポジションの削除で、残ったポジションのすべてが入れないになったスタッフは、属性を返さない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedStaffingBoard(t);
+      // 未提出スタッフは、ホールとキッチンに入れず、既定では責任者。提出済みスタッフは、既定だけに入れない。
+      await t.run(async (ctx) => {
+        await ctx.db.patch(ids.unsubmittedStaffId, {
+          positionSkills: [
+            { positionId: ids.hallPositionId, level: "unavailable" },
+            { positionId: ids.kitchenPositionId, level: "unavailable" },
+            { positionId: ids.defaultPositionId, level: "lead" },
+          ],
+        });
+        await ctx.db.patch(ids.submittedStaffId, {
+          positionSkills: [{ positionId: ids.defaultPositionId, level: "unavailable" }],
+        });
+      });
+
+      // 入れるポジションが残っている間は、保存した項目をそのまま返す。
+      const before = await getStaffing(t, ids);
+      expect(before).not.toBeNull();
+      expect((before?.staffProfiles ?? []).slice().sort((a, b) => a.staffId.localeCompare(b.staffId))).toEqual(
+        [
+          {
+            staffId: ids.unsubmittedStaffId,
+            positionSkills: [
+              { positionId: ids.hallPositionId, level: "unavailable" },
+              { positionId: ids.kitchenPositionId, level: "unavailable" },
+              { positionId: ids.defaultPositionId, level: "lead" },
+            ],
+          },
+          {
+            staffId: ids.submittedStaffId,
+            positionSkills: [{ positionId: ids.defaultPositionId, level: "unavailable" }],
+          },
+        ].sort((a, b) => a.staffId.localeCompare(b.staffId)),
+      );
+
+      // 未提出スタッフが入れる唯一のポジションだった既定を削除する。
+      await t.run(async (ctx) => {
+        await ctx.db.patch(ids.defaultPositionId, { isDeleted: true });
+      });
+
+      // 未提出スタッフは残ったポジションのすべてが入れないになり、提出済みスタッフは項目が削除済みだけになる。
+      const after = await getStaffing(t, ids);
+      expect(after).not.toBeNull();
+      expect(after?.staffProfiles).toEqual([]);
     });
 
     it("何も設定していない店舗では、募集期間の全日を未設定として返す", async () => {

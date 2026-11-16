@@ -6,7 +6,11 @@ import { managerQuery, organizationQuery } from "../_lib/functions";
 import { getRecruitmentEditVersion, isCurrentSubmission } from "../_lib/recruitmentEditing";
 import { normalizeExactAdjacentTimeAssignments } from "../_lib/shiftAssignmentNormalization";
 import { shiftAssignmentBreakValidator, shiftBoardAssignmentValidator } from "../_lib/shiftAssignmentValidators";
-import { dayRequirementsValidator, shiftBreakRuleValidator } from "../_lib/shiftSetupValidators";
+import {
+  dayRequirementsValidator,
+  shiftBreakRuleValidator,
+  staffPositionSkillValidator,
+} from "../_lib/shiftSetupValidators";
 import { getSubmissionPatternTimeRange, submissionPatternValidator } from "../_lib/submissionPattern";
 import { isSupportedShiftTime, timeToMinutes } from "../_lib/time";
 import {
@@ -27,7 +31,7 @@ import {
   listDayTemplates,
   type RecruitmentStaffingDay,
   resolveRecruitmentStaffingDays,
-  toUnavailablePositionIdsDto,
+  toPositionSkillsDto,
 } from "../shiftSetup/service";
 import { isShiftTargetStaff } from "../staff/service";
 
@@ -414,13 +418,10 @@ export const getShiftBoardStaffing = managerQuery({
   returns: v.union(
     v.object({
       breakRule: v.union(shiftBreakRuleValidator, v.null()),
-      // 標準（全ポジション可、熟練度が標準）のスタッフは返さない。
+      // 全ポジションが標準（入れる・熟練度が標準）のスタッフは返さない。
+      // positionSkillsは標準以外のポジションだけを、ポジションの並び順で持つ。
       staffProfiles: v.array(
-        v.object({
-          staffId: v.id("staffs"),
-          unavailablePositionIds: v.array(v.id("positions")),
-          skillLevel: v.union(v.literal("newcomer"), v.literal("standard"), v.literal("lead")),
-        }),
+        v.object({ staffId: v.id("staffs"), positionSkills: v.array(staffPositionSkillValidator) }),
       ),
       hasPreviousConfirmedRecruitment: v.boolean(),
       // 確定済みで、型の当て直しと「この日だけ変える」ができない。
@@ -473,12 +474,8 @@ export const getShiftBoardStaffing = managerQuery({
       breakRule: shop.breakRule ?? null,
       staffProfiles: staffs
         .filter((staff) => staff.organizationId === shop.organizationId && isShiftTargetStaff(staff))
-        .map((staff) => ({
-          staffId: staff._id,
-          unavailablePositionIds: toUnavailablePositionIdsDto(staff, activePositionIds),
-          skillLevel: staff.skillLevel ?? ("standard" as const),
-        }))
-        .filter((profile) => profile.unavailablePositionIds.length > 0 || profile.skillLevel !== "standard"),
+        .map((staff) => ({ staffId: staff._id, positionSkills: toPositionSkillsDto(staff, positions) }))
+        .filter((profile) => profile.positionSkills.length > 0),
       hasPreviousConfirmedRecruitment: previousRecruitment !== null,
       isLocked,
       templates: templates

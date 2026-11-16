@@ -3,6 +3,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useMemo, useState } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
 import type { WeekStart } from "@/src/domains/shift/date";
+import type { StaffType } from "@/src/domains/shift/types";
 import { IssueCountBadge } from "../../components";
 import { BreakMark, PositionMark, StaffMeta } from "../../detailParts";
 import {
@@ -10,7 +11,6 @@ import {
   selectDateWithDailyStaffOrderAtom,
   shiftConfigAtom,
   shiftsAtom,
-  usesPositionColorsAtom,
   viewModeAtom,
   warningCountByDateAtom,
 } from "../../stores";
@@ -33,7 +33,6 @@ export const ShiftTypeOverviewView = ({ weekStart = "mon" }: ShiftTypeOverviewVi
   const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const setViewMode = useSetAtom(viewModeAtom);
   const detailMode = useAtomValue(detailModeAtom);
-  const usesPositionColors = useAtomValue(usesPositionColorsAtom);
   const { dates, holidays, isReadOnly, staffs, submissionPattern } = config;
   const viewModel = useMemo(
     () =>
@@ -73,7 +72,6 @@ export const ShiftTypeOverviewView = ({ weekStart = "mon" }: ShiftTypeOverviewVi
               onToggle={() => setOpen({ ...open, [week.index]: !isOpen })}
               onDateClick={handleDateClick}
               detailMode={detailMode}
-              usesPositionColors={usesPositionColors}
             />
           );
         })}
@@ -87,7 +85,7 @@ type WeekCardProps = WeekTableProps & {
   onToggle: () => void;
 };
 
-const WeekCard = ({ week, isOpen, onToggle, onDateClick, detailMode, usesPositionColors }: WeekCardProps) => (
+const WeekCard = ({ week, isOpen, onToggle, onDateClick, detailMode }: WeekCardProps) => (
   <Box bg="white" borderRadius="lg" borderWidth="1px" borderColor="gray.200" overflow="hidden">
     <Flex
       align="center"
@@ -120,14 +118,7 @@ const WeekCard = ({ week, isOpen, onToggle, onDateClick, detailMode, usesPositio
       </Box>
     </Flex>
 
-    {isOpen && (
-      <WeekTable
-        week={week}
-        onDateClick={onDateClick}
-        detailMode={detailMode}
-        usesPositionColors={usesPositionColors}
-      />
-    )}
+    {isOpen && <WeekTable week={week} onDateClick={onDateClick} detailMode={detailMode} />}
   </Box>
 );
 
@@ -136,11 +127,9 @@ type WeekTableProps = {
   onDateClick: (iso: string) => void;
   /** くわしく表示かどうか。falseのときは従来の表と同じ内容を出す。 */
   detailMode: boolean;
-  /** ポジションを塗り分ける表示（くわしく表示で、ポジションが2つ以上）かどうか。 */
-  usesPositionColors: boolean;
 };
 
-const WeekTable = ({ week, onDateClick, detailMode, usesPositionColors }: WeekTableProps) => (
+const WeekTable = ({ week, onDateClick, detailMode }: WeekTableProps) => (
   <Box overflowX="auto">
     <Box
       as="table"
@@ -174,12 +163,7 @@ const WeekTable = ({ week, onDateClick, detailMode, usesPositionColors }: WeekTa
       </Box>
       <Box as="tbody">
         {week.rows.map((row) => (
-          <ShiftTypeOverviewRow
-            key={row.key}
-            row={row}
-            detailMode={detailMode}
-            usesPositionColors={usesPositionColors}
-          />
+          <ShiftTypeOverviewRow key={row.key} row={row} detailMode={detailMode} />
         ))}
       </Box>
     </Box>
@@ -223,15 +207,7 @@ const DateHeaderCell = ({
   </Box>
 );
 
-const ShiftTypeOverviewRow = ({
-  row,
-  detailMode,
-  usesPositionColors,
-}: {
-  row: ShiftTypeOverviewRowViewModel;
-  detailMode: boolean;
-  usesPositionColors: boolean;
-}) => (
+const ShiftTypeOverviewRow = ({ row, detailMode }: { row: ShiftTypeOverviewRowViewModel; detailMode: boolean }) => (
   <Box as="tr" borderBottomWidth="1px" borderColor="gray.100">
     <Box as="td" px={4} py={3}>
       {detailMode ? (
@@ -249,12 +225,7 @@ const ShiftTypeOverviewRow = ({
       )}
     </Box>
     {row.cells.map((cell) => (
-      <ShiftTypeOverviewCell
-        key={cell.key}
-        cell={cell}
-        detailMode={detailMode}
-        usesPositionColors={usesPositionColors}
-      />
+      <ShiftTypeOverviewCell key={cell.key} cell={cell} staff={row.staff} detailMode={detailMode} />
     ))}
     {detailMode && (
       <Box
@@ -276,12 +247,12 @@ const ShiftTypeOverviewRow = ({
 
 const ShiftTypeOverviewCell = ({
   cell,
+  staff,
   detailMode,
-  usesPositionColors,
 }: {
   cell: ShiftTypeOverviewCellViewModel;
+  staff: StaffType;
   detailMode: boolean;
-  usesPositionColors: boolean;
 }) => (
   <Box as="td" px={2} py={2} textAlign="center" bg={cell.isClosed ? "gray.100" : undefined} verticalAlign="middle">
     {cell.content.kind === "closed" ? (
@@ -296,9 +267,10 @@ const ShiftTypeOverviewCell = ({
             <Box px={2} py="2px" borderRadius="full" bg={badge.bg} color={badge.color} fontSize="xs" fontWeight={700}>
               {badge.label}
             </Box>
-            {usesPositionColors && badge.position && (
-              <Flex maxW="100%" minW={0} color="gray.700">
-                <PositionMark segment={badge.position} />
+            {/* ポジションが1つの店舗では、熟練度の印がある勤務だけ出す。 */}
+            {badge.position && (
+              <Flex maxW="100%" minW={0} color="gray.700" _empty={{ display: "none" }}>
+                <PositionMark segment={badge.position} staff={staff} />
               </Flex>
             )}
           </Flex>

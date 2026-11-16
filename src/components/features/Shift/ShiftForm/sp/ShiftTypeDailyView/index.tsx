@@ -291,6 +291,7 @@ const StaffShiftTypeCard = ({
           <ShiftTypeOptionButton
             key={option.option.id}
             staffName={card.staff.name}
+            staff={card.staff}
             viewModel={option}
             isReadOnly={isReadOnly}
             onToggle={() => onToggle(option.option)}
@@ -310,15 +311,18 @@ const RequestBadge = ({ bg, color, children }: { bg: string; color: string; chil
 
 const ShiftTypeOptionButton = ({
   staffName,
+  staff,
   viewModel,
   isReadOnly,
   onToggle,
 }: {
   staffName: string;
+  staff: StaffType;
   viewModel: SPShiftTypeOptionViewModel;
   isReadOnly: boolean;
   onToggle: () => void;
 }) => {
+  const detailMode = useAtomValue(detailModeAtom);
   const usesPositionColors = useAtomValue(usesPositionColorsAtom);
   // ポジションを塗り分ける表示では、入っているポジションをボタンに出す。勤務パターンの色は保つ。
   const positionSegment = usesPositionColors ? viewModel.segment : undefined;
@@ -383,9 +387,10 @@ const ShiftTypeOptionButton = ({
           >
             {viewModel.timeLabel}
           </Text>
-          {positionSegment && (
-            <Box mt="2px" color="gray.800">
-              <PositionMark segment={positionSegment} />
+          {/* ポジションが1つの店舗では、熟練度の印がある勤務だけ出す。 */}
+          {detailMode && viewModel.segment && (
+            <Box mt="2px" color="gray.800" _empty={{ display: "none" }}>
+              <PositionMark segment={viewModel.segment} staff={staff} />
             </Box>
           )}
         </Box>

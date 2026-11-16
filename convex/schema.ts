@@ -9,7 +9,7 @@ import {
   dayRequirementsValidator,
   shiftBreakRuleValidator,
   shiftDayTemplateWeekdayValidator,
-  staffSkillLevelValidator,
+  staffPositionSkillValidator,
 } from "./_lib/shiftSetupValidators";
 import { submissionPatternValidator } from "./_lib/submissionPattern";
 import {
@@ -558,11 +558,10 @@ const schema = defineSchema({
     userId: v.optional(v.id("users")),
     // シフト対象外フラグ（店舗共通アドレス等、シフトを出さないスタッフ）。
     excludedFromShift: v.boolean(),
-    // 入れないポジション。省略は「全ポジション可」を表す業務上の任意項目で、backfillは不要。
-    // 件数は店舗の有効なポジション数（POSITION_ACTIVE_LIMIT）を超えない。
-    unavailablePositionIds: v.optional(v.array(v.id("positions"))),
-    // 熟練度。省略は「標準」を表す業務上の任意項目で、backfillは不要。
-    skillLevel: v.optional(staffSkillLevelValidator),
+    // ポジションごとの扱い（入れない、新人、責任者）。項目がないポジションは「入れる・熟練度が標準」を表す。
+    // 省略は「全ポジションが標準」を表す業務上の任意項目で、backfillは不要。
+    // 1つのポジションに1項目で、件数は店舗の有効なポジション数（POSITION_ACTIVE_LIMIT）を超えない。
+    positionSkills: v.optional(v.array(staffPositionSkillValidator)),
     isDeleted: v.boolean(),
   })
     .index("by_shopId", ["shopId"])

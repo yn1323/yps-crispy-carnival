@@ -1,119 +1,81 @@
-import { Box, Flex, Stack, Text } from "@chakra-ui/react";
-import { useEffect, useRef, useState } from "react";
-import { MOBILE_APP_NAVIGATION_HEIGHT } from "@/src/components/features/AuthenticatedApp/AppPrimaryNavigation";
+import { chakra, Flex, Text } from "@chakra-ui/react";
+import { useState } from "react";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog, DialogActionArea } from "@/src/components/ui/Dialog";
 import { formatPendingSections } from "./script";
 import type { LeaveDialogState, PendingSection } from "./types";
 
-/**
- * PCで、操作バーを画面の下端から離す距離（px）。
- * 操作バーの上に積む要素は、この距離とバーの高さを足した位置に置き、バーのすぐ上に付ける。
- */
-export const PENDING_BAR_BOTTOM_PX = 16;
-
-type BarProps = {
+type ActionsProps = {
   sections: readonly PendingSection[];
   isSaving: boolean;
   onReset: () => void;
   onSave: () => void;
-  /** 操作バーの高さ（px）が変わったとき。バーを出していない間は0を渡す。バーの上に積む要素の位置決めに使う。 */
-  onHeightChange?: (height: number) => void;
 };
 
 /**
- * 保存していない変更があるときだけ、画面の下端に留まる操作バーを出す。
- * 何の変更が保存されるかを、セクションの名前で示す。
+ * ページの見出しの行に置く、保存の操作。
+ * 「保存する」は常に同じ位置に出し、保存していない変更がない間は押せない状態にする。
+ * 変更があるときだけ、その左に状態の短い文と「元に戻す」を出す。
  */
-export function PendingChangesBar({ sections, isSaving, onReset, onSave, onHeightChange }: BarProps) {
+export function PendingChangesActions({ sections, isSaving, onReset, onSave }: ActionsProps) {
   const [isResetConfirmationOpen, setIsResetConfirmationOpen] = useState(false);
   const closeResetConfirmation = () => setIsResetConfirmationOpen(false);
   const label = formatPendingSections(sections);
-  const isVisible = sections.length > 0;
-  const barRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const bar = barRef.current;
-    if (!isVisible || !bar || !onHeightChange) return;
-    const report = () => onHeightChange(bar.offsetHeight);
-    report();
-    const observer = new ResizeObserver(report);
-    observer.observe(bar);
-    return () => {
-      observer.disconnect();
-      onHeightChange(0);
-    };
-  }, [isVisible, onHeightChange]);
+  const hasChanges = sections.length > 0;
 
   return (
     <>
-      {isVisible && (
-        <Box
-          ref={barRef}
-          position="sticky"
-          // スマートフォンでは、画面下端に固定されたメインメニューの上に留める。
-          bottom={{
-            base: `calc(${MOBILE_APP_NAVIGATION_HEIGHT} + env(safe-area-inset-bottom) + 8px)`,
-            lg: `${PENDING_BAR_BOTTOM_PX}px`,
-          }}
-          zIndex="docked"
+      <Flex role="group" aria-label="変更の保存" align="center" justify="flex-end" gap={{ base: 1, md: 2 }} minW={0}>
+        <Text
+          role="status"
+          flex={{ base: 1, md: "none" }}
+          minW={0}
+          fontSize="sm"
+          fontWeight="semibold"
+          lineHeight="1.3"
+          color="gray.900"
         >
-          <Flex
-            role="region"
-            aria-label="保存していない変更"
-            direction={{ base: "column", md: "row" }}
-            align={{ base: "stretch", md: "center" }}
-            justify="space-between"
-            gap={3}
-            px={{ base: 3, md: 5 }}
-            py={3}
-            bg="white"
-            borderWidth="1px"
-            borderColor="gray.300"
-            borderRadius="xl"
-            boxShadow="lg"
+          {hasChanges && (
+            // 幅が足りないときは、文節の境目でだけ折り返す。
+            <>
+              <chakra.span display="inline-block">変更を</chakra.span>
+              <chakra.span display="inline-block">保存していません</chakra.span>
+            </>
+          )}
+        </Text>
+        {hasChanges && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            color="gray.700"
+            flexShrink={0}
+            minH={{ base: "44px", md: "36px" }}
+            px={2}
+            disabled={isSaving}
+            onClick={() => setIsResetConfirmationOpen(true)}
           >
-            <Stack gap={0.5} minW={0}>
-              <Text fontSize="sm" fontWeight="semibold" color="gray.900">
-                {label}の変更を保存していません
-              </Text>
-              {sections.includes("dayTemplates") && (
-                <Text fontSize="xs" color="fg.muted" lineHeight="tall">
-                  保存すると、確定前のシフト表に反映されます。確定済みのシフト表は変わりません。
-                </Text>
-              )}
-            </Stack>
-            <Flex gap={2} flexShrink={0}>
-              <Button
-                type="button"
-                variant="outline"
-                bg="white"
-                flex={{ base: 1, md: "none" }}
-                minH={{ base: "44px", md: "40px" }}
-                disabled={isSaving}
-                onClick={() => setIsResetConfirmationOpen(true)}
-              >
-                元に戻す
-              </Button>
-              <Button
-                type="button"
-                colorPalette="teal"
-                flex={{ base: 1, md: "none" }}
-                minH={{ base: "44px", md: "40px" }}
-                loading={isSaving}
-                loadingText="保存する"
-                onClick={onSave}
-              >
-                保存する
-              </Button>
-            </Flex>
-          </Flex>
-        </Box>
-      )}
+            元に戻す
+          </Button>
+        )}
+        <Button
+          type="button"
+          colorPalette="teal"
+          size="sm"
+          flexShrink={0}
+          minH={{ base: "44px", md: "36px" }}
+          disabled={!hasChanges}
+          loading={isSaving}
+          loadingText="保存する"
+          onClick={onSave}
+        >
+          保存する
+        </Button>
+      </Flex>
 
       <Dialog
         title="変更を元に戻す"
-        isOpen={isResetConfirmationOpen && isVisible}
+        isOpen={isResetConfirmationOpen && hasChanges}
         onOpenChange={({ open }) => {
           if (!open) closeResetConfirmation();
         }}

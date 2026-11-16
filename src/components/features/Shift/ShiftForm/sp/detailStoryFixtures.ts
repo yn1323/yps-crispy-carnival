@@ -9,6 +9,7 @@ import {
   mockShiftTypePattern,
   mockShiftTypeStaffs,
   mockStaffs,
+  withPositionSkills,
 } from "../stories/fixtures";
 import { allPatternsArgs, dateOnlyArgs, shiftTypeArgs } from "../stories/shared";
 import {
@@ -44,15 +45,13 @@ const noopStaffingActions = {
 };
 const detailActions = { onOpenSetup: () => {}, dayStaffingActions: noopStaffingActions };
 
-// staff1を責任者、staff4を新人にする。
+// staff1は、ホールでは責任者、キッチンでは新人。staff4は、キッチンとレジで新人。staff5は、ホールに入れない。
 const withSkillLevels = (staffs: StaffType[]): StaffType[] =>
-  staffs.map((staff) =>
-    staff.id === "staff1"
-      ? { ...staff, skillLevel: "lead" }
-      : staff.id === "staff4"
-        ? { ...staff, skillLevel: "newcomer" }
-        : staff,
-  );
+  withPositionSkills(staffs, {
+    staff1: { [hall.id]: "lead", [kitchen.id]: "newcomer" },
+    staff4: { [kitchen.id]: "newcomer", [register.id]: "newcomer" },
+    staff5: { [hall.id]: "unavailable" },
+  });
 
 const staffNameOf = (staffs: StaffType[], staffId: string) =>
   staffs.find((staff) => staff.id === staffId)?.name ?? staffId;
@@ -95,7 +94,7 @@ const timeShift = (
 });
 
 export const timeDetailShifts: ShiftData[] = [
-  // 責任者。途中でポジションが変わり、ホールの時間に休憩する。
+  // ホールでは責任者、キッチンでは新人。途中でポジションが変わり、ホールの時間に休憩する。
   timeShift(
     "staff1",
     timeDetailDate,
@@ -111,7 +110,7 @@ export const timeDetailShifts: ShiftData[] = [
   }),
   // 未提出者へ入れた仮の勤務。
   timeShift("staff3", timeDetailDate, [[hall, "13:00", "17:00"]], { isProvisional: true }),
-  // 新人。勤務と勤務の間が空いている。
+  // レジでは新人。勤務と勤務の間が空いている。
   timeShift(
     "staff4",
     timeDetailDate,

@@ -1,4 +1,5 @@
 import { getEffectiveBreaks } from "./breaks";
+import type { NewcomerStaffIdsByPositionId } from "./positionSkills";
 import { isCanonicalWorkPosition } from "./positions";
 import { minutesToTime, timeToMinutes } from "./time";
 import type { ShiftData, StaffingBar, StaffingSlot, StaffingSlotKey } from "./types";
@@ -16,7 +17,7 @@ export type StaffingPositionCount = {
   shortage: number;
   // 必要人数より多い人数。多くない場合と必要人数が未設定の場合は0。
   excess: number;
-  // そのポジションに1人以上いて、全員が新人のときtrue。
+  // そのポジションに1人以上いて、全員がそのポジションで新人のときtrue。
   isNewcomerOnly: boolean;
 };
 
@@ -34,8 +35,8 @@ type CountInput = {
   shifts: readonly ShiftData[];
   // 人数を出すポジションのID。並び順は表示順。
   positionIds: readonly string[];
-  // 新人のstaffId。省略すると、新人だけの印は付かない。
-  newcomerStaffIds?: ReadonlySet<string>;
+  // ポジションごとの、新人のstaffId。省略すると、新人だけの印は付かない。
+  newcomerStaffIdsByPositionId?: NewcomerStaffIdsByPositionId;
 };
 
 type MinuteRange = { start: number; end: number };
@@ -59,8 +60,17 @@ const prepareShift = (shift: ShiftData): PreparedShift => ({
   })),
 });
 
-const isNewcomerOnly = (staffIds: readonly string[], newcomerStaffIds: ReadonlySet<string> | undefined): boolean =>
-  newcomerStaffIds !== undefined && staffIds.length > 0 && staffIds.every((staffId) => newcomerStaffIds.has(staffId));
+// 新人かどうかは、スタッフではなく、入っているポジションでの値で決める。
+const isNewcomerOnly = (
+  staffIds: readonly string[],
+  positionId: string,
+  newcomerStaffIdsByPositionId: NewcomerStaffIdsByPositionId | undefined,
+): boolean => {
+  const newcomerStaffIds = newcomerStaffIdsByPositionId?.get(positionId);
+  return (
+    newcomerStaffIds !== undefined && staffIds.length > 0 && staffIds.every((staffId) => newcomerStaffIds.has(staffId))
+  );
+};
 
 const buildSlotCount = (
   key: StaffingSlotKey,
@@ -81,7 +91,7 @@ const buildSlotCount = (
       required,
       shortage: required === null ? 0 : Math.max(0, required - count),
       excess: required === null ? 0 : Math.max(0, count - required),
-      isNewcomerOnly: isNewcomerOnly(staffIds, input.newcomerStaffIds),
+      isNewcomerOnly: isNewcomerOnly(staffIds, positionId, input.newcomerStaffIdsByPositionId),
     };
   });
   return {
@@ -141,7 +151,7 @@ export type PositionStaffingBandSegment = {
   required: number | null;
   // 人数と必要人数の差。足りないと負、多いと正。未設定は0。
   diff: number;
-  // その区間に1人以上いて、全員が新人のときtrue。
+  // その区間に1人以上いて、全員がそのポジションで新人のときtrue。
   isNewcomerOnly: boolean;
 };
 
@@ -165,8 +175,8 @@ export const buildPositionStaffingBands = (input: {
   bars: readonly StaffingBar[] | null;
   // 帯を出すポジションのID。並び順は表示順。
   positionIds: readonly string[];
-  // 新人のstaffId。省略すると、新人だけの印は付かない。
-  newcomerStaffIds?: ReadonlySet<string>;
+  // ポジションごとの、新人のstaffId。省略すると、新人だけの印は付かない。
+  newcomerStaffIdsByPositionId?: NewcomerStaffIdsByPositionId;
   // 数える範囲（分）。募集の受付時間にあたる。
   startMinutes: number;
   endMinutes: number;
@@ -208,7 +218,7 @@ export const buildPositionStaffingBands = (input: {
       const required = isConfigured
         ? positionBars.filter((bar) => bar.start <= interval.start && interval.start < bar.end).length
         : null;
-      const newcomerOnly = isNewcomerOnly(staffIds, input.newcomerStaffIds);
+      const newcomerOnly = isNewcomerOnly(staffIds, positionId, input.newcomerStaffIdsByPositionId);
       const previous = merged.at(-1);
       if (
         previous &&
@@ -244,7 +254,7 @@ export const buildPositionStaffingBands = (input: {
 // 新人だけの時間帯
 // ==========================================
 
-/** あるポジションに入っている人が全員新人の区切り。確定の前の確認事項に使う。 */
+/** あるポジションに入っている人が全員、そのポジションで新人の区切り。確定の前の確認事項に使う。 */
 export type NewcomerOnlyPeriod = {
   date: string;
   positionId: string;
@@ -268,11 +278,12 @@ export const listNewcomerOnlyPeriods = (input: {
   // 数える日。並び順は結果の並び順。定休日は渡さない。
   dates: readonly string[];
   positionIds: readonly string[];
-  newcomerStaffIds: ReadonlySet<string>;
+  // ポジションごとの、新人のstaffId。
+  newcomerStaffIdsByPositionId: NewcomerStaffIdsByPositionId;
   pattern: NewcomerOnlyPattern;
 }): NewcomerOnlyPeriod[] => {
-  const { pattern, positionIds, newcomerStaffIds } = input;
-  if (newcomerStaffIds.size === 0) return [];
+  const { pattern, positionIds, newcomerStaffIdsByPositionId } = input;
+  if (newcomerStaffIdsByPositionId.size === 0) return [];
 
   const shiftsByDate = new Map<string, ShiftData[]>();
   for (const shift of input.shifts) {
@@ -283,9 +294,12 @@ export const listNewcomerOnlyPeriods = (input: {
 
   return input.dates.flatMap((date): NewcomerOnlyPeriod[] => {
     const shifts = shiftsByDate.get(date) ?? [];
-    // 新人の勤務がない日は、新人だけの区切りもない。
-    if (!shifts.some((shift) => newcomerStaffIds.has(shift.staffId))) return [];
-    const base = { shifts, positionIds, newcomerStaffIds };
+    // 新人として入っている勤務がない日は、新人だけの区切りもない。
+    const hasNewcomerWork = shifts.some((shift) =>
+      shift.positions.some((position) => newcomerStaffIdsByPositionId.get(position.positionId)?.has(shift.staffId)),
+    );
+    if (!hasNewcomerWork) return [];
+    const base = { shifts, positionIds, newcomerStaffIdsByPositionId };
 
     if (pattern.kind === "time") {
       const bands = buildPositionStaffingBands({

@@ -2,6 +2,7 @@ import { Box, Flex, Stack } from "@chakra-ui/react";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useMemo, useState } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
+import type { StaffType } from "@/src/domains/shift/types";
 import { IssueCountBadge } from "../../components";
 import { BreakMark, PositionMark, StaffMeta } from "../../detailParts";
 import { getShiftTypeOptionColor } from "../../shiftTypeOptionStyles";
@@ -10,7 +11,6 @@ import {
   selectDateWithDailyStaffOrderAtom,
   shiftConfigAtom,
   shiftsAtom,
-  usesPositionColorsAtom,
   viewModeAtom,
   warningCountByDateAtom,
 } from "../../stores";
@@ -214,7 +214,7 @@ const DayShiftTypeStaffList = ({ rows }: { rows: ShiftTypeOverviewStaffRowViewMo
                 >
                   {option.label}
                   {/* くわしく表示: 勤務パターンの色は保ち、ポジションを名前と色の丸で添える。 */}
-                  <PositionChipMark segment={option.segment} />
+                  {detailMode && <PositionChipMark segment={option.segment} staff={staff.staff} />}
                 </Box>
               );
             })}
@@ -225,12 +225,18 @@ const DayShiftTypeStaffList = ({ rows }: { rows: ShiftTypeOverviewStaffRowViewMo
   );
 };
 
-const PositionChipMark = ({ segment }: { segment: ShiftTypeOverviewOptionChipViewModel["segment"] }) => {
-  const usesPositionColors = useAtomValue(usesPositionColorsAtom);
-  if (!usesPositionColors || !segment) return null;
+// ポジションが1つの店舗では、熟練度の印がある勤務だけ出す。
+const PositionChipMark = ({
+  segment,
+  staff,
+}: {
+  segment: ShiftTypeOverviewOptionChipViewModel["segment"];
+  staff: StaffType;
+}) => {
+  if (!segment) return null;
   return (
-    <Box as="span" display="inline-flex" ml="6px" verticalAlign="middle" color="gray.700">
-      <PositionMark segment={segment} />
+    <Box as="span" display="inline-flex" ml="6px" verticalAlign="middle" color="gray.700" _empty={{ display: "none" }}>
+      <PositionMark segment={segment} staff={staff} />
     </Box>
   );
 };

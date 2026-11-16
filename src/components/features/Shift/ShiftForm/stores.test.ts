@@ -14,6 +14,7 @@ import {
   dayStaffingViewByDateAtom,
   deleteShiftPositionAtom,
   detailModeAtom,
+  nameSkillPositionAtom,
   newcomerOnlyPeriodsAtom,
   openBreakEditorForToolAtom,
   replaceShiftDraftsAtom,
@@ -22,6 +23,7 @@ import {
   setShiftBreaksAtom,
   shiftConfigAtom,
   shiftsAtom,
+  showsSegmentSkillMarksAtom,
   staffWorkTotalsAtom,
   toggleDateOnlyAssignmentAtom,
   toggleShiftTypeAssignmentAtom,
@@ -837,7 +839,13 @@ describe("閲覧専用のくわしく表示", () => {
 // ==========================================
 describe("全日の人数と過不足（dayStaffingViewByDateAtom / dayStaffingMarksByDateAtom）", () => {
   const thirdDate = "2026-07-16";
-  const newcomer: StaffType = { id: "staff-new", name: "新田", isSubmitted: true, skillLevel: "newcomer" };
+  // ホールでは新人、キッチンでは標準。
+  const newcomer: StaffType = {
+    id: "staff-new",
+    name: "新田",
+    isSubmitted: true,
+    positionSkills: [{ positionId: position.id, level: "newcomer" }],
+  };
   const removed: StaffType = { id: "staff-removed", name: "退職", isSubmitted: true, isRemoved: true };
   const hallBar = (startTime: string, endTime: string) => ({ positionId: position.id, startTime, endTime });
   const dayOf = (targetDate: string, bars: Array<ReturnType<typeof hallBar>>) => ({
@@ -911,6 +919,27 @@ describe("全日の人数と過不足（dayStaffingViewByDateAtom / dayStaffingM
     expect(view?.bands[0].segments.map((segment) => [segment.label, segment.isNewcomerOnly])).toEqual([["1/1", true]]);
   });
 
+  it("新人だけの印は、入っているポジションでの値で決める", () => {
+    const store = createStaffingStore();
+    // ホールでは新人の人が、標準のキッチンに1人で入っている。
+    store.set(replaceShiftDraftsAtom, [
+      draft({
+        id: `shift-${newcomer.id}-${date}`,
+        staffId: newcomer.id,
+        staffName: newcomer.name,
+        positions: [workSegment(kitchen, "09:00", "18:00")],
+      }),
+    ]);
+
+    const view = store.get(dayStaffingViewByDateAtom).get(date);
+    expect(
+      view?.bands.map((band) => [band.name, band.segments.map((segment) => [segment.count, segment.isNewcomerOnly])]),
+    ).toEqual([
+      ["ホール", [[0, false]]],
+      ["キッチン", [[1, false]]],
+    ]);
+  });
+
   it("定休日は数えず、印も付けない", () => {
     const store = createStaffingStore({ holidays: [date] });
 
@@ -936,6 +965,53 @@ describe("全日の人数と過不足（dayStaffingViewByDateAtom / dayStaffingM
     expect(view?.hasRequirements).toBe(false);
     expect(view?.template.label).toBe("未設定");
     expect(store.get(dayStaffingMarksByDateAtom).size).toBe(0);
+  });
+});
+
+describe("熟練度の印を出す場所（nameSkillPositionAtom / showsSegmentSkillMarksAtom）", () => {
+  it("名前の横の印は、「入れるもの」で選んだポジションを根拠にし、選んでいなければ既定のポジションを根拠にする", () => {
+    const store = createDetailStore();
+    expect(store.get(nameSkillPositionAtom)).toEqual(position);
+
+    store.set(selectedPositionIdAtom, kitchen.id);
+
+    expect(store.get(nameSkillPositionAtom)).toEqual(kitchen);
+  });
+
+  it("休憩を選んでいる間は、名前の横の印の根拠を持たず、ポジションへ戻すと再び持つ", () => {
+    const store = createDetailStore();
+    store.set(selectedPositionIdAtom, kitchen.id);
+
+    store.set(breakToolActiveAtom, true);
+    expect(store.get(nameSkillPositionAtom)).toBeNull();
+
+    store.set(breakToolActiveAtom, false);
+    expect(store.get(nameSkillPositionAtom)).toEqual(kitchen);
+  });
+
+  it("シンプル表示、閲覧専用、スタッフ向けの確定シフト表示では、名前の横の印の根拠を持たない", () => {
+    const simple = createDetailStore({}, { detailMode: false });
+    const readOnly = createDetailStore({ isReadOnly: true });
+    const confirmed = createDetailStore({ isReadOnly: true, displayMode: "confirmed" });
+
+    for (const store of [simple, readOnly, confirmed]) {
+      store.set(selectedPositionIdAtom, kitchen.id);
+      expect(store.get(nameSkillPositionAtom)).toBeNull();
+    }
+  });
+
+  it("勤務の区間の印は、くわしく表示なら閲覧専用でも出し、シンプル表示とスタッフ向けの確定シフト表示では出さない", () => {
+    const editable = createDetailStore();
+    const readOnly = createDetailStore({ isReadOnly: true });
+    const simple = createDetailStore({}, { detailMode: false });
+    const confirmed = createDetailStore({ isReadOnly: true, displayMode: "confirmed" });
+
+    expect([editable, readOnly, simple, confirmed].map((store) => store.get(showsSegmentSkillMarksAtom))).toEqual([
+      true,
+      true,
+      false,
+      false,
+    ]);
   });
 });
 

@@ -1,7 +1,7 @@
 import type { Id } from "@/convex/_generated/dataModel";
 import type { DayRequirements } from "@/convex/shiftSetup/dayTemplates";
 import type { ShiftFormDayRequirements, ShiftFormStaffing } from "@/src/components/features/Shift/ShiftForm";
-import type { ShiftBreakRule } from "@/src/domains/shift/types";
+import type { ShiftBreakRule, StaffPositionSkill } from "@/src/domains/shift/types";
 import type { ShiftBoardStaffingData } from "../types";
 
 // シフト表のqueryとmutationの形を、ShiftFormが受け渡す形へ直す境界。
@@ -26,6 +26,22 @@ export const toShiftFormStaffing = (
     requirements: day.requirements,
   })),
 });
+
+/**
+ * スタッフごとの、ポジションの値（入れない、新人、責任者）を、staffIdから引ける形にする。
+ * 値を1つも持たないスタッフは、結果に含めない。
+ */
+export const toPositionSkillsByStaffId = (
+  staffProfiles: ShiftBoardStaffingData["staffProfiles"] | undefined,
+): Map<string, StaffPositionSkill[]> =>
+  new Map(
+    (staffProfiles ?? [])
+      .filter((profile) => profile.positionSkills.length > 0)
+      .map((profile) => [
+        profile.staffId,
+        profile.positionSkills.map((skill) => ({ positionId: skill.positionId, level: skill.level })),
+      ]),
+  );
 
 /** ShiftFormが返す型のIDを、mutationの引数へ直す。nullは、その日だけの指定を消すことを表す。 */
 export const toDayTemplateIdArg = (templateId: string | null): Id<"shiftDayTemplates"> | null =>

@@ -14,7 +14,7 @@ export type ShiftTypeOverviewAssignmentBadgeViewModel = {
   bg: string;
   color: string;
   /** その勤務パターンに入っている勤務のポジション。くわしく表示で、勤務パターンの下に添える。 */
-  position: { positionName: string; color: string } | null;
+  position: { positionId: string; positionName: string; color: string } | null;
 };
 
 export type ShiftTypeOverviewCellContentViewModel =
@@ -171,7 +171,9 @@ export const buildShiftTypeOverviewViewModel = ({
                       label: optionDisplay?.name ?? "勤務",
                       bg: optionDisplay?.color.requestedBg ?? "teal.50",
                       color: optionDisplay?.color.accent ?? "teal.700",
-                      position: segment ? { positionName: segment.positionName, color: segment.color } : null,
+                      position: segment
+                        ? { positionId: segment.positionId, positionName: segment.positionName, color: segment.color }
+                        : null,
                     };
                   }),
                 },

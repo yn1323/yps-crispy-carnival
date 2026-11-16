@@ -215,7 +215,7 @@ const DayStaffList = ({ rows }: { rows: DateOnlyOverviewStaffRowViewModel[] }) =
           {/* ポジションの右端をそろえるため、休憩の印はポジションの左に置く。 */}
           <BreakMark shift={staff.shift} compact />
           <Box as="span" color="gray.700" minW={0}>
-            <PositionMark segment={staff.segment} />
+            <PositionMark segment={staff.segment} staff={staff.staff} />
           </Box>
         </Flex>
       ))}

@@ -4,7 +4,12 @@ import { expect, userEvent, waitFor, within } from "storybook/test";
 import type { PositionType, ShiftData, StaffType } from "@/src/domains/shift/types";
 import { ShiftForm } from "../..";
 import { shiftTypeDetailDays, shiftTypeDetailTemplates, shiftTypeWeekdayTemplate } from "../../sp/detailStoryFixtures";
-import { mockShiftTypeDates, mockShiftTypePattern, mockShiftTypeStaffs } from "../../stories/fixtures";
+import {
+  mockShiftTypeDates,
+  mockShiftTypePattern,
+  mockShiftTypeStaffs,
+  withPositionSkills,
+} from "../../stories/fixtures";
 import { desktopGlobals, fullscreenParameters, shiftFormDecorators, shiftTypeArgs } from "../../stories/shared";
 import {
   buildStaffing,
@@ -27,13 +32,12 @@ const detailPositions = [hall, kitchen, register];
 
 const shiftTypeOptions = mockShiftTypePattern.kind === "shiftType" ? mockShiftTypePattern.options : [];
 
-const detailStaffs: StaffType[] = mockShiftTypeStaffs.map((staff) =>
-  staff.id === "staff1"
-    ? { ...staff, skillLevel: "lead" }
-    : staff.id === "staff4"
-      ? { ...staff, skillLevel: "newcomer" }
-      : staff,
-);
+// 田中さんは、ホールでは責任者、キッチンでは新人。山田さんは、キッチンとレジで新人。鈴木さんは、ホールに入れない。
+const detailStaffs: StaffType[] = withPositionSkills(mockShiftTypeStaffs, {
+  staff1: { [hall.id]: "lead", [kitchen.id]: "newcomer" },
+  staff4: { [kitchen.id]: "newcomer", [register.id]: "newcomer" },
+  staff5: { [hall.id]: "unavailable" },
+});
 
 const segment = (staffId: string, date: string, optionId: string, position: PositionType) => {
   const option = shiftTypeOptions.find((item) => item.id === optionId) ?? shiftTypeOptions[0];
@@ -67,7 +71,7 @@ const shift = (
 const [firstDate, secondDate] = mockShiftTypeDates;
 
 const detailShifts: ShiftData[] = [
-  // 責任者。早番と中番を続けて入り、早番の中で休憩する。
+  // ホールでは責任者。早番と中番を続けて入り、早番の中で休憩する。
   shift(
     "staff1",
     firstDate,
@@ -79,7 +83,7 @@ const detailShifts: ShiftData[] = [
   ),
   shift("staff2", firstDate, [["middle", kitchen]]),
   shift("staff3", firstDate, [["late", hall]], { breaks: [{ start: "19:00", end: "19:30" }] }),
-  // 新人。
+  // レジでは新人。
   shift("staff4", firstDate, [["night", register]]),
   shift("staff5", firstDate, [], { requestedShiftTypeOptionIds: [] }),
   // 未提出者へ入れた仮の勤務。
@@ -209,16 +213,20 @@ export const DetailAssignInteractive: Story = {
     // 選んだポジションで入る。
     await userEvent.click(await canvas.findByRole("radio", { name: "キッチン" }));
     await userEvent.click(await findVisibleByLabelText(canvas, "山田 一郎 早番 勤務なし"));
-    await expect(await findVisibleByLabelText(canvas, "山田 一郎 早番 勤務あり、キッチン")).toHaveTextContent(
-      "キッチン",
-    );
+    const kitchenCell = await findVisibleByLabelText(canvas, "山田 一郎 早番 勤務あり、キッチン");
+    await expect(kitchenCell).toHaveTextContent("キッチン");
+    // 山田さんはキッチンで新人なので、入れた勤務に「新」の印が付く。
+    await expect(within(kitchenCell).getByText("新")).toHaveAttribute("title", "キッチンでは新人です");
     // 新人の山田さんが入っても、仮の勤務の中村さんがいるため、キッチンは新人だけにならない。
     await expect(await canvas.findByTitle("早番 ホール 1/2 ▲1、キッチン 2/1 ＋1、レジ 0")).toBeInTheDocument();
 
     // 別のポジションを選んで勤務のあるセルを押すと、外れずに入れ替わる。
     await userEvent.click(await canvas.findByRole("radio", { name: "ホール" }));
     await userEvent.click(await findVisibleByLabelText(canvas, "山田 一郎 早番 勤務あり、キッチン"));
-    await expect(await findVisibleByLabelText(canvas, "山田 一郎 早番 勤務あり、ホール")).toHaveTextContent("ホール");
+    const hallCell = await findVisibleByLabelText(canvas, "山田 一郎 早番 勤務あり、ホール");
+    await expect(hallCell).toHaveTextContent("ホール");
+    // ホールでは標準なので、同じ人の勤務でも印は付かない。
+    await expect(within(hallCell).queryByText("新")).not.toBeInTheDocument();
     await expect(await canvas.findByTitle("早番 ホール 2/2、キッチン 1/1、レジ 0")).toBeInTheDocument();
 
     // 同じポジションでもう一度押すと外れる。

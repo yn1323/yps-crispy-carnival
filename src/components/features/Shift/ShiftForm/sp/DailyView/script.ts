@@ -16,7 +16,8 @@ export type RequestBarViewModel = TimelineBarViewModel & {
 };
 
 export type WorkBarViewModel = TimelineBarViewModel & {
-  // くわしく表示でポジションを塗り分けるときに使う。
+  // くわしく表示でポジションを塗り分けるときと、そのポジションでの熟練度の印に使う。
+  positionId: string;
   color: string;
   positionName: string;
   timeLabel: string;
@@ -247,6 +248,7 @@ export const buildSPDailyCardViewModel = (shift: ShiftData | undefined, timeRang
     })),
     workBars: workPositions.map((position) => ({
       ...toTimelineBar(position.id, position.start, position.end, timeRange),
+      positionId: position.positionId,
       color: position.color,
       positionName: position.positionName,
       timeLabel: formatShiftClockTimeRange(position.start, position.end),

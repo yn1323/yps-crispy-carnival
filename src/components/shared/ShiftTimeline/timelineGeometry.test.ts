@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { TimeRange } from "@/src/domains/shift/types";
 import {
+  getTimeAxisWidth,
   isWithinEditableRange,
   minutesToPixel,
   pixelToEditableMinutes,
@@ -44,5 +45,17 @@ describe("timelineGeometry", () => {
 
     expect(pixelToRawMinutes({ x: displayEndX, timeRange: halfHourRange, hourWidth: 120 })).toBe(1380);
     expect(pixelToEditableMinutes({ x: displayEndX, timeRange: halfHourRange, hourWidth: 120 })).toBe(1350);
+  });
+
+  it("左右のパディングを渡すと、その幅だけ時間の軸を内側へ寄せる", () => {
+    expect(minutesToPixel(300, halfHourRange, 20, 14)).toBe(14);
+    expect(minutesToPixel(360, halfHourRange, 20, 14)).toBe(34);
+    expect(pixelToRawMinutes({ x: 34, timeRange: halfHourRange, hourWidth: 20, axisPadding: 14 })).toBe(360);
+    expect(pixelToEditableMinutes({ x: 14, timeRange: halfHourRange, hourWidth: 20, axisPadding: 14 })).toBe(330);
+    expect(getTimeAxisWidth(halfHourRange, 20, 14)).toBe(18 * 20 + 28);
+  });
+
+  it("パディングを渡さなければ、左右30pxで計算する", () => {
+    expect(getTimeAxisWidth(halfHourRange, 20)).toBe(18 * 20 + 60);
   });
 });

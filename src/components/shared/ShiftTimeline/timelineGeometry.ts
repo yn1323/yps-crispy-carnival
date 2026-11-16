@@ -17,14 +17,22 @@ export const clampToEditableMinutes = (minutes: number, timeRange: TimeRange): n
 export const isWithinEditableRange = (minutes: number, timeRange: TimeRange): boolean =>
   minutes >= getEditableStartMinutes(timeRange) && minutes <= getEditableEndMinutes(timeRange);
 
-export const pixelToRawMinutes = (params: { x: number; timeRange: TimeRange; hourWidth?: number }): number => {
-  const { x, timeRange, hourWidth = HOUR_WIDTH_PX } = params;
-  const effectiveX = x - TIME_AXIS_PADDING_PX;
+type PixelParams = {
+  x: number;
+  timeRange: TimeRange;
+  hourWidth?: number;
+  /** 時間軸の左右のパディング（px）。未指定は TIME_AXIS_PADDING_PX。 */
+  axisPadding?: number;
+};
+
+export const pixelToRawMinutes = (params: PixelParams): number => {
+  const { x, timeRange, hourWidth = HOUR_WIDTH_PX, axisPadding = TIME_AXIS_PADDING_PX } = params;
+  const effectiveX = x - axisPadding;
   return (effectiveX / hourWidth) * 60 + getDisplayStartMinutes(timeRange);
 };
 
 // X座標（ピクセル） → 分 + unitスナップ + timeRangeクランプ
-export const pixelToMinutes = (params: { x: number; timeRange: TimeRange; hourWidth?: number }): number => {
+export const pixelToMinutes = (params: PixelParams): number => {
   const { timeRange } = params;
   const rawMinutes = pixelToRawMinutes(params);
   const snappedMinutes = Math.round(rawMinutes / timeRange.unit) * timeRange.unit;
@@ -33,17 +41,26 @@ export const pixelToMinutes = (params: { x: number; timeRange: TimeRange; hourWi
   return Math.max(minMinutes, Math.min(maxMinutes, snappedMinutes));
 };
 
-export const pixelToEditableMinutes = (params: { x: number; timeRange: TimeRange; hourWidth?: number }): number =>
+export const pixelToEditableMinutes = (params: PixelParams): number =>
   clampToEditableMinutes(pixelToMinutes(params), params.timeRange);
 
 // 分 → X座標（ピクセル）
-export const minutesToPixel = (minutes: number, timeRange: TimeRange, hourWidth: number = HOUR_WIDTH_PX): number => {
+export const minutesToPixel = (
+  minutes: number,
+  timeRange: TimeRange,
+  hourWidth: number = HOUR_WIDTH_PX,
+  axisPadding: number = TIME_AXIS_PADDING_PX,
+): number => {
   const minutesFromStart = minutes - getDisplayStartMinutes(timeRange);
-  return TIME_AXIS_PADDING_PX + (minutesFromStart / 60) * hourWidth;
+  return axisPadding + (minutesFromStart / 60) * hourWidth;
 };
 
 // 時間軸の総幅を計算
-export const getTimeAxisWidth = (timeRange: TimeRange, hourWidth: number = HOUR_WIDTH_PX): number => {
+export const getTimeAxisWidth = (
+  timeRange: TimeRange,
+  hourWidth: number = HOUR_WIDTH_PX,
+  axisPadding: number = TIME_AXIS_PADDING_PX,
+): number => {
   const totalHours = timeRange.end - timeRange.start;
-  return TIME_AXIS_PADDING_PX * 2 + totalHours * hourWidth;
+  return axisPadding * 2 + totalHours * hourWidth;
 };

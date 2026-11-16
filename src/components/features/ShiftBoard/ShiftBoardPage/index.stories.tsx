@@ -234,7 +234,12 @@ const newcomerOnlyData: ShiftBoardData = {
 };
 const newcomerOnlyStaffing: ShiftBoardStaffingData = {
   breakRule: null,
-  staffProfiles: [{ staffId: "s1" as Id<"staffs">, unavailablePositionIds: [], skillLevel: "newcomer" }],
+  staffProfiles: [
+    {
+      staffId: "s1" as Id<"staffs">,
+      positionSkills: [{ positionId: "position-1" as Id<"positions">, level: "newcomer" }],
+    },
+  ],
   hasPreviousConfirmedRecruitment: false,
   isLocked: false,
   templates: [],

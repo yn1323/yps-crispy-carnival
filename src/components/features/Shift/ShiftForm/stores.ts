@@ -7,6 +7,7 @@ import type { AssignmentWarning } from "@/src/domains/shift/assignmentWarnings";
 import { withInitialBreak } from "@/src/domains/shift/breaks";
 import { toggleDateOnlyAssignment } from "@/src/domains/shift/dateOnlyAssignments";
 import { mergeAdjacentPositions, resolveDefaultPosition } from "@/src/domains/shift/operations";
+import { collectNewcomerStaffIdsByPositionId } from "@/src/domains/shift/positionSkills";
 import { isCanonicalWorkPosition } from "@/src/domains/shift/positions";
 import { indexShiftsByStaffId } from "@/src/domains/shift/shiftLookup";
 import { type ShiftTypeOptionLike, toggleShiftTypeAssignment } from "@/src/domains/shift/shiftTypeAssignments";
@@ -15,12 +16,8 @@ import type { NewcomerOnlyPeriod } from "@/src/domains/shift/staffing";
 import type { PositionType, ShiftData, SortMode, StaffType, TimeRange, ViewMode } from "@/src/domains/shift/types";
 import { sumStaffWorkTotals } from "@/src/domains/shift/workTotals";
 import { DEFAULT_TIME_PATTERN } from "@/src/domains/shop/submissionPattern";
-import {
-  buildDayStaffingMarks,
-  buildDayStaffingView,
-  collectNewcomerStaffIds,
-  type DayStaffingView,
-} from "./staffingPresentation";
+import { resolveNameSkillPosition } from "./skillPresentation";
+import { buildDayStaffingMarks, buildDayStaffingView, type DayStaffingView } from "./staffingPresentation";
 import type { ShiftFormStaffing } from "./types";
 
 export type { ShiftFormStaffing } from "./types";
@@ -300,6 +297,23 @@ const workPositionAtom = atom(
 
 export const isBreakToolActiveAtom = atom((get) => get(isToolPaletteActiveAtom) && get(breakToolActiveAtom));
 
+// 名前の横の熟練度の印が根拠にするポジション。「入れるもの」がない表示と、休憩を選んでいる間はnull。
+export const nameSkillPositionAtom = atom((get) => {
+  const config = get(shiftConfigAtom);
+  return resolveNameSkillPosition({
+    positions: config.positions,
+    selectedPositionId: get(selectedPositionIdAtom),
+    isToolPaletteActive: get(isToolPaletteActiveAtom),
+    isBreakToolActive: get(isBreakToolActiveAtom),
+    isConfirmedDisplay: config.displayMode === "confirmed",
+  });
+});
+
+// 勤務の区間に熟練度の印（新・責）を添えるかどうか。くわしく表示の、担当者の画面だけに出す。
+export const showsSegmentSkillMarksAtom = atom(
+  (get) => get(detailModeAtom) && get(shiftConfigAtom).displayMode !== "confirmed",
+);
+
 // 休憩を選んでいる場合は、勤務のある日の休憩の編集を開き、通常の操作を止める。
 const openBreakEditorIfBreakTool = (get: Getter, set: Setter, staffId: string, date: string): boolean => {
   if (!get(isBreakToolActiveAtom)) return false;
@@ -335,7 +349,7 @@ export const dayStaffingViewByDateAtom = atom((get) => {
     else shiftsByDate.set(shift.date, [shift]);
   }
   const dayByDate = new Map((config.staffing?.days ?? []).map((day) => [day.date, day]));
-  const newcomerStaffIds = collectNewcomerStaffIds(config.staffs);
+  const newcomerStaffIdsByPositionId = collectNewcomerStaffIdsByPositionId(config.staffs);
   const closedDates = new Set(config.holidays);
 
   for (const date of config.dates) {
@@ -349,7 +363,7 @@ export const dayStaffingViewByDateAtom = atom((get) => {
         submissionPattern: config.submissionPattern,
         timeRange: config.timeRange,
         day: dayByDate.get(date),
-        newcomerStaffIds,
+        newcomerStaffIdsByPositionId,
       }),
     );
   }

@@ -9,10 +9,16 @@ type TimelineHourLabelsProps = {
   timeRange: TimeRange;
   /** 1時間の幅（px） */
   hourWidth: number;
+  /** 時間軸の左右のパディング（px）。未指定は TIME_AXIS_PADDING_PX。 */
+  axisPadding?: number;
 };
 
 /** 1時間ごとの時刻の見出し。24時以降は「翌1:00」の形で出す。 */
-export const TimelineHourLabels = ({ timeRange, hourWidth }: TimelineHourLabelsProps) => {
+export const TimelineHourLabels = ({
+  timeRange,
+  hourWidth,
+  axisPadding = TIME_AXIS_PADDING_PX,
+}: TimelineHourLabelsProps) => {
   const hours = Array.from({ length: timeRange.end - timeRange.start + 1 }, (_, index) => timeRange.start + index);
   // 幅が狭いときは、隣の見出しと重ならない間隔で間引く。
   const step = hourWidth >= 44 ? 1 : hourWidth >= 22 ? 2 : 4;
@@ -25,7 +31,7 @@ export const TimelineHourLabels = ({ timeRange, hourWidth }: TimelineHourLabelsP
           <Text
             key={hour}
             position="absolute"
-            left={`${TIME_AXIS_PADDING_PX + (hour - timeRange.start) * hourWidth}px`}
+            left={`${axisPadding + (hour - timeRange.start) * hourWidth}px`}
             top="50%"
             transform="translate(-50%, -50%)"
             textStyle="2xs"
@@ -50,10 +56,16 @@ type TimelineGridLinesProps = {
   unitMinutes: number;
   /** 1時間の幅（px） */
   hourWidth: number;
+  /** 時間軸の左右のパディング（px）。未指定は TIME_AXIS_PADDING_PX。 */
+  axisPadding?: number;
 };
 
 /** 刻みごとと1時間ごとの縦の点線。親をposition: relativeにして重ねる。 */
-export const TimelineGridLines = ({ unitMinutes, hourWidth }: TimelineGridLinesProps) => (
+export const TimelineGridLines = ({
+  unitMinutes,
+  hourWidth,
+  axisPadding = TIME_AXIS_PADDING_PX,
+}: TimelineGridLinesProps) => (
   <Box
     position="absolute"
     inset={0}
@@ -64,7 +76,7 @@ export const TimelineGridLines = ({ unitMinutes, hourWidth }: TimelineGridLinesP
         dashedLinePattern((unitMinutes / 60) * hourWidth, "#e4e4e7"),
         dashedLinePattern(hourWidth, "#d4d4d8"),
       ].join(", "),
-      backgroundPosition: `${TIME_AXIS_PADDING_PX}px 0, ${TIME_AXIS_PADDING_PX}px 0`,
+      backgroundPosition: `${axisPadding}px 0, ${axisPadding}px 0`,
       backgroundRepeat: "repeat, repeat",
     }}
   />

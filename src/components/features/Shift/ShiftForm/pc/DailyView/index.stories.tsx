@@ -6,7 +6,7 @@ import type { PositionType, ShiftData, StaffType } from "@/src/domains/shift/typ
 import { DEFAULT_TIME_PATTERN } from "@/src/domains/shop/submissionPattern";
 import { ShiftForm } from "../..";
 import { TIME_AXIS_PADDING_PX } from "../../constants";
-import { mockStaffs, mockTimeRange } from "../../stories/fixtures";
+import { mockStaffs, mockTimeRange, withPositionSkills } from "../../stories/fixtures";
 import { desktopGlobals, fullscreenParameters, shiftFormDecorators } from "../../stories/shared";
 import {
   buildStaffing,
@@ -36,13 +36,12 @@ const THURSDAY = "2026-01-22";
 const SATURDAY = "2026-01-24";
 const SUNDAY = "2026-01-25";
 
-const detailStaffs: StaffType[] = mockStaffs.map((staff) =>
-  staff.id === "staff1"
-    ? { ...staff, skillLevel: "lead" }
-    : staff.id === "staff3"
-      ? { ...staff, skillLevel: "newcomer" }
-      : staff,
-);
+// Aさんは、ホールで責任者。Cさんは、ホールで新人。Dさんは、キッチンで新人で、レジに入れない（ホールでは標準）。
+const detailStaffs: StaffType[] = withPositionSkills(mockStaffs, {
+  staff1: { [hall.id]: "lead" },
+  staff3: { [hall.id]: "newcomer" },
+  staff4: { [kitchen.id]: "newcomer", [register.id]: "unavailable" },
+});
 
 const shift = (
   staffId: string,
@@ -67,16 +66,16 @@ const shift = (
 });
 
 const buildShifts = (date: string): ShiftData[] => [
-  // Aさん（責任者）: 時刻で入れた休憩がバーの内側に出る。
+  // Aさん（ホールで責任者）: 時刻で入れた休憩がバーの内側に出る。
   shift("staff1", date, [[hall, "10:00", "18:00"]], {
     requestedTime: { start: "10:00", end: "18:00" },
     breaks: [{ start: "13:00", end: "14:00" }],
   }),
   // Bさん: 休憩のない勤務。
   shift("staff2", date, [[kitchen, "12:00", "20:00"]], { requestedTime: { start: "12:00", end: "20:00" } }),
-  // Cさん（新人、未提出）: 前回の勤務を仮で入れた日。
+  // Cさん（ホールで新人、未提出）: 前回の勤務を仮で入れた日。
   shift("staff3", date, [[hall, "10:00", "14:00"]], { isProvisional: true }),
-  // Dさん: 1日の中でポジションを変える。
+  // Dさん: 1日の中でポジションを変える。キッチンの区間にだけ「新」の印が出る。
   shift(
     "staff4",
     date,
@@ -620,7 +619,7 @@ export const DetailCustomRequirementsInteractive: Story = {
     const addDialog = within(await dialog.findByRole("group", { name: "レジのバーを足す" }));
     await userEvent.selectOptions(addDialog.getByRole("combobox", { name: "開始" }), "10:00");
     await userEvent.selectOptions(addDialog.getByRole("combobox", { name: "終了" }), "13:00");
-    await userEvent.selectOptions(addDialog.getByRole("combobox", { name: "本数" }), "2");
+    await userEvent.selectOptions(addDialog.getByRole("combobox", { name: "足す本数" }), "2");
     await userEvent.click(addDialog.getByRole("button", { name: "足す" }));
     await waitFor(() => expect(dialog.queryByRole("group", { name: "レジのバーを足す" })).not.toBeInTheDocument());
 

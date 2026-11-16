@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
 import type { PositionType, ShiftData, StaffType } from "@/src/domains/shift/types";
 import { ShiftForm } from "../..";
-import { mockStaffs } from "../../stories/fixtures";
+import { mockStaffs, withPositionSkills } from "../../stories/fixtures";
 import {
   desktopGlobals,
   fullscreenParameters,
@@ -19,13 +19,12 @@ type ShiftFormArgs = ComponentProps<typeof ShiftForm>;
 const hall: PositionType = { id: "hall", name: "ホール", color: "#3b82f6", isDefault: true };
 const kitchen: PositionType = { id: "kitchen", name: "キッチン", color: "#c2410c", isDefault: false };
 
-const detailStaffs: StaffType[] = mockStaffs.map((staff) =>
-  staff.id === "staff1"
-    ? { ...staff, skillLevel: "lead" }
-    : staff.id === "staff3"
-      ? { ...staff, skillLevel: "newcomer" }
-      : staff,
-);
+// Aさんは、ホールでは責任者、キッチンでは新人。Cさんは、ホールで新人。Bさんは、ホールに入れない。
+const detailStaffs: StaffType[] = withPositionSkills(mockStaffs, {
+  staff1: { [hall.id]: "lead", [kitchen.id]: "newcomer" },
+  staff2: { [hall.id]: "unavailable" },
+  staff3: { [hall.id]: "newcomer" },
+});
 
 const shift = (
   staffId: string,
@@ -86,7 +85,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** 勤務時間の下にポジション、横に休憩の印、名前に熟練度の印を出す。週の計は休憩と隙間を引く。 */
+/** 勤務時間の下にポジションとそのポジションでの熟練度の印、横に休憩の印、名前に「入れるもの」での熟練度の印を出す。週の計は休憩と隙間を引く。 */
 export const Detail: Story = {
   args: detailArgs,
   globals: desktopGlobals,

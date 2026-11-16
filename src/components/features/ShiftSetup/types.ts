@@ -11,8 +11,12 @@ export type ShiftSetupPosition = ShiftSetupData["positions"][number];
 export type ShiftSetupStaff = ShiftSetupData["staffs"][number];
 export type ShiftSetupDayTemplate = ShiftSetupData["dayTemplates"][number];
 export type ShiftSetupSubmissionPattern = ShiftSetupData["submissionPattern"];
-export type ShiftSetupBreakRule = NonNullable<ShiftSetupData["breakRule"]>;
-export type StaffSkillLevel = ShiftSetupStaff["skillLevel"];
+/** 保存する形の、ポジションごとの値。標準は持たない。 */
+export type StoredStaffPositionLevel = ShiftSetupStaff["positionSkills"][number]["level"];
+/** 画面で扱う、ポジションごとの値。入れるかどうかと熟練度を1つにまとめている。 */
+export type StaffPositionLevel = StoredStaffPositionLevel | "standard";
+/** スタッフの、ポジションごとの値。キーはポジションのID。標準は持たない。 */
+export type StaffPositionLevels = Readonly<Record<string, StoredStaffPositionLevel>>;
 
 export type PositionInput = FunctionArgs<typeof api.shiftSetup.mutations.savePositions>["positions"][number];
 export type DayTemplateInput = FunctionArgs<typeof api.shiftSetup.mutations.saveDayTemplates>["templates"][number];
@@ -41,21 +45,23 @@ export type DayTemplateDraft = {
   requirements: DayTemplateRequirementsDraft;
   /** 保存済みの必要人数の種類が、いまの集め方と違っていた型。入れ直すまで知らせを出す。 */
   requiresReentry: boolean;
+  /**
+   * 「型を作る」「型を追加」で入れた名前と曜日。作ったまま何も入れていない型かを見分けるために持つ。
+   * 保存済みの型とAIの下書きは持たない。
+   */
+  initial?: { name: string; weekdays: ShiftSetupWeekday[] };
 };
 
-export type StaffProfile = {
-  unavailablePositionIds: Id<"positions">[];
-  skillLevel: StaffSkillLevel;
-};
-
-/** 保存していない変更を持つセクション。操作バーと離脱確認で、何が保存されるかを示すために使う。 */
+/**
+ * 保存していない変更を持つセクション。保存の帯と離脱確認を出すかどうかと、何が保存されるかを示すために使う。
+ * 作ったまま何も入れていない新しい型だけが違いのときは、必要人数の変更に数えない。
+ */
 export type PendingSection = "dayTemplates" | "staffs";
 
 /** 店舗と組織を束ねた、設定の保存とAIサポートの呼び出し口。 */
 export type ShiftSetupRemote = {
   savePositions: (positions: PositionInput[]) => Promise<unknown>;
   saveDayTemplates: (templates: DayTemplateInput[]) => Promise<unknown>;
-  saveBreakRule: (breakRule: ShiftSetupBreakRule | null) => Promise<unknown>;
   saveStaffShiftProfiles: (profiles: StaffShiftProfileInput[]) => Promise<unknown>;
   suggestShiftSetup: (situation: string) => Promise<ShiftSetupAssistResult>;
 };
@@ -80,12 +86,12 @@ export type ShiftSetupIntents = {
   onChangeBars: (rowKey: string, bars: EditableStaffingBar[]) => void;
   onChangeRequiredCount: (rowKey: string, change: RequiredCountChange) => void;
   onCopyRequirements: (target: { fromRowKey: string; toRowKey: string }) => void;
-  onToggleStaffPosition: (staffId: Id<"staffs">, positionId: Id<"positions">) => void;
-  onChangeStaffSkillLevel: (staffId: Id<"staffs">, skillLevel: StaffSkillLevel) => void;
+  onChangeStaffPositionLevel: (staffId: Id<"staffs">, positionId: Id<"positions">, level: StaffPositionLevel) => void;
+  /** 1つのポジションの値を、全員まとめて変える。 */
+  onSetPositionLevelForAllStaffs: (positionId: Id<"positions">, level: "standard" | "unavailable") => void;
   onResetChanges: () => void;
   onSaveChanges: () => void;
   onSavePositions: (positions: PositionInput[]) => void;
-  onSaveBreakRule: (breakRule: ShiftSetupBreakRule | null) => void;
   onRequestAssist: (situation: string) => void;
 };
 
@@ -101,12 +107,12 @@ export type ShiftSetupEditorView = {
     issueMessages: Record<string, string>;
     canAdd: boolean;
   };
-  /** スタッフごとの、編集中の値を反映した条件。キーはスタッフID。 */
-  staffProfiles: Record<string, StaffProfile>;
+  /** スタッフごとの、編集中の値を反映したポジションごとの値。キーはスタッフID。 */
+  staffProfiles: Record<string, StaffPositionLevels>;
   pendingSections: PendingSection[];
+  /** 保存の応答を待っている間。型の編集とスタッフの条件を操作できない状態にする。 */
   isSaving: boolean;
   positionsDialog: DialogState & { isSaving: boolean };
-  breakRuleDialog: DialogState & { isSaving: boolean };
   assistDialog: DialogState & { isRunning: boolean; message?: string };
   intents: ShiftSetupIntents;
 };

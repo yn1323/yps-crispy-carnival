@@ -295,7 +295,7 @@ describe("shiftSetup/mutations", () => {
         run: (client, ids, scope) =>
           client.mutation(api.shiftSetup.mutations.saveStaffShiftProfiles, {
             ...scope,
-            profiles: [{ staffId: ids.staffId, unavailablePositionIds: [ids.hallPositionId], skillLevel: "lead" }],
+            profiles: [{ staffId: ids.staffId, positionSkills: [{ positionId: ids.hallPositionId, level: "lead" }] }],
           }),
       },
       {
@@ -444,22 +444,56 @@ describe("shiftSetup/mutations", () => {
       expect(await readSetupState(t)).toEqual(afterFirst);
     });
 
-    it("既定のポジションを一覧から外すと拒否する", async () => {
+    it("既定のポジションを一覧から外すと、一覧の先頭が新しい既定になる", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedShops(t);
+      const before = await readSetupState(t);
+
+      await t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shiftSetup.mutations.savePositions, {
+        ...ids.scope,
+        positions: [
+          { id: ids.hallPositionId, name: "ホール", color: "#7c3aed" },
+          { name: "レジ", color: "#db2777" },
+        ],
+      });
+
+      const after = await readSetupState(t);
+      const own = after.positions.filter((position) => position.shopId === ids.shopId);
+      // 既定は有効なポジションの中に1件だけあり、削除した行には残らない。
+      expect(own.filter((position) => position.isDefault).map((position) => position._id)).toEqual([
+        ids.hallPositionId,
+      ]);
+      expect(own.find((position) => position._id === ids.defaultPositionId)).toMatchObject({
+        isDeleted: true,
+        isDefault: false,
+      });
+      expect(after.positions.filter((position) => position.shopId !== ids.shopId)).toEqual(
+        before.positions.filter((position) => position.shopId !== ids.shopId),
+      );
+    });
+
+    it("既定のポジションを外した一覧の先頭が新しいポジションなら、そのポジションを既定として作る", async () => {
       const t = convexTest(schema, modules);
       const ids = await seedShops(t);
 
-      await expectRejectedWithoutChange(
-        t,
-        () =>
-          t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shiftSetup.mutations.savePositions, {
-            ...ids.scope,
-            positions: [
-              { id: ids.hallPositionId, name: "ホール", color: "#7c3aed" },
-              { name: "レジ", color: "#db2777" },
-            ],
-          }),
-        "最初からあるポジションは削除できません",
-      );
+      await t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shiftSetup.mutations.savePositions, {
+        ...ids.scope,
+        positions: [
+          { name: "レジ", color: "#db2777" },
+          { id: ids.hallPositionId, name: "ホール", color: "#7c3aed" },
+        ],
+      });
+
+      const after = await readSetupState(t);
+      const active = after.positions.filter((position) => position.shopId === ids.shopId && !position.isDeleted);
+      expect(
+        active
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+          .map((position) => ({ name: position.name, isDefault: position.isDefault })),
+      ).toEqual([
+        { name: "レジ", isDefault: true },
+        { name: "ホール", isDefault: false },
+      ]);
     });
 
     it("有効なポジションは上限の件数まで保存でき、1件でも超えると拒否する", async () => {
@@ -1229,132 +1263,149 @@ describe("shiftSetup/mutations", () => {
   });
 
   describe("saveStaffShiftProfiles", () => {
+    type Level = "unavailable" | "newcomer" | "lead";
+    const skill = (positionId: Id<"positions">, level: Level) => ({ positionId, level });
     const readStaffProfile = async (t: Test, staffId: Id<"staffs">) => {
       const staff = await t.run(async (ctx) => ctx.db.get(staffId));
       if (!staff) throw new Error("staff fixture is missing");
-      return {
-        keys: Object.keys(staff)
-          .filter((key) => key === "unavailablePositionIds" || key === "skillLevel")
-          .sort(),
-        unavailablePositionIds: staff.unavailablePositionIds,
-        skillLevel: staff.skillLevel,
-      };
+      return { hasField: Object.hasOwn(staff, "positionSkills"), positionSkills: staff.positionSkills };
     };
 
-    it("入れないポジションと熟練度をまとめて保存し、標準・空へ戻すとfieldを消す", async () => {
+    it("ポジションごとの扱いをスタッフごとに全置換で保存し、空にするとfieldを消す", async () => {
       const t = convexTest(schema, modules);
       const ids = await seedShops(t);
+      // 保存前の項目が残らないことを確かめるため、今回の保存に含めないポジションの項目を置く。
+      await t.run(async (ctx) => {
+        await ctx.db.patch(ids.staffId, { positionSkills: [skill(ids.hallPositionId, "newcomer")] });
+      });
       const asManager = t.withIdentity({ subject: MANAGER_SUBJECT });
       const before = await readSetupState(t);
 
       await asManager.mutation(api.shiftSetup.mutations.saveStaffShiftProfiles, {
         ...ids.scope,
         profiles: [
-          { staffId: ids.staffId, unavailablePositionIds: [ids.kitchenPositionId], skillLevel: "lead" },
           {
+            staffId: ids.staffId,
+            positionSkills: [skill(ids.kitchenPositionId, "unavailable"), skill(ids.defaultPositionId, "lead")],
+          },
+          {
+            // 入れるポジションが1つ残る保存は受け付ける。
             staffId: ids.secondStaffId,
-            unavailablePositionIds: [ids.hallPositionId, ids.kitchenPositionId],
-            skillLevel: "newcomer",
+            positionSkills: [
+              skill(ids.defaultPositionId, "unavailable"),
+              skill(ids.hallPositionId, "unavailable"),
+              skill(ids.kitchenPositionId, "newcomer"),
+            ],
           },
         ],
       });
 
+      const secondStaffProfile = {
+        hasField: true,
+        positionSkills: [
+          skill(ids.defaultPositionId, "unavailable"),
+          skill(ids.hallPositionId, "unavailable"),
+          skill(ids.kitchenPositionId, "newcomer"),
+        ],
+      };
       expect(await readStaffProfile(t, ids.staffId)).toEqual({
-        keys: ["skillLevel", "unavailablePositionIds"],
-        unavailablePositionIds: [ids.kitchenPositionId],
-        skillLevel: "lead",
+        hasField: true,
+        positionSkills: [skill(ids.kitchenPositionId, "unavailable"), skill(ids.defaultPositionId, "lead")],
       });
-      expect(await readStaffProfile(t, ids.secondStaffId)).toEqual({
-        keys: ["skillLevel", "unavailablePositionIds"],
-        unavailablePositionIds: [ids.hallPositionId, ids.kitchenPositionId],
-        skillLevel: "newcomer",
-      });
+      expect(await readStaffProfile(t, ids.secondStaffId)).toEqual(secondStaffProfile);
       const saved = await readSetupState(t);
       const targetStaffIds = new Set<Id<"staffs">>([ids.staffId, ids.secondStaffId]);
       expect(saved.staffs.filter((staff) => !targetStaffIds.has(staff._id))).toEqual(
         before.staffs.filter((staff) => !targetStaffIds.has(staff._id)),
       );
+      // スタッフの属性のほかは、保存で変えない。
+      expect({ ...saved, staffs: [] }).toEqual({ ...before, staffs: [] });
 
       await asManager.mutation(api.shiftSetup.mutations.saveStaffShiftProfiles, {
         ...ids.scope,
-        profiles: [{ staffId: ids.staffId, unavailablePositionIds: [], skillLevel: "standard" }],
+        profiles: [{ staffId: ids.staffId, positionSkills: [] }],
       });
 
-      expect(await readStaffProfile(t, ids.staffId)).toEqual({
-        keys: [],
-        unavailablePositionIds: undefined,
-        skillLevel: undefined,
-      });
+      expect(await readStaffProfile(t, ids.staffId)).toEqual({ hasField: false, positionSkills: undefined });
       // 一覧に含めなかったスタッフの属性は変えない。
-      expect(await readStaffProfile(t, ids.secondStaffId)).toEqual({
-        keys: ["skillLevel", "unavailablePositionIds"],
-        unavailablePositionIds: [ids.hallPositionId, ids.kitchenPositionId],
-        skillLevel: "newcomer",
-      });
+      expect(await readStaffProfile(t, ids.secondStaffId)).toEqual(secondStaffProfile);
     });
 
-    it("入れないポジションだけ、熟練度だけを消した場合は、消した方のfieldだけがなくなる", async () => {
+    it("有効なポジションがない店舗でも、空の保存は受け付けてfieldを消す", async () => {
       const t = convexTest(schema, modules);
       const ids = await seedShops(t);
       await t.run(async (ctx) => {
-        await ctx.db.patch(ids.staffId, { unavailablePositionIds: [ids.hallPositionId], skillLevel: "lead" });
-        await ctx.db.patch(ids.secondStaffId, { unavailablePositionIds: [ids.hallPositionId], skillLevel: "lead" });
+        await ctx.db.patch(ids.staffId, { positionSkills: [skill(ids.hallPositionId, "lead")] });
+        for (const positionId of [ids.defaultPositionId, ids.hallPositionId, ids.kitchenPositionId]) {
+          await ctx.db.patch(positionId, { isDeleted: true });
+        }
       });
 
       await t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shiftSetup.mutations.saveStaffShiftProfiles, {
         ...ids.scope,
-        profiles: [
-          { staffId: ids.staffId, unavailablePositionIds: [], skillLevel: "lead" },
-          { staffId: ids.secondStaffId, unavailablePositionIds: [ids.hallPositionId], skillLevel: "standard" },
-        ],
+        profiles: [{ staffId: ids.staffId, positionSkills: [] }],
       });
 
-      expect(await readStaffProfile(t, ids.staffId)).toEqual({
-        keys: ["skillLevel"],
-        unavailablePositionIds: undefined,
-        skillLevel: "lead",
-      });
-      expect(await readStaffProfile(t, ids.secondStaffId)).toEqual({
-        keys: ["unavailablePositionIds"],
-        unavailablePositionIds: [ids.hallPositionId],
-        skillLevel: undefined,
-      });
+      expect(await readStaffProfile(t, ids.staffId)).toEqual({ hasField: false, positionSkills: undefined });
     });
 
     it.each([
       {
         name: "同じ組織の別店舗のスタッフ",
-        build: (ids: SeededIds) => ({ staffId: ids.siblingStaffId, unavailablePositionIds: [] }),
+        build: (ids: SeededIds) => ({ staffId: ids.siblingStaffId, positionSkills: [] }),
       },
       {
         name: "別組織のスタッフ",
-        build: (ids: SeededIds) => ({ staffId: ids.otherStaffId, unavailablePositionIds: [] }),
+        build: (ids: SeededIds) => ({ staffId: ids.otherStaffId, positionSkills: [] }),
       },
       {
         name: "削除済みのスタッフ",
-        build: (ids: SeededIds) => ({ staffId: ids.deletedStaffId, unavailablePositionIds: [] }),
+        build: (ids: SeededIds) => ({ staffId: ids.deletedStaffId, positionSkills: [] }),
       },
       {
         name: "一覧の中で重複したスタッフ",
-        build: (ids: SeededIds) => ({ staffId: ids.staffId, unavailablePositionIds: [] }),
+        build: (ids: SeededIds) => ({ staffId: ids.staffId, positionSkills: [] }),
       },
       {
         name: "同じ組織の別店舗のポジション",
-        build: (ids: SeededIds) => ({ staffId: ids.secondStaffId, unavailablePositionIds: [ids.siblingPositionId] }),
+        build: (ids: SeededIds) => ({
+          staffId: ids.secondStaffId,
+          positionSkills: [skill(ids.siblingPositionId, "unavailable")],
+        }),
       },
       {
         name: "別組織のポジション",
-        build: (ids: SeededIds) => ({ staffId: ids.secondStaffId, unavailablePositionIds: [ids.otherPositionId] }),
-      },
-      {
-        name: "削除済みのポジション",
-        build: (ids: SeededIds) => ({ staffId: ids.secondStaffId, unavailablePositionIds: [ids.deletedPositionId] }),
-      },
-      {
-        name: "1人の中で重複したポジション",
         build: (ids: SeededIds) => ({
           staffId: ids.secondStaffId,
-          unavailablePositionIds: [ids.hallPositionId, ids.hallPositionId],
+          positionSkills: [skill(ids.otherPositionId, "newcomer")],
+        }),
+      },
+      {
+        name: "削除済みのポジション（入れない）",
+        build: (ids: SeededIds) => ({
+          staffId: ids.secondStaffId,
+          positionSkills: [skill(ids.deletedPositionId, "unavailable")],
+        }),
+      },
+      {
+        name: "削除済みのポジション（責任者）",
+        build: (ids: SeededIds) => ({
+          staffId: ids.secondStaffId,
+          positionSkills: [skill(ids.deletedPositionId, "lead")],
+        }),
+      },
+      {
+        name: "1人の中で、同じ扱いで重複したポジション",
+        build: (ids: SeededIds) => ({
+          staffId: ids.secondStaffId,
+          positionSkills: [skill(ids.hallPositionId, "newcomer"), skill(ids.hallPositionId, "newcomer")],
+        }),
+      },
+      {
+        name: "1人の中で、違う扱いで重複したポジション",
+        build: (ids: SeededIds) => ({
+          staffId: ids.secondStaffId,
+          positionSkills: [skill(ids.hallPositionId, "unavailable"), skill(ids.hallPositionId, "lead")],
         }),
       },
     ])("$name を含む保存は Not found で拒否し、同じ一覧のほかのスタッフも保存しない", async ({ build }) => {
@@ -1366,16 +1417,13 @@ describe("shiftSetup/mutations", () => {
         () =>
           t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shiftSetup.mutations.saveStaffShiftProfiles, {
             ...ids.scope,
-            profiles: [
-              { staffId: ids.staffId, unavailablePositionIds: [ids.hallPositionId], skillLevel: "lead" },
-              { ...build(ids), skillLevel: "newcomer" },
-            ],
+            profiles: [{ staffId: ids.staffId, positionSkills: [skill(ids.hallPositionId, "lead")] }, build(ids)],
           }),
         "Not found",
       );
     });
 
-    it("有効なポジションをすべて外す保存は拒否する", async () => {
+    it("有効なポジションのすべてを入れないにする保存は拒否し、同じ一覧のほかのスタッフも保存しない", async () => {
       const t = convexTest(schema, modules);
       const ids = await seedShops(t);
 
@@ -1385,11 +1433,14 @@ describe("shiftSetup/mutations", () => {
           t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shiftSetup.mutations.saveStaffShiftProfiles, {
             ...ids.scope,
             profiles: [
-              { staffId: ids.secondStaffId, unavailablePositionIds: [ids.hallPositionId], skillLevel: "lead" },
+              { staffId: ids.secondStaffId, positionSkills: [skill(ids.hallPositionId, "lead")] },
               {
                 staffId: ids.staffId,
-                unavailablePositionIds: [ids.defaultPositionId, ids.hallPositionId, ids.kitchenPositionId],
-                skillLevel: "standard",
+                positionSkills: [
+                  skill(ids.defaultPositionId, "unavailable"),
+                  skill(ids.hallPositionId, "unavailable"),
+                  skill(ids.kitchenPositionId, "unavailable"),
+                ],
               },
             ],
           }),
@@ -1408,8 +1459,7 @@ describe("shiftSetup/mutations", () => {
             ...ids.scope,
             profiles: Array.from({ length: SHIFT_BOARD_STAFF_LIMIT + 1 }, () => ({
               staffId: ids.staffId,
-              unavailablePositionIds: [],
-              skillLevel: "lead" as const,
+              positionSkills: [skill(ids.hallPositionId, "lead")],
             })),
           }),
         "一度に保存できるスタッフ数を超えています",

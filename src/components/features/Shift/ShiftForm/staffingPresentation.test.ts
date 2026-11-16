@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
+import type { NewcomerStaffIdsByPositionId } from "@/src/domains/shift/positionSkills";
 import type { PositionSegment, PositionType, ShiftData, TimeRange } from "@/src/domains/shift/types";
 import {
   BAND_COLLAPSE_POSITION_COUNT,
@@ -7,7 +8,6 @@ import {
   buildDayStaffingView,
   buildDayTemplateView,
   buildStaffingCountView,
-  collectNewcomerStaffIds,
   type DayStaffingView,
   describeStaffingCount,
   formatStaffingCount,
@@ -90,10 +90,14 @@ const staffing = (overrides: Partial<ShiftFormStaffing> = {}): ShiftFormStaffing
   ...overrides,
 });
 
+/** どのポジションでも新人のスタッフを、ポジションごとの新人の形にする。 */
+const newcomersEverywhere = (staffIds: string[]) =>
+  new Map(positions.map((position) => [position.id, new Set(staffIds)]));
+
 const buildTimeView = (input: {
   shifts?: ShiftData[];
   day?: ShiftFormStaffingDay;
-  newcomerStaffIds?: ReadonlySet<string>;
+  newcomerStaffIdsByPositionId?: NewcomerStaffIdsByPositionId;
   positions?: PositionType[];
 }): DayStaffingView =>
   buildDayStaffingView({
@@ -103,7 +107,7 @@ const buildTimeView = (input: {
     submissionPattern: timePattern,
     timeRange,
     day: input.day,
-    newcomerStaffIds: input.newcomerStaffIds,
+    newcomerStaffIdsByPositionId: input.newcomerStaffIdsByPositionId,
   });
 
 /** 帯の区間を、比べやすい形（時刻、文字、状態、新人だけ）へ射影する。 */
@@ -129,19 +133,6 @@ describe("selectStaffingShifts", () => {
     );
 
     expect(result).toEqual([active]);
-  });
-});
-
-describe("collectNewcomerStaffIds", () => {
-  it("在籍している新人だけを集め、責任者、標準、削除済みの新人は含めない", () => {
-    const result = collectNewcomerStaffIds([
-      { id: "new", skillLevel: "newcomer" },
-      { id: "lead", skillLevel: "lead" },
-      { id: "standard" },
-      { id: "removed-new", skillLevel: "newcomer", isRemoved: true },
-    ]);
-
-    expect([...result]).toEqual(["new"]);
   });
 });
 
@@ -385,7 +376,7 @@ describe("buildDayStaffingView", () => {
       const view = buildTimeView({
         shifts: [shift("new", [segment("09:00", "11:00")])],
         day: timeDay([bar("09:00", "11:00"), bar("09:00", "11:00")]),
-        newcomerStaffIds: new Set(["new"]),
+        newcomerStaffIdsByPositionId: newcomersEverywhere(["new"]),
       });
 
       expect(view.bands[0].segments).toEqual([
@@ -476,11 +467,24 @@ describe("buildDayStaffingView", () => {
       }
     });
 
+    it("ホールでは標準でキッチンでは新人の人が1人でいる場合、キッチンの帯だけに新人だけの印を付ける", () => {
+      const view = buildTimeView({
+        shifts: [shift("mix", [segment("09:00", "11:00", hall), segment("11:00", "13:00", kitchen)])],
+        day: undefined,
+        newcomerStaffIdsByPositionId: new Map([[kitchen.id, new Set(["mix"])]]),
+      });
+
+      expect(projectBands(view).map((band) => [band.name, band.segments])).toEqual([
+        ["ホール", [["09:00〜11:00", "1", "unset", false]]],
+        ["キッチン", [["11:00〜13:00", "1", "unset", true]]],
+      ]);
+    });
+
     it("そのポジションの全員が新人の区間だけに印を付け、標準の人が入る時刻で区切る", () => {
       const view = buildTimeView({
         shifts: [shift("new", [segment("09:00", "13:00")]), shift("std", [segment("11:00", "13:00")])],
         day: undefined,
-        newcomerStaffIds: new Set(["new"]),
+        newcomerStaffIdsByPositionId: newcomersEverywhere(["new"]),
       });
 
       expect(projectBands(view)[0].segments).toEqual([
@@ -532,7 +536,7 @@ describe("buildDayStaffingView", () => {
         submissionPattern: shiftTypePattern,
         timeRange,
         day: day({ requirements }),
-        newcomerStaffIds: new Set(["new"]),
+        newcomerStaffIdsByPositionId: newcomersEverywhere(["new"]),
       });
 
       expect(
@@ -616,7 +620,7 @@ describe("buildDayStaffingView", () => {
             ],
           },
         }),
-        newcomerStaffIds: new Set(["new1", "new2"]),
+        newcomerStaffIdsByPositionId: newcomersEverywhere(["new1", "new2"]),
       });
 
       expect(view.slots).toHaveLength(1);

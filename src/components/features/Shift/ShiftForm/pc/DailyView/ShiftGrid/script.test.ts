@@ -105,4 +105,86 @@ describe("buildShiftBarViewModel", () => {
 
     expect(viewModel?.workBars).toEqual([]);
   });
+
+  describe("熟練度の印を置けるバー", () => {
+    const work = (id: string, positionId: string, start: string, end: string) => ({
+      id,
+      positionId,
+      positionName: positionId === "hall" ? "ホール" : "キッチン",
+      color: "#000",
+      start,
+      end,
+    });
+    const shiftOf = (positions: ShiftData["positions"]): ShiftData => ({
+      id: "shift-1",
+      staffId: "staff-1",
+      staffName: "田中",
+      date: "2026-06-01",
+      requestedTime: null,
+      positions,
+    });
+    const fits = (positions: ShiftData["positions"], hourWidth: number) =>
+      buildShiftBarViewModel({ shift: shiftOf(positions), timeRange, hourWidth, isReadOnly: false })?.workBars.map(
+        (bar) => [bar.key, bar.fitsSkillMark],
+      );
+
+    it("区間ごとに、印に使うポジションを持たせる", () => {
+      const viewModel = buildShiftBarViewModel({
+        shift: shiftOf([work("work-1", "hall", "09:00", "13:00"), work("work-2", "kitchen", "13:00", "17:00")]),
+        timeRange,
+        hourWidth: 100,
+        isReadOnly: false,
+      });
+
+      expect(viewModel?.workBars.map((bar) => bar.workPosition)).toEqual([
+        { positionId: "hall", positionName: "ホール" },
+        { positionId: "kitchen", positionName: "キッチン" },
+      ]);
+    });
+
+    it("勤務時刻のラベルの右に余白があるバーには置ける", () => {
+      expect(fits([work("work-1", "hall", "09:00", "11:00")], 100)).toEqual([["work-1", true]]);
+    });
+
+    it("勤務時刻のラベルに重なる狭いバーには置かない", () => {
+      // 1時間（100px）のバーは、ラベルが占める幅に印が重なる。
+      expect(fits([work("work-1", "hall", "09:00", "10:00")], 100)).toEqual([["work-1", false]]);
+    });
+
+    it("最初の区間が狭く、ラベルが次の区間まで伸びる場合は、ラベルに重ならない区間にだけ置く", () => {
+      expect(
+        fits([work("work-1", "hall", "09:00", "09:30"), work("work-2", "kitchen", "09:30", "17:00")], 100),
+      ).toEqual([
+        ["work-1", false],
+        ["work-2", true],
+      ]);
+    });
+
+    it("印の幅より狭いバーには、ラベルから離れていても置かない", () => {
+      // 30分が15pxになる幅では、2つ目の区間に印が収まらない。
+      expect(fits([work("work-1", "hall", "09:00", "16:30"), work("work-2", "kitchen", "16:30", "17:00")], 30)).toEqual(
+        [
+          ["work-1", true],
+          ["work-2", false],
+        ],
+      );
+    });
+
+    it("境界をドラッグしている間は置かない", () => {
+      const viewModel = buildShiftBarViewModel({
+        shift: shiftOf([work("work-1", "hall", "09:00", "12:00"), work("work-2", "kitchen", "12:00", "17:00")]),
+        timeRange,
+        hourWidth: 100,
+        isReadOnly: false,
+        currentMinutes: 750,
+        linkedTarget: {
+          prevPosition: { positionId: "work-1", positionColor: "#000" },
+          nextPosition: { positionId: "work-2", positionColor: "#000" },
+          boundaryMinutes: 720,
+        },
+      });
+
+      expect(viewModel?.workBars.map((bar) => bar.fitsSkillMark)).toEqual([false, false]);
+    });
+  });
 });

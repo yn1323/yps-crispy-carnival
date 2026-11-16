@@ -291,7 +291,8 @@ const CustomRequirementsDialog = () => {
               limits={BAR_LIMITS}
               formPresentation="inline"
             />
-            <Box pt={3} borderTopWidth="1px" borderColor="gray.200">
+            {/* 狭い画面では、できあがる必要人数をバーの表の中に出すため、ここは空になる。 */}
+            <Box pt={3} borderTopWidth="1px" borderColor="gray.200" _empty={{ display: "none" }}>
               <RequiredCountStrip positions={positions} bars={draft.bars} range={range} />
             </Box>
           </>

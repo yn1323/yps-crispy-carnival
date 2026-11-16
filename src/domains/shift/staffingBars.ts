@@ -4,7 +4,8 @@ import type { StaffingBar } from "./types";
 // 時間指定の必要人数を、バーの集合として扱う純粋処理。
 // 1本のバーが1人分で、ある時刻のポジションの必要人数は、その時刻に重なるバーの本数になる。
 // 行は保存しない。表示のたびに packStaffingBars で行へ詰める。
-// 隣り合うバー（10:00-14:00と14:00-18:00）は、2人の交代と1人の通しを区別するため、つなげない。
+// 足す、伸び縮みさせる、時刻を変える操作のあとは、同じ行で端が接しているバー（10:00-14:00と14:00-18:00）を1本にまとめる。
+// まとめても、重なるバーの本数（必要人数）は変わらない。読み込んだだけのバーは、まとめずにそのまま持つ。
 
 /** 編集中のバー。idは画面側で振る、一覧の中で一意な値である。保存するときは toStoredStaffingBars で外す。 */
 export type EditableStaffingBar = StaffingBar & { id: string };
@@ -128,6 +129,48 @@ const exceedsConcurrentLimit = (
 
 const isValidCount = (count: number): boolean => Number.isInteger(count) && count >= 1;
 
+/**
+ * そのポジションのバーを行へ詰め、同じ行で端が接しているバーを1本にまとめる。
+ * まとめたバーは、先に始まるほうのidを引き継ぐ。別の行にある（同じ時間に重なる）バーはまとめない。
+ * まとめると行の詰め方が変わるため、新しく接するバーがなくなるまで繰り返す。
+ * 時間帯ごとの必要人数（重なるバーの本数）は変わらない。
+ * 受付時間の外にかかるバーは、切りそろえるまで動かせないため、まとめる対象にしない。
+ */
+export const mergeAdjacentStaffingBars = (input: {
+  bars: readonly EditableStaffingBar[];
+  positionId: string;
+  range: StaffingBarRange;
+}): EditableStaffingBar[] => {
+  let current = input.bars.slice();
+  for (;;) {
+    const [{ rows }] = packStaffingBars({ bars: current, positionIds: [input.positionId] });
+    // まとめた先のバーのidと、のばしたあとの終了。
+    const extendedEnds = new Map<string, string>();
+    const absorbedIds = new Set<string>();
+    for (const row of rows) {
+      let head: EditableStaffingBar | null = null;
+      let headEnd = "";
+      for (const bar of row) {
+        const isMergeable = isStaffingBarWithinRange(bar, input.range);
+        if (head && isMergeable && timeToMinutes(headEnd) === timeToMinutes(bar.start)) {
+          headEnd = bar.end;
+          extendedEnds.set(head.id, bar.end);
+          absorbedIds.add(bar.id);
+          continue;
+        }
+        head = isMergeable ? bar : null;
+        headEnd = bar.end;
+      }
+    }
+    if (absorbedIds.size === 0) return current;
+    current = current.flatMap((bar) => {
+      if (absorbedIds.has(bar.id)) return [];
+      const end = extendedEnds.get(bar.id);
+      return [end === undefined ? bar : { ...bar, end }];
+    });
+  }
+};
+
 type AddStaffingBarsInput = {
   bars: readonly EditableStaffingBar[];
   bar: StaffingBar;
@@ -136,12 +179,14 @@ type AddStaffingBarsInput = {
   rules: StaffingBarRules;
 };
 
-/** 同じポジション、同じ時間のバーを、本数分だけ足す。 */
+/**
+ * 同じポジション、同じ時間のバーを、本数分だけ足す。
+ * 足したあと、同じ行で端が接しているバーを1本にまとめる。本数の上限は、まとめたあとの本数で確かめる。
+ */
 export const addStaffingBars = ({ bars, bar, count, rules }: AddStaffingBarsInput): StaffingBarResult => {
   if (!isValidCount(count)) return { ok: false, reason: "INVALID_COUNT" };
   const timeRejection = findTimeRejection(bar, rules);
   if (timeRejection) return { ok: false, reason: timeRejection };
-  if (bars.length + count > rules.limits.maxBars) return { ok: false, reason: "TOO_MANY_BARS" };
 
   const firstId = nextIdNumber(bars);
   const added: EditableStaffingBar[] = Array.from({ length: count }, (_, index) => ({
@@ -150,7 +195,12 @@ export const addStaffingBars = ({ bars, bar, count, rules }: AddStaffingBarsInpu
     start: bar.start,
     end: bar.end,
   }));
-  const next = [...bars, ...added];
+  const next = mergeAdjacentStaffingBars({
+    bars: [...bars, ...added],
+    positionId: bar.positionId,
+    range: rules.range,
+  });
+  if (next.length > rules.limits.maxBars) return { ok: false, reason: "TOO_MANY_BARS" };
   if (exceedsConcurrentLimit(bars, next, bar.positionId, rules.limits)) {
     return { ok: false, reason: "TOO_MANY_CONCURRENT" };
   }
@@ -169,7 +219,10 @@ type UpdateStaffingBarInput = {
   rules: StaffingBarRules;
 };
 
-/** バーの開始と終了を、選んだ時刻へ変える。最小の長さに届かない時刻は受け付けない。 */
+/**
+ * バーの開始と終了を、選んだ時刻へ変える。最小の長さに届かない時刻は受け付けない。
+ * 変えたあと、同じ行で端が接しているバーを1本にまとめる。時刻が変わらない場合は、何もまとめない。
+ */
 export const updateStaffingBar = ({ bars, barId, start, end, rules }: UpdateStaffingBarInput): StaffingBarResult => {
   const target = bars.find((bar) => bar.id === barId);
   if (!target) return { ok: false, reason: "NOT_FOUND" };
@@ -177,7 +230,11 @@ export const updateStaffingBar = ({ bars, barId, start, end, rules }: UpdateStaf
   if (timeRejection) return { ok: false, reason: timeRejection };
   if (target.start === start && target.end === end) return { ok: true, bars: bars.slice() };
 
-  const next = bars.map((bar) => (bar.id === barId ? { ...bar, start, end } : bar));
+  const next = mergeAdjacentStaffingBars({
+    bars: bars.map((bar) => (bar.id === barId ? { ...bar, start, end } : bar)),
+    positionId: target.positionId,
+    range: rules.range,
+  });
   if (exceedsConcurrentLimit(bars, next, target.positionId, rules.limits)) {
     return { ok: false, reason: "TOO_MANY_CONCURRENT" };
   }
@@ -195,9 +252,31 @@ type ResizeStaffingBarInput = {
 };
 
 /**
- * バーの端をドラッグで動かす。
+ * バーの端を動かしたあとの、そのバーの開始と終了を返す。隣のバーとまとめる前の時刻である。
  * 動かした先は刻みへ寄せ、受付時間の内側と、最小の長さが残る位置で止める。
+ * 反対の端を越えるドラッグでも、最小の長さを残す。
+ */
+export const getResizedStaffingBarTime = (input: {
+  bar: Pick<StaffingBar, "start" | "end">;
+  edge: "start" | "end";
+  /** 端を動かした先の時刻（分） */
+  minutes: number;
+  rules: Pick<StaffingBarRules, "range" | "unitMinutes">;
+}): { start: string; end: string } => {
+  const { unitMinutes, range } = input.rules;
+  const current = toMinuteRange(input.bar);
+  const snapped = Math.round(input.minutes / unitMinutes) * unitMinutes;
+  const resized: MinuteRange =
+    input.edge === "start"
+      ? { start: Math.min(Math.max(snapped, range.startMinutes), current.end - unitMinutes), end: current.end }
+      : { start: current.start, end: Math.max(Math.min(snapped, range.endMinutes), current.start + unitMinutes) };
+  return { start: minutesToTime(resized.start), end: minutesToTime(resized.end) };
+};
+
+/**
+ * バーの端をドラッグで動かす。動かした先の時刻は getResizedStaffingBarTime で決める。
  * 反対の端を越えるドラッグでも、バーは消さずに最小の長さで残す。
+ * 動かした端が同じ行の隣のバーに接したら、1本にまとめる。
  */
 export const resizeStaffingBar = ({ bars, barId, edge, minutes, rules }: ResizeStaffingBarInput): StaffingBarResult => {
   const target = bars.find((bar) => bar.id === barId);
@@ -205,24 +284,10 @@ export const resizeStaffingBar = ({ bars, barId, edge, minutes, rules }: ResizeS
   // 受付時間の外にかかるバーは、先に「受付時間に合わせる」で切りそろえる。
   if (!isStaffingBarWithinRange(target, rules.range)) return { ok: false, reason: "OUT_OF_RANGE" };
 
-  const { unitMinutes, range } = rules;
-  const current = toMinuteRange(target);
-  const snapped = Math.round(minutes / unitMinutes) * unitMinutes;
-  const resized: MinuteRange =
-    edge === "start"
-      ? { start: Math.min(Math.max(snapped, range.startMinutes), current.end - unitMinutes), end: current.end }
-      : { start: current.start, end: Math.max(Math.min(snapped, range.endMinutes), current.start + unitMinutes) };
-
-  return updateStaffingBar({
-    bars,
-    barId,
-    start: minutesToTime(resized.start),
-    end: minutesToTime(resized.end),
-    rules,
-  });
+  return updateStaffingBar({ bars, barId, ...getResizedStaffingBarTime({ bar: target, edge, minutes, rules }), rules });
 };
 
-/** バーを消す。 */
+/** バーを消す。まとめたバーは、丸ごと消える。残ったバーはまとめ直さない。 */
 export const removeStaffingBars = (
   bars: readonly EditableStaffingBar[],
   barIds: readonly string[],
@@ -234,81 +299,6 @@ export const removeStaffingBars = (
 /** バーを1本消す。 */
 export const removeStaffingBar = (bars: readonly EditableStaffingBar[], barId: string): EditableStaffingBar[] =>
   removeStaffingBars(bars, [barId]);
-
-export type StaffingBarGroup = {
-  start: string;
-  end: string;
-  /** 同じ時間のバーのid。本数はこの件数である。 */
-  barIds: string[];
-};
-
-/** 一覧で見せるために、同じポジション、同じ時間のバーを1件にまとめ、開始の早い順に並べる。 */
-export const groupStaffingBars = (bars: readonly EditableStaffingBar[], positionId: string): StaffingBarGroup[] => {
-  const groups = new Map<string, StaffingBarGroup>();
-  for (const bar of bars) {
-    if (bar.positionId !== positionId) continue;
-    const key = `${bar.start}-${bar.end}`;
-    const group = groups.get(key);
-    if (group) group.barIds.push(bar.id);
-    else groups.set(key, { start: bar.start, end: bar.end, barIds: [bar.id] });
-  }
-  return [...groups.values()].sort(
-    (a, b) => timeToMinutes(a.start) - timeToMinutes(b.start) || timeToMinutes(a.end) - timeToMinutes(b.end),
-  );
-};
-
-type SetStaffingBarGroupInput = {
-  bars: readonly EditableStaffingBar[];
-  /** まとめて変えるバーのid。同じポジションのバーを渡す。 */
-  barIds: readonly string[];
-  start: string;
-  end: string;
-  /** 変えたあとの本数 */
-  count: number;
-  rules: StaffingBarRules;
-};
-
-/**
- * 一覧でまとめたバーの、時間と本数を変える。
- * 本数を減らすと後ろのバーから消し、増やすと同じ時間のバーを足す。0本にはできない（消すときは removeStaffingBars を使う）。
- */
-export const setStaffingBarGroup = ({
-  bars,
-  barIds,
-  start,
-  end,
-  count,
-  rules,
-}: SetStaffingBarGroupInput): StaffingBarResult => {
-  const targetIds = new Set(barIds);
-  const targets = bars.filter((bar) => targetIds.has(bar.id));
-  if (targets.length === 0) return { ok: false, reason: "NOT_FOUND" };
-  if (!isValidCount(count)) return { ok: false, reason: "INVALID_COUNT" };
-  const timeRejection = findTimeRejection({ start, end }, rules);
-  if (timeRejection) return { ok: false, reason: timeRejection };
-  if (bars.length - targets.length + count > rules.limits.maxBars) return { ok: false, reason: "TOO_MANY_BARS" };
-
-  const positionId = targets[0].positionId;
-  const keptIds = new Set(targets.slice(0, count).map((bar) => bar.id));
-  const firstId = nextIdNumber(bars);
-  const added: EditableStaffingBar[] = Array.from({ length: Math.max(0, count - targets.length) }, (_, index) => ({
-    id: `bar-${firstId + index}`,
-    positionId,
-    start,
-    end,
-  }));
-  const next = [
-    ...bars.flatMap((bar) => {
-      if (!targetIds.has(bar.id)) return [bar];
-      return keptIds.has(bar.id) ? [{ ...bar, start, end }] : [];
-    }),
-    ...added,
-  ];
-  if (exceedsConcurrentLimit(bars, next, positionId, rules.limits)) {
-    return { ok: false, reason: "TOO_MANY_CONCURRENT" };
-  }
-  return { ok: true, bars: next };
-};
 
 export type PackedStaffingBars<Bar extends StaffingBar> = {
   positionId: string;
@@ -409,6 +399,26 @@ export const countRequiredSegments = (input: {
         })),
     };
   });
+
+/**
+ * その時間帯の中で、ポジションの必要人数がとる最小と最大を返す。バーのない時間は0人として数える。
+ * 時間帯の長さが0以下なら、nullを返す。
+ */
+export const getRequiredCountRange = (input: {
+  bars: readonly StaffingBar[];
+  positionId: string;
+  range: StaffingBarRange;
+}): { min: number; max: number } | null => {
+  const [{ segments }] = countRequiredSegments({
+    bars: input.bars,
+    positionIds: [input.positionId],
+    range: input.range,
+    includeEmpty: true,
+  });
+  if (segments.length === 0) return null;
+  const counts = segments.map((segment) => segment.count);
+  return { min: Math.min(...counts), max: Math.max(...counts) };
+};
 
 /** 受付時間の外にかかるバーの本数。完全に外のバーと、範囲の端をまたぐバーを数える。 */
 export const countBarsOutsideRange = (bars: readonly StaffingBar[], range: StaffingBarRange): number =>

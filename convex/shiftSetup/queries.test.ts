@@ -102,9 +102,15 @@ async function seedShiftSetup(t: TestConvex<typeof schema>) {
       name: "責任者スタッフ",
       email: "lead@example.com",
     });
+    // 保存の順はポジションの並び順とずらし、削除済みと別組織のポジションを指す項目も混ぜる。
     await ctx.db.patch(leadStaffId, {
-      unavailablePositionIds: [kitchenPositionId, deletedPositionId],
-      skillLevel: "lead",
+      positionSkills: [
+        { positionId: kitchenPositionId, level: "unavailable" },
+        { positionId: deletedPositionId, level: "unavailable" },
+        { positionId: otherPositionId, level: "newcomer" },
+        { positionId: hallPositionId, level: "newcomer" },
+        { positionId: defaultPositionId, level: "lead" },
+      ],
     });
     const standardStaffId = await seedStaff(ctx, {
       shopId: actor.shopId,
@@ -117,14 +123,14 @@ async function seedShiftSetup(t: TestConvex<typeof schema>) {
       email: "excluded@example.com",
       excludedFromShift: true,
     });
-    await ctx.db.patch(excludedStaffId, { skillLevel: "newcomer" });
+    await ctx.db.patch(excludedStaffId, { positionSkills: [{ positionId: hallPositionId, level: "newcomer" }] });
     const deletedStaffId = await seedStaff(ctx, {
       shopId: actor.shopId,
       name: "削除済みスタッフ",
       email: "deleted@example.com",
       isDeleted: true,
     });
-    await ctx.db.patch(deletedStaffId, { skillLevel: "newcomer" });
+    await ctx.db.patch(deletedStaffId, { positionSkills: [{ positionId: hallPositionId, level: "newcomer" }] });
     await seedStaff(ctx, { shopId: other.shopId, name: "別組織スタッフ", email: "other-staff@example.com" });
 
     return {
@@ -270,34 +276,68 @@ describe("shiftSetup/queries", () => {
           {
             _id: ids.leadStaffId,
             name: "責任者スタッフ",
-            unavailablePositionIds: [ids.kitchenPositionId],
-            skillLevel: "lead",
+            // 削除済みと別組織のポジションを指す項目を除き、ポジションの並び順で返す。
+            positionSkills: [
+              { positionId: ids.defaultPositionId, level: "lead" },
+              { positionId: ids.hallPositionId, level: "newcomer" },
+              { positionId: ids.kitchenPositionId, level: "unavailable" },
+            ],
           },
-          { _id: ids.standardStaffId, name: "標準スタッフ", unavailablePositionIds: [], skillLevel: "standard" },
+          { _id: ids.standardStaffId, name: "標準スタッフ", positionSkills: [] },
         ],
         assistAvailable: false,
       });
     });
 
-    it("残ったポジションのすべてが入れない設定のスタッフは、入れないポジションなしで返す", async () => {
+    it("ポジションの削除で、残ったポジションのすべてが入れないになったスタッフは、入れないの項目を返さない", async () => {
       const t = convexTest(schema, modules);
       const fixture = await seedShiftSetup(t);
-      // 責任者スタッフの入れないポジションはキッチンと削除済みの1件。既定とホールも入れない状態にする。
+      const getStaffs = async () => {
+        const result = await t.withIdentity({ subject: MANAGER_SUBJECT }).query(api.shiftSetup.queries.getShiftSetup, {
+          shopId: fixture.actor.shopId,
+          expectedOrganizationId: fixture.actor.organizationId,
+        });
+        return {
+          positionIds: result?.positions.map((position) => position._id),
+          staffs: result?.staffs.filter((staff) => staff._id === fixture.leadStaffId),
+        };
+      };
+      // 既定とホールに入れず、キッチンでは責任者のスタッフにする。
       await t.run(async (ctx) => {
         await ctx.db.patch(fixture.leadStaffId, {
-          unavailablePositionIds: [fixture.defaultPositionId, fixture.hallPositionId, fixture.kitchenPositionId],
+          positionSkills: [
+            { positionId: fixture.defaultPositionId, level: "unavailable" },
+            { positionId: fixture.hallPositionId, level: "unavailable" },
+            { positionId: fixture.kitchenPositionId, level: "lead" },
+          ],
         });
       });
 
-      const result = await t.withIdentity({ subject: MANAGER_SUBJECT }).query(api.shiftSetup.queries.getShiftSetup, {
-        shopId: fixture.actor.shopId,
-        expectedOrganizationId: fixture.actor.organizationId,
+      // 入れるポジションが残っている間は、保存した項目をそのまま返す。
+      await expect(getStaffs()).resolves.toEqual({
+        positionIds: [fixture.defaultPositionId, fixture.hallPositionId, fixture.kitchenPositionId],
+        staffs: [
+          {
+            _id: fixture.leadStaffId,
+            name: "責任者スタッフ",
+            positionSkills: [
+              { positionId: fixture.defaultPositionId, level: "unavailable" },
+              { positionId: fixture.hallPositionId, level: "unavailable" },
+              { positionId: fixture.kitchenPositionId, level: "lead" },
+            ],
+          },
+        ],
       });
 
-      expect(result?.positions.map((position) => position._id)).toHaveLength(3);
-      expect(result?.staffs.filter((staff) => staff._id === fixture.leadStaffId)).toEqual([
-        { _id: fixture.leadStaffId, name: "責任者スタッフ", unavailablePositionIds: [], skillLevel: "lead" },
-      ]);
+      // 入れる唯一のポジションだったキッチンを削除する。
+      await t.run(async (ctx) => {
+        await ctx.db.patch(fixture.kitchenPositionId, { isDeleted: true });
+      });
+
+      await expect(getStaffs()).resolves.toEqual({
+        positionIds: [fixture.defaultPositionId, fixture.hallPositionId],
+        staffs: [{ _id: fixture.leadStaffId, name: "責任者スタッフ", positionSkills: [] }],
+      });
     });
 
     it("パターン選択の店舗では、店舗にない勤務パターンと削除済みのポジションの人数を除き、設定順で返す", async () => {

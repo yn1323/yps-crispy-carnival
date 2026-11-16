@@ -200,7 +200,7 @@ describe("店舗の設定をシフト表へ渡す", () => {
     });
   });
 
-  it("スタッフの熟練度と入れないポジションを、設定のあるスタッフにだけ付ける", () => {
+  it("ポジションごとの値を、値のあるスタッフにだけ付ける", () => {
     const leadId = "staff-lead" as Id<"staffs">;
     const { result } = renderController({
       data: {
@@ -211,9 +211,14 @@ describe("店舗の設定をシフト表へ渡す", () => {
       staffing: {
         ...emptyStaffing,
         staffProfiles: [
-          { staffId: submittedStaffId, unavailablePositionIds: [kitchenId], skillLevel: "newcomer" },
-          { staffId: leadId, unavailablePositionIds: [], skillLevel: "lead" },
-          { staffId: unsubmittedStaffId, unavailablePositionIds: [kitchenId], skillLevel: "standard" },
+          {
+            staffId: submittedStaffId,
+            positionSkills: [
+              { positionId: hallId, level: "newcomer" },
+              { positionId: kitchenId, level: "unavailable" },
+            ],
+          },
+          { staffId: leadId, positionSkills: [{ positionId: kitchenId, level: "lead" }] },
         ],
       },
     });
@@ -222,33 +227,20 @@ describe("店舗の設定をシフト表へ渡す", () => {
     expect(
       staffs.map((staff) => ({
         id: staff.id,
-        skillLevel: staff.skillLevel,
-        unavailablePositionIds: staff.unavailablePositionIds,
-        hasSkillLevel: Object.hasOwn(staff, "skillLevel"),
-        hasUnavailablePositionIds: Object.hasOwn(staff, "unavailablePositionIds"),
+        positionSkills: staff.positionSkills,
+        hasPositionSkills: Object.hasOwn(staff, "positionSkills"),
       })),
     ).toEqual([
       {
         id: submittedStaffId,
-        skillLevel: "newcomer",
-        unavailablePositionIds: [kitchenId],
-        hasSkillLevel: true,
-        hasUnavailablePositionIds: true,
+        positionSkills: [
+          { positionId: hallId, level: "newcomer" },
+          { positionId: kitchenId, level: "unavailable" },
+        ],
+        hasPositionSkills: true,
       },
-      {
-        id: unsubmittedStaffId,
-        skillLevel: undefined,
-        unavailablePositionIds: [kitchenId],
-        hasSkillLevel: false,
-        hasUnavailablePositionIds: true,
-      },
-      {
-        id: leadId,
-        skillLevel: "lead",
-        unavailablePositionIds: undefined,
-        hasSkillLevel: true,
-        hasUnavailablePositionIds: false,
-      },
+      { id: unsubmittedStaffId, positionSkills: undefined, hasPositionSkills: false },
+      { id: leadId, positionSkills: [{ positionId: kitchenId, level: "lead" }], hasPositionSkills: true },
     ]);
   });
 
@@ -280,7 +272,9 @@ describe("店舗の設定をシフト表へ渡す", () => {
       },
       staffing: {
         ...emptyStaffing,
-        staffProfiles: [{ staffId: submittedStaffId, unavailablePositionIds: [kitchenId], skillLevel: "standard" }],
+        staffProfiles: [
+          { staffId: submittedStaffId, positionSkills: [{ positionId: kitchenId, level: "unavailable" }] },
+        ],
       },
     });
 
@@ -318,11 +312,11 @@ describe("表示の初期状態", () => {
     ["当てられる型がある", { staffing: templateStaffing }],
     ["休憩の決まりがある", { staffing: { ...emptyStaffing, breakRule: { minWorkMinutes: 360, breakMinutes: 45 } } }],
     [
-      "スタッフの属性を設定している",
+      "ポジションごとの値を持つスタッフがいる",
       {
         staffing: {
           ...emptyStaffing,
-          staffProfiles: [{ staffId: submittedStaffId, unavailablePositionIds: [], skillLevel: "lead" }],
+          staffProfiles: [{ staffId: submittedStaffId, positionSkills: [{ positionId: hallId, level: "lead" }] }],
         },
       },
     ],
@@ -835,7 +829,8 @@ describe("新人だけの時間帯の確認事項", () => {
   };
   const newcomerStaffing: ShiftBoardStaffingData = {
     ...emptyStaffing,
-    staffProfiles: [{ staffId: newcomerId, unavailablePositionIds: [], skillLevel: "newcomer" }],
+    // ホールでは新人、キッチンでは標準。
+    staffProfiles: [{ staffId: newcomerId, positionSkills: [{ positionId: hallId, level: "newcomer" }] }],
   };
   const period = { date, positionId: hallId, scope: { kind: "time", start: "14:00", end: "18:00" } };
   const item = { key: `${date}-${hallId}-14:00`, date, label: "1/20(火) ホール 14:00〜18:00" };
@@ -881,6 +876,22 @@ describe("新人だけの時間帯の確認事項", () => {
     expect(result.current.viewModel.confirmDialog.newcomerOnlyItems.map((entry) => entry.label)).toEqual([
       "1/20(火) ホール 10:00〜18:00",
     ]);
+  });
+
+  it("ホールで新人のスタッフが、標準のキッチンに1人で入る時間帯は出さない", () => {
+    const { result } = renderInitialized({
+      data: {
+        ...newcomerData,
+        shiftAssignments: [
+          { staffId: submittedStaffId, date, startTime: "10:00", endTime: "14:00", positionId: hallId },
+          { staffId: newcomerId, date, startTime: "10:00", endTime: "18:00", positionId: kitchenId },
+        ],
+      },
+      staffing: newcomerStaffing,
+    });
+
+    expect(result.current.viewModel.shiftForm.newcomerOnlyPeriods).toEqual([]);
+    expect(result.current.viewModel.confirmDialog.newcomerOnlyItems).toEqual([]);
   });
 
   it("新人の印がないスタッフだけの店舗では、何も出さない", () => {

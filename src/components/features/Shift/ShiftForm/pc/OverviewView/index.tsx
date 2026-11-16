@@ -10,7 +10,6 @@ import {
   selectDateWithDailyStaffOrderAtom,
   shiftConfigAtom,
   shiftsAtom,
-  usesPositionColorsAtom,
   viewModeAtom,
   warningCountByDateAtom,
 } from "../../stores";
@@ -27,7 +26,6 @@ export const OverviewView = ({ weekStart = "mon" }: OverviewViewProps) => {
   const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const setViewMode = useSetAtom(viewModeAtom);
   const detailMode = useAtomValue(detailModeAtom);
-  const usesPositionColors = useAtomValue(usesPositionColorsAtom);
   const { dates, holidays, isReadOnly, staffs } = config;
 
   const weeks = useMemo(
@@ -60,7 +58,6 @@ export const OverviewView = ({ weekStart = "mon" }: OverviewViewProps) => {
               onToggle={() => setOpen({ ...open, [wi]: !isOpen })}
               onDateClick={handleDateClick}
               detailMode={detailMode}
-              usesPositionColors={usesPositionColors}
             />
           );
         })}
@@ -74,7 +71,7 @@ type WeekCardProps = WeekTableProps & {
   onToggle: () => void;
 };
 
-const WeekCard = ({ week, isOpen, onToggle, onDateClick, detailMode, usesPositionColors }: WeekCardProps) => {
+const WeekCard = ({ week, isOpen, onToggle, onDateClick, detailMode }: WeekCardProps) => {
   return (
     <Box
       bg="white"
@@ -116,14 +113,7 @@ const WeekCard = ({ week, isOpen, onToggle, onDateClick, detailMode, usesPositio
         </Box>
       </Flex>
 
-      {isOpen && (
-        <WeekTable
-          week={week}
-          onDateClick={onDateClick}
-          detailMode={detailMode}
-          usesPositionColors={usesPositionColors}
-        />
-      )}
+      {isOpen && <WeekTable week={week} onDateClick={onDateClick} detailMode={detailMode} />}
     </Box>
   );
 };
@@ -133,11 +123,9 @@ type WeekTableProps = {
   onDateClick: (iso: string) => void;
   /** くわしく表示かどうか。falseのときは従来の表と同じ内容を出す。 */
   detailMode: boolean;
-  /** ポジションを塗り分ける表示（くわしく表示で、ポジションが2つ以上）かどうか。 */
-  usesPositionColors: boolean;
 };
 
-const WeekTable = ({ week, onDateClick, detailMode, usesPositionColors }: WeekTableProps) => (
+const WeekTable = ({ week, onDateClick, detailMode }: WeekTableProps) => (
   <Box>
     <Box as="table" w="100%" textStyle="tableDense" style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>
       <Box as="colgroup">
@@ -268,13 +256,20 @@ const WeekTable = ({ week, onDateClick, detailMode, usesPositionColors }: WeekTa
                       </Box>
                       <BreakMark shift={cell.breakShift} compact />
                     </Flex>
-                    {usesPositionColors && (
-                      <Flex justify="center" wrap="wrap" columnGap="6px" rowGap="2px" maxW="100%" color="gray.700">
-                        {cell.positions.map((segment) => (
-                          <PositionMark key={segment.positionId} segment={segment} />
-                        ))}
-                      </Flex>
-                    )}
+                    {/* ポジションが1つの店舗では、熟練度の印がある日だけ出す。 */}
+                    <Flex
+                      justify="center"
+                      wrap="wrap"
+                      columnGap="6px"
+                      rowGap="2px"
+                      maxW="100%"
+                      color="gray.700"
+                      _empty={{ display: "none" }}
+                    >
+                      {cell.positions.map((segment) => (
+                        <PositionMark key={segment.positionId} segment={segment} staff={row.staff} />
+                      ))}
+                    </Flex>
                   </Flex>
                 ) : cell.tone === "assigned" ? (
                   <Box

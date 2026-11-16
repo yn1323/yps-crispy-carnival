@@ -9,6 +9,7 @@ import {
   dayRequirementsValidator,
   shiftBreakRuleValidator,
   shiftDayTemplateWeekdayValidator,
+  staffPositionSkillValidator,
 } from "../_lib/shiftSetupValidators";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
 import { isValidIsoDateString } from "../_lib/validation";
@@ -34,7 +35,9 @@ import { ACTIVE_POSITION_LIMIT_MESSAGE, listActivePositions, listDayTemplates } 
 
 /**
  * 店舗のポジションを、渡された一覧で置き換える。
- * 並び順は配列の順。一覧にない既存のポジションは論理削除する。既定のポジションは削除できない。
+ * 並び順は配列の順。一覧にない既存のポジションは論理削除する。
+ * 既定のポジションを一覧から外した場合は、一覧の先頭を新しい既定にする。
+ * 既定は、ポジションを持たない勤務と、削除したポジションの勤務の表示先である。
  */
 export const savePositions = managerMutation({
   args: {
@@ -58,15 +61,13 @@ export const savePositions = managerMutation({
     if (new Set(inputIds).size !== inputIds.length) throw new ConvexError("Not found");
     // 別店舗・削除済みのIDは、存在を区別せずに拒否する。
     if (inputIds.some((id) => !existingById.has(id))) throw new ConvexError("Not found");
-    if (hadDefaultPosition && !inputIds.includes(defaultPositionId)) {
-      throw new ConvexError("最初からあるポジションは削除できません。\n名前と色は変更できます。");
-    }
+    const replacesDefault = hadDefaultPosition && !inputIds.includes(defaultPositionId);
     const keepsCreatedDefault = !hadDefaultPosition;
     if (keepsCreatedDefault && args.positions.length >= POSITION_ACTIVE_LIMIT) {
       throw new ConvexError(ACTIVE_POSITION_LIMIT_MESSAGE);
     }
 
-    const keptIds = new Set<Id<"positions">>([...inputIds, defaultPositionId]);
+    const keptIds = new Set<Id<"positions">>(replacesDefault ? inputIds : [...inputIds, defaultPositionId]);
     const sortOffset = keepsCreatedDefault ? 1 : 0;
     // ここで作った既定のポジションを画面は知らないため、入力の色が既定と重なることがある。
     // その場合は、まだ使っていない色へ置き換えて見分けられるようにする。
@@ -81,13 +82,19 @@ export const savePositions = managerMutation({
     await Promise.all(
       existing
         .filter((position) => !keptIds.has(position._id))
-        .map((position) => ctx.db.patch(position._id, { isDeleted: true })),
+        .map((position) => ctx.db.patch(position._id, { isDeleted: true, isDefault: false })),
     );
     await Promise.all(
       parsed.data.positions.map(async (position, index) => {
         const id = args.positions[index].id;
+        const becomesDefault = replacesDefault && index === 0;
         if (id) {
-          await ctx.db.patch(id, { name: position.name, color: position.color, sortOrder: index + sortOffset });
+          await ctx.db.patch(id, {
+            name: position.name,
+            color: position.color,
+            sortOrder: index + sortOffset,
+            ...(becomesDefault ? { isDefault: true } : {}),
+          });
           return;
         }
         await ctx.db.insert("positions", {
@@ -95,7 +102,7 @@ export const savePositions = managerMutation({
           name: position.name,
           color: resolveColor(position.color),
           sortOrder: index + sortOffset,
-          isDefault: false,
+          isDefault: becomesDefault,
           isDeleted: false,
         });
       }),
@@ -192,16 +199,13 @@ export const saveBreakRule = managerMutation({
   },
 });
 
-/** スタッフごとの「入れないポジション」と熟練度を、まとめて保存する。 */
+/**
+ * スタッフごとの、ポジションごとの扱い（入れない、新人、責任者）をまとめて保存する。
+ * 渡したスタッフは全置換で、項目のないポジションは「入れる・熟練度が標準」に戻る。渡さなかったスタッフは変えない。
+ */
 export const saveStaffShiftProfiles = managerMutation({
   args: {
-    profiles: v.array(
-      v.object({
-        staffId: v.id("staffs"),
-        unavailablePositionIds: v.array(v.id("positions")),
-        skillLevel: v.union(v.literal("newcomer"), v.literal("standard"), v.literal("lead")),
-      }),
-    ),
+    profiles: v.array(v.object({ staffId: v.id("staffs"), positionSkills: v.array(staffPositionSkillValidator) })),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -214,12 +218,12 @@ export const saveStaffShiftProfiles = managerMutation({
     const positions = await listActivePositions(ctx, ctx.shop._id);
     const activePositionIds = new Set(positions.map((position) => position._id));
     for (const profile of args.profiles) {
-      const unavailable = new Set(profile.unavailablePositionIds);
-      if (unavailable.size !== profile.unavailablePositionIds.length) throw new ConvexError("Not found");
-      if (profile.unavailablePositionIds.some((positionId) => !activePositionIds.has(positionId))) {
-        throw new ConvexError("Not found");
-      }
-      if (unavailable.size >= activePositionIds.size) {
+      const positionIds = profile.positionSkills.map((skill) => skill.positionId);
+      if (new Set(positionIds).size !== positionIds.length) throw new ConvexError("Not found");
+      // 別店舗・削除済みのIDは、存在を区別せずに拒否する。
+      if (positionIds.some((positionId) => !activePositionIds.has(positionId))) throw new ConvexError("Not found");
+      const unavailableCount = profile.positionSkills.filter((skill) => skill.level === "unavailable").length;
+      if (unavailableCount > 0 && unavailableCount >= activePositionIds.size) {
         throw new ConvexError("入れるポジションを1つ以上残してください");
       }
     }
@@ -233,9 +237,7 @@ export const saveStaffShiftProfiles = managerMutation({
     await Promise.all(
       args.profiles.map((profile) =>
         ctx.db.patch(profile.staffId, {
-          unavailablePositionIds:
-            profile.unavailablePositionIds.length > 0 ? profile.unavailablePositionIds : undefined,
-          skillLevel: profile.skillLevel === "standard" ? undefined : profile.skillLevel,
+          positionSkills: profile.positionSkills.length > 0 ? profile.positionSkills : undefined,
         }),
       ),
     );

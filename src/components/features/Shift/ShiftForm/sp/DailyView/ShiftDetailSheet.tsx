@@ -7,7 +7,7 @@ import { isLegacyCompatibleWorkPosition } from "@/src/domains/shift/positions";
 import { formatShiftClockTime, formatShiftClockTimeRange } from "@/src/domains/shift/time";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { PositionMark } from "../../detailParts";
-import { detailModeAtom, usesPositionColorsAtom } from "../../stores";
+import { detailModeAtom } from "../../stores";
 
 type ShiftDetailSheetProps = {
   staff: StaffType;
@@ -21,7 +21,6 @@ export const ShiftDetailSheet = ({ staff, shift, selectedDate, isOpen, onOpenCha
   const dateLabel = formatDateWithWeekday(selectedDate);
 
   const detailMode = useAtomValue(detailModeAtom);
-  const usesPositionColors = useAtomValue(usesPositionColorsAtom);
 
   const visibleSegments = shift?.positions.filter(isLegacyCompatibleWorkPosition) ?? [];
   // 休憩は、くわしく表示のときだけ出す。
@@ -48,12 +47,13 @@ export const ShiftDetailSheet = ({ staff, shift, selectedDate, isOpen, onOpenCha
             </Text>
             <VStack gap={2} align="stretch">
               {visibleSegments.map((seg) =>
-                usesPositionColors ? (
+                detailMode ? (
+                  // くわしく表示: ポジションと、そのポジションでの熟練度の印を時刻の横に添える。
                   <Flex key={seg.id} align="center" gap={3} fontSize="sm" color="gray.700">
                     <Text fontVariantNumeric="tabular-nums">
                       {formatShiftClockTime(seg.start)} - {formatShiftClockTime(seg.end)}
                     </Text>
-                    <PositionMark segment={seg} />
+                    <PositionMark segment={seg} staff={staff} />
                   </Flex>
                 ) : (
                   <Text key={seg.id} fontSize="sm" color="gray.700">

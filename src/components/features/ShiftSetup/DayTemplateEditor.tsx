@@ -1,5 +1,5 @@
 import { Alert, Box, chakra, Field, Flex, Grid, Stack, Text } from "@chakra-ui/react";
-import { useId, useMemo, useState } from "react";
+import { type RefObject, useId, useMemo, useState } from "react";
 import { LuCopy, LuTrash2 } from "react-icons/lu";
 import { SHIFT_DAY_TEMPLATE_NAME_MAX_LENGTH, SHIFT_DAY_TEMPLATE_REQUIRED_COUNT_MAX } from "@/convex/constants";
 import { DAY_TEMPLATE_ISSUE_MESSAGES } from "@/convex/shiftSetup/dayTemplates";
@@ -33,20 +33,15 @@ type Props = {
   canWrite: boolean;
   issueMessage?: string;
   intents: ShiftSetupIntents;
-  /** PCで「できあがる必要人数」を画面の下端に留めるときの、下端からの距離（px）。 */
-  requiredCountBottomOffset: number;
+  /** 型の名前の欄。型を足したあとに、ここへフォーカスを移すために受け取る。 */
+  nameInputRef: RefObject<HTMLInputElement | null>;
 };
 
+/** 名前の欄を見える位置へ送るときに空ける、上（ヘッダー、保存の操作、「編集する型」）と下（メインメニュー）の余白。 */
+const NAME_FIELD_SCROLL_MARGIN = { top: "14rem", bottom: "5rem" };
+
 /** 選んだ型の、名前、使う日、必要人数を編集する。 */
-export function DayTemplateEditor({
-  draft,
-  drafts,
-  setup,
-  canWrite,
-  issueMessage,
-  intents,
-  requiredCountBottomOffset,
-}: Props) {
+export function DayTemplateEditor({ draft, drafts, setup, canWrite, issueMessage, intents, nameInputRef }: Props) {
   const dayLabelId = useId();
   const [isCopyDialogOpen, setIsCopyDialogOpen] = useState(false);
   const [isRemoveDialogOpen, setIsRemoveDialogOpen] = useState(false);
@@ -76,11 +71,16 @@ export function DayTemplateEditor({
         <Field.Root flex="1 1 12rem" maxW="20rem" minW={0}>
           <Field.Label>型の名前</Field.Label>
           <Input
+            ref={nameInputRef}
             value={draft.name}
             maxLength={SHIFT_DAY_TEMPLATE_NAME_MAX_LENGTH}
             placeholder="平日"
             bg="white"
+            scrollMarginTop={NAME_FIELD_SCROLL_MARGIN.top}
+            scrollMarginBottom={NAME_FIELD_SCROLL_MARGIN.bottom}
             disabled={!canWrite}
+            // 「通常」「型2」などの初期値を消さずに打ち替えられるよう、欄に入ったら全体を選ぶ。
+            onFocus={(event) => event.currentTarget.select()}
             onChange={(event) => intents.onRenameDayTemplate(draft.rowKey, event.target.value)}
           />
         </Field.Root>
@@ -171,13 +171,7 @@ export function DayTemplateEditor({
         </Alert.Root>
       )}
 
-      <Requirements
-        draft={draft}
-        setup={setup}
-        canWrite={canWrite}
-        intents={intents}
-        requiredCountBottomOffset={requiredCountBottomOffset}
-      />
+      <Requirements draft={draft} setup={setup} canWrite={canWrite} intents={intents} />
 
       <CopyRequirementsDialog
         isOpen={isCopyDialogOpen && canWrite}
@@ -214,10 +208,10 @@ export function DayTemplateEditor({
   );
 }
 
-type RequirementsProps = Pick<Props, "draft" | "setup" | "canWrite" | "intents" | "requiredCountBottomOffset">;
+type RequirementsProps = Pick<Props, "draft" | "setup" | "canWrite" | "intents">;
 
 /** 必要人数の入力。時間指定はバー、パターン選択と日付選択は数字の表で入れる。 */
-function Requirements({ draft, setup, canWrite, intents, requiredCountBottomOffset }: RequirementsProps) {
+function Requirements({ draft, setup, canWrite, intents }: RequirementsProps) {
   const { requirements } = draft;
   const pattern = setup.submissionPattern;
   const positions = useMemo(
@@ -237,7 +231,7 @@ function Requirements({ draft, setup, canWrite, intents, requiredCountBottomOffs
 
   if (requirements.kind === "time" && range) {
     return (
-      <Stack gap={{ base: 4, lg: 3 }}>
+      <Stack gap={6} pb={{ base: 4, md: 5 }}>
         <StaffingBarEditor
           positions={positions}
           bars={requirements.bars}
@@ -247,22 +241,12 @@ function Requirements({ draft, setup, canWrite, intents, requiredCountBottomOffs
           limits={DAY_TEMPLATE_BAR_LIMITS}
         />
         <Box
-          // バーの行が増えても人数を確かめられるよう、PCでは画面の下端に留める。
-          // スマートフォンは一覧が縦に長くなるため留めず、バーの一覧の下に置く。
-          position={{ lg: "sticky" }}
-          bottom={{ lg: `${requiredCountBottomOffset}px` }}
-          zIndex={{ lg: "docked" }}
-          maxH={{ lg: "40dvh" }}
-          overflowY={{ lg: "auto" }}
-          mx={{ base: -3, md: -5 }}
-          px={{ base: 3, md: 5 }}
-          py={{ base: 4, lg: 3 }}
-          bg="white"
+          // バーの表から離して、表の下に置く。画面の下端には留めない。
+          pt={5}
           borderTopWidth="1px"
           borderColor="gray.200"
-          borderBottomRightRadius="xl"
-          borderBottomLeftRadius={{ base: "xl", lg: 0 }}
-          boxShadow={{ lg: "0 -6px 12px -10px rgba(0, 0, 0, 0.3)" }}
+          // 狭い画面では「できあがる必要人数」をバーの表の中に出すため、中身がなければ枠ごと出さない。
+          _empty={{ display: "none" }}
         >
           <RequiredCountStrip positions={positions} bars={requirements.bars} range={range} />
         </Box>

@@ -8,13 +8,14 @@ import {
   DEFAULT_STAFFING_BAR_LIMITS,
   type EditableStaffingBar,
   getPeakStaffingBarCount,
-  groupStaffingBars,
+  getRequiredCountRange,
+  getResizedStaffingBarTime,
+  mergeAdjacentStaffingBars,
   packStaffingBars,
   removeStaffingBar,
   removeStaffingBars,
   resizeStaffingBar,
   type StaffingBarRules,
-  setStaffingBarGroup,
   toEditableStaffingBars,
   toStoredStaffingBars,
   trimBarsToRange,
@@ -85,7 +86,7 @@ describe("packStaffingBars", () => {
     ]);
   });
 
-  it("隣り合うバーは同じ行に並べ、1本につなげない", () => {
+  it("隣り合うバーは同じ行に並べる。読み込んだだけのバーは、1本にまとめない", () => {
     const [hall] = packStaffingBars({
       bars: [bar("a", "10:00", "14:00"), bar("b", "14:00", "18:00")],
       positionIds: [HALL],
@@ -163,10 +164,29 @@ describe("addStaffingBar / addStaffingBars", () => {
     });
   });
 
-  it("隣り合うバーを足しても、もとのバーとつなげない", () => {
+  it("同じ行で隣り合うバーを足すと、もとのバーと1本にまとまる", () => {
     const result = addStaffingBar({ bars: [bar("bar-1", "10:00", "14:00")], bar: stored("14:00", "18:00"), rules });
 
-    expect(result).toEqual({ ok: true, bars: [bar("bar-1", "10:00", "14:00"), bar("bar-2", "14:00", "18:00")] });
+    expect(result).toEqual({ ok: true, bars: [bar("bar-1", "10:00", "18:00")] });
+  });
+
+  it("足したバーが先に始まる場合は、足したバーのidを引き継ぐ", () => {
+    const result = addStaffingBar({ bars: [bar("bar-1", "14:00", "18:00")], bar: stored("10:00", "14:00"), rules });
+
+    expect(result).toEqual({ ok: true, bars: [bar("bar-2", "10:00", "18:00")] });
+  });
+
+  it("同じ時間に重なるバーは、別の行になるのでまとめない", () => {
+    const result = addStaffingBar({ bars: [bar("bar-1", "10:00", "14:00")], bar: stored("13:30", "18:00"), rules });
+
+    expect(result).toEqual({ ok: true, bars: [bar("bar-1", "10:00", "14:00"), bar("bar-2", "13:30", "18:00")] });
+  });
+
+  it("ほかのポジションの隣り合うバーは、足した操作ではまとめない", () => {
+    const kitchenBars = [bar("bar-1", "10:00", "14:00", KITCHEN), bar("bar-2", "14:00", "18:00", KITCHEN)];
+    const result = addStaffingBar({ bars: kitchenBars, bar: stored("11:00", "12:00"), rules });
+
+    expect(result).toEqual({ ok: true, bars: [...kitchenBars, bar("bar-3", "11:00", "12:00")] });
   });
 
   it("受付時間の端から端までのバーと、最小の30分のバーは足せる", () => {
@@ -224,14 +244,28 @@ describe("addStaffingBar / addStaffingBars", () => {
 
   describe("1つの型のバーの上限", () => {
     const smallLimit: StaffingBarRules = { ...rules, limits: { maxConcurrentPerPosition: 10, maxBars: 4 } };
-    const three = [bar("bar-1", "09:00", "10:00"), bar("bar-2", "10:00", "11:00"), bar("bar-3", "11:00", "12:00")];
+    const three = [bar("bar-1", "09:00", "10:00"), bar("bar-2", "11:00", "12:00"), bar("bar-3", "13:00", "14:00")];
 
     it("上限ちょうどまでは足せる", () => {
-      expect(addStaffingBar({ bars: three, bar: stored("12:00", "13:00"), rules: smallLimit }).ok).toBe(true);
+      expect(addStaffingBar({ bars: three, bar: stored("15:00", "16:00"), rules: smallLimit }).ok).toBe(true);
     });
 
     it("上限を超える本数は、1本も足さずに受け付けない", () => {
-      expect(addStaffingBars({ bars: three, bar: stored("12:00", "13:00"), count: 2, rules: smallLimit })).toEqual({
+      expect(addStaffingBars({ bars: three, bar: stored("15:00", "16:00"), count: 2, rules: smallLimit })).toEqual({
+        ok: false,
+        reason: "TOO_MANY_BARS",
+      });
+    });
+
+    it("上限は、隣のバーとまとめたあとの本数で確かめる", () => {
+      const four = [...three, bar("bar-4", "15:00", "16:00")];
+
+      // 16:00〜17:00 は 15:00〜16:00 とまとまり、4本のままになる。
+      expect(addStaffingBar({ bars: four, bar: stored("16:00", "17:00"), rules: smallLimit })).toEqual({
+        ok: true,
+        bars: [...three, bar("bar-4", "15:00", "17:00")],
+      });
+      expect(addStaffingBar({ bars: four, bar: stored("17:00", "18:00"), rules: smallLimit })).toEqual({
         ok: false,
         reason: "TOO_MANY_BARS",
       });
@@ -246,6 +280,22 @@ describe("updateStaffingBar", () => {
     expect(updateStaffingBar({ bars, barId: "bar-1", start: "09:00", end: "12:00", rules })).toEqual({
       ok: true,
       bars: [bar("bar-1", "09:00", "12:00"), bar("bar-2", "14:00", "18:00")],
+    });
+  });
+
+  it("変えた先で同じ行の隣のバーに接したら、1本にまとめる", () => {
+    const apart = [bar("bar-1", "10:00", "12:00"), bar("bar-2", "14:00", "18:00")];
+
+    expect(updateStaffingBar({ bars: apart, barId: "bar-2", start: "12:00", end: "18:00", rules })).toEqual({
+      ok: true,
+      bars: [bar("bar-1", "10:00", "18:00")],
+    });
+  });
+
+  it("時刻を変えない場合は、読み込んだままの隣り合うバーをまとめない", () => {
+    expect(updateStaffingBar({ bars, barId: "bar-1", start: "10:00", end: "14:00", rules })).toEqual({
+      ok: true,
+      bars,
     });
   });
 
@@ -322,16 +372,39 @@ describe("resizeStaffingBar", () => {
     expect(resize("end", 23 * 60)).toEqual({ ok: true, bars: [bar("bar-1", "11:00", "22:00")] });
   });
 
-  it("隣のバーに触れるまで伸ばしても、つなげない", () => {
+  it("同じ行の隣のバーに接するまで伸ばすと、1本にまとまる", () => {
+    const apart = [bar("bar-1", "10:00", "13:00"), bar("bar-2", "14:00", "18:00")];
+
+    expect(resizeStaffingBar({ bars: apart, barId: "bar-1", edge: "end", minutes: 14 * 60, rules })).toEqual({
+      ok: true,
+      bars: [bar("bar-1", "10:00", "18:00")],
+    });
+    // 後ろのバーの開始を伸ばして接した場合も、先に始まるバーのidを引き継ぐ。
+    expect(resizeStaffingBar({ bars: apart, barId: "bar-2", edge: "start", minutes: 13 * 60, rules })).toEqual({
+      ok: true,
+      bars: [bar("bar-1", "10:00", "18:00")],
+    });
+  });
+
+  it("隣のバーを越えて伸ばすと、重なったバーは別の行になり、まとまらない", () => {
     const result = resizeStaffingBar({
       bars: [bar("bar-1", "10:00", "13:00"), bar("bar-2", "14:00", "18:00")],
       barId: "bar-1",
       edge: "end",
-      minutes: 14 * 60,
+      minutes: 15 * 60,
       rules,
     });
 
-    expect(result).toEqual({ ok: true, bars: [bar("bar-1", "10:00", "14:00"), bar("bar-2", "14:00", "18:00")] });
+    expect(result).toEqual({ ok: true, bars: [bar("bar-1", "10:00", "15:00"), bar("bar-2", "14:00", "18:00")] });
+  });
+
+  it("動かさずに離した場合は、読み込んだままの隣り合うバーをまとめない", () => {
+    const touching = [bar("bar-1", "10:00", "14:00"), bar("bar-2", "14:00", "18:00")];
+
+    expect(resizeStaffingBar({ bars: touching, barId: "bar-1", edge: "end", minutes: 14 * 60, rules })).toEqual({
+      ok: true,
+      bars: touching,
+    });
   });
 
   it("伸ばした先で重なりが上限を超える場合は受け付けない", () => {
@@ -368,6 +441,123 @@ describe("resizeStaffingBar", () => {
   });
 });
 
+describe("getResizedStaffingBarTime", () => {
+  const resized = (edge: "start" | "end", minutes: number) =>
+    getResizedStaffingBarTime({ bar: { start: "11:00", end: "14:00" }, edge, minutes, rules });
+
+  it("動かした端だけを、30分へ寄せた時刻にする", () => {
+    expect(resized("end", 15 * 60 + 20)).toEqual({ start: "11:00", end: "15:30" });
+    expect(resized("start", 9 * 60 + 40)).toEqual({ start: "09:30", end: "14:00" });
+  });
+
+  it("反対の端を越える位置では、最小の30分を残す", () => {
+    expect(resized("end", 9 * 60)).toEqual({ start: "11:00", end: "11:30" });
+    expect(resized("start", 18 * 60)).toEqual({ start: "13:30", end: "14:00" });
+  });
+
+  it("受付時間の端を越える位置では、端で止める", () => {
+    expect(resized("start", 8 * 60)).toEqual({ start: "09:00", end: "14:00" });
+    expect(resized("end", 23 * 60)).toEqual({ start: "11:00", end: "22:00" });
+  });
+});
+
+describe("mergeAdjacentStaffingBars", () => {
+  const merge = (bars: EditableStaffingBar[], positionId: string = HALL) =>
+    mergeAdjacentStaffingBars({ bars, positionId, range: rules.range });
+  /** 30分ごとの、ホールとキッチンの必要人数。まとめる前後で変わらないことを確かめるために使う。 */
+  const requiredCounts = (bars: StaffingBar[]) =>
+    countRequiredSegments({ bars, positionIds: [HALL, KITCHEN], range: rules.range, includeEmpty: true });
+
+  it("同じ行で端が接している3本を、先に始まるバーのidで1本にまとめる", () => {
+    // 利用者の画面にあった並び。09:30〜15:00、15:00〜16:00、16:00〜21:30 が1行目にすき間なく並ぶ。
+    const bars = [bar("bar-2", "15:00", "16:00"), bar("bar-1", "09:30", "15:00"), bar("bar-3", "16:00", "21:30")];
+
+    expect(merge(bars)).toEqual([bar("bar-1", "09:30", "21:30")]);
+  });
+
+  it("すき間のあるバーと、別の行で重なるバーはまとめない", () => {
+    const bars = [
+      bar("bar-1", "09:00", "12:00"),
+      bar("bar-2", "12:30", "14:00"),
+      bar("bar-3", "11:00", "13:00"),
+      bar("bar-4", "09:00", "12:00"),
+    ];
+
+    expect(merge(bars)).toEqual(bars);
+  });
+
+  it("まとめたバーは一覧のもとの位置に残り、ほかのバーの並びは変わらない", () => {
+    const bars = [
+      bar("bar-1", "18:00", "22:00"),
+      bar("bar-2", "14:00", "18:00"),
+      bar("bar-3", "09:00", "22:00", KITCHEN),
+      bar("bar-4", "10:00", "14:00"),
+    ];
+
+    expect(merge(bars)).toEqual([bar("bar-3", "09:00", "22:00", KITCHEN), bar("bar-4", "10:00", "22:00")]);
+  });
+
+  it("ほかのポジションの隣り合うバーはまとめない", () => {
+    const bars = [bar("bar-1", "10:00", "14:00", KITCHEN), bar("bar-2", "14:00", "18:00", KITCHEN)];
+
+    expect(merge(bars, HALL)).toEqual(bars);
+    expect(merge(bars, KITCHEN)).toEqual([bar("bar-1", "10:00", "18:00", KITCHEN)]);
+  });
+
+  it("まとめて行の詰め方が変わり、新しく接するバーができたら、続けてまとめる", () => {
+    // 1回目: 1行目の a と b、2行目の c と d がまとまる。
+    // 2回目: 長くなった c（09:00〜13:00）が1行目へ上がり、e（13:00〜15:00）と接してまとまる。
+    const bars = [
+      bar("a", "09:00", "10:00"),
+      bar("b", "10:00", "12:00"),
+      bar("c", "09:00", "09:30"),
+      bar("d", "09:30", "13:00"),
+      bar("e", "13:00", "15:00"),
+    ];
+    const merged = merge(bars);
+
+    expect(merged).toEqual([bar("a", "09:00", "12:00"), bar("c", "09:00", "15:00")]);
+    // まとめた結果は、もう一度まとめても変わらない。
+    expect(merge(merged)).toEqual(merged);
+    expect(requiredCounts(merged)).toEqual(requiredCounts(bars));
+  });
+
+  it("まとめても、時間帯ごとの必要人数は変わらない", () => {
+    const bars = [
+      bar("bar-1", "09:00", "11:00"),
+      bar("bar-2", "11:00", "14:00"),
+      bar("bar-3", "11:00", "14:00"),
+      bar("bar-4", "14:00", "17:00"),
+      bar("bar-5", "14:00", "15:30"),
+      bar("bar-6", "15:30", "22:00"),
+      bar("bar-7", "17:00", "22:00"),
+      bar("bar-8", "12:00", "13:00"),
+      bar("bar-9", "13:00", "18:00"),
+      bar("bar-10", "09:00", "12:00", KITCHEN),
+      bar("bar-11", "12:00", "22:00", KITCHEN),
+    ];
+    const merged = merge(merge(bars, HALL), KITCHEN);
+
+    expect(merged.length).toBeLessThan(bars.length);
+    expect(requiredCounts(merged)).toEqual(requiredCounts(bars));
+  });
+
+  it("受付時間の外にかかるバーは、接していてもまとめない", () => {
+    const bars = [bar("bar-1", "08:00", "12:00"), bar("bar-2", "12:00", "14:00"), bar("bar-3", "14:00", "16:00")];
+
+    expect(merge(bars)).toEqual([bar("bar-1", "08:00", "12:00"), bar("bar-2", "12:00", "16:00")]);
+  });
+
+  it("24時を越えるバーも、接していればまとめる", () => {
+    const overnight = { startMinutes: 18 * 60, endMinutes: 29 * 60 };
+    const bars = [bar("bar-1", "22:00", "24:00"), bar("bar-2", "24:00", "26:30")];
+
+    expect(mergeAdjacentStaffingBars({ bars, positionId: HALL, range: overnight })).toEqual([
+      bar("bar-1", "22:00", "26:30"),
+    ]);
+  });
+});
+
 describe("removeStaffingBar / removeStaffingBars", () => {
   const bars = [bar("bar-1", "11:00", "14:00"), bar("bar-2", "11:00", "14:00"), bar("bar-3", "17:00", "22:00")];
 
@@ -381,100 +571,6 @@ describe("removeStaffingBar / removeStaffingBars", () => {
 
   it("対象のないidを渡しても、ほかのバーは変わらない", () => {
     expect(removeStaffingBar(bars, "missing")).toEqual(bars);
-  });
-});
-
-describe("groupStaffingBars", () => {
-  it("同じ時間のバーを1件にまとめ、開始の早い順、終了の早い順に並べる", () => {
-    const groups = groupStaffingBars(
-      [
-        bar("bar-1", "17:00", "22:00"),
-        bar("bar-2", "11:00", "14:00"),
-        bar("bar-3", "11:00", "13:00"),
-        bar("bar-4", "11:00", "14:00"),
-        bar("bar-5", "11:00", "14:00", KITCHEN),
-      ],
-      HALL,
-    );
-
-    expect(groups).toEqual([
-      { start: "11:00", end: "13:00", barIds: ["bar-3"] },
-      { start: "11:00", end: "14:00", barIds: ["bar-2", "bar-4"] },
-      { start: "17:00", end: "22:00", barIds: ["bar-1"] },
-    ]);
-  });
-
-  it("バーのないポジションは空になる", () => {
-    expect(groupStaffingBars([bar("bar-1", "11:00", "14:00")], KITCHEN)).toEqual([]);
-  });
-});
-
-describe("setStaffingBarGroup", () => {
-  const bars = [
-    bar("bar-1", "11:00", "14:00"),
-    bar("bar-2", "09:00", "22:00"),
-    bar("bar-3", "11:00", "14:00"),
-    bar("bar-4", "11:00", "14:00", KITCHEN),
-  ];
-  const change = (start: string, end: string, count: number) =>
-    setStaffingBarGroup({ bars, barIds: ["bar-1", "bar-3"], start, end, count, rules });
-
-  it("まとめたバーの時間を、本数を保ったまま変える", () => {
-    expect(change("12:00", "15:00", 2)).toEqual({
-      ok: true,
-      bars: [
-        bar("bar-1", "12:00", "15:00"),
-        bar("bar-2", "09:00", "22:00"),
-        bar("bar-3", "12:00", "15:00"),
-        bar("bar-4", "11:00", "14:00", KITCHEN),
-      ],
-    });
-  });
-
-  it("本数を増やすと、同じポジション、同じ時間のバーを足す", () => {
-    expect(change("11:00", "14:00", 3)).toEqual({
-      ok: true,
-      bars: [...bars, bar("bar-5", "11:00", "14:00")],
-    });
-  });
-
-  it("本数を減らすと、後ろのバーから消す", () => {
-    expect(change("11:00", "14:00", 1)).toEqual({
-      ok: true,
-      bars: [bar("bar-1", "11:00", "14:00"), bar("bar-2", "09:00", "22:00"), bar("bar-4", "11:00", "14:00", KITCHEN)],
-    });
-  });
-
-  it("0本にはできない", () => {
-    expect(change("11:00", "14:00", 0)).toEqual({ ok: false, reason: "INVALID_COUNT" });
-  });
-
-  it("最小の長さに届かない時間は受け付けない", () => {
-    expect(change("11:00", "11:00", 2)).toEqual({ ok: false, reason: "TOO_SHORT" });
-  });
-
-  it("重なりが上限を超える本数は受け付けない", () => {
-    // 9:00〜22:00のバーが1本あるため、同じ時間に足せるのは9本まで。
-    expect(change("11:00", "14:00", 9).ok).toBe(true);
-    expect(change("11:00", "14:00", 10)).toEqual({ ok: false, reason: "TOO_MANY_CONCURRENT" });
-  });
-
-  it("型のバーの上限を超える本数は受け付けない", () => {
-    const smallLimit: StaffingBarRules = { ...rules, limits: { maxConcurrentPerPosition: 10, maxBars: 5 } };
-    const input = { bars, barIds: ["bar-1", "bar-3"], start: "11:00", end: "14:00" };
-
-    expect(setStaffingBarGroup({ ...input, count: 3, rules: smallLimit }).ok).toBe(true);
-    expect(setStaffingBarGroup({ ...input, count: 4, rules: smallLimit })).toEqual({
-      ok: false,
-      reason: "TOO_MANY_BARS",
-    });
-  });
-
-  it("対象のバーがなければ受け付けない", () => {
-    expect(setStaffingBarGroup({ bars, barIds: ["missing"], start: "11:00", end: "14:00", count: 1, rules })).toEqual({
-      ok: false,
-      reason: "NOT_FOUND",
-    });
   });
 });
 
@@ -599,6 +695,44 @@ describe("countRequiredSegments", () => {
 
   it("バーのないポジションは区間が空になる", () => {
     expect(countRequiredSegments({ bars: [], positionIds: [HALL] })).toEqual([{ positionId: HALL, segments: [] }]);
+  });
+});
+
+describe("getRequiredCountRange", () => {
+  const bars = [
+    stored("09:00", "22:00"),
+    stored("11:00", "14:00"),
+    stored("11:00", "14:00"),
+    stored("18:00", "22:00", KITCHEN),
+  ];
+  const count = (start: number, end: number, positionId: string = HALL) =>
+    getRequiredCountRange({ bars, positionId, range: { startMinutes: start, endMinutes: end } });
+
+  it("時間帯の中で人数が変わらなければ、最小と最大が同じになる", () => {
+    expect(count(11 * 60, 14 * 60)).toEqual({ min: 3, max: 3 });
+  });
+
+  it("時間帯の中で人数が変わるなら、最小と最大を返す", () => {
+    expect(count(9 * 60, 22 * 60)).toEqual({ min: 1, max: 3 });
+  });
+
+  it("人数が変わる時刻ちょうどで区切った時間帯は、隣の人数を含めない", () => {
+    expect(count(14 * 60, 15 * 60)).toEqual({ min: 1, max: 1 });
+    expect(count(13 * 60 + 30, 14 * 60 + 30)).toEqual({ min: 1, max: 3 });
+  });
+
+  it("バーのない時間は0人として数える", () => {
+    expect(count(9 * 60, 18 * 60, KITCHEN)).toEqual({ min: 0, max: 0 });
+    expect(count(17 * 60, 19 * 60, KITCHEN)).toEqual({ min: 0, max: 1 });
+  });
+
+  it("ほかのポジションのバーは数えない", () => {
+    expect(count(18 * 60, 22 * 60, KITCHEN)).toEqual({ min: 1, max: 1 });
+  });
+
+  it("長さが0以下の時間帯はnullを返す", () => {
+    expect(count(11 * 60, 11 * 60)).toBeNull();
+    expect(count(14 * 60, 11 * 60)).toBeNull();
   });
 });
 

@@ -1,5 +1,6 @@
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import { getEditableEndMinutes, getEditableStartMinutes } from "@/src/components/shared/ShiftTimeline/timelineGeometry";
+import type { NewcomerStaffIdsByPositionId } from "@/src/domains/shift/positionSkills";
 import {
   buildPositionStaffingBands,
   countStaffingByDay,
@@ -204,8 +205,8 @@ type BuildInput = {
   timeRange: TimeRange;
   // サーバーが解決した、その日の必要人数。渡さない日は未設定として扱う。
   day: ShiftFormStaffingDay | undefined;
-  // 新人のstaffId
-  newcomerStaffIds?: ReadonlySet<string>;
+  // ポジションごとの、新人のstaffId
+  newcomerStaffIdsByPositionId?: NewcomerStaffIdsByPositionId;
 };
 
 /**
@@ -220,12 +221,6 @@ export const selectStaffingShifts = (
   const staffIds = new Set(staffs.filter((staff) => !staff.isRemoved).map((staff) => staff.id));
   return shifts.filter((shift) => shift.date === date && staffIds.has(shift.staffId));
 };
-
-/** 新人のstaffIdを集める。削除済みのスタッフは含めない。 */
-export const collectNewcomerStaffIds = (
-  staffs: ReadonlyArray<Pick<StaffType, "id" | "isRemoved" | "skillLevel">>,
-): Set<string> =>
-  new Set(staffs.filter((staff) => !staff.isRemoved && staff.skillLevel === "newcomer").map((staff) => staff.id));
 
 /** 必要人数のバーを、時間の軸に置く形へ直す。時間指定ではない必要人数と未設定はnullを返す。 */
 export const toStaffingBars = (requirements: ShiftFormDayRequirements | null | undefined): StaffingBar[] | null =>
@@ -260,7 +255,7 @@ const buildSlotViews = (input: BuildInput): StaffingSlotView[] => {
   const base = {
     shifts: input.shifts,
     positionIds: input.positions.map((position) => position.id),
-    newcomerStaffIds: input.newcomerStaffIds,
+    newcomerStaffIdsByPositionId: input.newcomerStaffIdsByPositionId,
     slots: toStaffingSlots(input.day?.requirements),
   };
   const counts =
@@ -289,7 +284,7 @@ const buildBandViews = (input: BuildInput): StaffingBandView[] => {
     shifts: input.shifts,
     bars: toStaffingBars(input.day?.requirements),
     positionIds: input.positions.map((position) => position.id),
-    newcomerStaffIds: input.newcomerStaffIds,
+    newcomerStaffIdsByPositionId: input.newcomerStaffIdsByPositionId,
     startMinutes: getEditableStartMinutes(input.timeRange),
     endMinutes: getEditableEndMinutes(input.timeRange),
   });

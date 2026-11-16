@@ -9,7 +9,6 @@ import {
   selectDateWithDailyStaffOrderAtom,
   shiftConfigAtom,
   shiftsAtom,
-  usesPositionColorsAtom,
   viewModeAtom,
   warningCountByDateAtom,
 } from "../../stores";
@@ -172,7 +171,6 @@ const DayRow = ({ row, onDateTap }: { row: OverviewDayRowViewModel; onDateTap: (
 
 const DayStaffList = ({ rows }: { rows: OverviewStaffRowViewModel[] }) => {
   const detailMode = useAtomValue(detailModeAtom);
-  const usesPositionColors = useAtomValue(usesPositionColorsAtom);
 
   if (!detailMode) {
     return (
@@ -209,13 +207,12 @@ const DayStaffList = ({ rows }: { rows: OverviewStaffRowViewModel[] }) => {
               {staff.assignedTimeLabel}
             </Box>
           </Flex>
-          {usesPositionColors && (
-            <Flex justify="flex-end" columnGap={2} flexWrap="wrap" color="gray.700">
-              {staff.positionMarks.map((mark) => (
-                <PositionMark key={mark.key} segment={mark} />
-              ))}
-            </Flex>
-          )}
+          {/* ポジションが1つの店舗では、熟練度の印がある人だけ出す。 */}
+          <Flex justify="flex-end" columnGap={2} flexWrap="wrap" color="gray.700" _empty={{ display: "none" }}>
+            {staff.positionMarks.map((mark) => (
+              <PositionMark key={mark.key} segment={mark} staff={staff.staff} />
+            ))}
+          </Flex>
         </Box>
       ))}
     </Stack>

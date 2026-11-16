@@ -7,20 +7,25 @@ import { NativeSelect } from "@/src/components/ui/FormControls";
 import {
   addStaffingBars,
   type EditableStaffingBar,
-  removeStaffingBars,
-  type StaffingBarGroup,
+  getRequiredCountRange,
+  removeStaffingBar,
   type StaffingBarResult,
   type StaffingBarRules,
-  setStaffingBarGroup,
+  updateStaffingBar,
 } from "@/src/domains/shift/staffingBars";
-import { minutesToTime } from "@/src/domains/shift/time";
+import { minutesToTime, timeToMinutes } from "@/src/domains/shift/time";
 import { BarTimeFields } from "./BarTimeFields";
-import { buildTimeOptions, getRejectionMessage, type StaffingBarEditorPosition } from "./script";
+import {
+  buildTimeOptions,
+  formatRequiredCountChange,
+  getRejectionMessage,
+  type StaffingBarEditorPosition,
+} from "./script";
 
-/** 開く対象。足すときはポジションだけ、変えるときは一覧でまとめたバーも持つ。 */
+/** 開く対象。足すときはポジションだけ、変えるときは押した1本のバーも持つ。 */
 export type BarFormTarget =
   | { mode: "add"; position: StaffingBarEditorPosition }
-  | { mode: "edit"; position: StaffingBarEditorPosition; group: StaffingBarGroup };
+  | { mode: "edit"; position: StaffingBarEditorPosition; bar: EditableStaffingBar };
 
 type BarFormDialogProps = {
   /** 最後に開いた対象。閉じるアニメーションの間も内容を保つため、閉じてもnullに戻さない。 */
@@ -32,11 +37,25 @@ type BarFormDialogProps = {
   onClose: () => void;
 };
 
+const getTargetKey = (target: BarFormTarget) =>
+  `${target.mode}-${target.position.id}-${target.mode === "edit" ? target.bar.id : ""}`;
+
 /**
- * 時刻と本数を選んでバーを足す、または一覧でまとめたバーを変えるDialog。
+ * 時刻と本数を選んでバーを足す、または押した1本のバーの時刻を変えるDialog。
  * ドラッグを使わずに、キーボードとスマートフォンで同じことができるようにする。
  */
-export const BarFormDialog = ({ target, isOpen, bars, rules, onChange, onClose }: BarFormDialogProps) => {
+export const BarFormDialog = ({
+  target,
+  isOpen,
+  bars,
+  rules,
+  onChange,
+  onClose,
+  finalFocusEl,
+}: BarFormDialogProps & {
+  /** 閉じたあとにフォーカスを戻す要素。押したバーを消した場合の戻り先を、使う側が決める。 */
+  finalFocusEl?: () => HTMLElement | null;
+}) => {
   const formId = useId();
   if (!target) return null;
 
@@ -50,10 +69,11 @@ export const BarFormDialog = ({ target, isOpen, bars, rules, onChange, onClose }
       onClose={onClose}
       formId={formId}
       submitLabel={getBarFormSubmitLabel(target)}
+      finalFocusEl={finalFocusEl}
       unmountOnExit
     >
       <BarForm
-        key={`${target.mode}-${target.position.id}-${target.mode === "edit" ? target.group.barIds.join(",") : ""}`}
+        key={getTargetKey(target)}
         formId={formId}
         target={target}
         bars={bars}
@@ -77,9 +97,7 @@ export const BarFormPanel = ({ target, isOpen, bars, rules, onChange, onClose }:
   const formId = useId();
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
-  const targetKey = target
-    ? `${target.mode}-${target.position.id}-${target.mode === "edit" ? target.group.barIds.join(",") : ""}`
-    : "";
+  const targetKey = target ? getTargetKey(target) : "";
 
   // 開いたら、入力が見える位置へ寄せて最初の入力へフォーカスを移す。
   // biome-ignore lint/correctness/useExhaustiveDependencies: 対象が変わったときにも寄せ直す。
@@ -135,17 +153,15 @@ const BarForm = ({ formId, target, bars, rules, onChange, onClose }: BarFormProp
   const timeOptions = useMemo(() => buildTimeOptions(rules), [rules]);
   const [time, setTime] = useState(() =>
     target.mode === "edit"
-      ? { start: target.group.start, end: target.group.end }
+      ? { start: target.bar.start, end: target.bar.end }
       : {
           // 選択肢と同じく、刻みに乗る内側の端から端までを初期値にする。
           start: timeOptions[0]?.value ?? minutesToTime(rules.range.startMinutes),
           end: timeOptions.at(-1)?.value ?? minutesToTime(rules.range.endMinutes),
         },
   );
-  const [count, setCount] = useState(target.mode === "edit" ? target.group.barIds.length : 1);
+  const [count, setCount] = useState(1);
   const [error, setError] = useState<string | null>(null);
-  // 上限を超えて保存されていた本数も、選択肢に残して表示する。
-  const maxCount = Math.max(rules.limits.maxConcurrentPerPosition, count);
 
   const apply = (result: StaffingBarResult) => {
     if (!result.ok) {
@@ -162,12 +178,12 @@ const BarForm = ({ formId, target, bars, rules, onChange, onClose }: BarFormProp
       apply(addStaffingBars({ bars, bar: { positionId: target.position.id, ...time }, count, rules }));
       return;
     }
-    apply(setStaffingBarGroup({ bars, barIds: target.group.barIds, ...time, count, rules }));
+    apply(updateStaffingBar({ bars, barId: target.bar.id, ...time, rules }));
   };
 
   const handleDelete = () => {
     if (target.mode !== "edit") return;
-    onChange(removeStaffingBars(bars, target.group.barIds));
+    onChange(removeStaffingBar(bars, target.bar.id));
     onClose();
   };
 
@@ -178,34 +194,42 @@ const BarForm = ({ formId, target, bars, rules, onChange, onClose }: BarFormProp
           start={time.start}
           end={time.end}
           options={timeOptions}
+          unitMinutes={rules.unitMinutes}
           onChange={(next) => {
             setTime(next);
             setError(null);
           }}
         />
-        <Field.Root>
-          <Field.Label>本数</Field.Label>
-          <NativeSelect.Root size="sm">
-            <NativeSelect.Field
-              value={String(count)}
-              bg="white"
-              minH={{ base: "44px", md: "36px" }}
-              fontVariantNumeric="tabular-nums"
-              onChange={(event) => {
-                setCount(Number(event.target.value));
-                setError(null);
-              }}
-            >
-              {Array.from({ length: maxCount }, (_, index) => index + 1).map((value) => (
-                <option key={value} value={value}>
-                  {value}本
-                </option>
-              ))}
-            </NativeSelect.Field>
-            <NativeSelect.Indicator />
-          </NativeSelect.Root>
-          <Field.HelperText>1本が1人分です</Field.HelperText>
-        </Field.Root>
+        {target.mode === "add" && (
+          <>
+            <Field.Root>
+              <Field.Label>足す本数</Field.Label>
+              <NativeSelect.Root size="sm">
+                <NativeSelect.Field
+                  value={String(count)}
+                  bg="white"
+                  minH={{ base: "44px", md: "36px" }}
+                  fontVariantNumeric="tabular-nums"
+                  onChange={(event) => {
+                    setCount(Number(event.target.value));
+                    setError(null);
+                  }}
+                >
+                  {Array.from({ length: rules.limits.maxConcurrentPerPosition }, (_, index) => index + 1).map(
+                    (value) => (
+                      <option key={value} value={value}>
+                        {value}本
+                      </option>
+                    ),
+                  )}
+                </NativeSelect.Field>
+                <NativeSelect.Indicator />
+              </NativeSelect.Root>
+              <Field.HelperText>すでにあるバーに重ねて足します。1本が1人分です。</Field.HelperText>
+            </Field.Root>
+            <RequiredCountChange positionId={target.position.id} bars={bars} time={time} count={count} />
+          </>
+        )}
         {error && (
           <Text role="alert" fontSize="sm" color="red.600">
             {error}
@@ -224,11 +248,38 @@ const BarForm = ({ formId, target, bars, rules, onChange, onClose }: BarFormProp
               onClick={handleDelete}
             >
               <LuTrash2 aria-hidden />
-              {target.group.barIds.length > 1 ? `${target.group.barIds.length}本とも削除` : "削除"}
+              削除
             </Button>
           </Flex>
         )}
       </Stack>
     </chakra.form>
+  );
+};
+
+type RequiredCountChangeProps = {
+  positionId: string;
+  bars: readonly EditableStaffingBar[];
+  time: { start: string; end: string };
+  /** 足す本数 */
+  count: number;
+};
+
+/** 選んだ時間の必要人数が、足すとどう変わるかを出す。本数が足し算であることを、数字で伝える。 */
+const RequiredCountChange = ({ positionId, bars, time, count }: RequiredCountChangeProps) => {
+  const current = getRequiredCountRange({
+    bars,
+    positionId,
+    range: { startMinutes: timeToMinutes(time.start), endMinutes: timeToMinutes(time.end) },
+  });
+  if (!current) return null;
+
+  return (
+    <Text role="status" px={3} py={2.5} borderRadius="md" bg="blackAlpha.50" fontSize="sm" color="gray.700">
+      この時間の必要人数：
+      <Text as="span" fontWeight={700} color="gray.900" fontVariantNumeric="tabular-nums" whiteSpace="nowrap">
+        {formatRequiredCountChange(current, count)}
+      </Text>
+    </Text>
   );
 };

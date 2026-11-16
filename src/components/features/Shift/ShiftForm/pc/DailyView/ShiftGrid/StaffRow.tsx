@@ -185,6 +185,7 @@ export const StaffRow = memo(function StaffRow({
           <ShiftBar
             key={shift.id}
             shift={shift}
+            staff={staff}
             timeRange={timeRange}
             onHover={noopHover}
             onClick={onShiftClick}
