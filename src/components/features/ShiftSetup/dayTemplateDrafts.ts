@@ -287,10 +287,12 @@ export function toggleDayTemplateWeekday(
   });
 }
 
-/** 曜日をすべて外す。祝日の選択は変えない。曜日も祝日も選ばないテンプレートは、シフト表で日付を選んで当てる。 */
-export function clearDayTemplateWeekdays(drafts: readonly DayTemplateDraft[], rowKey: string): DayTemplateDraft[] {
+/** 曜日と祝日をすべて外す。曜日も祝日も選ばないテンプレートは、シフト表で日付を選んで当てる。 */
+export function clearDayTemplateDays(drafts: readonly DayTemplateDraft[], rowKey: string): DayTemplateDraft[] {
   return drafts.map((draft) =>
-    draft.rowKey === rowKey && draft.weekdays.length > 0 ? { ...draft, weekdays: [] } : draft,
+    draft.rowKey === rowKey && (draft.weekdays.length > 0 || draft.appliesToHolidays)
+      ? { ...draft, weekdays: [], appliesToHolidays: false }
+      : draft,
   );
 }
 

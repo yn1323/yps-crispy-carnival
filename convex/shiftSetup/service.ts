@@ -148,20 +148,16 @@ export async function resolveRecruitmentStaffingDays(
 
 /**
  * スタッフのポジションごとの扱いのうち、いまも有効なポジションの項目だけを、ポジションの並び順で返す。
- * ポジションの削除で、残ったポジションのすべてが「担当外」になったスタッフは、「担当外」の項目を返さない。
- * どのポジションも担当できないスタッフを作らないためである。
  */
 export function toPositionSkillsDto(
   staff: Pick<Doc<"staffs">, "positionSkills">,
   activePositions: ReadonlyArray<Pick<Doc<"positions">, "_id">>,
 ) {
   const levelByPositionId = new Map((staff.positionSkills ?? []).map((skill) => [skill.positionId, skill.level]));
-  const skills = activePositions.flatMap((position) => {
+  return activePositions.flatMap((position) => {
     const level = levelByPositionId.get(position._id);
     return level ? [{ positionId: position._id, level }] : [];
   });
-  const unavailableCount = skills.filter((skill) => skill.level === "unavailable").length;
-  return unavailableCount >= activePositions.length ? skills.filter((skill) => skill.level !== "unavailable") : skills;
 }
 
 export const ACTIVE_POSITION_LIMIT_MESSAGE = `ポジションは${POSITION_ACTIVE_LIMIT}件まで登録できます`;

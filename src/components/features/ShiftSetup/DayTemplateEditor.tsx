@@ -152,11 +152,11 @@ export function DayTemplateEditor({ draft, drafts, setup, canWrite, issueMessage
             isWide
             onToggle={() => intents.onToggleHoliday(draft.rowKey)}
           />
-          {/* 曜日を1つも選んでいない状態を示す。押すと曜日をすべて外し、祝日はそのまま残す。 */}
+          {/* 曜日も祝日も選んでいない状態を示す。押すと曜日と祝日をすべて外す。 */}
           <DayToggle
             label="指定しない"
-            name="曜日を指定しない"
-            isSelected={draft.weekdays.length === 0}
+            name="利用日を指定しない"
+            isSelected={draft.weekdays.length === 0 && !draft.appliesToHolidays}
             isClosed={false}
             disabled={!canWrite}
             isWide

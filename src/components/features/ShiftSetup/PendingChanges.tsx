@@ -5,17 +5,12 @@ import { formatPendingSections } from "./script";
 import type { LeaveDialogState, PendingSection } from "./types";
 
 type ActionsProps = {
-  sections: readonly PendingSection[];
   isSaving: boolean;
   onSave: () => void;
 };
 
-/**
- * 画面の下端に留める、保存の操作。
- * 「保存する」は常に同じ位置に出し、保存していない変更がない間は押せない状態にする。
- * スマートフォンでは幅いっぱいに広げ、PCでは右に寄せる。
- */
-export function PendingChangesActions({ sections, isSaving, onSave }: ActionsProps) {
+/** 画面の下端に留める、保存の操作。「保存する」は常に右に寄せて置き、変更がない間も押せる。 */
+export function PendingChangesActions({ isSaving, onSave }: ActionsProps) {
   return (
     <Flex role="group" aria-label="変更の保存" align="center" justify="flex-end" minW={0}>
       <Button
@@ -23,10 +18,8 @@ export function PendingChangesActions({ sections, isSaving, onSave }: ActionsPro
         colorPalette="teal"
         size="sm"
         flexShrink={0}
-        w={{ base: "full", md: "auto" }}
-        minW={{ md: "8rem" }}
+        minW="8rem"
         minH={{ base: "44px", md: "36px" }}
-        disabled={sections.length === 0}
         loading={isSaving}
         loadingText="保存する"
         onClick={onSave}

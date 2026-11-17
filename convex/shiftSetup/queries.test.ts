@@ -289,7 +289,7 @@ describe("shiftSetup/queries", () => {
       });
     });
 
-    it("ポジションの削除で、残ったポジションのすべてが担当外になったスタッフは、担当外の項目を返さない", async () => {
+    it("ポジションの削除で、残ったポジションのすべてが担当外になったスタッフも、担当外の項目をそのまま返す", async () => {
       const t = convexTest(schema, modules);
       const fixture = await seedShiftSetup(t);
       const getStaffs = async () => {
@@ -313,7 +313,6 @@ describe("shiftSetup/queries", () => {
         });
       });
 
-      // 担当できるポジションが残っている間は、保存した項目をそのまま返す。
       await expect(getStaffs()).resolves.toEqual({
         positionIds: [fixture.defaultPositionId, fixture.hallPositionId, fixture.kitchenPositionId],
         staffs: [
@@ -329,14 +328,23 @@ describe("shiftSetup/queries", () => {
         ],
       });
 
-      // 担当できる唯一のポジションだったキッチンを削除する。
+      // 担当できる唯一のポジションだったキッチンを削除する。削除したキッチンの項目だけが外れる。
       await t.run(async (ctx) => {
         await ctx.db.patch(fixture.kitchenPositionId, { isDeleted: true });
       });
 
       await expect(getStaffs()).resolves.toEqual({
         positionIds: [fixture.defaultPositionId, fixture.hallPositionId],
-        staffs: [{ _id: fixture.leadStaffId, name: "リーダースタッフ", positionSkills: [] }],
+        staffs: [
+          {
+            _id: fixture.leadStaffId,
+            name: "リーダースタッフ",
+            positionSkills: [
+              { positionId: fixture.defaultPositionId, level: "unavailable" },
+              { positionId: fixture.hallPositionId, level: "unavailable" },
+            ],
+          },
+        ],
       });
     });
 

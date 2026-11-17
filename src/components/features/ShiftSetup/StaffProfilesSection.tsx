@@ -51,10 +51,10 @@ const TABLE_COLUMN_FONT_SWITCH = {
 
 /** スキルの役割に出す、4つのスキルの意味。 */
 const LEVEL_DESCRIPTIONS: Record<StaffPositionLevel, string> = {
-  newcomer: "ポジション担当開始時点。シフト作成時に見習いのみポジションがある場合、警告を表示します。",
-  standard: "ポジションを一人で担当できる。",
-  lead: "ポジションの担当に加え、突発的なできごとへの対応も任せられる。",
-  unavailable: "そのポジション担当外。自動シフト作成時にそのポジションに割り当たることがない。",
+  newcomer: "ポジションが見習いのみの場合警告を表示します",
+  standard: "特になし。管理者の目印として利用",
+  lead: "特になし。管理者の目印として利用",
+  unavailable: "自動作成時に割当たらなくなります",
 };
 
 type Intents = Pick<ShiftSetupIntents, "onChangeStaffPositionLevel">;
@@ -74,8 +74,7 @@ type Props = {
 
 /**
  * スタッフの、ポジションごとの熟練度。
- * マスを押すたびに、一人前、見習い、リーダー、担当外の順に値が切り替わる。
- * スタッフに残った最後の「担当できるポジション」では、担当外を飛ばして一人前へ戻る。
+ * マスを押すたびに、見習い、一人前、リーダー、担当外の順に値が切り替わる。
  */
 export function StaffProfilesSection({
   staffs,
@@ -97,7 +96,7 @@ export function StaffProfilesSection({
   const hasLevels = !isLocked && staffs.length > 0;
 
   const cycle = (staff: ShiftSetupStaff, position: ShiftSetupPosition) => {
-    const next = getNextStaffPositionLevel(profiles[staff._id] ?? {}, position._id, positions);
+    const next = getNextStaffPositionLevel(profiles[staff._id] ?? {}, position._id);
     intents.onChangeStaffPositionLevel(staff._id, position._id, next);
     setAnnouncement(`${staff.name} ${position.name} ${getStaffPositionLevelLabel(next)}`);
   };
@@ -109,7 +108,6 @@ export function StaffProfilesSection({
       headingId="shift-setup-staffs-heading"
       title="スタッフのスキル"
       step={3}
-      // ポジションが1件の店舗では、担当できるポジションを選ぶ余地がないため、熟練度だけを選ぶ。
       description={positions.length > 1 ? SECTION_DESCRIPTION : SINGLE_POSITION_SECTION_DESCRIPTION}
       isBusy={isSaving}
       action={

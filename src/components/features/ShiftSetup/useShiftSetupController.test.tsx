@@ -160,7 +160,7 @@ describe("必要人数とスタッフの保存", () => {
       ],
     });
     expect(mocks.saveStaffShiftProfiles).not.toHaveBeenCalled();
-    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "必要人数の設定を保存しました" });
+    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "シフト設定を保存しました" });
     expect(result.current.pendingSections).toEqual([]);
   });
 
@@ -244,7 +244,7 @@ describe("必要人数とスタッフの保存", () => {
       ],
     });
     expect(mocks.saveDayTemplates).not.toHaveBeenCalled();
-    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "スタッフの設定を保存しました" });
+    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "シフト設定を保存しました" });
   });
 
   it("保存済みの値を一人前へ戻したスタッフは、空の値で送る", async () => {
@@ -264,16 +264,16 @@ describe("必要人数とスタッフの保存", () => {
     });
   });
 
-  it("最後に残った担当できるポジションは、担当外にできない", () => {
+  it("すべてのポジションを担当外にできる", () => {
     const { result } = renderController();
 
     act(() => result.current.intents.onChangeStaffPositionLevel(staffA, kitchen, "unavailable"));
     act(() => result.current.intents.onChangeStaffPositionLevel(staffA, hall, "unavailable"));
 
-    expect(result.current.staffProfiles[staffA]).toEqual({ [kitchen]: "unavailable" });
+    expect(result.current.staffProfiles[staffA]).toEqual({ [hall]: "unavailable", [kitchen]: "unavailable" });
   });
 
-  it("両方に変更があれば両方を保存し、スタッフの保存に失敗したら保存できた分だけを伝える", async () => {
+  it("両方に変更があれば両方を保存し、スタッフの保存に失敗したら失敗だけを伝える", async () => {
     const error = new Error("network error");
     mocks.saveDayTemplates.mockResolvedValue(null);
     mocks.saveStaffShiftProfiles.mockRejectedValue(error);
@@ -288,7 +288,7 @@ describe("必要人数とスタッフの保存", () => {
     expect(mocks.saveDayTemplates).toHaveBeenCalledTimes(1);
     expect(mocks.saveStaffShiftProfiles).toHaveBeenCalledTimes(1);
     expect(mocks.showErrorToast).toHaveBeenCalledExactlyOnceWith(error);
-    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "必要人数の設定を保存しました" });
+    expect(mocks.showSuccessToast).not.toHaveBeenCalled();
     // 保存できなかったスタッフの変更は、編集中の値として残る。
     expect(result.current.staffProfiles[staffA]).toEqual({ [hall]: "lead" });
   });
@@ -301,6 +301,17 @@ describe("必要人数とスタッフの保存", () => {
 
     expect(result.current.pendingSections).toEqual([]);
     expect(mocks.blockerOptions?.shouldBlockFn()).toBe(false);
+  });
+
+  it("変更がなくても保存でき、何も送らずに保存したことを伝える", async () => {
+    const { result } = renderController();
+
+    await act(async () => result.current.intents.onSaveChanges());
+
+    expect(mocks.savePositions).not.toHaveBeenCalled();
+    expect(mocks.saveDayTemplates).not.toHaveBeenCalled();
+    expect(mocks.saveStaffShiftProfiles).not.toHaveBeenCalled();
+    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "シフト設定を保存しました" });
   });
 
   it("名前が空のテンプレートがあれば保存せず、そのテンプレートを開いて誤りを出す", async () => {
@@ -1009,9 +1020,7 @@ describe("ポジションの反映と保存", () => {
     expect(mocks.saveDayTemplates.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.saveStaffShiftProfiles.mock.invocationCallOrder[0],
     );
-    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
-      title: "ポジションと必要人数とスタッフの設定を保存しました",
-    });
+    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "シフト設定を保存しました" });
     expect(result.current.pendingSections).toEqual([]);
   });
 
@@ -1028,7 +1037,7 @@ describe("ポジションの反映と保存", () => {
     act(() => rerender({ current: setupAfterPositionSave }));
 
     expect(mocks.showErrorToast).toHaveBeenCalledExactlyOnceWith(error);
-    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "ポジションの設定を保存しました" });
+    expect(mocks.showSuccessToast).not.toHaveBeenCalled();
     expect(mocks.saveStaffShiftProfiles).not.toHaveBeenCalled();
     // 編集中の人数と熟練度は、保存後のIDを指す形で残る。
     expect(getSegments(result).map((item) => item.positionId)).toEqual([hall, registerSaved]);
@@ -1109,7 +1118,7 @@ describe("ポジションの反映と保存", () => {
       ],
       staffs: [
         { _id: staffA, name: "佐藤", positionSkills: [{ positionId: kitchen, level: "lead" }] },
-        // ホールが担当外の鈴木は、キッチンを削除すると担当できるポジションが残らない。
+        // ホールが担当外の鈴木は、キッチンを削除してもホールの担当外を保つ。
         { _id: staffB, name: "鈴木", positionSkills: [{ positionId: hall, level: "unavailable" }] },
       ],
     });
@@ -1118,10 +1127,10 @@ describe("ポジションの反映と保存", () => {
     act(() => result.current.intents.onApplyPositions([hallInput]));
 
     expect(getSegments(result).map((item) => item.positionId)).toEqual([hall]);
-    // 削除したポジションの熟練度は外れ、担当できるポジションが残らない鈴木は、ホールを担当できるものとして扱う。
-    expect(result.current.staffProfiles).toEqual({ [staffA]: {}, [staffB]: {} });
-    // 削除したポジションの人数を外しただけのテンプレートは、保存する変更に数えない。
-    expect(result.current.pendingSections).toEqual(["positions", "staffs"]);
+    // 削除したポジションの熟練度は外れ、鈴木はホールの担当外を保つ。
+    expect(result.current.staffProfiles).toEqual({ [staffA]: {}, [staffB]: { [hall]: "unavailable" } });
+    // 削除したポジションの人数や熟練度を外しただけのテンプレートとスタッフは、保存する変更に数えない。
+    expect(result.current.pendingSections).toEqual(["positions"]);
     expect(mocks.savePositions).not.toHaveBeenCalled();
   });
 

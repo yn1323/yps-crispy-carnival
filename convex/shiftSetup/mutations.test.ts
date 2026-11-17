@@ -1431,29 +1431,21 @@ describe("shiftSetup/mutations", () => {
       );
     });
 
-    it("有効なポジションのすべてを担当外にする保存は拒否し、同じ一覧のほかのスタッフも保存しない", async () => {
+    it("有効なポジションのすべてを担当外にする保存も受け付ける", async () => {
       const t = convexTest(schema, modules);
       const ids = await seedShops(t);
+      const allUnavailable = [
+        skill(ids.defaultPositionId, "unavailable"),
+        skill(ids.hallPositionId, "unavailable"),
+        skill(ids.kitchenPositionId, "unavailable"),
+      ];
 
-      await expectRejectedWithoutChange(
-        t,
-        () =>
-          t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shiftSetup.mutations.saveStaffShiftProfiles, {
-            ...ids.scope,
-            profiles: [
-              { staffId: ids.secondStaffId, positionSkills: [skill(ids.hallPositionId, "lead")] },
-              {
-                staffId: ids.staffId,
-                positionSkills: [
-                  skill(ids.defaultPositionId, "unavailable"),
-                  skill(ids.hallPositionId, "unavailable"),
-                  skill(ids.kitchenPositionId, "unavailable"),
-                ],
-              },
-            ],
-          }),
-        "担当できるポジションを1つ以上残してください",
-      );
+      await t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shiftSetup.mutations.saveStaffShiftProfiles, {
+        ...ids.scope,
+        profiles: [{ staffId: ids.staffId, positionSkills: allUnavailable }],
+      });
+
+      expect(await readStaffProfile(t, ids.staffId)).toEqual({ hasField: true, positionSkills: allUnavailable });
     });
 
     it("一度に保存できるスタッフ数を超える一覧は拒否する", async () => {

@@ -10,7 +10,7 @@ import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import {
   changeDayTemplateSegments,
   changeRequiredCount,
-  clearDayTemplateWeekdays,
+  clearDayTemplateDays,
   copyDayTemplateRequirements,
   createDayTemplateDraft,
   type DayTemplateSelection,
@@ -43,7 +43,6 @@ import {
   type SavedPositionIds,
   toPositionSaveInputs,
 } from "./positionDrafts";
-import { formatPendingSections } from "./script";
 import {
   isSameStaffPositionLevels,
   setStaffPositionLevel,
@@ -66,6 +65,7 @@ const ASSIST_RATE_LIMITED_MESSAGE =
   "短い時間に続けて作ったため、いまは下書きを作れません。\n少し時間をおいて、もう一度お試しください。";
 // 集め方を変えたあとのテンプレートは、以前の必要人数を保存したまま、空の必要人数で表示している。
 // そのまま保存すると以前の必要人数が空で置き換わるため、再設定が済むまでテンプレートを保存しない。
+const SAVED_TITLE = "シフト設定を保存しました";
 const REENTRY_REQUIRED_TITLE = "再設定が必要なテンプレートがあります";
 const REENTRY_REQUIRED_DESCRIPTION = "必要人数を入れるか、テンプレートを削除してから保存してください。";
 const ASSIST_EMPTY_MESSAGE = "下書きに入れるテンプレートがありませんでした。\n「テンプレートを作る」から手で作れます。";
@@ -193,7 +193,6 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
   const { run: saveChanges, isRunning: isSaving } = useSingleFlight(async (): Promise<boolean> => {
     if (!canWrite) return false;
 
-    const saved: PendingSection[] = [];
     isSavingRef.current = true;
     try {
       if (hasTemplateChanges) {
@@ -223,7 +222,6 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
         const ids = await remote.savePositions(toPositionSaveInputs(positions));
         // ここから先で失敗しても、もう一度の保存でポジションを作り直さないよう、編集中の一覧を先に捨てる。
         setPositionDrafts(null);
-        saved.push("positions");
         savedIds = resolveSavedPositionIds(positions, ids);
         const replaceIds = savedIds;
         setTemplateDrafts((current) => current && replacePositionIdsInDayTemplateDrafts(current, replaceIds));
@@ -241,7 +239,6 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
         );
         setTemplateDrafts(null);
         setHasAttemptedSave(false);
-        saved.push("dayTemplates");
       }
       const staffInputsToSave = toStaffProfileInputs(
         staffs,
@@ -251,16 +248,14 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
       if (staffInputsToSave.length > 0) {
         await remote.saveStaffShiftProfiles(staffInputsToSave);
         setStaffDrafts({});
-        saved.push("staffs");
       }
+      showSuccessToast({ title: SAVED_TITLE });
       return true;
     } catch (error) {
       showErrorToast(error);
       return false;
     } finally {
       isSavingRef.current = false;
-      // 途中まで保存できた場合も、保存できた分を伝える。
-      if (saved.length > 0) showSuccessToast({ title: `${formatPendingSections(saved)}の設定を保存しました` });
     }
   });
 
@@ -404,7 +399,7 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
       onToggleWeekday: (rowKey, weekday) =>
         editTemplates((current) => toggleDayTemplateWeekday(current, rowKey, weekday)),
       onToggleHoliday: (rowKey) => editTemplates((current) => toggleDayTemplateHoliday(current, rowKey)),
-      onClearWeekdays: (rowKey) => editTemplates((current) => clearDayTemplateWeekdays(current, rowKey)),
+      onClearWeekdays: (rowKey) => editTemplates((current) => clearDayTemplateDays(current, rowKey)),
       onChangeSegments: (rowKey, segments) =>
         editTemplates((current) => changeDayTemplateSegments(current, rowKey, segments)),
       onChangeRequiredCount: (rowKey, change) =>
@@ -413,9 +408,7 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
       onChangeStaffPositionLevel: (staffId, positionId, level) =>
         editStaffs((profiles) => {
           const levels = profiles[staffId];
-          return levels
-            ? { ...profiles, [staffId]: setStaffPositionLevel(levels, positionId, level, positions) }
-            : profiles;
+          return levels ? { ...profiles, [staffId]: setStaffPositionLevel(levels, positionId, level) } : profiles;
         }),
       onSaveChanges: () => void saveChanges(),
       onApplyPositions: applyPositions,

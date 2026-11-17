@@ -17,7 +17,7 @@ import {
   ALL_DAY_ROW_ID,
   changeDayTemplateSegments,
   changeRequiredCount,
-  clearDayTemplateWeekdays,
+  clearDayTemplateDays,
   copyDayTemplateRequirements,
   createDayTemplateDraft,
   findDayTemplateDraftIssues,
@@ -515,7 +515,7 @@ describe("作ったまま何も入れていない新しいテンプレート", (
     ["名前の末尾に空白を足す", renameDayTemplate(withAdded, "new-1", `${added.name} `)],
     ["曜日を外す", toggleDayTemplateWeekday(withAdded, "new-1", "sat")],
     ["別のテンプレートと同じ曜日を選ぶ", toggleDayTemplateWeekday(withAdded, "new-1", "mon")],
-    ["曜日を指定しない", clearDayTemplateWeekdays(withAdded, "new-1")],
+    ["利用日を指定しない", clearDayTemplateDays(withAdded, "new-1")],
     ["祝日を選ぶ", toggleDayTemplateHoliday(withAdded, "new-1")],
     ["人数を入れる", changeDayTemplateSegments(withAdded, "new-1", [seg(hall, "10:00", "15:00", 1)])],
     ["コピーする", copyDayTemplateRequirements(withAdded, { fromRowKey: templateId, toRowKey: "new-1" })],
@@ -665,17 +665,17 @@ describe("曜日と祝日の割り当て", () => {
     expect(holidaysOf(toggleDayTemplateHoliday(drafts, "b"))).toEqual([true, true]);
   });
 
-  it("曜日を指定しないと、そのテンプレートの曜日だけをすべて外し、祝日とほかのテンプレートは変えない", () => {
-    const cleared = clearDayTemplateWeekdays(drafts, "a");
+  it("指定しないと、そのテンプレートの曜日と祝日をすべて外し、ほかのテンプレートは変えない", () => {
+    const cleared = clearDayTemplateDays(drafts, "a");
 
     expect(weekdaysOf(cleared)).toEqual([[], ["sat"]]);
-    expect(holidaysOf(cleared)).toEqual([true, false]);
+    expect(holidaysOf(cleared)).toEqual([false, false]);
   });
 
-  it("曜日を選んでいないテンプレートで指定しないを押しても、何も変えない", () => {
-    const cleared = clearDayTemplateWeekdays(drafts, "a");
+  it("曜日も祝日も選んでいないテンプレートで指定しないを押しても、何も変えない", () => {
+    const cleared = clearDayTemplateDays(drafts, "a");
 
-    expect(clearDayTemplateWeekdays(cleared, "a")[0]).toBe(cleared[0]);
+    expect(clearDayTemplateDays(cleared, "a")[0]).toBe(cleared[0]);
   });
 
   it("選んでいる祝日を押すと外れ、祝日に使うテンプレートがなくなる", () => {

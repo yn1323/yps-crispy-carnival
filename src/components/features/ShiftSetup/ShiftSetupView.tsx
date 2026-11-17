@@ -106,7 +106,7 @@ export function ShiftSetupView({
           borderTopWidth="1px"
           borderColor="gray.200"
         >
-          <PendingChangesActions sections={pendingSections} isSaving={isSaving} onSave={intents.onSaveChanges} />
+          <PendingChangesActions isSaving={isSaving} onSave={intents.onSaveChanges} />
         </Box>
       )}
 

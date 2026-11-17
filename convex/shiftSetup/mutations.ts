@@ -223,10 +223,6 @@ export const saveStaffShiftProfiles = managerMutation({
       if (new Set(positionIds).size !== positionIds.length) throw new ConvexError("Not found");
       // 別店舗・削除済みのIDは、存在を区別せずに拒否する。
       if (positionIds.some((positionId) => !activePositionIds.has(positionId))) throw new ConvexError("Not found");
-      const unavailableCount = profile.positionSkills.filter((skill) => skill.level === "unavailable").length;
-      if (unavailableCount > 0 && unavailableCount >= activePositionIds.size) {
-        throw new ConvexError("担当できるポジションを1つ以上残してください");
-      }
     }
     const staffs = await Promise.all(
       args.profiles.map((profile) => getActiveStaffInShop(ctx, ctx.shop._id, profile.staffId)),

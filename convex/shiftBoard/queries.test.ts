@@ -1642,7 +1642,7 @@ describe("shiftBoard/queries", () => {
       });
     });
 
-    it("ポジションの削除で、残ったポジションのすべてが担当外になったスタッフは、属性を返さない", async () => {
+    it("ポジションの削除で、残ったポジションのすべてが担当外になったスタッフも、担当外の属性をそのまま返す", async () => {
       const t = convexTest(schema, modules);
       const ids = await seedStaffingBoard(t);
       // 未提出スタッフは、ホールとキッチンが担当外で、既定ではリーダー。提出済みスタッフは、既定だけが担当外。
@@ -1659,7 +1659,6 @@ describe("shiftBoard/queries", () => {
         });
       });
 
-      // 担当できるポジションが残っている間は、保存した項目をそのまま返す。
       const before = await getStaffing(t, ids);
       expect(before).not.toBeNull();
       expect((before?.staffProfiles ?? []).slice().sort((a, b) => a.staffId.localeCompare(b.staffId))).toEqual(
@@ -1684,10 +1683,18 @@ describe("shiftBoard/queries", () => {
         await ctx.db.patch(ids.defaultPositionId, { isDeleted: true });
       });
 
-      // 未提出スタッフは残ったポジションのすべてが入れないになり、提出済みスタッフは項目が削除済みだけになる。
+      // 未提出スタッフは担当外の項目だけが残り、提出済みスタッフは項目が削除済みだけになるため返さない。
       const after = await getStaffing(t, ids);
       expect(after).not.toBeNull();
-      expect(after?.staffProfiles).toEqual([]);
+      expect(after?.staffProfiles).toEqual([
+        {
+          staffId: ids.unsubmittedStaffId,
+          positionSkills: [
+            { positionId: ids.hallPositionId, level: "unavailable" },
+            { positionId: ids.kitchenPositionId, level: "unavailable" },
+          ],
+        },
+      ]);
     });
 
     it("何も設定していない店舗では、募集期間の全日を未設定として返す", async () => {

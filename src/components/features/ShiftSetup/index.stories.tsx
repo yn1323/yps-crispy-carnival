@@ -480,25 +480,18 @@ function readRemoteCalls(canvasElement: HTMLElement): RemoteCall[] {
   return JSON.parse(within(canvasElement).getByTestId("remote-calls").textContent ?? "[]");
 }
 
-/** 見出しの行にある、保存の操作。 */
+/** 画面の下端にある、保存の操作。 */
 function getSaveActions(canvasElement: HTMLElement) {
   return within(within(canvasElement).getByRole("group", { name: "変更の保存" }));
 }
 
-/** 保存していない変更があり、「保存する」を押せることを確かめる。 */
-async function expectPendingChanges(canvasElement: HTMLElement) {
-  const actions = getSaveActions(canvasElement);
-  await waitFor(() => expect(actions.getByRole("button", { name: "保存する" })).toBeEnabled());
-}
-
-/** 保存していない変更がなく、「保存する」が同じ位置で押せない状態になっていることを確かめる。 */
-async function expectNoPendingChanges(canvasElement: HTMLElement) {
+/** 保存が終わり、「保存する」をまた押せる状態に戻ったことを確かめる。 */
+async function expectSaveFinished(canvasElement: HTMLElement) {
   const actions = getSaveActions(canvasElement);
   await waitFor(async () => {
     const saveButton = actions.getByRole("button", { name: "保存する" });
-    await expect(saveButton).toBeDisabled();
-    // 保存の応答を待つ間も押せないため、保存が終わったことも確かめる。
     await expect(saveButton).not.toHaveAttribute("data-loading");
+    await expect(saveButton).toBeEnabled();
   });
 }
 
@@ -649,8 +642,7 @@ export const PendingChanges: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(within(canvas.getByRole("group", { name: "通常" })).getByRole("button", { name: "日曜日" }));
-    await pressStaffLevelCell(canvas, "高橋 美咲", "レジ", "見習い");
-    await expectPendingChanges(canvasElement);
+    await pressStaffLevelCell(canvas, "高橋 美咲", "レジ", "リーダー");
   },
 };
 
@@ -670,8 +662,6 @@ const createFirstTemplate: Story["play"] = async ({ canvasElement }) => {
   // 作ったテンプレートのテンプレート名の欄へ移り、初期値をそのまま打ち替えられる。
   const name = template.getByRole("textbox", { name: "テンプレート名" });
   await waitFor(() => expect(name).toHaveFocus());
-  // まだ何も入れていない間は、保存の帯を出さない。
-  await expectNoPendingChanges(canvasElement);
   await expect(readRemoteCalls(canvasElement)).toEqual([]);
 };
 
@@ -935,16 +925,14 @@ const addTemplate: Story["play"] = async ({ canvasElement }) => {
   await expect(added.getByRole("button", { name: "月曜日" })).toHaveAttribute("aria-pressed", "false");
   await expect(added.getByRole("button", { name: "祝日" })).toHaveAttribute("aria-pressed", "false");
 
-  // 足しただけでは保存の帯を出さない。名前の欄へ移り、初期値を選んだ状態になる。
-  await expectNoPendingChanges(canvasElement);
+  // 足すと、名前の欄へ移り、初期値を選んだ状態になる。
   const name = added.getByRole<HTMLInputElement>("textbox", { name: "テンプレート名" });
   await waitFor(() => expect(name).toHaveFocus());
   await expect([name.selectionStart, name.selectionEnd]).toEqual([0, "テンプレート4".length]);
 
-  // 初期値を消さずに、そのまま打ち替えられる。名前を入れると、保存の帯が出る。
+  // 初期値を消さずに、そのまま打ち替えられる。
   await userEvent.keyboard("年末年始");
   const renamed = within(await canvas.findByRole("group", { name: "年末年始" }));
-  await expectPendingChanges(canvasElement);
   await userEvent.click(renamed.getByRole("button", { name: "水曜日・定休日" }));
 
   await saveChanges(canvasElement);
@@ -980,14 +968,7 @@ const createFirstTemplateAndSave: Story["play"] = async (context) => {
   const canvas = within(canvasElement);
   await createFirstTemplate(context);
 
-  // 使う日を変えると、1行の保存の帯が出る。
   const template = within(canvas.getByRole("group", { name: "通常" }));
-  await userEvent.click(template.getByRole("button", { name: "祝日" }));
-  await expectPendingChanges(canvasElement);
-  // 作ったときの値へ戻すと、帯は消える。
-  await userEvent.click(template.getByRole("button", { name: "祝日" }));
-  await expectNoPendingChanges(canvasElement);
-
   await userEvent.click(template.getByRole("button", { name: "祝日" }));
   await saveChanges(canvasElement);
   await waitFor(() => expect(readSavedTemplates(canvasElement)).toHaveLength(1));
@@ -999,7 +980,7 @@ const createFirstTemplateAndSave: Story["play"] = async (context) => {
       requirements: { kind: "time", bars: [] },
     },
   ]);
-  await expectNoPendingChanges(canvasElement);
+  await expectSaveFinished(canvasElement);
 };
 
 export const CreateFirstTemplateBehavior: Story = {
@@ -1097,17 +1078,25 @@ export const SharedWeekdayBehavior: Story = {
 };
 
 export const ClearWeekdaysBehavior: Story = {
-  name: "Behavior: 曜日を指定しないと、曜日だけが外れて保存される",
+  name: "Behavior: 指定しないを押すと、曜日と祝日がすべて外れて保存される",
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const weekend = await selectTemplate(canvas, "土日", "土・日");
-    const clear = weekend.getByRole("button", { name: "曜日を指定しない" });
+    const clear = weekend.getByRole("button", { name: "利用日を指定しない" });
+    const holiday = weekend.getByRole("button", { name: "祝日" });
+    await expect(clear).toHaveAttribute("aria-pressed", "false");
+
+    // 曜日を外しても、祝日を選んでいる間は「指定しない」を選んだ状態にしない。
+    await userEvent.click(weekend.getByRole("button", { name: "土曜日" }));
+    await userEvent.click(weekend.getByRole("button", { name: "日曜日" }));
+    await userEvent.click(holiday);
     await expect(clear).toHaveAttribute("aria-pressed", "false");
 
     await userEvent.click(clear);
 
     await expect(clear).toHaveAttribute("aria-pressed", "true");
+    await expect(holiday).toHaveAttribute("aria-pressed", "false");
     await expect(weekend.getByRole("button", { name: "土曜日" })).toHaveAttribute("aria-pressed", "false");
     await expect(weekend.getByRole("button", { name: "日曜日" })).toHaveAttribute("aria-pressed", "false");
     // 曜日も祝日も選んでいないテンプレートは、一覧で「個別」と表す。
@@ -1170,11 +1159,10 @@ export const MobileHolidayBehavior: Story = {
 const setCountAndSave: Story["play"] = async ({ canvasElement }) => {
   await setCountByForm(canvasElement, "キッチン", { start: "17:00", end: "21:00", count: 3 });
 
-  await expectPendingChanges(canvasElement);
   await expect(readRemoteCalls(canvasElement)).toEqual([]);
   await saveChanges(canvasElement);
 
-  await expectNoPendingChanges(canvasElement);
+  await expectSaveFinished(canvasElement);
   const calls = readRemoteCalls(canvasElement);
   await expect(calls.map((call) => call.name)).toEqual(["saveDayTemplates"]);
   const [savedWeekday] = readSavedTemplates(canvasElement)[0];
@@ -1233,14 +1221,14 @@ export const MobileTimeCountBehavior: Story = {
 };
 
 export const TimeCountRestoreBehavior: Story = {
-  name: "Behavior: 入れた人数を元の人数へ戻すと、保存していない変更がなくなる",
+  name: "Behavior: 入れた人数を元の人数へ戻すと、保存しても何も送らない",
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
     await setCountByForm(canvasElement, "レジ", { start: "12:00", end: "13:00", count: 4 });
-    await expectPendingChanges(canvasElement);
-
     await setCountByForm(canvasElement, "レジ", { start: "12:00", end: "13:00", count: 1 });
-    await expectNoPendingChanges(canvasElement);
+
+    await saveChanges(canvasElement);
+    await expectSaveFinished(canvasElement);
     await expect(readRemoteCalls(canvasElement)).toEqual([]);
   },
 };
@@ -1464,7 +1452,6 @@ export const SaveLockBehavior: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(within(canvas.getByRole("group", { name: "通常" })).getByRole("button", { name: "祝日" }));
-    await expectPendingChanges(canvasElement);
     const pendingBar = getSaveActions(canvasElement);
     const saveButton = pendingBar.getByRole("button", { name: "保存する" });
 
@@ -1485,7 +1472,7 @@ export const SaveLockBehavior: Story = {
     await expect(name).not.toHaveFocus();
 
     canvas.getByTestId("release-save").click();
-    await expectNoPendingChanges(canvasElement);
+    await expectSaveFinished(canvasElement);
     await expect(readRemoteCalls(canvasElement)).toHaveLength(1);
     // 応答のあとは、また操作でき、保存した内容が残っている。
     await waitFor(() => expect(templates).not.toHaveAttribute("inert"));
@@ -1501,11 +1488,9 @@ export const AddTemplatePendingBehavior: Story = {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "テンプレートを追加" }));
     const added = within(await canvas.findByRole("group", { name: "テンプレート4" }));
-    // 足しただけでは保存する変更に数えない。使う日を選ぶと保存できる。
-    await expectNoPendingChanges(canvasElement);
+    // 使う日を選ぶと保存できる。
     await userEvent.click(added.getByRole("button", { name: "水曜日・定休日" }));
 
-    await expectPendingChanges(canvasElement);
     await expect(readRemoteCalls(canvasElement)).toEqual([]);
   },
 };
@@ -1597,7 +1582,6 @@ export const AssistRateLimitedBehavior: Story = {
     await expect(situation).toHaveValue("土日は夜が忙しいです");
     await userEvent.click(within(dialog).getByRole("button", { name: "キャンセル" }));
     await waitFor(() => expect(canvas.getByRole("group", { name: "通常" })).toBeVisible());
-    await expectNoPendingChanges(canvasElement);
   },
 };
 
@@ -1716,14 +1700,13 @@ export const PositionAddLimitBehavior: Story = {
     await userEvent.type(dialog.getByRole("textbox", { name: "ポジション10の名前" }), "デリバリー");
     await userEvent.click(dialog.getByRole("button", { name: "決定する" }));
 
-    // 反映しただけでは保存されず、ページの一覧に出て、保存していない変更になる。
+    // 反映しただけでは保存されず、ページの一覧に出る。
     await waitFor(() => expect(body.queryByRole("dialog", { name: "ポジションを編集" })).not.toBeInTheDocument());
     await expect(await section.findByText("デリバリー")).toBeVisible();
-    await expectPendingChanges(canvasElement);
     await expect(readRemoteCalls(canvasElement)).toEqual([]);
 
     await saveChanges(canvasElement);
-    await expectNoPendingChanges(canvasElement);
+    await expectSaveFinished(canvasElement);
     await expect(readRemoteCalls(canvasElement).map((call) => call.name)).toEqual(["savePositions"]);
     const saved = readRemoteCalls(canvasElement)[0].args as Array<{ id?: string; name: string; color: string }>;
     await expect(saved).toHaveLength(10);
@@ -1755,7 +1738,7 @@ export const PositionDraftBehavior: Story = {
     await expect(readRemoteCalls(canvasElement)).toEqual([]);
 
     await saveChanges(canvasElement);
-    await expectNoPendingChanges(canvasElement);
+    await expectSaveFinished(canvasElement);
     // ポジションを先に保存し、受け取ったIDで必要人数を保存する。
     const calls = readRemoteCalls(canvasElement);
     await expect(calls.map((call) => call.name)).toEqual(["savePositions", "saveDayTemplates"]);
@@ -1795,7 +1778,6 @@ export const PositionRemoveBehavior: Story = {
 
     await waitFor(() => expect(canvas.queryByRole("group", { name: "レジの必要人数" })).not.toBeInTheDocument());
     await expect(section.queryByText("レジ")).not.toBeInTheDocument();
-    await expectPendingChanges(canvasElement);
     await expect(readRemoteCalls(canvasElement)).toEqual([]);
   },
 };
@@ -1853,27 +1835,27 @@ function readSavedStaffProfiles(canvasElement: HTMLElement): SavedStaffProfile[]
 const cycleStaffLevelsAndSave: Story["play"] = async ({ canvasElement }) => {
   const canvas = within(canvasElement);
 
-  // 押すたびに、一人前、見習い、リーダー、担当外の順に切り替わり、担当外の次は一人前へ戻る。
-  await pressStaffLevelCell(canvas, "高橋 美咲", "ホール", "見習い");
+  // 押すたびに、見習い、一人前、リーダー、担当外の順に切り替わり、担当外の次は見習いへ戻る。
+  // 一人前のマスは、リーダーから始まる。
   await pressStaffLevelCell(canvas, "高橋 美咲", "ホール", "リーダー");
   await pressStaffLevelCell(canvas, "高橋 美咲", "ホール", "担当外");
+  await pressStaffLevelCell(canvas, "高橋 美咲", "ホール", "見習い");
   // 高橋: 一巡して一人前へ戻したスタッフは、変更に数えない。
   await pressStaffLevelCell(canvas, "高橋 美咲", "ホール", "一人前");
 
-  await pressStaffLevelCell(canvas, "佐藤 花子", "レジ", "見習い");
+  await pressStaffLevelCell(canvas, "佐藤 花子", "レジ", "リーダー");
   // 保存済みの値の続きから切り替わる。伊藤のキッチンは見習い、鈴木のキッチンは担当外である。
-  await pressStaffLevelCell(canvas, "伊藤 さくら", "キッチン", "リーダー");
-  await pressStaffLevelCell(canvas, "鈴木 次郎", "キッチン", "一人前");
+  await pressStaffLevelCell(canvas, "伊藤 さくら", "キッチン", "一人前");
+  await pressStaffLevelCell(canvas, "鈴木 次郎", "キッチン", "見習い");
 
   // キーボードでも、EnterとSpaceで切り替わる。
   const keyboardCell = getStaffLevelCell(canvas, "田中 太郎", "レジ");
   keyboardCell.focus();
   await userEvent.keyboard("{Enter}");
-  await waitFor(() => expect(keyboardCell).toHaveAccessibleName("田中 太郎 レジ 見習い"));
-  await userEvent.keyboard(" ");
   await waitFor(() => expect(keyboardCell).toHaveAccessibleName("田中 太郎 レジ リーダー"));
+  await userEvent.keyboard(" ");
+  await waitFor(() => expect(keyboardCell).toHaveAccessibleName("田中 太郎 レジ 担当外"));
 
-  await expectPendingChanges(canvasElement);
   await saveChanges(canvasElement);
 
   await waitFor(() => expect(readRemoteCalls(canvasElement)).toHaveLength(1));
@@ -1886,26 +1868,20 @@ const cycleStaffLevelsAndSave: Story["play"] = async ({ canvasElement }) => {
           staffId: "staff-1",
           positionSkills: [
             { positionId: hallId, level: "lead" },
-            { positionId: registerId, level: "newcomer" },
+            { positionId: registerId, level: "lead" },
           ],
         },
-        { staffId: "staff-2", positionSkills: [] },
-        { staffId: "staff-4", positionSkills: [{ positionId: registerId, level: "lead" }] },
-        {
-          staffId: "staff-5",
-          positionSkills: [
-            { positionId: hallId, level: "newcomer" },
-            { positionId: kitchenId, level: "lead" },
-          ],
-        },
+        { staffId: "staff-2", positionSkills: [{ positionId: kitchenId, level: "newcomer" }] },
+        { staffId: "staff-4", positionSkills: [{ positionId: registerId, level: "unavailable" }] },
+        { staffId: "staff-5", positionSkills: [{ positionId: hallId, level: "newcomer" }] },
       ],
     },
   ]);
-  await expectNoPendingChanges(canvasElement);
+  await expectSaveFinished(canvasElement);
   // 保存したあとも、切り替えた値が出ている。
-  await expect(getStaffLevelCell(canvas, "佐藤 花子", "レジ")).toHaveAccessibleName("佐藤 花子 レジ 見習い");
+  await expect(getStaffLevelCell(canvas, "佐藤 花子", "レジ")).toHaveAccessibleName("佐藤 花子 レジ リーダー");
   await expect(getStaffLevelCell(canvas, "伊藤 さくら", "キッチン")).toHaveAccessibleName(
-    "伊藤 さくら キッチン リーダー",
+    "伊藤 さくら キッチン 一人前",
   );
 };
 
@@ -1927,21 +1903,15 @@ export const MobileStaffLevelBehavior: Story = {
   },
 };
 
-const skipUnavailableOnLastPosition: Story["play"] = async ({ canvasElement }) => {
+const allowUnavailableOnAllPositions: Story["play"] = async ({ canvasElement }) => {
   const canvas = within(canvasElement);
   const pressThrough = async (position: string, levels: string[]) => {
     for (const level of levels) await pressStaffLevelCell(canvas, "鈴木 次郎", position, level);
   };
 
-  // 鈴木はキッチンが担当外である。レジも「担当外」にすると、担当できるのはホールだけになる。
-  await pressThrough("レジ", ["見習い", "リーダー", "担当外"]);
-  // 最後に残ったホールでは、「担当外」を飛ばして一人前へ戻る。
-  await pressThrough("ホール", ["見習い", "リーダー", "一人前"]);
-
-  // レジを一人前へ戻すと、ホールも「担当外」へ切り替えられる。今度はレジが最後の1つになる。
-  await pressThrough("レジ", ["一人前"]);
-  await pressThrough("ホール", ["見習い", "リーダー", "担当外"]);
-  await pressThrough("レジ", ["見習い", "リーダー", "一人前"]);
+  // 鈴木はキッチンが担当外である。レジとホールも「担当外」にして、すべてのポジションを担当外にする。
+  await pressThrough("レジ", ["リーダー", "担当外"]);
+  await pressThrough("ホール", ["リーダー", "担当外"]);
 
   await saveChanges(canvasElement);
   await waitFor(() => expect(readSavedStaffProfiles(canvasElement)).toHaveLength(1));
@@ -1951,40 +1921,40 @@ const skipUnavailableOnLastPosition: Story["play"] = async ({ canvasElement }) =
       positionSkills: [
         { positionId: hallId, level: "unavailable" },
         { positionId: kitchenId, level: "unavailable" },
+        { positionId: registerId, level: "unavailable" },
       ],
     },
   ]);
 };
 
-export const StaffLastPositionBehavior: Story = {
-  name: "Behavior: 最後に残った担当できるポジションでは、担当外を飛ばして一人前へ戻る",
+export const StaffAllUnavailableBehavior: Story = {
+  name: "Behavior: すべてのポジションを担当外にして保存できる",
   parameters: { screenshot: { skip: true } },
-  play: skipUnavailableOnLastPosition,
+  play: allowUnavailableOnAllPositions,
 };
 
-export const MobileStaffLastPositionBehavior: Story = {
+export const MobileStaffAllUnavailableBehavior: Story = {
   tags: ["vrt-mobile1"],
   globals: mobile1Globals,
-  name: "Behavior: モバイルでも最後に残った担当できるポジションでは、担当外を飛ばして一人前へ戻る",
+  name: "Behavior: モバイルでもすべてのポジションを担当外にして保存できる",
   parameters: { screenshot: { skip: true } },
-  play: skipUnavailableOnLastPosition,
+  play: allowUnavailableOnAllPositions,
 };
 
 export const SinglePositionStaffBehavior: Story = {
-  name: "Behavior: ポジションが1件の店舗では、一人前、見習い、リーダーの順に切り替わる",
+  name: "Behavior: ポジションが1件の店舗でも、担当外へ切り替わる",
   args: { setup: notConfiguredSetup },
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    // 担当できるポジションを選ぶ余地がないため、「担当外」にはならない。
-    for (const level of ["見習い", "リーダー", "一人前", "見習い"]) {
+    for (const level of ["リーダー", "担当外"]) {
       await pressStaffLevelCell(canvas, "佐藤 花子", "ホール", level);
     }
 
     await saveChanges(canvasElement);
     await waitFor(() => expect(readSavedStaffProfiles(canvasElement)).toHaveLength(1));
     await expect(readSavedStaffProfiles(canvasElement)[0]).toEqual([
-      { staffId: "staff-1", positionSkills: [{ positionId: hallId, level: "newcomer" }] },
+      { staffId: "staff-1", positionSkills: [{ positionId: hallId, level: "unavailable" }] },
     ]);
   },
 };
@@ -1992,18 +1962,21 @@ export const SinglePositionStaffBehavior: Story = {
 export const MobileSinglePositionStaffBehavior: Story = {
   tags: ["vrt-mobile1"],
   globals: mobile1Globals,
-  name: "Behavior: モバイルでもポジションが1件の店舗では、一人前、見習い、リーダーの順に切り替わる",
+  name: "Behavior: モバイルでもポジションが1件の店舗で、担当外へ切り替わる",
   args: { setup: notConfiguredSetup },
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    // 伊藤は、保存済みの値が見習いである。リーダーの次は、「担当外」を飛ばして一人前へ戻る。
-    await pressStaffLevelCell(canvas, "伊藤 さくら", "ホール", "リーダー");
-    await pressStaffLevelCell(canvas, "伊藤 さくら", "ホール", "一人前");
+    // 伊藤は、保存済みの値が見習いである。
+    for (const level of ["一人前", "リーダー", "担当外"]) {
+      await pressStaffLevelCell(canvas, "伊藤 さくら", "ホール", level);
+    }
 
     await saveChanges(canvasElement);
     await waitFor(() => expect(readSavedStaffProfiles(canvasElement)).toHaveLength(1));
-    await expect(readSavedStaffProfiles(canvasElement)[0]).toEqual([{ staffId: "staff-5", positionSkills: [] }]);
+    await expect(readSavedStaffProfiles(canvasElement)[0]).toEqual([
+      { staffId: "staff-5", positionSkills: [{ positionId: hallId, level: "unavailable" }] },
+    ]);
   },
 };
 

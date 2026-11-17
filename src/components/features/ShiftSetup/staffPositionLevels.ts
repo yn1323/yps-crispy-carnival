@@ -20,8 +20,8 @@ const LEVEL_LABELS: Record<StaffPositionLevel, string> = {
   lead: "リーダー",
 };
 
-/** マスを押すたびに切り替わる順。最後の「担当外」の次は、最初の一人前へ戻る。 */
-const STAFF_POSITION_LEVEL_ORDER: readonly StaffPositionLevel[] = ["standard", "newcomer", "lead", "unavailable"];
+/** マスを押すたびに切り替わる順。最後の「担当外」の次は、最初の見習いへ戻る。 */
+const STAFF_POSITION_LEVEL_ORDER: readonly StaffPositionLevel[] = ["newcomer", "standard", "lead", "unavailable"];
 
 export function getStaffPositionLevelLabel(level: StaffPositionLevel): string {
   return LEVEL_LABELS[level];
@@ -44,27 +44,12 @@ export function getStaffPositionLevel(levels: StaffPositionLevels, positionId: s
   return levels[positionId] ?? "standard";
 }
 
-function countAvailablePositions(levels: StaffPositionLevels, positions: readonly PositionRef[]): number {
-  return positions.filter((position) => levels[position._id] !== "unavailable").length;
-}
-
-/** そのポジションが、スタッフに残った最後の「担当できるポジション」かを返す。最後の1つは「担当外」にできない。 */
-export function isLastAvailablePosition(
-  levels: StaffPositionLevels,
-  positionId: string,
-  positions: readonly PositionRef[],
-): boolean {
-  return levels[positionId] !== "unavailable" && countAvailablePositions(levels, positions) <= 1;
-}
-
-/** 1つのポジションの値を変える。最後の1つを「担当外」にする操作は無視する。 */
+/** 1つのポジションの値を変える。 */
 export function setStaffPositionLevel(
   levels: StaffPositionLevels,
   positionId: string,
   level: StaffPositionLevel,
-  positions: readonly PositionRef[],
 ): StaffPositionLevels {
-  if (level === "unavailable" && isLastAvailablePosition(levels, positionId, positions)) return levels;
   const { [positionId]: _current, ...rest } = levels;
   return level === "standard" ? rest : { ...rest, [positionId]: level };
 }
@@ -104,17 +89,10 @@ export function toStaffProfileInputs(
   });
 }
 
-/**
- * マスを押したあとの値を返す。一人前、見習い、リーダー、担当外の順に切り替わり、担当外の次は一人前へ戻る。
- * スタッフに残った最後の「担当できるポジション」では、担当外を飛ばして一人前へ戻る。
- */
-export function getNextStaffPositionLevel(
-  levels: StaffPositionLevels,
-  positionId: string,
-  positions: readonly PositionRef[],
-): StaffPositionLevel {
+/** マスを押したあとの値を返す。見習い、一人前、リーダー、担当外の順に切り替わり、担当外の次は見習いへ戻る。 */
+export function getNextStaffPositionLevel(levels: StaffPositionLevels, positionId: string): StaffPositionLevel {
   const current = getStaffPositionLevel(levels, positionId);
-  const next =
-    STAFF_POSITION_LEVEL_ORDER[(STAFF_POSITION_LEVEL_ORDER.indexOf(current) + 1) % STAFF_POSITION_LEVEL_ORDER.length];
-  return next === "unavailable" && isLastAvailablePosition(levels, positionId, positions) ? "standard" : next;
+  return STAFF_POSITION_LEVEL_ORDER[
+    (STAFF_POSITION_LEVEL_ORDER.indexOf(current) + 1) % STAFF_POSITION_LEVEL_ORDER.length
+  ];
 }

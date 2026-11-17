@@ -215,13 +215,13 @@ describe("ポジションの一覧を変えたあとのスタッフの値", () =
     expect(reconcileStaffDrafts(staffs, drafts, positions)).toEqual({ "staff-c": { [hall]: "newcomer" } });
   });
 
-  it("残ったポジションのすべてが担当外になるスタッフは、担当外を外して全ポジションを担当できるものとする", () => {
-    // キッチンだけを残す。保存済みの値でキッチンが担当外のstaff-bは、担当できるポジションが残らない。
-    expect(reconcileStaffDrafts(staffs, {}, [{ _id: kitchen }])).toEqual({ "staff-b": {} });
+  it("残ったポジションのすべてが担当外になるスタッフも、担当外をそのまま保つ", () => {
+    // キッチンだけを残す。保存済みの値でキッチンが担当外のstaff-bは、保存済みの値と同じなので編集中の値に残さない。
+    expect(reconcileStaffDrafts(staffs, {}, [{ _id: kitchen }])).toEqual({});
 
-    // ホールだけを残す。編集中の値でホールを担当外にしたstaff-cは、担当できるポジションが残らない。
+    // ホールだけを残す。編集中の値でホールを担当外にしたstaff-cは、担当外のまま残る。
     const drafts = { "staff-c": { [hall]: "unavailable" as const, [register]: "lead" as const } };
-    expect(reconcileStaffDrafts(staffs, drafts, [{ _id: hall }])).toEqual({ "staff-c": {} });
+    expect(reconcileStaffDrafts(staffs, drafts, [{ _id: hall }])).toEqual({ "staff-c": { [hall]: "unavailable" } });
   });
 
   it("担当できるポジションが残るスタッフの担当外は、そのまま保つ", () => {

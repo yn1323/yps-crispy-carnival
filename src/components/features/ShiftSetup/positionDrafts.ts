@@ -108,8 +108,6 @@ export function replacePositionIdsInDayTemplateDrafts(
 /**
  * ポジションの一覧を変えたあとの、スタッフの編集中の値を返す。保存済みの値と同じになったスタッフは含めない。
  * 一覧にないポジションの値は外す。
- * 残ったポジションのすべてが「担当外」になったスタッフは、「担当外」を外して全ポジションを担当できるものとする。
- * 保存したあとにサーバーが返す値と、保存の前の表示をそろえるためである。
  */
 export function reconcileStaffDrafts(
   staffs: readonly ShiftSetupStaff[],
@@ -120,13 +118,9 @@ export function reconcileStaffDrafts(
   for (const staff of staffs) {
     const saved = toStaffPositionLevels(staff, positions);
     const draft = drafts[staff._id];
-    const kept = draft
+    const levels = draft
       ? Object.fromEntries(positions.flatMap(({ _id }) => (draft[_id] ? [[_id, draft[_id]]] : [])))
       : saved;
-    const hasAvailablePosition = positions.some((position) => kept[position._id] !== "unavailable");
-    const levels = hasAvailablePosition
-      ? kept
-      : Object.fromEntries(Object.entries(kept).filter(([, level]) => level !== "unavailable"));
     if (!isSameStaffPositionLevels(levels, saved, positions)) next[staff._id] = levels;
   }
   return next;

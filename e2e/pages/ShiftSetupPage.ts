@@ -37,11 +37,12 @@ export class ShiftSetupPage {
     const saveButton = this.page
       .getByRole("group", { name: "変更の保存", exact: true })
       .getByRole("button", { name: "保存する", exact: true });
-    await expect(saveButton).toBeEnabled();
     await saveButton.click();
-    // 「保存する」は保存の応答を待つ間も押せない。保存が終わり、保存していない変更がなくなっても押せないままになる。
-    await expect(saveButton).toBeDisabled();
-    await expect(saveButton).not.toHaveAttribute("data-loading", { timeout: SHIFT_SETUP_DATA_TIMEOUT });
+    // 保存が終わると、変えた内容によらず同じ知らせが出る。
+    await expect(this.page.getByText("シフト設定を保存しました", { exact: true })).toBeVisible({
+      timeout: SHIFT_SETUP_DATA_TIMEOUT,
+    });
+    await expect(saveButton).not.toHaveAttribute("data-loading");
     await expect(section.getByRole("listitem").filter({ hasText: name })).toBeVisible();
   }
 }
