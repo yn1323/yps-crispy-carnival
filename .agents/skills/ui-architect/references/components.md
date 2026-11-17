@@ -2,6 +2,21 @@
 
 入力・選択・表示・アクション・フィードバックの各カテゴリで、状況 → 部品の判定ツリー。
 
+## 基準にする既存実装
+
+役割が同じ部品は、次の実装と同じ見た目と操作にする。
+画面ごとに別の形を作ると、利用者は同じ操作を覚え直すことになる。
+表にない役割は近い既存画面を探し、基準にした実装をこの表へ足す。
+
+| 役割 | 基準にする実装 | そろえる点 |
+|---|---|---|
+| 並べ替え | `src/components/features/OrganizationSettings/PeopleSection.tsx` | ドラッグ&ドロップで動かす。つかむ位置を`LuGripVertical`のアイコンで示す。上下のボタンにしない |
+| 土曜、日曜、祝日の文字色 | `src/components/features/CreateRecruitmentForm/CalendarPicker.tsx`、`src/components/features/ShiftSetup/DayTemplateEditor.tsx`の`DAY_TONE_COLORS` | 土曜は`blue.600`、日曜と祝日は`red.600` |
+| ページやsectionのLoading | `src/components/ui/ShiftoriLoading` | 領域の上下左右の中央に置く。`variant`と高さをほかのページとそろえ、読み込みの途中で大きさと位置を変えない |
+| Empty | `src/components/ui/Empty` | アイコン、説明、最初の操作のボタンの並びを変えない |
+| ポジションの表示 | `src/components/features/ShiftSetup/parts.tsx`の`PositionBadge` | 同じ対象は、どの画面でも同じバッジで示す |
+| 設定のセクションの説明 | `src/components/features/ShiftSetup/parts.tsx`の`SetupSection` | 見出しの下に説明を置く。同じページの中で、説明のあるセクションとないセクションを混ぜない |
+
 ## 入力（テキスト系）
 
 | 状況 | 部品 | 注意 |

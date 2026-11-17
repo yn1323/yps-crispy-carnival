@@ -14,6 +14,17 @@ if [ "$STOP_HOOK_ACTIVE" = "True" ]; then
   exit 0
 fi
 
+# サブエージェントに任せた作業が続いている間は検査しない。
+# 編集の途中の型エラーを、任せた側が待つたびに報告してしまうのを防ぐ。任せた作業が終わったあとのターンで検査する。
+AGENTS_IN_FLIGHT=$(printf '%s' "$INPUT" | python3 -c '
+import json, sys
+tasks = json.load(sys.stdin).get("background_tasks") or []
+print(any(task.get("type") in ("subagent", "workflow", "teammate") for task in tasks))
+' 2>/dev/null)
+if [ "$AGENTS_IN_FLIGHT" = "True" ]; then
+  exit 0
+fi
+
 cd "${CLAUDE_PROJECT_DIR:-.}" || exit 0
 
 # TypeScriptに関わる未コミットの変更がなければ検査しない。質問だけのターンを待たせないため。
@@ -24,7 +35,8 @@ fi
 if ! OUTPUT=$(pnpm type-check 2>&1); then
   {
     echo "型チェック（pnpm type-check）が失敗しています。今回の変更が原因なら修正してください。"
-    echo "今回の変更と無関係な、作業途中の別の変更が原因なら、修正せずにその旨をユーザーへ報告してください。"
+    echo "今回の変更と無関係な、作業途中の別の変更が原因なら、修正せず、返答の末尾に1行だけ書いてください。"
+    echo "同じ失敗をこの会話ですでに伝えている場合は、もう一度書かないでください。"
     echo
     printf '%s\n' "$OUTPUT" | tail -n 60
   } >&2
