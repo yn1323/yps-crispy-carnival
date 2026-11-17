@@ -26,8 +26,22 @@ describe("buildShiftPopoverViewModel", () => {
     expect(viewModel.requestLabel).toBe("希望：09:00〜12:00 / 13:00〜17:00");
     expect(viewModel.showUnsubmittedBadge).toBe(true);
     expect(viewModel.segments).toEqual([
-      { id: "work-1", timeLabel: "09:00〜12:00", positionId: "default", positionName: "勤務", color: "#000" },
-      { id: "work-2", timeLabel: "13:00〜17:00", positionId: "default", positionName: "勤務", color: "#000" },
+      {
+        id: "work-1",
+        segmentIds: ["work-1"],
+        timeLabel: "09:00〜12:00",
+        positionId: "default",
+        positionName: "勤務",
+        color: "#000",
+      },
+      {
+        id: "work-2",
+        segmentIds: ["work-2"],
+        timeLabel: "13:00〜17:00",
+        positionId: "default",
+        positionName: "勤務",
+        color: "#000",
+      },
     ]);
     expect(viewModel.breakLabels).toEqual([]);
   });
@@ -54,7 +68,14 @@ describe("buildShiftPopoverViewModel", () => {
     });
 
     expect(viewModel.segments).toEqual([
-      { id: "work-1", timeLabel: "10:00〜19:00", positionId: "hall", positionName: "ホール", color: "#111" },
+      {
+        id: "work-1",
+        segmentIds: ["work-1"],
+        timeLabel: "10:00〜19:00",
+        positionId: "hall",
+        positionName: "ホール",
+        color: "#111",
+      },
     ]);
     expect(viewModel.breakLabels).toEqual(["12:00〜13:00", "16:00〜16:15"]);
   });
@@ -93,6 +114,49 @@ describe("buildShiftPopoverViewModel", () => {
       requestLabel: null,
       showUnsubmittedBadge: false,
       showDeleteActions: false,
+    });
+  });
+  describe("ポジションの違う隣り合う勤務", () => {
+    const shift: ShiftData = {
+      id: "shift-1",
+      staffId: "staff-1",
+      staffName: "田中",
+      date: "2026-06-01",
+      requestedTime: null,
+      positions: [
+        {
+          id: "kitchen-1",
+          positionId: "kitchen",
+          positionName: "キッチン",
+          color: "#222",
+          start: "12:00",
+          end: "15:30",
+        },
+        { id: "hall-1", positionId: "hall", positionName: "ホール", color: "#111", start: "06:30", end: "12:00" },
+        { id: "hall-2", positionId: "hall", positionName: "ホール", color: "#111", start: "16:00", end: "19:30" },
+      ],
+    };
+    const project = (mergesAcrossPositions: boolean) =>
+      buildShiftPopoverViewModel({
+        shift,
+        isStaffSubmitted: true,
+        isReadOnly: false,
+        mergesAcrossPositions,
+      }).segments.map((segment) => [segment.timeLabel, segment.segmentIds]);
+
+    it("ポジションを見せない表示では、続いた1つの勤務時間にまとめ、間の空いた勤務は分けたままにする", () => {
+      expect(project(true)).toEqual([
+        ["06:30〜15:30", ["hall-1", "kitchen-1"]],
+        ["16:00〜19:30", ["hall-2"]],
+      ]);
+    });
+
+    it("ポジションを見せる表示では、ポジションごとの区間のまま出す", () => {
+      expect(project(false)).toEqual([
+        ["06:30〜12:00", ["hall-1"]],
+        ["12:00〜15:30", ["kitchen-1"]],
+        ["16:00〜19:30", ["hall-2"]],
+      ]);
     });
   });
 });

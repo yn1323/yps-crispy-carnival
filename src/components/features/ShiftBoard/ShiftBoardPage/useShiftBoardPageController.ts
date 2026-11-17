@@ -11,7 +11,6 @@ import {
 import {
   type ReminderStatus,
   type ShiftDateNote,
-  type ShiftFormDayRequirements,
   type ShiftFormDetailActions,
   type ShiftFormStaffing,
   shouldDefaultToDetailMode,
@@ -46,12 +45,7 @@ import type { ShiftBoardData, ShiftBoardStaffingData } from "../types";
 import { buildShiftData } from "./buildShiftData";
 import { readStoredDetailMode, storeDetailMode } from "./detailModeStorage";
 import { buildNewcomerOnlyItems } from "./newcomerOnlyPresentation";
-import {
-  toDayRequirementsArg,
-  toDayTemplateIdArg,
-  toPositionSkillsByStaffId,
-  toShiftFormStaffing,
-} from "./staffingAdapter";
+import { toDayTemplateIdArg, toPositionSkillsByStaffId, toShiftFormStaffing } from "./staffingAdapter";
 import type { ShiftBoardPageViewProps } from "./types";
 import { visibleAssignmentWarnings, visibleNewcomerOnlyPeriods } from "./warningVisibility";
 
@@ -624,7 +618,6 @@ export const useShiftBoardPageController = (
   const navigate = useNavigate();
   const convex = useConvex();
   const applyDayTemplateToDates = useShopMutation(api.shiftSetup.mutations.applyDayTemplateToDates);
-  const saveDayCustomRequirements = useShopMutation(api.shiftSetup.mutations.saveDayCustomRequirements);
   const applyShiftsRef = useRef<((update: (current: ShiftData[]) => ShiftData[]) => void) | null>(null);
   const setupScope = managerShopScope?.shopId === data.shopId ? managerShopScope : null;
 
@@ -637,7 +630,7 @@ export const useShiftBoardPageController = (
     });
   }, [navigate, setupScope]);
 
-  // テンプレートの当て直しと、その日だけの変更。必要人数だけを変え、シフト表の下書き（未保存の勤務）には触れない。
+  // テンプレートの当て直し。必要人数だけを変え、シフト表の下書き（未保存の勤務）には触れない。
   const { run: runApplyDayTemplate, isRunning: isApplyingDayTemplate } = useSingleFlight(
     async (targetDates: string[], templateId: string | null) => {
       try {
@@ -654,29 +647,11 @@ export const useShiftBoardPageController = (
       }
     },
   );
-  const { run: runSaveDayRequirements, isRunning: isSavingDayRequirements } = useSingleFlight(
-    async (date: string, requirements: ShiftFormDayRequirements) => {
-      try {
-        await saveDayCustomRequirements({ recruitmentId, date, requirements: toDayRequirementsArg(requirements) });
-        showSuccessToast({ title: "この日の必要人数を保存しました" });
-        return true;
-      } catch (error) {
-        showErrorToast(error);
-        return false;
-      }
-    },
-  );
   const handleApplyDayTemplate = useCallback(
     async (targetDates: string[], templateId: string | null) =>
       (await runApplyDayTemplate(targetDates, templateId)) ?? false,
     [runApplyDayTemplate],
   );
-  const handleSaveDayRequirements = useCallback(
-    async (date: string, requirements: ShiftFormDayRequirements) =>
-      (await runSaveDayRequirements(date, requirements)) ?? false,
-    [runSaveDayRequirements],
-  );
-  const isDayStaffingPending = isApplyingDayTemplate || isSavingDayRequirements;
 
   const { run: handleInsertProvisional, isRunning: isInsertingProvisional } = useSingleFlight(async () => {
     if (!setupScope || !applyShiftsRef.current) return;
@@ -718,7 +693,7 @@ export const useShiftBoardPageController = (
     !isConfirmed &&
     hasUnsubmittedStaff &&
     staffing?.hasPreviousConfirmedRecruitment === true;
-  // 確定済みの募集は、確定した時点の必要人数を残すため、テンプレートの当て直しとその日だけの変更を出さない。
+  // 確定済みの募集は、確定した時点の必要人数を残すため、テンプレートの当て直しを出さない。
   const canEditDayStaffing = Boolean(setupScope) && !isReadOnly && staffing !== undefined && !staffing.isLocked;
   const detailActions = useMemo<ShiftFormDetailActions>(
     () => ({
@@ -727,8 +702,7 @@ export const useShiftBoardPageController = (
         ? {
             dayStaffingActions: {
               onApplyTemplate: handleApplyDayTemplate,
-              onSaveCustom: handleSaveDayRequirements,
-              isPending: isDayStaffingPending,
+              isPending: isApplyingDayTemplate,
             },
           }
         : {}),
@@ -742,8 +716,7 @@ export const useShiftBoardPageController = (
       canInsertProvisional,
       handleOpenSetup,
       handleApplyDayTemplate,
-      handleSaveDayRequirements,
-      isDayStaffingPending,
+      isApplyingDayTemplate,
       handleInsertProvisional,
       isInsertingProvisional,
     ],

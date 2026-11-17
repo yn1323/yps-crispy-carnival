@@ -1,17 +1,11 @@
-import { Box, chakra, Flex, Popover, Portal, Text } from "@chakra-ui/react";
+import { Box, chakra, Flex, Icon, Popover, Portal, Text } from "@chakra-ui/react";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
-import { LuChevronDown, LuChevronUp } from "react-icons/lu";
+import { LuChevronDown, LuChevronUp, LuTriangleAlert } from "react-icons/lu";
 import { minutesToPixel } from "@/src/components/shared/ShiftTimeline/timelineGeometry";
 import { Button } from "@/src/components/ui/Button";
 import type { TimeRange } from "@/src/domains/shift/types";
-import {
-  DayTemplateMenu,
-  NewcomerOnlyMark,
-  StaffingLegend,
-  StaffingUnsetNote,
-  useDayStaffingView,
-} from "../../../staffingParts";
+import { NewcomerOnlyMark, StaffingUnsetNote, useDayStaffingView } from "../../../staffingParts";
 import {
   describeStaffingCount,
   resolveBandSegmentContent,
@@ -34,7 +28,7 @@ type SegmentProps = {
   hourWidth: number;
 };
 
-/** 帯の1区間。幅に入る文字だけを出し、全文はtitleと、押したときの欄で出す。 */
+/** 帯の1区間。過不足だけを出し、人数と必要人数、見習いだけであることは、titleと押したときの欄で出す。 */
 const BandSegment = ({ band, segment, timeRange, hourWidth }: SegmentProps) => {
   const left = minutesToPixel(segment.startMinutes, timeRange, hourWidth);
   const width = Math.max(0, minutesToPixel(segment.endMinutes, timeRange, hourWidth) - left - SEGMENT_GAP_PX);
@@ -112,14 +106,15 @@ const BandSegment = ({ band, segment, timeRange, hourWidth }: SegmentProps) => {
 export const StaffingBand = ({ leftWidth }: { leftWidth: number }) => {
   const selectedDate = useAtomValue(selectedDateAtom);
   const hourWidth = useAtomValue(hourWidthAtom);
-  const { timeRange, staffs } = useAtomValue(shiftConfigAtom);
+  const { timeRange } = useAtomValue(shiftConfigAtom);
   const view = useDayStaffingView(selectedDate);
   const [isExpanded, setExpanded] = useState(false);
   if (!view) return null;
 
   const summary = summarizeStaffingBands(view, isExpanded);
-  const hasNewcomer = staffs.some(
-    (staff) => !staff.isRemoved && staff.positionSkills?.some((skill) => skill.level === "newcomer"),
+  const newcomerOnlyCount = view.bands.reduce(
+    (count, band) => count + band.segments.filter((segment) => segment.isNewcomerOnly).length,
+    0,
   );
 
   return (
@@ -128,21 +123,37 @@ export const StaffingBand = ({ leftWidth }: { leftWidth: number }) => {
       aria-label="人数"
       position="sticky"
       bottom={0}
+      // スタッフが少ない日も、帯を表の下端に留める。
+      mt="auto"
       zIndex={9}
       bg="white"
       borderTopWidth="1px"
       borderColor="gray.300"
       boxShadow="0 -2px 4px rgba(0,0,0,0.04)"
     >
-      <Flex align="center" columnGap={4} rowGap={1} wrap="wrap" px={3} py="6px">
-        <Flex align="center" gap={2} flexShrink={0}>
-          <Text textStyle="xs" fontWeight={700} color="gray.700" whiteSpace="nowrap">
-            {view.hasRequirements ? "人数 / 必要" : "人数"}
+      <Flex align="center" gap={2} px={3} py="6px">
+        <Text textStyle="xs" fontWeight={700} color="gray.700" whiteSpace="nowrap">
+          人数
+        </Text>
+        {!view.hasRequirements ? (
+          <StaffingUnsetNote />
+        ) : view.hasShortage ? (
+          <Text textStyle="xs" fontWeight={700} color="red.700" whiteSpace="nowrap">
+            不足 {view.shortageCount}か所
           </Text>
-          <DayTemplateMenu date={selectedDate} view={view} />
-          {!view.hasRequirements && <StaffingUnsetNote />}
-        </Flex>
-        <StaffingLegend showsImbalance={view.hasRequirements} showsNewcomer={hasNewcomer} />
+        ) : (
+          <Text textStyle="xs" color="gray.600" whiteSpace="nowrap">
+            不足なし
+          </Text>
+        )}
+        {newcomerOnlyCount > 0 && (
+          <Flex align="center" gap={1} textStyle="xs" fontWeight={700} color="orange.700" whiteSpace="nowrap">
+            <Icon boxSize={3.5} aria-hidden>
+              <LuTriangleAlert />
+            </Icon>
+            見習いだけ {newcomerOnlyCount}か所
+          </Flex>
+        )}
       </Flex>
       <Box maxH={`${BAND_ROW_HEIGHT_PX * BAND_MAX_VISIBLE_ROWS}px`} overflowY="auto">
         {summary.visibleBands.map((band) => (

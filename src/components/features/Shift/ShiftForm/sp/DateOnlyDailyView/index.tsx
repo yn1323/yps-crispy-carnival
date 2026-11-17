@@ -11,17 +11,15 @@ import {
   isSunday,
 } from "@/src/domains/shift/date";
 import type { StaffType } from "@/src/domains/shift/types";
-import { Avatar, DateIssueBadge, DateStaffingMarks, dateIssueBorderColor, StaffWarningIcon } from "../../components";
+import { Avatar, DateIssueBadge, dateIssueBorderColor, StaffWarningIcon } from "../../components";
 import { DisplaySettingsMenu } from "../../DisplaySettingsMenu";
 import { ShiftDateNoteBlock, ShiftStaffNoteIcon, useAllShiftDateNotes } from "../../dateNotes";
 import { BreakMark, PositionMark, SegmentSkillMark, StaffMeta } from "../../detailParts";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
 import { StaffingSummary, useDayStaffingView } from "../../staffingParts";
-import type { DayStaffingMarks } from "../../staffingPresentation";
 import {
   dailySortedStaffsAtom,
-  dayStaffingMarksByDateAtom,
   detailModeAtom,
   issueCountByDateAtom,
   selectDateWithDailyStaffOrderAtom,
@@ -50,7 +48,6 @@ export const SPDateOnlyDailyView = () => {
   const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const issueCounts = useAtomValue(issueCountByDateAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
-  const staffingMarks = useAtomValue(dayStaffingMarksByDateAtom);
   const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
   // カード下段の本文と名前の右のアイコンは、表示設定に応じてどちらか一方だけが出る。
   const dateNotes = useAllShiftDateNotes();
@@ -106,7 +103,6 @@ export const SPDateOnlyDailyView = () => {
         selectedDate={activeDate}
         issueCounts={issueCounts}
         warningCounts={warningCounts}
-        staffingMarks={staffingMarks}
         onSelect={handleDateSelect}
       />
 
@@ -173,7 +169,6 @@ const DateRail = ({
   selectedDate,
   issueCounts,
   warningCounts,
-  staffingMarks,
   onSelect,
 }: {
   dates: SPDateInfo[];
@@ -181,7 +176,6 @@ const DateRail = ({
   selectedDate: string;
   issueCounts: ReadonlyMap<string, number>;
   warningCounts: ReadonlyMap<string, number>;
-  staffingMarks: ReadonlyMap<string, DayStaffingMarks>;
   onSelect: (iso: string) => void;
 }) => {
   const stripRef = useRef<HTMLDivElement>(null);
@@ -260,7 +254,6 @@ const DateRail = ({
                   </Text>
                 )}
               </Text>
-              <DateStaffingMarks marks={staffingMarks.get(date.iso)} reserveSpace={staffingMarks.size > 0} />
             </Box>
           );
         })}

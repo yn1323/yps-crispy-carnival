@@ -1,6 +1,5 @@
 import type { Id } from "@/convex/_generated/dataModel";
-import type { DayRequirements } from "@/convex/shiftSetup/dayTemplates";
-import type { ShiftFormDayRequirements, ShiftFormStaffing } from "@/src/components/features/Shift/ShiftForm";
+import type { ShiftFormStaffing } from "@/src/components/features/Shift/ShiftForm";
 import type { ShiftBreakRule, StaffPositionSkill } from "@/src/domains/shift/types";
 import type { ShiftBoardStaffingData } from "../types";
 
@@ -46,7 +45,3 @@ export const toPositionSkillsByStaffId = (
 /** ShiftFormが返すテンプレートのIDを、mutationの引数へ直す。nullは、その日だけの指定を消すことを表す。 */
 export const toDayTemplateIdArg = (templateId: string | null): Id<"shiftDayTemplates"> | null =>
   templateId as Id<"shiftDayTemplates"> | null;
-
-/** ShiftFormが返す必要人数を、mutationの引数へ直す。ポジションの所属はサーバーが確かめる。 */
-export const toDayRequirementsArg = (requirements: ShiftFormDayRequirements): DayRequirements<Id<"positions">> =>
-  requirements as DayRequirements<Id<"positions">>;

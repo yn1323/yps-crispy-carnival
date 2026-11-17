@@ -6,7 +6,6 @@ import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import {
   breakEditorTargetAtom,
   changeShiftPositionAtom,
-  dayStaffingMarksByDateAtom,
   deleteShiftPositionAtom,
   isBreakToolActiveAtom,
   issueCountByDateAtom,
@@ -34,7 +33,6 @@ export const DailyView = () => {
   const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const issueCounts = useAtomValue(issueCountByDateAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
-  const staffingMarks = useAtomValue(dayStaffingMarksByDateAtom);
 
   const { dates, isReadOnly, holidays } = config;
   const isShopClosedDate = holidays.includes(selectedDate);
@@ -62,9 +60,9 @@ export const DailyView = () => {
   }, []);
 
   const handleDeletePosition = useCallback(
-    (positionId: string) => {
+    (positionIds: string[]) => {
       if (!popoverShift) return;
-      const updatedShift = deleteShiftPosition({ shiftId: popoverShift.id, positionId });
+      const updatedShift = deleteShiftPosition({ shiftId: popoverShift.id, positionIds });
       if (!updatedShift) return;
       if (updatedShift.positions.length === 0) {
         handlePopoverClose();
@@ -105,7 +103,6 @@ export const DailyView = () => {
         holidays={holidays}
         issueCounts={issueCounts}
         warningCounts={warningCounts}
-        staffingMarks={staffingMarks}
       />
       <Flex direction="column" minW={0} minH={0} overflow="hidden">
         <DayTitle date={selectedDate} holidays={holidays} />

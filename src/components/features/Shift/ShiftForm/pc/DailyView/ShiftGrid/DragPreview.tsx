@@ -46,6 +46,15 @@ export const DragPreview = ({ mode, startMinutes, currentMinutes, timeRange, pos
           borderRadius: "md",
         };
 
+      // 休憩は、勤務のバーの上に重ねて見えるよう、濃い灰色にする。
+      case "break":
+        return {
+          bg: "gray.700",
+          opacity: 0.55,
+          height: "22px",
+          borderRadius: "sm",
+        };
+
       default:
         return {};
     }

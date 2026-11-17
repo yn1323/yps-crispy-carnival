@@ -1,7 +1,7 @@
-import { Box, chakra, Flex, Menu, Portal, Text } from "@chakra-ui/react";
-import { useAtomValue, useSetAtom } from "jotai";
+import { Box, chakra, Flex, Icon, Menu, Portal, Text } from "@chakra-ui/react";
+import { useAtomValue } from "jotai";
 import { type ReactNode, useState } from "react";
-import { LuCheck, LuChevronDown } from "react-icons/lu";
+import { LuCheck, LuChevronDown, LuTriangleAlert } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
 import { useShiftFormDetailActions } from "./detailParts";
 import {
@@ -10,7 +10,7 @@ import {
   type StaffingCountView,
   type StaffingSlotView,
 } from "./staffingPresentation";
-import { canEditDayStaffingAtom, dayStaffingDialogAtom, dayStaffingViewByDateAtom, shiftConfigAtom } from "./stores";
+import { canEditDayStaffingAtom, dayStaffingViewByDateAtom, shiftConfigAtom } from "./stores";
 
 // 人数と過不足、その日のテンプレートのメニュー。くわしく表示のときだけ出す。
 
@@ -28,21 +28,13 @@ export const useDayStaffingEditor = () => {
 // ==========================================
 // 人数の表示
 // ==========================================
-/** 見習いだけの時間帯の印。スタッフ名の「見習い」バッジと同じ配色にする。 */
+/** 見習いだけの時間帯の印。確認事項と同じ、注意のアイコンで示す。意味は、押したときの欄とtitleで伝える。 */
 export const NewcomerOnlyMark = () => (
-  <Box
-    as="span"
-    px="3px"
-    borderRadius="sm"
-    bg="orange.100"
-    color="orange.800"
-    textStyle="2xs"
-    fontWeight={700}
-    lineHeight={1.4}
-    flexShrink={0}
-    title="見習いだけ"
-  >
-    見<chakra.span srOnly>習いだけ</chakra.span>
+  <Box as="span" display="inline-flex" alignItems="center" color="orange.600" flexShrink={0} title="見習いだけ">
+    <Icon boxSize={3.5} aria-hidden>
+      <LuTriangleAlert />
+    </Icon>
+    <chakra.span srOnly>見習いだけ</chakra.span>
   </Box>
 );
 
@@ -103,82 +95,16 @@ export const StaffingPositionCounts = ({ slot, showNames }: { slot: StaffingSlot
   );
 };
 
-const LegendItem = ({ swatch, children }: { swatch: ReactNode; children: ReactNode }) => (
-  <Flex as="li" align="center" gap="6px" whiteSpace="nowrap">
-    {swatch}
-    {children}
-  </Flex>
-);
-
-const LegendSwatch = ({ tone }: { tone: "shortage" | "excess" }) => {
-  const style = STAFFING_TONE_STYLES[tone];
-  return (
-    <Box
-      boxSize="14px"
-      borderRadius="sm"
-      borderWidth="1px"
-      bg={style.bg}
-      borderColor={style.borderColor}
-      borderStyle={style.borderStyle}
-      flexShrink={0}
-      aria-hidden
-    />
-  );
-};
-
-/** 過不足の色と記号、見習いだけの印の凡例。 */
-export const StaffingLegend = ({
-  showsImbalance,
-  showsNewcomer,
-}: {
-  showsImbalance: boolean;
-  showsNewcomer: boolean;
-}) => {
-  if (!showsImbalance && !showsNewcomer) return null;
-  return (
-    <Flex
-      as="ul"
-      aria-label="人数の凡例"
-      listStyleType="none"
-      align="center"
-      columnGap={4}
-      rowGap={1}
-      flexWrap="wrap"
-      textStyle="2xs"
-      color="gray.600"
-    >
-      {showsImbalance && (
-        <>
-          <LegendItem swatch={<LegendSwatch tone="shortage" />}>足りない ▲</LegendItem>
-          <LegendItem swatch={<LegendSwatch tone="excess" />}>多い ＋</LegendItem>
-        </>
-      )}
-      {showsNewcomer && (
-        <LegendItem
-          swatch={
-            <Box as="span" aria-hidden>
-              <NewcomerOnlyMark />
-            </Box>
-          }
-        >
-          見習いだけの時間
-        </LegendItem>
-      )}
-    </Flex>
-  );
-};
-
 // ==========================================
 // その日のテンプレートのメニュー
 // ==========================================
 const MENU_ITEM_PROPS = { cursor: "pointer", py: 2.5 } as const;
 
-/** その日のテンプレートのメニューの項目。テンプレートを当てる、この日だけ変える、まとめて変える、曜日の設定に戻す、設定を開く。 */
+/** その日のテンプレートのメニューの項目。その日に当てるテンプレートを選ぶ。設定ページも開ける。 */
 export const DayTemplateMenuItems = ({ date, view }: { date: string; view: DayStaffingView }) => {
   const config = useAtomValue(shiftConfigAtom);
   const editor = useDayStaffingEditor();
   const { onOpenSetup } = useShiftFormDetailActions();
-  const openDialog = useSetAtom(dayStaffingDialogAtom);
   const templates = config.staffing?.templates ?? [];
   if (!editor) return null;
 
@@ -207,40 +133,21 @@ export const DayTemplateMenuItems = ({ date, view }: { date: string; view: DaySt
               );
             })}
           </Menu.ItemGroup>
-          <Menu.Separator />
+          {onOpenSetup && <Menu.Separator />}
         </>
-      )}
-      <Menu.Item value="custom" {...MENU_ITEM_PROPS} onClick={() => openDialog({ kind: "custom", date })}>
-        <Box w={4} flexShrink={0} />
-        <Menu.ItemText fontSize="sm">この日だけ人数を変える</Menu.ItemText>
-      </Menu.Item>
-      {templates.length > 0 && (
-        <Menu.Item value="bulk" {...MENU_ITEM_PROPS} onClick={() => openDialog({ kind: "bulk", date })}>
-          <Box w={4} flexShrink={0} />
-          <Menu.ItemText fontSize="sm">ほかの日もまとめて変える</Menu.ItemText>
-        </Menu.Item>
-      )}
-      {view.template.isDateSpecific && (
-        <Menu.Item value="reset" {...MENU_ITEM_PROPS} onClick={() => void editor.onApplyTemplate([date], null)}>
-          <Box w={4} flexShrink={0} />
-          <Menu.ItemText fontSize="sm">曜日の設定に戻す</Menu.ItemText>
-        </Menu.Item>
       )}
       {onOpenSetup && (
-        <>
-          <Menu.Separator />
-          <Menu.Item value="setup" {...MENU_ITEM_PROPS} onClick={onOpenSetup}>
-            <Box w={4} flexShrink={0} />
-            <Menu.ItemText fontSize="sm">シフト作成の設定を開く</Menu.ItemText>
-          </Menu.Item>
-        </>
+        <Menu.Item value="setup" {...MENU_ITEM_PROPS} onClick={onOpenSetup}>
+          <Box w={4} flexShrink={0} />
+          <Menu.ItemText fontSize="sm">シフト作成の設定を開く</Menu.ItemText>
+        </Menu.Item>
       )}
     </>
   );
 };
 
 /**
- * その日のテンプレートの名前と、テンプレートを変えるメニュー。人数の見出しに1つだけ置く。
+ * その日のテンプレートの名前と、テンプレートを変えるメニュー。PCは日付の見出し、スマートフォンは人数のカードに1つだけ置く。
  * 閲覧専用と確定済みでは、名前だけを出す。
  */
 export const DayTemplateMenu = ({ date, view }: { date: string; view: DayStaffingView }) => {
@@ -257,7 +164,7 @@ export const DayTemplateMenu = ({ date, view }: { date: string; view: DayStaffin
   }
 
   return (
-    <Menu.Root positioning={{ placement: "top-start", gutter: 6 }}>
+    <Menu.Root positioning={{ placement: "bottom-start", gutter: 6 }}>
       <Menu.Trigger asChild>
         <Button
           type="button"

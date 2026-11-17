@@ -8,7 +8,6 @@ import {
   dailySortedStaffsAtom,
   hourWidthAtom,
   issueStaffIdSetForSelectedDateAtom,
-  openBreakEditorForToolAtom,
   selectedDateAtom,
   shiftByStaffIdForSelectedDateAtom,
   shiftConfigAtom,
@@ -39,7 +38,6 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
   const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
   const setHourWidth = useSetAtom(hourWidthAtom);
   const selectedDate = useAtomValue(selectedDateAtom);
-  const openBreakEditorForTool = useSetAtom(openBreakEditorForToolAtom);
   const dateNotes = useShiftDateNotes();
   const allDateNotes = useAllShiftDateNotes();
   const { timeRange, isReadOnly, currentStaffId } = config;
@@ -77,15 +75,13 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
 
   const handleRowMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement>, staffId: string) => {
-      // 休憩を選んでいる間は、勤務を塗らずに休憩の編集を開く。
-      if (openBreakEditorForTool({ staffId, date: selectedDate })) return;
       const rect = e.currentTarget.getBoundingClientRect();
       const dragStarted = handleMouseDown(e, staffId, rect);
       if (dragStarted) {
         dragRowRectRef.current = rect;
       }
     },
-    [handleMouseDown, openBreakEditorForTool, selectedDate],
+    [handleMouseDown],
   );
 
   const handleRowMouseMoveForCursor = useCallback(
@@ -150,7 +146,7 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
   return (
     <Flex direction="column" h="100%" minH={0} bg="gray.50" data-tour="shift-grid">
       <Box flex={1} minH={0} overflowY="auto" overflowX="hidden">
-        <Box w="100%">
+        <Flex direction="column" w="100%" minH="100%">
           {/* Sticky header */}
           <Flex
             position="sticky"
@@ -228,7 +224,7 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
             );
           })}
           <StaffingBand leftWidth={STAFF_COL_WIDTH + (dateNotes.hasNotes ? NOTE_COL_WIDTH : 0)} />
-        </Box>
+        </Flex>
       </Box>
     </Flex>
   );

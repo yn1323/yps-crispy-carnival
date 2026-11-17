@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 import type { PositionType, ShiftData, StaffType } from "@/src/domains/shift/types";
 import { ShiftForm } from "../..";
 import { shiftTypeDetailDays, shiftTypeDetailTemplates, shiftTypeWeekdayTemplate } from "../../sp/detailStoryFixtures";
@@ -97,7 +97,6 @@ const detailStaffing = buildStaffing({ templates: shiftTypeDetailTemplates, days
 
 const noopStaffingActions = {
   onApplyTemplate: async () => true,
-  onSaveCustom: async () => true,
   isPending: false,
 };
 
@@ -113,9 +112,7 @@ const detailArgs = {
 } satisfies ShiftFormArgs;
 
 /** 必要人数の操作を受け取り、Storyの中の状態でサーバーの代わりをする。 */
-const harnessRender = (args: ShiftFormArgs) => (
-  <StaffingHarness {...args} templates={shiftTypeDetailTemplates} weekdayDays={shiftTypeDetailDays} />
-);
+const harnessRender = (args: ShiftFormArgs) => <StaffingHarness {...args} templates={shiftTypeDetailTemplates} />;
 
 const meta = {
   title: "Features/Shift/ShiftForm/Shift Type/PC/Daily Detail",
@@ -215,8 +212,6 @@ export const DetailAssignInteractive: Story = {
     await userEvent.click(await findVisibleByLabelText(canvas, "山田 一郎 早番 勤務なし"));
     const kitchenCell = await findVisibleByLabelText(canvas, "山田 一郎 早番 勤務あり、キッチン");
     await expect(kitchenCell).toHaveTextContent("キッチン");
-    // 山田さんはキッチンで見習いなので、入れた勤務に「見」の印が付く。
-    await expect(within(kitchenCell).getByText("見")).toHaveAttribute("title", "キッチンでは見習いです");
     // 見習いの山田さんが入っても、仮の勤務の中村さんがいるため、キッチンは見習いだけにならない。
     await expect(await canvas.findByTitle("早番 ホール 1/2 ▲1、キッチン 2/1 ＋1、レジ 0")).toBeInTheDocument();
 
@@ -236,7 +231,7 @@ export const DetailAssignInteractive: Story = {
   },
 };
 
-/** 人数の行の左にあるテンプレートのメニューからテンプレートを当てると、その日とテンプレートを送り、必要人数が変わる。曜日の設定へも戻せる。 */
+/** 日付の見出しにあるテンプレートのメニューからテンプレートを当てると、その日とテンプレートを送り、必要人数が変わる。元のテンプレートも選び直せる。 */
 export const DetailDayTemplateInteractive: Story = {
   name: "Detail Day Template Interactive",
   args: detailArgs,
@@ -254,63 +249,13 @@ export const DetailDayTemplateInteractive: Story = {
     await expect(await canvas.findByTitle("早番 ホール 1/3 ▲2、キッチン 1、レジ 0")).toBeInTheDocument();
 
     await userEvent.click(await canvas.findByRole("button", { name: "この日のテンプレート: イベント日" }));
-    await userEvent.click(await body.findByRole("menuitem", { name: "曜日の設定に戻す" }));
+    await userEvent.click(await body.findByRole("menuitem", { name: "平日" }));
     await expect(await canvas.findByRole("button", { name: "この日のテンプレート: 平日" })).toBeInTheDocument();
     await expect(await canvas.findByTitle("早番 ホール 1/2 ▲1、キッチン 1/1、レジ 0")).toBeInTheDocument();
     await expect((await readStaffingCalls(canvasElement)).calls).toEqual([
       { mutation: "applyDayTemplateToDates", dates: [firstDate], templateId: "event" },
-      { mutation: "applyDayTemplateToDates", dates: [firstDate], templateId: null },
+      { mutation: "applyDayTemplateToDates", dates: [firstDate], templateId: "weekday" },
     ]);
-  },
-};
-
-/** 「この日だけ人数を変える」で、勤務パターンごとの人数を数字で直し、その日だけの必要人数として保存する。 */
-export const DetailCustomRequirementsInteractive: Story = {
-  name: "Detail Custom Requirements Interactive",
-  args: detailArgs,
-  render: harnessRender,
-  globals: desktopGlobals,
-  parameters: { screenshot: { skip: true } },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const body = within(document.body);
-
-    await userEvent.click(await canvas.findByRole("button", { name: "この日のテンプレート: 平日" }));
-    await userEvent.click(await body.findByRole("menuitem", { name: "この日だけ人数を変える" }));
-    // 2026-05-21は木曜日。
-    const dialog = within(await body.findByRole("dialog", { name: "5月21日（木）の必要人数" }));
-    const hallInput = dialog.getByRole("spinbutton", { name: "早番のホールの必要人数" });
-    // いまの必要人数が初期値に入っている。
-    await expect(hallInput).toHaveValue(2);
-
-    await userEvent.clear(hallInput);
-    await userEvent.type(hallInput, "4");
-    await userEvent.clear(dialog.getByRole("spinbutton", { name: "夜勤のレジの必要人数" }));
-    await userEvent.click(dialog.getByRole("button", { name: "保存する" }));
-
-    await waitFor(() =>
-      expect(body.queryByRole("dialog", { name: "5月21日（木）の必要人数" })).not.toBeInTheDocument(),
-    );
-    const count = (positionId: string, value: number) => ({ positionId, count: value });
-    // 0人にした夜勤は送らない。
-    await expect((await readStaffingCalls(canvasElement)).calls).toEqual([
-      {
-        mutation: "saveDayCustomRequirements",
-        date: firstDate,
-        requirements: {
-          kind: "shiftType",
-          options: [
-            { optionId: "morning", counts: [count("hall", 4), count("kitchen", 1)] },
-            { optionId: "middle", counts: [count("hall", 1), count("kitchen", 1)] },
-            { optionId: "late", counts: [count("hall", 2), count("kitchen", 1)] },
-          ],
-        },
-      },
-    ]);
-    await expect(
-      await canvas.findByRole("button", { name: "この日のテンプレート: この日だけ変更" }),
-    ).toBeInTheDocument();
-    await expect(await canvas.findByTitle("早番 ホール 1/4 ▲3、キッチン 1/1、レジ 0")).toBeInTheDocument();
   },
 };
 

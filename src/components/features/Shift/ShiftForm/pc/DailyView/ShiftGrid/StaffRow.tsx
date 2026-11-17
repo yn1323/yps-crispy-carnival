@@ -125,7 +125,7 @@ export const StaffRow = memo(function StaffRow({
             <Text textStyle="sm" fontWeight={500} color={status === "not_submitted" ? "gray.500" : "gray.800"} truncate>
               {staff.name}
             </Text>
-            <StaffMeta staff={staff} shift={shift} />
+            <StaffMeta staff={staff} shift={shift} showTotal={false} />
           </Flex>
           <Flex align="center" gap={1} ml="auto" flexShrink={0}>
             {!isReadOnly && status === "no_request" && (

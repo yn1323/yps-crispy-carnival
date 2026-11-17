@@ -12,10 +12,8 @@ const mocks = vi.hoisted(() => ({
   saveReference: Symbol("save"),
   confirmReference: Symbol("confirm"),
   applyTemplateReference: Symbol("applyDayTemplateToDates"),
-  saveCustomReference: Symbol("saveDayCustomRequirements"),
   save: vi.fn(),
   applyDayTemplateToDates: vi.fn(),
-  saveDayCustomRequirements: vi.fn(),
   navigate: vi.fn(),
   convexQuery: vi.fn(),
   export: vi.fn(),
@@ -35,7 +33,6 @@ vi.mock("@/convex/_generated/api", () => ({
     shiftSetup: {
       mutations: {
         applyDayTemplateToDates: mocks.applyTemplateReference,
-        saveDayCustomRequirements: mocks.saveCustomReference,
       },
     },
   },
@@ -45,7 +42,6 @@ vi.mock("@/src/hooks/useShopMutation", () => ({
     if (reference === mocks.saveReference) return mocks.save;
     if (reference === mocks.confirmReference) return mocks.confirm;
     if (reference === mocks.applyTemplateReference) return mocks.applyDayTemplateToDates;
-    if (reference === mocks.saveCustomReference) return mocks.saveDayCustomRequirements;
     throw new Error("unexpected mutation reference");
   },
 }));

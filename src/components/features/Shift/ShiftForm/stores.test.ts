@@ -10,7 +10,6 @@ import {
   canEditDayStaffingAtom,
   changeShiftPositionAtom,
   clearShiftDraftPositionsAtom,
-  dayStaffingMarksByDateAtom,
   dayStaffingViewByDateAtom,
   deleteShiftPositionAtom,
   detailModeAtom,
@@ -151,7 +150,7 @@ describe("ShiftForm draft intents", () => {
     };
 
     store.set(upsertShiftDraftAtom, shift);
-    const afterDelete = store.set(deleteShiftPositionAtom, { shiftId: shift.id, positionId: "segment-1" });
+    const afterDelete = store.set(deleteShiftPositionAtom, { shiftId: shift.id, positionIds: ["segment-1"] });
     expect(afterDelete?.positions).toHaveLength(1);
     expect(store.get(shiftsAtom)[0]?.positions).toHaveLength(1);
 
@@ -575,10 +574,10 @@ describe("勤務がなくなった日の休憩と仮の印", () => {
     const shift = provisionalDraft();
     store.set(replaceShiftDraftsAtom, [shift]);
 
-    const afterFirst = store.set(deleteShiftPositionAtom, { shiftId: shift.id, positionId: "segment-1" });
+    const afterFirst = store.set(deleteShiftPositionAtom, { shiftId: shift.id, positionIds: ["segment-1"] });
     expect(afterFirst).toMatchObject({ breaks: [{ start: "13:00", end: "14:00" }], isProvisional: true });
 
-    const afterLast = store.set(deleteShiftPositionAtom, { shiftId: shift.id, positionId: "segment-2" });
+    const afterLast = store.set(deleteShiftPositionAtom, { shiftId: shift.id, positionIds: ["segment-2"] });
     expect(afterLast).toStrictEqual(clearedDraft);
     expect(store.get(shiftsAtom)).toStrictEqual([clearedDraft]);
   });
@@ -827,7 +826,7 @@ describe("閲覧専用のくわしく表示", () => {
     store.set(applyShiftDraftsAtom, () => []);
     store.set(upsertShiftDraftAtom, { ...shift, positions: [] });
     store.set(clearShiftDraftPositionsAtom, { staffId: staff.id, date });
-    const deleted = store.set(deleteShiftPositionAtom, { shiftId: shift.id, positionId: "segment-1" });
+    const deleted = store.set(deleteShiftPositionAtom, { shiftId: shift.id, positionIds: ["segment-1"] });
 
     expect(deleted).toBeNull();
     expect(store.get(shiftsAtom)).toBe(shifts);
@@ -837,7 +836,7 @@ describe("閲覧専用のくわしく表示", () => {
 // ==========================================
 // 人数と過不足（全日の判定）
 // ==========================================
-describe("全日の人数と過不足（dayStaffingViewByDateAtom / dayStaffingMarksByDateAtom）", () => {
+describe("全日の人数と過不足（dayStaffingViewByDateAtom）", () => {
   const thirdDate = "2026-07-16";
   // ホールでは見習い、キッチンでは一人前。
   const newcomer: StaffType = {
@@ -874,7 +873,11 @@ describe("全日の人数と過不足（dayStaffingViewByDateAtom / dayStaffingM
       positions: [workSegment(position, start, end)],
     });
 
-  it("募集期間の全日の人数を数え、不足のある日と多い時間のある日に印を付ける", () => {
+  // 日ごとの [日付, 不足がある, 多い時間がある]
+  const imbalanceByDate = (store: ReturnType<typeof createStaffingStore>) =>
+    [...store.get(dayStaffingViewByDateAtom)].map(([viewDate, view]) => [viewDate, view.hasShortage, view.hasExcess]);
+
+  it("募集期間の全日の人数を数え、不足のある日と多い時間のある日を見分ける", () => {
     const store = createStaffingStore();
     store.set(replaceShiftDraftsAtom, [
       // 1日目: 9〜12時だけ1人。12〜18時が不足。
@@ -886,29 +889,33 @@ describe("全日の人数と過不足（dayStaffingViewByDateAtom / dayStaffingM
       shiftOf(staff, thirdDate, "09:00", "18:00"),
     ]);
 
-    expect([...store.get(dayStaffingViewByDateAtom).keys()]).toEqual([date, nextDate, thirdDate]);
-    expect([...store.get(dayStaffingMarksByDateAtom)]).toEqual([
-      [date, { hasShortage: true, hasExcess: false }],
-      [nextDate, { hasShortage: false, hasExcess: true }],
+    expect(imbalanceByDate(store)).toEqual([
+      [date, true, false],
+      [nextDate, false, true],
+      [thirdDate, false, false],
     ]);
   });
 
-  it("勤務を編集すると、印も変わる", () => {
+  it("勤務を編集すると、過不足も変わる", () => {
     const store = createStaffingStore();
     store.set(replaceShiftDraftsAtom, [shiftOf(staff, date, "09:00", "12:00")]);
-    expect(store.get(dayStaffingMarksByDateAtom).get(date)).toEqual({ hasShortage: true, hasExcess: false });
+    expect(imbalanceByDate(store)[0]).toEqual([date, true, false]);
 
     store.set(replaceShiftDraftsAtom, [shiftOf(staff, date, "09:00", "18:00")]);
 
     // 1日目は足り、2日目は9〜12時が不足のまま。
-    expect([...store.get(dayStaffingMarksByDateAtom)]).toEqual([[nextDate, { hasShortage: true, hasExcess: false }]]);
+    expect(imbalanceByDate(store)).toEqual([
+      [date, false, false],
+      [nextDate, true, false],
+      [thirdDate, false, false],
+    ]);
   });
 
   it("削除済みのスタッフに残った勤務は数えない", () => {
     const store = createStaffingStore();
     store.set(replaceShiftDraftsAtom, [shiftOf(removed, date, "09:00", "18:00")]);
 
-    expect(store.get(dayStaffingMarksByDateAtom).get(date)).toEqual({ hasShortage: true, hasExcess: false });
+    expect(imbalanceByDate(store)[0]).toEqual([date, true, false]);
   });
 
   it("見習いだけが入っている区間に、見習いだけの印を持たせる", () => {
@@ -940,20 +947,18 @@ describe("全日の人数と過不足（dayStaffingViewByDateAtom / dayStaffingM
     ]);
   });
 
-  it("定休日は数えず、印も付けない", () => {
+  it("定休日は数えない", () => {
     const store = createStaffingStore({ holidays: [date] });
 
     expect([...store.get(dayStaffingViewByDateAtom).keys()]).toEqual([nextDate, thirdDate]);
-    expect([...store.get(dayStaffingMarksByDateAtom).keys()]).toEqual([nextDate]);
   });
 
-  it("シンプル表示と、スタッフ向けの確定シフト表示では、人数も印も出さない", () => {
+  it("シンプル表示と、スタッフ向けの確定シフト表示では、人数を出さない", () => {
     const simple = createStaffingStore({}, { detailMode: false });
     const confirmed = createStaffingStore({ displayMode: "confirmed" });
 
     for (const store of [simple, confirmed]) {
       expect(store.get(dayStaffingViewByDateAtom).size).toBe(0);
-      expect(store.get(dayStaffingMarksByDateAtom).size).toBe(0);
     }
   });
 
@@ -964,7 +969,7 @@ describe("全日の人数と過不足（dayStaffingViewByDateAtom / dayStaffingM
     const view = store.get(dayStaffingViewByDateAtom).get(date);
     expect(view?.hasRequirements).toBe(false);
     expect(view?.template.label).toBe("未設定");
-    expect(store.get(dayStaffingMarksByDateAtom).size).toBe(0);
+    expect([view?.hasShortage, view?.hasExcess]).toEqual([false, false]);
   });
 });
 

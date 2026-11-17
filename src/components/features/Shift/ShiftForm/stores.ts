@@ -17,7 +17,7 @@ import type { PositionType, ShiftData, SortMode, StaffType, TimeRange, ViewMode 
 import { sumStaffWorkTotals } from "@/src/domains/shift/workTotals";
 import { DEFAULT_TIME_PATTERN } from "@/src/domains/shop/submissionPattern";
 import { resolveNameSkillPosition } from "./skillPresentation";
-import { buildDayStaffingMarks, buildDayStaffingView, type DayStaffingView } from "./staffingPresentation";
+import { buildDayStaffingView, type DayStaffingView } from "./staffingPresentation";
 import type { ShiftFormStaffing } from "./types";
 
 export type { ShiftFormStaffing } from "./types";
@@ -177,7 +177,7 @@ export const clearShiftDraftPositionsAtom = atom(
 
 export const deleteShiftPositionAtom = atom(
   null,
-  (get, set, { shiftId, positionId }: { shiftId: string; positionId: string }): ShiftData | null => {
+  (get, set, { shiftId, positionIds }: { shiftId: string; positionIds: string[] }): ShiftData | null => {
     if (get(shiftConfigAtom).isReadOnly) return null;
 
     const current = get(shiftDraftsAtom);
@@ -186,7 +186,7 @@ export const deleteShiftPositionAtom = atom(
 
     const updatedShift = {
       ...target,
-      positions: mergeAdjacentPositions(target.positions.filter((position) => position.id !== positionId)),
+      positions: mergeAdjacentPositions(target.positions.filter((position) => !positionIds.includes(position.id))),
     };
     commitShiftDrafts(
       get,
@@ -370,17 +370,11 @@ export const dayStaffingViewByDateAtom = atom((get) => {
   return views;
 });
 
-// 日付の一覧に出す、不足のある日と多い時間のある日の印。
-export const dayStaffingMarksByDateAtom = atom((get) => buildDayStaffingMarks(get(dayStaffingViewByDateAtom)));
-
 // その日の必要人数を変えられるか。閲覧専用と確定済みでは、テンプレートの名前だけを出す。
 export const canEditDayStaffingAtom = atom((get) => {
   const config = get(shiftConfigAtom);
   return !config.isReadOnly && config.staffing !== undefined && !config.staffing.isLocked;
 });
-
-// 開いている、その日のテンプレートのDialog。bulkは「ほかの日もまとめて変える」、customは「この日だけ人数を変える」。
-export const dayStaffingDialogAtom = atom<{ kind: "bulk" | "custom"; date: string } | null>(null);
 
 // 人ごとの合計（募集期間の全日）。時刻を持つ勤務は休憩を引いた時間、日付選択は出勤日数。
 export const staffWorkTotalsAtom = atom((get) =>

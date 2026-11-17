@@ -37,6 +37,10 @@ export type StaffingCountView = {
   label: string;
   /** 狭い場所に出す。過不足は差だけの「▲1」「＋1」、ちょうどと未設定は人数だけ。 */
   compactLabel: string;
+  /** 時間指定のPCの帯に出す、過不足だけの文字。「あと1人」「1人多い」。ちょうどは出さず（空文字）、未設定は人数だけ。 */
+  diffLabel: string;
+  /** 帯の狭い区間に出す。「−1」「+1」。ちょうどは出さず（空文字）、未設定は人数だけ。 */
+  compactDiffLabel: string;
 };
 
 export const buildStaffingCountView = (input: {
@@ -46,18 +50,55 @@ export const buildStaffingCountView = (input: {
 }): StaffingCountView => {
   const { count, required, isNewcomerOnly } = input;
   if (required === null) {
-    return { count, required, tone: "unset", isNewcomerOnly, label: `${count}`, compactLabel: `${count}` };
+    const label = `${count}`;
+    return {
+      count,
+      required,
+      tone: "unset",
+      isNewcomerOnly,
+      label,
+      compactLabel: label,
+      diffLabel: label,
+      compactDiffLabel: label,
+    };
   }
   const base = `${count}/${required}`;
   if (count < required) {
-    const diff = `▲${required - count}`;
-    return { count, required, tone: "shortage", isNewcomerOnly, label: `${base} ${diff}`, compactLabel: diff };
+    const diff = required - count;
+    return {
+      count,
+      required,
+      tone: "shortage",
+      isNewcomerOnly,
+      label: `${base} ▲${diff}`,
+      compactLabel: `▲${diff}`,
+      diffLabel: `あと${diff}人`,
+      compactDiffLabel: `−${diff}`,
+    };
   }
   if (count > required) {
-    const diff = `＋${count - required}`;
-    return { count, required, tone: "excess", isNewcomerOnly, label: `${base} ${diff}`, compactLabel: diff };
+    const diff = count - required;
+    return {
+      count,
+      required,
+      tone: "excess",
+      isNewcomerOnly,
+      label: `${base} ＋${diff}`,
+      compactLabel: `＋${diff}`,
+      diffLabel: `${diff}人多い`,
+      compactDiffLabel: `+${diff}`,
+    };
   }
-  return { count, required, tone: "even", isNewcomerOnly, label: base, compactLabel: `${count}` };
+  return {
+    count,
+    required,
+    tone: "even",
+    isNewcomerOnly,
+    label: base,
+    compactLabel: `${count}`,
+    diffLabel: "",
+    compactDiffLabel: "",
+  };
 };
 
 /** 過不足の色。ポジションの色と混ぜないよう、地色、枠の線の種類、文字色で示す。 */
@@ -139,7 +180,7 @@ export type DayTemplateView = {
   templateName: string | null;
   /** その日だけ人数を変えている。 */
   isCustom: boolean;
-  /** その日だけの指定がある。「曜日の設定に戻す」を出す。 */
+  /** その日だけの指定がある。日付選択の表で、テンプレート名に「（この日だけ）」を添える。 */
   isDateSpecific: boolean;
 };
 
@@ -360,46 +401,51 @@ export const formatStaffingCount = (count: number, required: number | null): str
 // ==========================================
 // 帯の区間に出す文字
 // ==========================================
-// 帯の文字（xsの太字）の、1文字あたりの幅の目安。記号の「▲」「＋」は数字より広いため、多めに見積もる。
-const BAND_LABEL_CHAR_WIDTH_PX = 7;
+// 帯の文字（xsの太字）の、1文字あたりの幅の目安。数字と記号は狭く、かなと漢字は広い。
+const BAND_LABEL_NARROW_CHAR_WIDTH_PX = 7;
+const BAND_LABEL_WIDE_CHAR_WIDTH_PX = 12;
 // 区間の左右の余白と枠。
 const BAND_LABEL_PADDING_PX = 8;
-// 見習いだけの印「見」の幅と、文字との間。
+// 見習いだけの印（注意のアイコン）の幅と、文字との間。
 const BAND_NEWCOMER_MARK_WIDTH_PX = 16;
 
+const isNarrowChar = (char: string): boolean => char === "−" || char.charCodeAt(0) < 0x80;
+
 const estimateBandLabelWidth = (label: string): number =>
-  label.length * BAND_LABEL_CHAR_WIDTH_PX + BAND_LABEL_PADDING_PX;
+  [...label].reduce(
+    (width, char) => width + (isNarrowChar(char) ? BAND_LABEL_NARROW_CHAR_WIDTH_PX : BAND_LABEL_WIDE_CHAR_WIDTH_PX),
+    BAND_LABEL_PADDING_PX,
+  );
 
 export type BandSegmentContent = {
-  /** 区間に出す文字。入らない幅ではnull。 */
+  /** 区間に出す文字。ちょうどの区間と、入らない幅ではnull。 */
   text: string | null;
-  /** 文字が全文かどうか。falseのときは、全文をtitleと押したときの欄で出す。 */
-  isFullText: boolean;
   showsNewcomerMark: boolean;
 };
 
 /**
- * 区間の幅に入る文字を決める。
- * 全文（「2/3 ▲1」）が入らない幅では差だけ（「▲1」「＋1」。ちょうどと未設定は人数だけ）にし、それも入らない幅では文字を出さない。
- * 見習いだけの区間は、印「見」を出せる形を先に選ぶ。全文と印が並ばない幅では、差だけにして印を残す。
+ * 区間の幅に入る文字を決める。帯には過不足だけを出し、人数と必要人数は押したときの欄で出す。
+ * 「あと1人」「1人多い」が入らない幅では「−1」「+1」にし、それも入らない幅では文字を出さない。
+ * 見習いだけの区間は、印を出せる形を先に選ぶ。文字と印が並ばない幅では、短い文字にして印を残す。
  * 印が入らない幅では、印を省いて文字だけを出す。
  */
 export const resolveBandSegmentContent = (
-  segment: Pick<StaffingCountView, "label" | "compactLabel" | "isNewcomerOnly">,
+  segment: Pick<StaffingCountView, "diffLabel" | "compactDiffLabel" | "isNewcomerOnly">,
   widthPx: number,
 ): BandSegmentContent => {
-  const fits = (label: string, withMark: boolean) =>
-    widthPx >= estimateBandLabelWidth(label) + (withMark ? BAND_NEWCOMER_MARK_WIDTH_PX : 0);
-  const full = { text: segment.label, isFullText: true };
-  const compact = { text: segment.compactLabel, isFullText: segment.compactLabel === segment.label };
-
-  if (segment.isNewcomerOnly) {
-    if (fits(segment.label, true)) return { ...full, showsNewcomerMark: true };
-    if (fits(segment.compactLabel, true)) return { ...compact, showsNewcomerMark: true };
+  const markWidth = (withMark: boolean) => (withMark ? BAND_NEWCOMER_MARK_WIDTH_PX : 0);
+  const fits = (label: string, withMark: boolean) => widthPx >= estimateBandLabelWidth(label) + markWidth(withMark);
+  // ちょうどの区間は文字がないため、印だけが入るかを見る。
+  if (segment.diffLabel === "") {
+    return { text: null, showsNewcomerMark: segment.isNewcomerOnly && fits("", true) };
   }
-  if (fits(segment.label, false)) return { ...full, showsNewcomerMark: false };
-  if (fits(segment.compactLabel, false)) return { ...compact, showsNewcomerMark: false };
-  return { text: null, isFullText: false, showsNewcomerMark: false };
+  if (segment.isNewcomerOnly) {
+    if (fits(segment.diffLabel, true)) return { text: segment.diffLabel, showsNewcomerMark: true };
+    if (fits(segment.compactDiffLabel, true)) return { text: segment.compactDiffLabel, showsNewcomerMark: true };
+  }
+  if (fits(segment.diffLabel, false)) return { text: segment.diffLabel, showsNewcomerMark: false };
+  if (fits(segment.compactDiffLabel, false)) return { text: segment.compactDiffLabel, showsNewcomerMark: false };
+  return { text: null, showsNewcomerMark: false };
 };
 
 // ==========================================
@@ -426,7 +472,10 @@ export const summarizeStaffingBands = (
   if (bands.length < BAND_COLLAPSE_POSITION_COUNT || !view.hasRequirements) {
     return { visibleBands: bands, toggleLabel: null };
   }
-  const imbalanced = bands.filter((band) => band.hasImbalance);
+  // 見習いだけの時間があるポジションも、確かめる対象として先に出す。
+  const imbalanced = bands.filter(
+    (band) => band.hasImbalance || band.segments.some((segment) => segment.isNewcomerOnly),
+  );
   const balancedCount = bands.length - imbalanced.length;
   if (balancedCount === 0) return { visibleBands: bands, toggleLabel: null };
   if (isExpanded) return { visibleBands: bands, toggleLabel: "過不足のあるポジションだけにする" };
@@ -435,22 +484,6 @@ export const summarizeStaffingBands = (
     toggleLabel: imbalanced.length === 0 ? `${balancedCount}つとも過不足なし` : `ほか${balancedCount}つは過不足なし`,
   };
 };
-
-// ==========================================
-// 日付の一覧の印
-// ==========================================
-export type DayStaffingMarks = { hasShortage: boolean; hasExcess: boolean };
-
-/** 日付の一覧に出す、不足と多い時間の印。どちらもない日は含めない。 */
-export const buildDayStaffingMarks = (views: ReadonlyMap<string, DayStaffingView>): Map<string, DayStaffingMarks> =>
-  new Map(
-    [...views].flatMap(
-      ([date, view]): Array<[string, DayStaffingMarks]> =>
-        view.hasShortage || view.hasExcess
-          ? [[date, { hasShortage: view.hasShortage, hasExcess: view.hasExcess }]]
-          : [],
-    ),
-  );
 
 /** 「くわしく」表示を初期状態にするかどうか。何も設定していない店舗では、従来の画面のままにする。 */
 export const shouldDefaultToDetailMode = (input: {

@@ -3,6 +3,8 @@ import { getPositionSkill } from "@/src/domains/shift/positionSkills";
 import type { PositionSkillLevel, PositionType, StaffType } from "@/src/domains/shift/types";
 
 // スタッフの、ポジションごとの値（担当外、見習い、リーダー）を、シフト表へ出す印にまとめる。
+// 名前の横には、担当外とリーダーだけを出す。勤務の側には、リーダーだけを出す。
+// 見習いは印を出さず、見習いだけの時間帯として人数の表示と確認事項で知らせる。
 // 名前の横の印は「入れるもの」で選んでいるポジションでの値、勤務の側の印はその区間のポジションでの値を表す。
 
 /** 印の配色。帯の「見」の印と同じ決まりで、見習いは橙、リーダーは緑、担当外は灰色にする。 */
@@ -41,8 +43,8 @@ export const resolveNameSkillPosition = (input: {
 };
 
 export type NameSkillMarkView = {
-  level: PositionSkillLevel;
-  /** 「見習い」「リーダー」「担当外」 */
+  level: "unavailable" | "lead";
+  /** 「リーダー」「担当外」 */
   label: string;
   /** どのポジションでの値かを添える場合の、ポジション。ポジションが1つの店舗ではnull。 */
   position: { name: string; color: string } | null;
@@ -50,7 +52,7 @@ export type NameSkillMarkView = {
   title: string | null;
 };
 
-/** 名前の横の印。一人前と、根拠にするポジションがない表示では出さない（null）。 */
+/** 名前の横の印。一人前、見習い、根拠にするポジションがない表示では出さない（null）。 */
 export const buildNameSkillMark = (input: {
   staff: Pick<StaffType, "positionSkills">;
   /** resolveNameSkillPositionの結果 */
@@ -60,7 +62,7 @@ export const buildNameSkillMark = (input: {
 }): NameSkillMarkView | null => {
   if (!input.position) return null;
   const level = getPositionSkill(input.staff, input.position.id);
-  if (level === "standard") return null;
+  if (level === "standard" || level === "newcomer") return null;
   const showsPosition = input.positionCount >= 2;
   return {
     level,
@@ -74,22 +76,19 @@ export const buildNameSkillMark = (input: {
 // 勤務の側の印
 // ==========================================
 export type SegmentSkillMarkView = {
-  level: "newcomer" | "lead";
-  /** 「見」「リ」 */
+  level: "lead";
+  /** 「リ」 */
   label: string;
-  /** 読み上げで「見習い」「リーダー」にするための続き */
+  /** 読み上げで「リーダー」にするための続き */
   hiddenSuffix: string;
   title: string;
 };
 
-const SEGMENT_LABELS = {
-  newcomer: { label: "見", hiddenSuffix: "習い" },
-  lead: { label: "リ", hiddenSuffix: "ーダー" },
-} as const;
+const LEAD_SEGMENT_LABEL = { label: "リ", hiddenSuffix: "ーダー" } as const;
 
 /**
- * 勤務の区間に添える印。その区間のポジションでの値が、見習いかリーダーのときだけ出す。
- * 担当外のポジションの勤務は確認事項で知らせるため、ここでは印を出さない。
+ * 勤務の区間に添える印。その区間のポジションでの値が、リーダーのときだけ出す。
+ * 見習いには印を出さない。担当外のポジションの勤務は確認事項で知らせるため、ここでは印を出さない。
  */
 export const buildSegmentSkillMark = (
   staff: Pick<StaffType, "positionSkills"> | undefined,
@@ -97,6 +96,6 @@ export const buildSegmentSkillMark = (
 ): SegmentSkillMarkView | null => {
   if (!staff || !segment) return null;
   const level = getPositionSkill(staff, segment.positionId);
-  if (level !== "newcomer" && level !== "lead") return null;
-  return { level, ...SEGMENT_LABELS[level], title: describeSkill(segment.positionName, level) };
+  if (level !== "lead") return null;
+  return { level, ...LEAD_SEGMENT_LABEL, title: describeSkill(segment.positionName, level) };
 };

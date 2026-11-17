@@ -23,6 +23,8 @@ type PixelParams = {
   hourWidth?: number;
   /** 時間軸の左右のパディング（px）。未指定は TIME_AXIS_PADDING_PX。 */
   axisPadding?: number;
+  /** そろえる刻み（分）。未指定は timeRange.unit。休憩のように、勤務より細かい刻みで入れるものに使う。 */
+  unit?: number;
 };
 
 export const pixelToRawMinutes = (params: PixelParams): number => {
@@ -33,9 +35,9 @@ export const pixelToRawMinutes = (params: PixelParams): number => {
 
 // X座標（ピクセル） → 分 + unitスナップ + timeRangeクランプ
 export const pixelToMinutes = (params: PixelParams): number => {
-  const { timeRange } = params;
+  const { timeRange, unit = timeRange.unit } = params;
   const rawMinutes = pixelToRawMinutes(params);
-  const snappedMinutes = Math.round(rawMinutes / timeRange.unit) * timeRange.unit;
+  const snappedMinutes = Math.round(rawMinutes / unit) * unit;
   const minMinutes = getDisplayStartMinutes(timeRange);
   const maxMinutes = getDisplayEndMinutes(timeRange);
   return Math.max(minMinutes, Math.min(maxMinutes, snappedMinutes));

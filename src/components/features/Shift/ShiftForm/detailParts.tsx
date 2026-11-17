@@ -27,18 +27,15 @@ import {
   staffWorkTotalsAtom,
   usesPositionColorsAtom,
 } from "./stores";
-import type { ShiftFormDayRequirements } from "./types";
 
 // ==========================================
 // 画面の外へ出す操作（設定ページへの移動、その日の必要人数、仮の勤務）
 // ==========================================
-/** その日の必要人数を変える操作。どちらも、成功したらtrueを返す。失敗は呼び出し先が利用者へ伝える。 */
+/** その日の必要人数を変える操作。成功したらtrueを返す。失敗は呼び出し先が利用者へ伝える。 */
 export type ShiftFormDayStaffingActions = {
   /** 選んだ日へテンプレートを当てる。nullは、その日だけの指定を消して曜日の設定へ戻す。 */
   onApplyTemplate: (dates: string[], templateId: string | null) => Promise<boolean>;
-  /** その日だけの必要人数を保存する。テンプレートは変えない。 */
-  onSaveCustom: (date: string, requirements: ShiftFormDayRequirements) => Promise<boolean>;
-  /** どちらかの操作を処理している間はtrue。 */
+  /** 処理している間はtrue。 */
   isPending: boolean;
 };
 
@@ -138,8 +135,12 @@ const toolChipBaseStyle = {
   _focusVisible: { outline: "2px solid", outlineColor: "teal.600", outlineOffset: "2px" },
 } as const;
 
-/** くわしく表示の編集中に、これから入れるポジションまたは休憩を選ぶ。 */
-export const ToolPalette = () => {
+/**
+ * くわしく表示の編集中に、これから入れるポジションまたは休憩を選ぶ。
+ * `inline`は、PCの日別表示の日付の見出しへ置く形で、選択肢だけを出す。行を1つ減らすためである。
+ * `row`は、それ以外の表示で使う、ヘッダーの下の1行である。
+ */
+export const ToolPalette = ({ variant = "row" }: { variant?: "row" | "inline" }) => {
   const isActive = useAtomValue(isToolPaletteActiveAtom);
   const isPositionSelectable = useAtomValue(isPositionSelectableAtom);
   const isBreakTool = useAtomValue(isBreakToolActiveAtom);
@@ -154,6 +155,61 @@ export const ToolPalette = () => {
   const activePositionId = selectedPositionId ?? defaultPosition.id;
   // ポジションが1つだけの店舗では、勤務と休憩の2つだけを選ばせる。
   const positions = isPositionSelectable ? config.positions : [defaultPosition];
+
+  const choices = (
+    <Flex
+      role="radiogroup"
+      aria-label="入れるもの"
+      gap={2}
+      overflowX="auto"
+      flex={variant === "row" ? 1 : undefined}
+      minW={0}
+      py="6px"
+      my="-6px"
+    >
+      {positions.map((position) => {
+        const checked = !isBreakTool && activePositionId === position.id;
+        return (
+          <chakra.button
+            key={position.id}
+            type="button"
+            role="radio"
+            aria-checked={checked}
+            onClick={() => {
+              setSelectedPositionId(position.id);
+              setBreakTool(false);
+            }}
+            css={toolChipBaseStyle}
+            bg={checked ? position.color : "white"}
+            color={checked ? "white" : "gray.700"}
+            borderColor={checked ? position.color : "gray.300"}
+            _active={checked ? undefined : { bg: "gray.100", transitionDuration: "0ms" }}
+          >
+            <Box boxSize="10px" borderRadius="full" bg={checked ? "white" : position.color} flexShrink={0} />
+            {position.name}
+          </chakra.button>
+        );
+      })}
+      <chakra.button
+        type="button"
+        role="radio"
+        aria-checked={isBreakTool}
+        onClick={() => setBreakTool(true)}
+        css={toolChipBaseStyle}
+        bg={isBreakTool ? "gray.700" : "white"}
+        color={isBreakTool ? "white" : "gray.700"}
+        borderColor={isBreakTool ? "gray.700" : "gray.300"}
+        borderStyle={isBreakTool ? "solid" : "dashed"}
+        _active={isBreakTool ? undefined : { bg: "gray.100", transitionDuration: "0ms" }}
+      >
+        <Icon boxSize={3.5} aria-hidden>
+          <LuCoffee />
+        </Icon>
+        休憩
+      </chakra.button>
+    </Flex>
+  );
+  if (variant === "inline") return choices;
 
   return (
     <Flex
@@ -170,53 +226,7 @@ export const ToolPalette = () => {
       <Text textStyle="xs" color="gray.600" flexShrink={0} display={{ base: "none", lg: "block" }}>
         入れるもの
       </Text>
-      <Flex role="radiogroup" aria-label="入れるもの" gap={2} overflowX="auto" flex={1} minW={0} py="6px" my="-6px">
-        {positions.map((position) => {
-          const checked = !isBreakTool && activePositionId === position.id;
-          return (
-            <chakra.button
-              key={position.id}
-              type="button"
-              role="radio"
-              aria-checked={checked}
-              onClick={() => {
-                setSelectedPositionId(position.id);
-                setBreakTool(false);
-              }}
-              css={toolChipBaseStyle}
-              bg={checked ? position.color : "white"}
-              color={checked ? "white" : "gray.700"}
-              borderColor={checked ? position.color : "gray.300"}
-              _active={checked ? undefined : { bg: "gray.100", transitionDuration: "0ms" }}
-            >
-              <Box boxSize="10px" borderRadius="full" bg={checked ? "white" : position.color} flexShrink={0} />
-              {position.name}
-            </chakra.button>
-          );
-        })}
-        <chakra.button
-          type="button"
-          role="radio"
-          aria-checked={isBreakTool}
-          onClick={() => setBreakTool(true)}
-          css={toolChipBaseStyle}
-          bg={isBreakTool ? "gray.700" : "white"}
-          color={isBreakTool ? "white" : "gray.700"}
-          borderColor={isBreakTool ? "gray.700" : "gray.300"}
-          borderStyle={isBreakTool ? "solid" : "dashed"}
-          _active={isBreakTool ? undefined : { bg: "gray.100", transitionDuration: "0ms" }}
-        >
-          <Icon boxSize={3.5} aria-hidden>
-            <LuCoffee />
-          </Icon>
-          休憩
-        </chakra.button>
-      </Flex>
-      {isBreakTool && (
-        <Text textStyle="xs" color="gray.600" flexShrink={0} display={{ base: "none", lg: "block" }}>
-          勤務を押すと、休憩を入れられます
-        </Text>
-      )}
+      {choices}
       {onOpenSetup && (
         <Button
           type="button"

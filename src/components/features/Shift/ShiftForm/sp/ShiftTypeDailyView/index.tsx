@@ -6,7 +6,7 @@ import { useMemo, useRef } from "react";
 import { getWeekdayLabel } from "@/src/domains/shift/date";
 import type { ShiftTypeOptionLike } from "@/src/domains/shift/shiftTypeAssignments";
 import type { StaffType } from "@/src/domains/shift/types";
-import { Avatar, DateIssueBadge, DateStaffingMarks, dateIssueBorderColor, StaffWarningIcon } from "../../components";
+import { Avatar, DateIssueBadge, dateIssueBorderColor, StaffWarningIcon } from "../../components";
 import { DisplaySettingsMenu } from "../../DisplaySettingsMenu";
 import { ShiftDateNoteBlock, ShiftStaffNoteIcon, useAllShiftDateNotes } from "../../dateNotes";
 import { BreakMark, PositionMark, StaffMeta } from "../../detailParts";
@@ -15,7 +15,6 @@ import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
 import { StaffingSummary, useDayStaffingView } from "../../staffingParts";
 import {
   dailySortedStaffsAtom,
-  dayStaffingMarksByDateAtom,
   detailModeAtom,
   issueCountByDateAtom,
   selectDateWithDailyStaffOrderAtom,
@@ -44,7 +43,6 @@ export const SPShiftTypeDailyView = () => {
   const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const issueCounts = useAtomValue(issueCountByDateAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
-  const staffingMarks = useAtomValue(dayStaffingMarksByDateAtom);
   const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
   // 人数と過不足を出す日（くわしく表示の営業日）だけ値が入る。
   const staffingView = useDayStaffingView(selectedDate);
@@ -134,7 +132,6 @@ export const SPShiftTypeDailyView = () => {
                     </Box>
                   )}
                 </Box>
-                <DateStaffingMarks marks={staffingMarks.get(iso)} reserveSpace={staffingMarks.size > 0} />
               </Box>
             );
           })}

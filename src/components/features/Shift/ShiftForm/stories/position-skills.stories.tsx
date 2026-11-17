@@ -41,7 +41,7 @@ const selectTool = async (canvasElement: HTMLElement, name: string) => {
   await userEvent.click(within(palette).getByRole("radio", { name }));
 };
 
-/** 名前の横の印と、勤務の区間の印を、文字で返す。印は「見習い」「リーダー」「担当外」と「見」「リ」。 */
+/** 名前の横の印と、勤務の区間の印を、文字で返す。名前の横は「リーダー」「担当外」、勤務の区間は「リ」。見習いはどちらにも出さない。 */
 const nameBadges = (row: ReturnType<typeof within>) =>
   ["リーダー", "見習い", "担当外"].filter((label) => row.queryByText(label) !== null);
 const segmentMarks = (row: ReturnType<typeof within>) => [
@@ -59,24 +59,22 @@ const expectNameMarkFollowsTool = async (canvasElement: HTMLElement) => {
   await expect(await rowA.findByText("リーダー")).toHaveAttribute("title", "ホールではリーダーです");
   await expect(rowE.getByText("担当外")).toHaveAttribute("title", "ホールは担当外です");
   await expect(nameBadges(rowD)).toEqual([]);
-  // 勤務の区間には、その区間のポジションでの値が出る。Aさんはホールで「リ」、キッチンで「見」。
-  await expect(segmentMarks(rowA)).toEqual(["リ", "見"]);
+  // 勤務の区間には、その区間のポジションでリーダーのときだけ「リ」が出る。Aさんはホールでリーダー、キッチンでは見習い。
+  await expect(segmentMarks(rowA)).toEqual(["リ"]);
 
+  // 見習いは名前の横に出さない。キッチンでは、AさんとDさんが見習い、Eさんが一人前。
   await selectTool(canvasElement, "キッチン");
-  await expect(await rowA.findByText("見習い")).toHaveAttribute("title", "キッチンでは見習いです");
-  await expect(rowD.getByText("見習い")).toHaveAttribute("title", "キッチンでは見習いです");
-  await expect(nameBadges(rowA)).toEqual(["見習い"]);
-  await expect(nameBadges(rowE)).toEqual([]);
-  await expect(segmentMarks(rowA)).toEqual(["リ", "見"]);
+  await waitFor(() => expect([rowA, rowD, rowE].map(nameBadges)).toEqual([[], [], []]));
+  await expect(segmentMarks(rowA)).toEqual(["リ"]);
 
-  await selectTool(canvasElement, "レジ");
-  await expect(await rowD.findByText("見習い")).toHaveAttribute("title", "レジでは見習いです");
-  await waitFor(() => expect(nameBadges(rowA)).toEqual([]));
+  await selectTool(canvasElement, "ホール");
+  await expect(await rowA.findByText("リーダー")).toHaveAttribute("title", "ホールではリーダーです");
+  await expect([rowD, rowE].map(nameBadges)).toEqual([[], ["担当外"]]);
 
   // 休憩を選んでいる間は、根拠にするポジションがないため、名前の横の印を出さない。
   await selectTool(canvasElement, "休憩");
   await waitFor(() => expect([rowA, rowD, rowE].map(nameBadges)).toEqual([[], [], []]));
-  await expect(segmentMarks(rowA)).toEqual(["リ", "見"]);
+  await expect(segmentMarks(rowA)).toEqual(["リ"]);
 };
 
 /** 閲覧専用では「入れるもの」がないため、名前の横の印を出さない。勤務の区間の印は出す。 */
@@ -84,7 +82,7 @@ const expectReadOnlyShowsSegmentMarksOnly = async (canvasElement: HTMLElement) =
   const canvas = within(canvasElement);
   const rowA = await findRow(canvasElement, "staff1");
 
-  await waitFor(() => expect(segmentMarks(rowA)).toEqual(["リ", "見"]));
+  await waitFor(() => expect(segmentMarks(rowA)).toEqual(["リ"]));
   await expect(canvas.queryByRole("radiogroup", { name: "入れるもの" })).not.toBeInTheDocument();
   for (const label of ["リーダー", "見習い", "担当外"]) {
     await expect(canvas.queryByText(label)).not.toBeInTheDocument();
@@ -121,7 +119,7 @@ export const HiddenInSimpleOnDesktop: Story = {
     const rowA = await findRow(canvasElement, "staff1");
     const detailMode = within(await canvas.findByRole("radiogroup", { name: "表示の詳しさ" }));
     await expect(await rowA.findByText("リーダー")).toBeInTheDocument();
-    await expect(segmentMarks(rowA)).toEqual(["リ", "見"]);
+    await expect(segmentMarks(rowA)).toEqual(["リ"]);
 
     await userEvent.click(detailMode.getByRole("radio", { name: "シンプル" }));
     await waitFor(() => expect(nameBadges(rowA)).toEqual([]));
@@ -129,7 +127,7 @@ export const HiddenInSimpleOnDesktop: Story = {
 
     await userEvent.click(detailMode.getByRole("radio", { name: "くわしく" }));
     await expect(await rowA.findByText("リーダー")).toBeInTheDocument();
-    await expect(segmentMarks(rowA)).toEqual(["リ", "見"]);
+    await expect(segmentMarks(rowA)).toEqual(["リ"]);
   },
 };
 
@@ -189,7 +187,7 @@ export const HiddenInSimpleOnMobile: Story = {
     const canvas = within(canvasElement);
     const rowA = await findRow(canvasElement, "staff1");
     await expect(await rowA.findByText("リーダー")).toBeInTheDocument();
-    await expect(segmentMarks(rowA)).toEqual(["リ", "見"]);
+    await expect(segmentMarks(rowA)).toEqual(["リ"]);
 
     await userEvent.click(await canvas.findByRole("button", { name: "表示設定" }));
     await userEvent.click(

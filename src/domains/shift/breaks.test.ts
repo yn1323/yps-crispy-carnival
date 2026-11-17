@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  addBreakRange,
   buildInitialBreak,
   getBreaksForSegment,
   getEffectiveBreaks,
   getWorkedMinutes,
   mergeBreaks,
+  removeBreakAt,
   withInitialBreak,
 } from "./breaks";
 import { BREAK_POSITION } from "./constants";
@@ -167,6 +169,56 @@ describe("getEffectiveBreaks", () => {
   it.each([true, false])("休憩のない日は空を返す（clipToWork: %s）", (clipToWork) => {
     expect(getEffectiveBreaks(day([segment("10:00", "18:00")]), { clipToWork })).toEqual([]);
     expect(getEffectiveBreaks({ positions: [segment("10:00", "18:00")], breaks: [] }, { clipToWork })).toEqual([]);
+  });
+});
+
+describe("addBreakRange", () => {
+  it("勤務の内側の範囲を、休憩として足す", () => {
+    expect(addBreakRange(day([segment("09:00", "18:00")]), range("12:00", "12:45"))).toEqual([range("12:00", "12:45")]);
+  });
+
+  it("すでにある休憩と重なる範囲、隣り合う範囲は、1件にまとめる", () => {
+    const shift = day([segment("09:00", "18:00")], [range("12:00", "13:00"), range("15:00", "15:15")]);
+
+    expect(addBreakRange(shift, range("12:30", "13:30"))).toEqual([range("12:00", "13:30"), range("15:00", "15:15")]);
+    expect(addBreakRange(shift, range("13:00", "13:15"))).toEqual([range("12:00", "13:15"), range("15:00", "15:15")]);
+  });
+
+  it("勤務の外へはみ出した部分は入れない", () => {
+    expect(addBreakRange(day([segment("09:00", "13:00")]), range("12:30", "14:00"))).toEqual([range("12:30", "13:00")]);
+  });
+
+  it("ポジションの違う隣り合う勤務は、境目をまたいで入れられる", () => {
+    const shift = day([segment("09:00", "12:00"), segment("12:00", "18:00", { positionId: "pos2" })]);
+
+    expect(addBreakRange(shift, range("11:30", "12:30"))).toEqual([range("11:30", "12:30")]);
+  });
+
+  it("勤務の外だけの範囲と、すでに休憩の時間だけの範囲は、何も変えない（null）", () => {
+    const shift = day([segment("09:00", "13:00")], [range("11:00", "12:00")]);
+
+    expect(addBreakRange(shift, range("14:00", "15:00"))).toBeNull();
+    expect(addBreakRange(shift, range("11:15", "11:45"))).toBeNull();
+  });
+
+  it("勤務区間をまるごと覆う範囲は入れない（null）", () => {
+    expect(addBreakRange(day([segment("09:00", "13:00")]), range("09:00", "13:00"))).toBeNull();
+  });
+});
+
+describe("removeBreakAt", () => {
+  const shift = day([segment("09:00", "18:00")], [range("12:00", "13:00"), range("15:00", "15:15")]);
+
+  it("その時刻を含む休憩だけを外す。開始の時刻は含み、終了の時刻は含まない", () => {
+    expect(removeBreakAt(shift, 12 * 60)).toEqual([range("15:00", "15:15")]);
+    expect(removeBreakAt(shift, 12 * 60 + 59)).toEqual([range("15:00", "15:15")]);
+    expect(removeBreakAt(shift, 15 * 60 + 10)).toEqual([range("12:00", "13:00")]);
+    expect(removeBreakAt(shift, 13 * 60)).toBeNull();
+  });
+
+  it("その時刻に休憩がなければ、何も変えない（null）", () => {
+    expect(removeBreakAt(shift, 10 * 60)).toBeNull();
+    expect(removeBreakAt(day([segment("09:00", "18:00")]), 12 * 60)).toBeNull();
   });
 });
 

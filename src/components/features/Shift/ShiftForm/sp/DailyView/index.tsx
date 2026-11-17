@@ -11,7 +11,6 @@ import {
   breakEditorTargetAtom,
   clearShiftDraftPositionsAtom,
   dailySortedStaffsAtom,
-  dayStaffingMarksByDateAtom,
   issueCountByDateAtom,
   issueStaffIdSetForSelectedDateAtom,
   isToolPaletteActiveAtom,
@@ -43,7 +42,6 @@ export const SPDailyView = () => {
   const issueCounts = useAtomValue(issueCountByDateAtom);
   const issueStaffIds = useAtomValue(issueStaffIdSetForSelectedDateAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
-  const staffingMarks = useAtomValue(dayStaffingMarksByDateAtom);
   const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
   // 人数と過不足を出す日（くわしく表示の営業日）だけ値が入る。
   const staffingView = useDayStaffingView(selectedDate);
@@ -170,7 +168,6 @@ export const SPDailyView = () => {
         holidays={holidays}
         issueCounts={issueCounts}
         warningCounts={warningCounts}
-        staffingMarks={staffingMarks}
         dateStripRef={dateStripRef}
         onSelect={selectDate}
       />

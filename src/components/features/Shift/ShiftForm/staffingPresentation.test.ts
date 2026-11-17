@@ -4,7 +4,6 @@ import type { NewcomerStaffIdsByPositionId } from "@/src/domains/shift/positionS
 import type { PositionSegment, PositionType, ShiftData, TimeRange } from "@/src/domains/shift/types";
 import {
   BAND_COLLAPSE_POSITION_COUNT,
-  buildDayStaffingMarks,
   buildDayStaffingView,
   buildDayTemplateView,
   buildStaffingCountView,
@@ -137,7 +136,7 @@ describe("selectStaffingShifts", () => {
 });
 
 describe("buildStaffingCountView", () => {
-  it("足りない場合は「人数/必要 ▲差」にし、狭い場所には差だけを出す", () => {
+  it("足りない場合は「人数/必要 ▲差」にし、狭い場所には差だけを出す。帯には「あと◯人」を出す", () => {
     expect(buildStaffingCountView({ count: 2, required: 3, isNewcomerOnly: false })).toEqual({
       count: 2,
       required: 3,
@@ -145,10 +144,12 @@ describe("buildStaffingCountView", () => {
       isNewcomerOnly: false,
       label: "2/3 ▲1",
       compactLabel: "▲1",
+      diffLabel: "あと1人",
+      compactDiffLabel: "−1",
     });
   });
 
-  it("多い場合は「人数/必要 ＋差」にし、狭い場所には差だけを出す", () => {
+  it("多い場合は「人数/必要 ＋差」にし、狭い場所には差だけを出す。帯には「◯人多い」を出す", () => {
     expect(buildStaffingCountView({ count: 3, required: 1, isNewcomerOnly: true })).toEqual({
       count: 3,
       required: 1,
@@ -156,14 +157,18 @@ describe("buildStaffingCountView", () => {
       isNewcomerOnly: true,
       label: "3/1 ＋2",
       compactLabel: "＋2",
+      diffLabel: "2人多い",
+      compactDiffLabel: "+2",
     });
   });
 
-  it("ちょうどの場合は記号を付けず、狭い場所には人数だけを出す", () => {
+  it("ちょうどの場合は記号を付けず、狭い場所には人数だけを出す。帯には何も出さない", () => {
     expect(buildStaffingCountView({ count: 3, required: 3, isNewcomerOnly: false })).toMatchObject({
       tone: "even",
       label: "3/3",
       compactLabel: "3",
+      diffLabel: "",
+      compactDiffLabel: "",
     });
     expect(buildStaffingCountView({ count: 0, required: 0, isNewcomerOnly: false })).toMatchObject({
       tone: "even",
@@ -179,6 +184,8 @@ describe("buildStaffingCountView", () => {
       isNewcomerOnly: false,
       label: "2",
       compactLabel: "2",
+      diffLabel: "2",
+      compactDiffLabel: "2",
     });
   });
 });
@@ -392,6 +399,8 @@ describe("buildDayStaffingView", () => {
           isNewcomerOnly: true,
           label: "1/2 ▲1",
           compactLabel: "▲1",
+          diffLabel: "あと1人",
+          compactDiffLabel: "−1",
         },
       ]);
     });
@@ -654,83 +663,58 @@ describe("buildDayStaffingView", () => {
 describe("resolveBandSegmentContent", () => {
   const shortage = buildStaffingCountView({ count: 2, required: 3, isNewcomerOnly: false });
   const shortageNewcomer = buildStaffingCountView({ count: 2, required: 3, isNewcomerOnly: true });
+  const excess = buildStaffingCountView({ count: 3, required: 2, isNewcomerOnly: false });
   const even = buildStaffingCountView({ count: 3, required: 3, isNewcomerOnly: false });
+  const evenNewcomer = buildStaffingCountView({ count: 3, required: 3, isNewcomerOnly: true });
   const unset = buildStaffingCountView({ count: 2, required: null, isNewcomerOnly: false });
   const unsetNewcomer = buildStaffingCountView({ count: 2, required: null, isNewcomerOnly: true });
 
-  it("全文が入る幅では全文を出す（「2/3 ▲1」は50px以上）", () => {
-    expect(resolveBandSegmentContent(shortage, 50)).toEqual({
-      text: "2/3 ▲1",
-      isFullText: true,
-      showsNewcomerMark: false,
-    });
+  it("足りない区間は、入る幅なら「あと◯人」を出す（51px以上）", () => {
+    expect(resolveBandSegmentContent(shortage, 51)).toEqual({ text: "あと1人", showsNewcomerMark: false });
   });
 
-  it("全文が入らない幅では差だけを出す（「▲1」は22px以上）", () => {
-    expect(resolveBandSegmentContent(shortage, 49)).toEqual({
-      text: "▲1",
-      isFullText: false,
-      showsNewcomerMark: false,
-    });
-    expect(resolveBandSegmentContent(shortage, 22)).toEqual({
-      text: "▲1",
-      isFullText: false,
-      showsNewcomerMark: false,
-    });
+  it("「あと◯人」が入らない幅では「−◯」にする（22px以上）", () => {
+    expect(resolveBandSegmentContent(shortage, 50)).toEqual({ text: "−1", showsNewcomerMark: false });
+    expect(resolveBandSegmentContent(shortage, 22)).toEqual({ text: "−1", showsNewcomerMark: false });
   });
 
-  it("差も入らない幅では文字を出さない", () => {
-    expect(resolveBandSegmentContent(shortage, 21)).toEqual({
-      text: null,
-      isFullText: false,
-      showsNewcomerMark: false,
-    });
+  it("「−◯」も入らない幅では文字を出さない", () => {
+    expect(resolveBandSegmentContent(shortage, 21)).toEqual({ text: null, showsNewcomerMark: false });
   });
 
-  it("ちょうどの区間は、狭い幅では人数だけを出す", () => {
-    expect(resolveBandSegmentContent(even, 29).text).toBe("3/3");
-    expect(resolveBandSegmentContent(even, 28)).toEqual({ text: "3", isFullText: false, showsNewcomerMark: false });
+  it("多い区間は「◯人多い」を出し、入らない幅では「+◯」にする", () => {
+    expect(resolveBandSegmentContent(excess, 51)).toEqual({ text: "1人多い", showsNewcomerMark: false });
+    expect(resolveBandSegmentContent(excess, 50)).toEqual({ text: "+1", showsNewcomerMark: false });
   });
 
-  it("未設定の区間は人数だけが全文なので、入る幅なら全文として扱う", () => {
-    expect(resolveBandSegmentContent(unset, 15)).toEqual({ text: "2", isFullText: true, showsNewcomerMark: false });
+  it("ちょうどの区間は、幅があっても文字を出さない", () => {
+    expect(resolveBandSegmentContent(even, 200)).toEqual({ text: null, showsNewcomerMark: false });
+  });
+
+  it("ちょうどで見習いだけの区間は、印だけを出す（24px以上）", () => {
+    expect(resolveBandSegmentContent(evenNewcomer, 24)).toEqual({ text: null, showsNewcomerMark: true });
+    expect(resolveBandSegmentContent(evenNewcomer, 23)).toEqual({ text: null, showsNewcomerMark: false });
+  });
+
+  it("未設定の区間は人数だけを出す（15px以上）", () => {
+    expect(resolveBandSegmentContent(unset, 15)).toEqual({ text: "2", showsNewcomerMark: false });
     expect(resolveBandSegmentContent(unset, 14).text).toBeNull();
   });
 
-  it("見習いだけの区間は、全文と印が並ぶ幅（全文の幅＋16px）で両方を出す", () => {
-    expect(resolveBandSegmentContent(shortageNewcomer, 66)).toEqual({
-      text: "2/3 ▲1",
-      isFullText: true,
-      showsNewcomerMark: true,
-    });
+  it("見習いだけの区間は、文字と印が並ぶ幅（文字の幅＋16px）で両方を出す", () => {
+    expect(resolveBandSegmentContent(shortageNewcomer, 67)).toEqual({ text: "あと1人", showsNewcomerMark: true });
   });
 
-  it("見習いだけの区間は、全文と印が並ばない幅では、差だけにして印を残す", () => {
-    // 全文だけなら入る幅でも、印を優先する。
-    expect(resolveBandSegmentContent(shortageNewcomer, 65)).toEqual({
-      text: "▲1",
-      isFullText: false,
-      showsNewcomerMark: true,
-    });
-    expect(resolveBandSegmentContent(shortageNewcomer, 38)).toEqual({
-      text: "▲1",
-      isFullText: false,
-      showsNewcomerMark: true,
-    });
+  it("見習いだけの区間は、文字と印が並ばない幅では、短い文字にして印を残す", () => {
+    // 「あと1人」だけなら入る幅でも、印を優先する。
+    expect(resolveBandSegmentContent(shortageNewcomer, 66)).toEqual({ text: "−1", showsNewcomerMark: true });
+    expect(resolveBandSegmentContent(shortageNewcomer, 38)).toEqual({ text: "−1", showsNewcomerMark: true });
   });
 
   it("見習いだけの区間でも、印が入らない幅では、印を省いて文字だけを出す", () => {
-    expect(resolveBandSegmentContent(shortageNewcomer, 37)).toEqual({
-      text: "▲1",
-      isFullText: false,
-      showsNewcomerMark: false,
-    });
-    expect(resolveBandSegmentContent(unsetNewcomer, 30)).toEqual({
-      text: "2",
-      isFullText: true,
-      showsNewcomerMark: false,
-    });
-    expect(resolveBandSegmentContent(unsetNewcomer, 31).showsNewcomerMark).toBe(true);
+    expect(resolveBandSegmentContent(shortageNewcomer, 37)).toEqual({ text: "−1", showsNewcomerMark: false });
+    expect(resolveBandSegmentContent(unsetNewcomer, 30)).toEqual({ text: "2", showsNewcomerMark: false });
+    expect(resolveBandSegmentContent(unsetNewcomer, 31)).toEqual({ text: "2", showsNewcomerMark: true });
   });
 });
 
@@ -760,6 +744,27 @@ describe("summarizeStaffingBands", () => {
     const summary = summarizeStaffingBands({ bands, hasRequirements: true }, false);
 
     expect(names(summary.visibleBands)).toEqual(["A", "C"]);
+    expect(summary.toggleLabel).toBe("ほか2つは過不足なし");
+  });
+
+  it("過不足がなくても、見習いだけの時間があるポジションは先に出す", () => {
+    const newcomerOnlySegment = {
+      ...buildStaffingCountView({ count: 1, required: 1, isNewcomerOnly: true }),
+      key: "09:00",
+      startMinutes: 540,
+      endMinutes: 600,
+      timeLabel: "09:00〜10:00",
+      description: "B 09:00〜10:00 1/1、見習いだけ",
+    };
+    const bands = [
+      band("A", true),
+      { ...band("B", false), segments: [newcomerOnlySegment] },
+      band("C", false),
+      band("D", false),
+    ];
+    const summary = summarizeStaffingBands({ bands, hasRequirements: true }, false);
+
+    expect(names(summary.visibleBands)).toEqual(["A", "B"]);
     expect(summary.toggleLabel).toBe("ほか2つは過不足なし");
   });
 
@@ -795,28 +800,6 @@ describe("summarizeStaffingBands", () => {
       visibleBands: bands,
       toggleLabel: null,
     });
-  });
-});
-
-describe("buildDayStaffingMarks", () => {
-  const view = (hasShortage: boolean, hasExcess: boolean) =>
-    ({ hasShortage, hasExcess }) as Pick<DayStaffingView, "hasShortage" | "hasExcess"> as DayStaffingView;
-
-  it("不足のある日と多い時間のある日だけに印を付け、どちらもない日は含めない", () => {
-    const marks = buildDayStaffingMarks(
-      new Map([
-        ["2026-05-21", view(true, false)],
-        ["2026-05-22", view(false, true)],
-        ["2026-05-23", view(true, true)],
-        ["2026-05-24", view(false, false)],
-      ]),
-    );
-
-    expect([...marks]).toEqual([
-      ["2026-05-21", { hasShortage: true, hasExcess: false }],
-      ["2026-05-22", { hasShortage: false, hasExcess: true }],
-      ["2026-05-23", { hasShortage: true, hasExcess: true }],
-    ]);
   });
 });
 

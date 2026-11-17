@@ -9,10 +9,9 @@ import { ShiftDateNoteText, ShiftStaffNoteIcon, useAllShiftDateNotes, useShiftDa
 import { BreakMark, PositionMark, SegmentSkillMark, StaffMeta } from "../../detailParts";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import type { ShiftTypeOptionColor } from "../../shiftTypeOptionStyles";
-import { DayTemplateMenu, StaffingUnsetNote, useDayStaffingView } from "../../staffingParts";
+import { StaffingUnsetNote, useDayStaffingView } from "../../staffingParts";
 import {
   dailySortedStaffsAtom,
-  dayStaffingMarksByDateAtom,
   detailModeAtom,
   issueCountByDateAtom,
   selectDateWithDailyStaffOrderAtom,
@@ -48,7 +47,6 @@ export const ShiftTypeDailyView = () => {
   const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const issueCounts = useAtomValue(issueCountByDateAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
-  const staffingMarks = useAtomValue(dayStaffingMarksByDateAtom);
   const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
   const dateNotes = useShiftDateNotes();
   const allDateNotes = useAllShiftDateNotes();
@@ -108,7 +106,6 @@ export const ShiftTypeDailyView = () => {
         holidays={holidays}
         issueCounts={issueCounts}
         warningCounts={warningCounts}
-        staffingMarks={staffingMarks}
       />
       <Flex direction="column" minW={0} minH={0} flex={1} overflow="hidden">
         <DayTitle date={selectedDate} holidays={holidays} />
@@ -165,14 +162,11 @@ export const ShiftTypeDailyView = () => {
                         textStyle="xs"
                         fontWeight={600}
                       >
-                        <Flex align="center" justify="space-between" columnGap={2} rowGap={1} wrap="wrap">
-                          <Flex align="center" gap={2} minW={0}>
-                            <Text fontWeight={700} color="gray.700" whiteSpace="nowrap">
-                              {staffingView.hasRequirements ? "人数 / 必要" : "人数"}
-                            </Text>
-                            {!staffingView.hasRequirements && <StaffingUnsetNote />}
-                          </Flex>
-                          <DayTemplateMenu date={selectedDate} view={staffingView} />
+                        <Flex align="center" gap={2} minW={0}>
+                          <Text fontWeight={700} color="gray.700" whiteSpace="nowrap">
+                            {staffingView.hasRequirements ? "人数 / 必要" : "人数"}
+                          </Text>
+                          {!staffingView.hasRequirements && <StaffingUnsetNote />}
                         </Flex>
                       </chakra.th>
                       {viewModel.optionColumns.map((option) => {
@@ -295,7 +289,7 @@ const StaffCell = ({
           <Text textStyle="sm" fontWeight={500} color={row.isStaffNameMuted ? "gray.500" : "gray.800"} truncate>
             {row.staffName}
           </Text>
-          <StaffMeta staff={row.staff} shift={row.shift} />
+          <StaffMeta staff={row.staff} shift={row.shift} showTotal={false} />
         </Flex>
       ) : (
         <Text textStyle="sm" fontWeight={500} color={row.isStaffNameMuted ? "gray.500" : "gray.800"} flex={1} truncate>

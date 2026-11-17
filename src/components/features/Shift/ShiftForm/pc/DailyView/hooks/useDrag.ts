@@ -1,10 +1,13 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { SHIFT_ASSIGNMENT_BREAK_LIMIT } from "@/convex/constants";
 import {
   isWithinEditableRange,
   pixelToEditableMinutes,
   pixelToRawMinutes,
 } from "@/src/components/shared/ShiftTimeline/timelineGeometry";
+import { toaster } from "@/src/components/ui/toaster";
+import { addBreakRange, BREAK_TIME_UNIT_MINUTES, removeBreakAt } from "@/src/domains/shift/breaks";
 import {
   mergeAdjacentPositions,
   paintPosition,
@@ -12,13 +15,18 @@ import {
   resizePosition,
   resolveDefaultPosition,
 } from "@/src/domains/shift/operations";
+import { isCanonicalWorkPosition } from "@/src/domains/shift/positions";
+import { minutesToTime, timeToMinutes } from "@/src/domains/shift/time";
 import type { DragMode, LinkedResizeTarget, ShiftData } from "@/src/domains/shift/types";
 import { RESIZE_EDGE_THRESHOLD } from "../../../constants";
 import { detectLinkedResizeEdge } from "../../../hitTesting";
 import {
+  breakEditorTargetAtom,
   hourWidthAtom,
+  isBreakToolActiveAtom,
   selectedDateAtom,
   selectedPositionAtom,
+  setShiftBreaksAtom,
   shiftByStaffIdForSelectedDateAtom,
   shiftConfigAtom,
   updateShiftDraftsAtom,
@@ -29,12 +37,21 @@ type DragState = {
   staffId: string | null;
   startMinutes: number;
   currentMinutes: number;
+  // 押した位置の時刻（刻みにそろえる前）。休憩を選んでいる間に、押した休憩を見つけるために使う。
+  pressMinutes: number;
   targetShiftId: string | null;
   targetPositionId: string | null;
   positionColor: string | null;
   resizeEdge: "start" | "end" | null;
   linkedTarget: LinkedResizeTarget | null;
 };
+
+const BREAK_LIMIT_MESSAGE = `休憩は${SHIFT_ASSIGNMENT_BREAK_LIMIT}件まで入れられます`;
+
+const isInsideWork = (shift: ShiftData, minutes: number): boolean =>
+  shift.positions
+    .filter(isCanonicalWorkPosition)
+    .some((position) => timeToMinutes(position.start) <= minutes && minutes < timeToMinutes(position.end));
 
 type UseDragReturn = {
   dragState: DragState;
@@ -50,6 +67,7 @@ const initialDragState: DragState = {
   staffId: null,
   startMinutes: 0,
   currentMinutes: 0,
+  pressMinutes: 0,
   targetShiftId: null,
   targetPositionId: null,
   positionColor: null,
@@ -59,6 +77,9 @@ const initialDragState: DragState = {
 
 export const useDrag = (): UseDragReturn => {
   const setShifts = useSetAtom(updateShiftDraftsAtom);
+  const setShiftBreaks = useSetAtom(setShiftBreaksAtom);
+  const setBreakEditorTarget = useSetAtom(breakEditorTargetAtom);
+  const isBreakToolActive = useAtomValue(isBreakToolActiveAtom);
   const shiftByStaffId = useAtomValue(shiftByStaffIdForSelectedDateAtom);
   const selectedPosition = useAtomValue(selectedPositionAtom);
   const selectedDate = useAtomValue(selectedDateAtom);
@@ -122,6 +143,7 @@ export const useDrag = (): UseDragReturn => {
           staffId,
           startMinutes: minutes,
           currentMinutes: minutes,
+          pressMinutes: minutes,
           targetShiftId: linkedResizeInfo.shiftId,
           targetPositionId,
           positionColor,
@@ -141,6 +163,23 @@ export const useDrag = (): UseDragReturn => {
       const x = e.clientX - containerRect.left;
       const rawMinutes = pixelToRawMinutes({ x, timeRange, hourWidth });
       const minutes = pixelToEditableMinutes({ x, timeRange, hourWidth });
+
+      // 休憩を選んでいる間は、勤務の上をなぞって休憩を入れる。勤務の外を押しても何も始めない。
+      if (isBreakToolActive) {
+        const shift = shiftByStaffIdRef.current.get(staffId);
+        if (!shift || !isInsideWork(shift, rawMinutes)) return false;
+        const breakMinutes = pixelToEditableMinutes({ x, timeRange, hourWidth, unit: BREAK_TIME_UNIT_MINUTES });
+        commitDragState({
+          ...initialDragState,
+          mode: "break",
+          staffId,
+          startMinutes: breakMinutes,
+          currentMinutes: breakMinutes,
+          pressMinutes: rawMinutes,
+          targetShiftId: shift.id,
+        });
+        return true;
+      }
 
       // まずリサイズエッジを判定（既存バーの端をドラッグした場合）
       if (tryDetectResize(staffId, x, minutes)) return true;
@@ -172,6 +211,7 @@ export const useDrag = (): UseDragReturn => {
         staffId,
         startMinutes: minutes,
         currentMinutes: minutes,
+        pressMinutes: rawMinutes,
         targetShiftId: targetShift.id,
         targetPositionId: null,
         positionColor: position.color,
@@ -191,6 +231,7 @@ export const useDrag = (): UseDragReturn => {
       getStaffName,
       tryDetectResize,
       commitDragState,
+      isBreakToolActive,
     ],
   );
 
@@ -200,7 +241,8 @@ export const useDrag = (): UseDragReturn => {
       if (!dragStateRef.current.mode) return;
 
       const x = e.clientX - containerRect.left;
-      const minutes = pixelToEditableMinutes({ x, timeRange, hourWidth });
+      const unit = dragStateRef.current.mode === "break" ? BREAK_TIME_UNIT_MINUTES : undefined;
+      const minutes = pixelToEditableMinutes({ x, timeRange, hourWidth, unit });
 
       setDragState((prev) => {
         if (prev.currentMinutes === minutes) return prev;
@@ -222,6 +264,32 @@ export const useDrag = (): UseDragReturn => {
 
     const { mode, startMinutes, currentMinutes, targetShiftId, targetPositionId, resizeEdge, linkedTarget } =
       currentDragState;
+
+    // 0. 休憩。なぞった範囲を休憩にする。動かさずに押した場合は、押した休憩を外し、休憩のない場所なら休憩の編集を開く。
+    if (mode === "break") {
+      const staffId = currentDragState.staffId;
+      const shift = shiftByStaffIdRef.current.get(staffId);
+      if (shift) {
+        const isClick = Math.abs(currentMinutes - startMinutes) < BREAK_TIME_UNIT_MINUTES;
+        if (isClick) {
+          const remaining = removeBreakAt(shift, currentDragState.pressMinutes);
+          if (remaining) setShiftBreaks({ staffId, date: selectedDate, breaks: remaining });
+          else setBreakEditorTarget({ staffId, date: selectedDate });
+        } else {
+          const added = addBreakRange(shift, {
+            start: minutesToTime(Math.min(startMinutes, currentMinutes)),
+            end: minutesToTime(Math.max(startMinutes, currentMinutes)),
+          });
+          if (added && added.length > SHIFT_ASSIGNMENT_BREAK_LIMIT) {
+            toaster.create({ title: BREAK_LIMIT_MESSAGE, type: "info" });
+          } else if (added) {
+            setShiftBreaks({ staffId, date: selectedDate, breaks: added });
+          }
+        }
+      }
+      commitDragState(initialDragState);
+      return;
+    }
 
     // 1. ポジションリサイズモード（連結リサイズ対応）
     if ((mode === "position-resize-start" || mode === "position-resize-end") && targetShiftId) {
@@ -280,7 +348,17 @@ export const useDrag = (): UseDragReturn => {
     }
 
     commitDragState(initialDragState);
-  }, [setShifts, selectedPosition, config.positions, timeRange, generateId, commitDragState]);
+  }, [
+    setShifts,
+    setShiftBreaks,
+    setBreakEditorTarget,
+    selectedDate,
+    selectedPosition,
+    config.positions,
+    timeRange,
+    generateId,
+    commitDragState,
+  ]);
 
   // === カーソル判定 ===
   const getCursor = useCallback(
@@ -295,6 +373,9 @@ export const useDrag = (): UseDragReturn => {
         }
         return "default";
       }
+
+      // 休憩を選んでいる間は、勤務の端をつかんでも長さを変えない。
+      if (isBreakToolActive) return "default";
 
       // リサイズ端の検出
       const targetShift = shiftByStaffIdRef.current.get(staffId);
@@ -318,7 +399,7 @@ export const useDrag = (): UseDragReturn => {
 
       return "default";
     },
-    [isDragging, dragState.mode, selectedDate, timeRange, hourWidth, selectedPosition],
+    [isDragging, dragState.mode, selectedDate, timeRange, hourWidth, selectedPosition, isBreakToolActive],
   );
 
   return {

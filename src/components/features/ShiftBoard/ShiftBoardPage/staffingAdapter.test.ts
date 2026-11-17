@@ -1,12 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { ShiftBoardStaffingData } from "../types";
-import {
-  toDayRequirementsArg,
-  toDayTemplateIdArg,
-  toPositionSkillsByStaffId,
-  toShiftFormStaffing,
-} from "./staffingAdapter";
+import { toDayTemplateIdArg, toPositionSkillsByStaffId, toShiftFormStaffing } from "./staffingAdapter";
 
 const templateId = "template-1" as Id<"shiftDayTemplates">;
 const hallId = "hall" as Id<"positions">;
@@ -83,15 +78,9 @@ describe("toShiftFormStaffing", () => {
 });
 
 describe("mutationの引数への変換", () => {
-  it("テンプレートのIDと必要人数を、値を変えずに渡す", () => {
+  it("テンプレートのIDを、値を変えずに渡す", () => {
     expect(toDayTemplateIdArg("template-1")).toBe("template-1");
     expect(toDayTemplateIdArg(null)).toBeNull();
-
-    const requirements = {
-      kind: "time" as const,
-      bars: [{ positionId: "hall", startTime: "09:00", endTime: "14:00" }],
-    };
-    expect(toDayRequirementsArg(requirements)).toEqual(requirements);
   });
 });
 

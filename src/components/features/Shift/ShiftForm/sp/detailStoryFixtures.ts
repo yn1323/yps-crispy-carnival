@@ -40,7 +40,6 @@ const weekdayDays = (dates: readonly string[], template: StoryTemplate) =>
 
 const noopStaffingActions = {
   onApplyTemplate: async () => true,
-  onSaveCustom: async () => true,
   isPending: false,
 };
 const detailActions = { onOpenSetup: () => {}, dayStaffingActions: noopStaffingActions };
@@ -151,7 +150,7 @@ export const timeEventTemplate: StoryTemplate = {
 };
 export const timeDetailTemplates = [timeWeekdayTemplate, timeEventTemplate];
 // 2026-01-23は金曜（平日のテンプレートが当たる）、24は土曜（テンプレートが当たらない）。
-export const timeDetailDays = weekdayDays([timeDetailDate, timeDetailNextDate], timeWeekdayTemplate);
+const timeDetailDays = weekdayDays([timeDetailDate, timeDetailNextDate], timeWeekdayTemplate);
 export const timeDetailStaffing = buildStaffing({ templates: timeDetailTemplates, days: timeDetailDays });
 
 export const timeDetailArgs = {
@@ -355,8 +354,8 @@ export const dateOnlyEventTemplate: StoryTemplate = {
     ]),
   },
 };
-export const dateOnlyDetailTemplates = [dateOnlyWeekdayTemplate, dateOnlyEventTemplate];
-export const dateOnlyDetailDays = weekdayDays(mockDateOnlyDates, dateOnlyWeekdayTemplate);
+const dateOnlyDetailTemplates = [dateOnlyWeekdayTemplate, dateOnlyEventTemplate];
+const dateOnlyDetailDays = weekdayDays(mockDateOnlyDates, dateOnlyWeekdayTemplate);
 const dateOnlyDetailStaffing = buildStaffing({ templates: dateOnlyDetailTemplates, days: dateOnlyDetailDays });
 
 export const dateOnlyDetailArgs = {

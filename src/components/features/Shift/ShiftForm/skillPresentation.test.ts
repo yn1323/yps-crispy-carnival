@@ -64,7 +64,7 @@ describe("resolveNameSkillPosition", () => {
 });
 
 describe("buildNameSkillMark", () => {
-  it("ポジションが2つ以上の店舗では、そのポジションでの値に、ポジションの名前と色を添える", () => {
+  it("ポジションが2つ以上の店舗では、リーダーと担当外に、ポジションの名前と色を添える。見習いには出さない", () => {
     const marks = [hall, kitchen, register].map((position) =>
       buildNameSkillMark({ staff, position, positionCount: 3 }),
     );
@@ -76,12 +76,7 @@ describe("buildNameSkillMark", () => {
         position: { name: "ホール", color: "#0d9488" },
         title: "ホールではリーダーです",
       },
-      {
-        level: "newcomer",
-        label: "見習い",
-        position: { name: "キッチン", color: "#f97316" },
-        title: "キッチンでは見習いです",
-      },
+      null,
       {
         level: "unavailable",
         label: "担当外",
@@ -92,12 +87,16 @@ describe("buildNameSkillMark", () => {
   });
 
   it("ポジションが1つの店舗では、ポジションの名前と色を添えない", () => {
-    expect(buildNameSkillMark({ staff, position: kitchen, positionCount: 1 })).toEqual({
-      level: "newcomer",
-      label: "見習い",
+    expect(buildNameSkillMark({ staff, position: hall, positionCount: 1 })).toEqual({
+      level: "lead",
+      label: "リーダー",
       position: null,
       title: null,
     });
+  });
+
+  it("そのポジションで見習いのスタッフには出さない", () => {
+    expect(buildNameSkillMark({ staff, position: kitchen, positionCount: 1 })).toBeNull();
   });
 
   it("そのポジションで一人前のスタッフには出さない", () => {
@@ -115,13 +114,8 @@ describe("buildNameSkillMark", () => {
 describe("buildSegmentSkillMark", () => {
   const segmentOf = (position: PositionType) => ({ positionId: position.id, positionName: position.name });
 
-  it("区間のポジションで見習いなら「見」、リーダーなら「リ」を返す", () => {
-    expect(buildSegmentSkillMark(staff, segmentOf(kitchen))).toEqual({
-      level: "newcomer",
-      label: "見",
-      hiddenSuffix: "習い",
-      title: "キッチンでは見習いです",
-    });
+  it("区間のポジションでリーダーなら「リ」を返し、見習いには印を出さない", () => {
+    expect(buildSegmentSkillMark(staff, segmentOf(kitchen))).toBeNull();
     expect(buildSegmentSkillMark(staff, segmentOf(hall))).toEqual({
       level: "lead",
       label: "リ",

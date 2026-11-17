@@ -19,7 +19,6 @@ import {
   UnsubmittedStrip,
   ViewTabs,
 } from "./components";
-import { DayStaffingDialogs } from "./DayStaffingDialogs";
 import { type ShiftDateNote, ShiftDateNotesProvider } from "./dateNotes";
 import {
   DetailModeToggle,
@@ -256,6 +255,8 @@ const ShiftFormInner = ({
           reminderStatus={reminderStatus}
           onOpenUnsubmittedDetails={onOpenUnsubmittedDetails}
           hideViewTabs={isDateOnlyPattern}
+          // PCの日別表示（時間指定、パターン選択）は、日付の見出しの行に入れるものの選択を置く。
+          hideToolPaletteRow={!isDateOnlyPattern && viewMode === "daily"}
           showDetailToggle={Boolean(onDetailModeChange)}
           validationIssues={displayIssues}
           onSelectIssue={handleSelectIssue}
@@ -349,6 +350,7 @@ type ShellProps = {
   reminderStatus?: ReminderStatus;
   onOpenUnsubmittedDetails?: () => void;
   hideViewTabs?: boolean;
+  hideToolPaletteRow?: boolean;
   showDetailToggle: boolean;
   validationIssues: DisplayIssue[];
   onSelectIssue: (issue: DisplayIssue) => void;
@@ -372,6 +374,7 @@ const Shell = ({
   reminderStatus,
   onOpenUnsubmittedDetails,
   hideViewTabs,
+  hideToolPaletteRow,
   showDetailToggle,
   validationIssues,
   onSelectIssue,
@@ -454,7 +457,7 @@ const Shell = ({
         )}
       </Grid>
 
-      <ToolPalette />
+      {!hideToolPaletteRow && <ToolPalette />}
       <PositionLegend />
 
       {!isReadOnly && validationIssues.length > 0 && (
@@ -490,7 +493,6 @@ export const ShiftForm = (props: ShiftFormProps) => (
       <ShiftFormDetailActionsProvider actions={props.detailActions ?? EMPTY_DETAIL_ACTIONS}>
         <ShiftFormInner {...props} />
         <BreakEditorDialog />
-        <DayStaffingDialogs />
       </ShiftFormDetailActionsProvider>
     </ShiftDateNotesProvider>
   </Provider>

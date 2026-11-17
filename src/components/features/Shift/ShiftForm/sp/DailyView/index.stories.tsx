@@ -3,7 +3,7 @@ import { expect, userEvent, waitFor, within } from "storybook/test";
 import { ShiftForm } from "../..";
 import { fullscreenParameters, mobileGlobals, shiftFormDecorators } from "../../stories/shared";
 import { buildStaffing, readStaffingCalls, StaffingHarness, unsetDay } from "../../stories/staffingHarness";
-import { hall, timeDetailArgs, timeDetailDate, timeDetailDays, timeDetailTemplates } from "../detailStoryFixtures";
+import { hall, timeDetailArgs, timeDetailDate, timeDetailTemplates } from "../detailStoryFixtures";
 
 const meta = {
   title: "Features/Shift/ShiftForm/Time/SP/Daily Detail",
@@ -18,7 +18,7 @@ type Story = StoryObj<typeof meta>;
 
 /**
  * 複数ポジション、休憩、熟練度、仮の勤務と、上端の人数のカードを1画面で確かめる。
- * カードは畳んだ状態で、不足している時間だけを「ポジション → 時間 → 人数」で出す。日付の並びには人数の印が出る。
+ * カードは畳んだ状態で、不足している時間だけを「ポジション → 時間 → 人数」で出す。
  */
 export const Detail: Story = {
   args: timeDetailArgs,
@@ -185,9 +185,7 @@ export const BreakToolInteractive: Story = {
 // ==========================================
 type ShiftFormArgs = Parameters<typeof ShiftForm>[0];
 
-const harnessRender = (args: ShiftFormArgs) => (
-  <StaffingHarness {...args} templates={timeDetailTemplates} weekdayDays={timeDetailDays} />
-);
+const harnessRender = (args: ShiftFormArgs) => <StaffingHarness {...args} templates={timeDetailTemplates} />;
 
 const findStaffingCard = (canvasElement: HTMLElement) => within(canvasElement).findByRole("region", { name: "人数" });
 
@@ -196,12 +194,6 @@ const getRows = (card: HTMLElement, positionName: string) =>
   within(within(card).getByRole("list", { name: `${positionName}の人数` }))
     .getAllByRole("listitem")
     .map((row) => row.textContent);
-
-const getDateMarks = (canvasElement: HTMLElement) =>
-  Array.from(canvasElement.querySelectorAll("[data-date-chip]")).map((chip) => [
-    chip.getAttribute("data-date-chip"),
-    Array.from(chip.querySelectorAll("[data-staffing-mark]")).map((mark) => mark.getAttribute("data-staffing-mark")),
-  ]);
 
 /** カードは不足の数を文字で出し、畳んだ状態では不足だけ、「すべて見る」で多い時間と見習いだけの時間も出す。 */
 export const StaffingCardInteractive: Story = {
@@ -235,11 +227,6 @@ export const StaffingCardInteractive: Story = {
     );
     // レジは見習いのDさんだけが入る。必要人数のない午前は多い時間になる。
     await expect(getRows(card, "レジ")).toEqual(["09:00〜12:001/0 ＋1見習いだけ", "13:00〜17:001/1見習いだけ"]);
-    // 日付の並びは、不足と多い時間のある金曜にだけ印を出す。
-    await expect(getDateMarks(canvasElement)).toEqual([
-      [timeDetailDate, ["shortage", "excess"]],
-      ["2026-01-24", []],
-    ]);
   },
 };
 
@@ -274,99 +261,6 @@ export const ApplyTemplateInteractive: Story = {
         "17:00〜22:000/3 ▲3",
       ]),
     );
-  },
-};
-
-/** スマートフォンでも、「ほかの日もまとめて変える」で複数の日を選び、テンプレートを1回で当てられる。 */
-export const BulkApplyInteractive: Story = {
-  name: "Bulk Apply Interactive",
-  args: timeDetailArgs,
-  render: harnessRender,
-  globals: mobileGlobals,
-  parameters: { screenshot: { skip: true } },
-  play: async ({ canvasElement }) => {
-    const body = within(canvasElement.ownerDocument.body);
-    const card = await findStaffingCard(canvasElement);
-
-    await userEvent.click(within(card).getByRole("button", { name: "この日のテンプレート: 平日" }));
-    await userEvent.click(await body.findByRole("menuitem", { name: "ほかの日もまとめて変える" }));
-    const dialog = within(await body.findByRole("dialog", { name: "テンプレートをまとめて変える" }));
-
-    await userEvent.click(dialog.getByRole("combobox", { name: "当てるテンプレート" }));
-    await userEvent.click(await dialog.findByRole("option", { name: "イベント日" }));
-    await userEvent.click(dialog.getByRole("button", { name: "すべて" }));
-    await userEvent.click(dialog.getByRole("button", { name: "変更する" }));
-
-    await waitFor(() =>
-      expect(body.queryByRole("dialog", { name: "テンプレートをまとめて変える" })).not.toBeInTheDocument(),
-    );
-    await expect((await readStaffingCalls(canvasElement)).calls).toEqual([
-      { mutation: "applyDayTemplateToDates", dates: [timeDetailDate, "2026-01-24"], templateId: "event" },
-    ]);
-    // 未設定だった土曜にもテンプレートが当たり、不足の印が付く。金曜は多い時間がなくなる。
-    await waitFor(() =>
-      expect(getDateMarks(canvasElement)).toEqual([
-        [timeDetailDate, ["shortage"]],
-        ["2026-01-24", ["shortage"]],
-      ]),
-    );
-  },
-};
-
-/** スマートフォンでは、ボタンと時刻の選択で人数を入れ、その日だけの必要人数として保存できる。 */
-export const CustomRequirementsInteractive: Story = {
-  name: "Custom Requirements Interactive",
-  args: timeDetailArgs,
-  render: harnessRender,
-  globals: mobileGlobals,
-  parameters: { screenshot: { skip: true } },
-  play: async ({ canvasElement }) => {
-    const body = within(canvasElement.ownerDocument.body);
-    const card = await findStaffingCard(canvasElement);
-
-    await userEvent.click(within(card).getByRole("button", { name: "この日のテンプレート: 平日" }));
-    await userEvent.click(await body.findByRole("menuitem", { name: "この日だけ人数を変える" }));
-    const dialog = within(await body.findByRole("dialog", { name: "1月23日（金）の必要人数" }));
-    await expect(dialog.getByText("この日だけの変更です。テンプレート「平日」は変わりません。")).toBeInTheDocument();
-
-    // レジの9:00〜12:00に、1人を入れる。人数を選ぶ欄は、帯のすぐ下に出る。
-    const registerBand = within(await dialog.findByRole("group", { name: "レジの必要人数" }));
-    await userEvent.click(registerBand.getByRole("button", { name: "時間を選んで入れる" }));
-    const countForm = within(await dialog.findByRole("group", { name: "レジの必要人数を入れる" }));
-    await userEvent.selectOptions(countForm.getByRole("combobox", { name: "終了" }), "12:00");
-    await userEvent.click(countForm.getByRole("button", { name: "1人" }));
-    await waitFor(() =>
-      expect(dialog.queryByRole("group", { name: "レジの必要人数を入れる" })).not.toBeInTheDocument(),
-    );
-
-    await userEvent.click(dialog.getByRole("button", { name: "保存する" }));
-
-    await waitFor(() =>
-      expect(body.queryByRole("dialog", { name: "1月23日（金）の必要人数" })).not.toBeInTheDocument(),
-    );
-    const bar = (positionId: string, startTime: string, endTime: string) => ({ positionId, startTime, endTime });
-    await expect((await readStaffingCalls(canvasElement)).calls).toEqual([
-      {
-        mutation: "saveDayCustomRequirements",
-        date: timeDetailDate,
-        requirements: {
-          kind: "time",
-          // 時間ごとの人数は、開いたときの人数にレジの1人を足したものになる。
-          // バーは、人数の分だけ重ね、同じ人数以上が続く時間を1本にまとめて送る。
-          bars: [
-            bar("hall", "09:00", "22:00"),
-            bar("hall", "09:00", "13:00"),
-            bar("kitchen", "09:00", "17:00"),
-            bar("kitchen", "13:00", "17:00"),
-            bar("register", "09:00", "12:00"),
-            bar("register", "13:00", "17:00"),
-          ],
-        },
-      },
-    ]);
-    await expect(
-      await within(card).findByRole("button", { name: "この日のテンプレート: この日だけ変更" }),
-    ).toBeInTheDocument();
   },
 };
 

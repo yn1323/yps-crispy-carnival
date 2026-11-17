@@ -2,9 +2,8 @@ import { Box, Flex, Stack } from "@chakra-ui/react";
 import dayjs from "dayjs";
 import { useRef } from "react";
 import { getWeekdayLabel } from "@/src/domains/shift/date";
-import { DateIssueBadge, DateStaffingMarks, dateIssueBorderColor } from "../../components";
+import { DateIssueBadge, dateIssueBorderColor } from "../../components";
 import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
-import type { DayStaffingMarks } from "../../staffingPresentation";
 import { getShiftWeekdayColor } from "../../weekdayPresentation";
 
 type Props = {
@@ -14,19 +13,9 @@ type Props = {
   holidays?: string[];
   issueCounts?: ReadonlyMap<string, number>;
   warningCounts?: ReadonlyMap<string, number>;
-  /** 不足のある日と、多い時間のある日の印。くわしく表示のときだけ渡す。 */
-  staffingMarks?: ReadonlyMap<string, DayStaffingMarks>;
 };
 
-export const DateRail = ({
-  dates,
-  selectedDate,
-  onSelect,
-  holidays = [],
-  issueCounts,
-  warningCounts,
-  staffingMarks,
-}: Props) => {
+export const DateRail = ({ dates, selectedDate, onSelect, holidays = [], issueCounts, warningCounts }: Props) => {
   const railRef = useRef<HTMLDivElement>(null);
   useScrollDateIntoView(railRef, selectedDate, "vertical");
 
@@ -101,7 +90,6 @@ export const DateRail = ({
                   定休日
                 </Box>
               )}
-              <DateStaffingMarks marks={staffingMarks?.get(iso)} />
             </Box>
           );
         })}

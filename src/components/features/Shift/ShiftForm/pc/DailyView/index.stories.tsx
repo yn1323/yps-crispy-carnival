@@ -122,7 +122,6 @@ const detailStaffing = buildStaffing({ templates, days: weekdayDays });
 
 const noopStaffingActions = {
   onApplyTemplate: async () => true,
-  onSaveCustom: async () => true,
   isPending: false,
 };
 
@@ -157,8 +156,8 @@ type Story = StoryObj<typeof meta>;
 
 /**
  * 複数ポジション、バーの内側の休憩、熟練度、仮の勤務と、表の下の人数の帯を1画面で確かめる。
- * 帯は、足りない時間（▲）、多い時間（＋）、見習いだけの時間（見）、未設定のポジション（レジ）を含む。
- * 日付の一覧には、不足のある日と多い時間のある日の印が出る。
+ * 帯は、足りない時間（あと◯人）、多い時間（◯人多い）、見習いだけの時間（注意のアイコン）、未設定のポジション（レジ）を含む。
+ * その日のテンプレートは、日付の見出しの横に出る。
  */
 export const Detail: Story = {
   args: detailArgs,
@@ -172,7 +171,7 @@ export const DetailWithoutDayTemplateForDate: Story = {
   globals: desktopGlobals,
 };
 
-/** その日だけ人数を変えた日は、テンプレートの名前の代わりに「この日だけ変更」と出す。 */
+/** その日だけの必要人数を持つ日は、日付の見出しに、テンプレートの名前の代わりに「この日だけ変更」と出す。 */
 export const DetailCustomDay: Story = {
   name: "Detail Custom Day",
   args: {
@@ -227,7 +226,7 @@ export const DetailManyPositions: Story = {
   globals: desktopGlobals,
 };
 
-// 確定済みの募集。確定した時点の必要人数だけを持ち、テンプレートの当て直しとその日だけの変更ができない。
+// 確定済みの募集。確定した時点の必要人数だけを持ち、テンプレートを当て直せない。
 const lockedArgs = {
   ...detailArgs,
   isConfirmed: true,
@@ -339,7 +338,10 @@ export const DetailEditBreaksInteractive: Story = {
   },
 };
 
-/** 「入れるもの」で休憩を選んでいる間は、勤務のある行を押すと休憩の編集が開き、勤務は増えない。 */
+/**
+ * 休憩を選んでいる間は、勤務のバーの上をなぞった範囲が、15分単位で休憩になる。入れた休憩は、押すと消える。
+ * 勤務は増えない。勤務のない行と、勤務の外の時間をなぞっても、何も入らない。
+ */
 export const DetailBreakToolInteractive: Story = {
   name: "Detail Break Tool Interactive",
   args: detailArgs,
@@ -350,30 +352,45 @@ export const DetailBreakToolInteractive: Story = {
     const body = within(document.body);
     await userEvent.click(await canvas.findByRole("radio", { name: "休憩" }));
     // ドラッグの開始、移動、終了を分けて送る。ボタンを押している状態を引き継ぐため、同じ操作者で送る。
-    // 押した時点で休憩の編集が開いて背面を押せなくなっても、ドラッグの続きを送って、勤務が入らないことを確かめる。
-    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    const user = userEvent.setup();
     const drag = async (target: HTMLElement, from: { clientX: number; clientY: number }, to: typeof from) => {
       await user.pointer({ keys: "[MouseLeft>]", target, coords: from });
       await user.pointer({ target, coords: to });
       await user.pointer({ keys: "[/MouseLeft]", target, coords: to });
     };
 
-    // 勤務のない行をドラッグしても、勤務は入らず、休憩の編集も開かない。
+    // 勤務のない行をなぞっても、勤務も休憩も入らない。
     const emptyRow = await findRow(canvasElement, "staff5");
     await drag(emptyRow.lastElementChild as HTMLElement, pointAt(emptyRow, "18:00"), pointAt(emptyRow, "21:00"));
     await expect(getWorkBars(emptyRow)).toHaveLength(0);
+
+    // 勤務のある行でも、勤務の外の時間をなぞった場合は何も入らない。Bさんの勤務は12:00〜20:00。
+    const row = await findRow(canvasElement, "staff2");
+    const timeline = row.lastElementChild as HTMLElement;
+    await drag(timeline, pointAt(row, "09:30"), pointAt(row, "11:30"));
+    await expect(getBreakBars(row)).toHaveLength(0);
     await expect(body.queryByRole("dialog")).not.toBeInTheDocument();
 
-    // 勤務のある行は、勤務の外の時間をドラッグしても、勤務は増えず、その日の休憩の編集が開く。
-    const row = await findRow(canvasElement, "staff2");
-    await drag(row.lastElementChild as HTMLElement, pointAt(row, "09:30"), pointAt(row, "11:30"));
-    await expect(await body.findByRole("dialog")).toHaveTextContent("Bさんの休憩");
+    // 勤務の上をなぞると、15分単位で休憩が入る。勤務は増えない。
+    await drag(timeline, pointAt(row, "14:00"), pointAt(row, "14:45"));
+    await waitFor(() => expect(getBreakBars(row)).toHaveLength(1));
     await expect(getWorkBarColors(row)).toEqual([KITCHEN_RGB]);
     await expect(row).toHaveTextContent("12:00–20:00");
+    // 入った時刻は、勤務の欄で確かめる。
+    await userEvent.click(await canvas.findByRole("radio", { name: "キッチン" }));
+    await user.pointer({ keys: "[MouseLeft]", target: timeline, coords: pointAt(row, "17:00") });
+    await expect(await body.findByText("休憩：14:00〜14:45")).toBeInTheDocument();
+    await userEvent.click(body.getByRole("button", { name: "閉じる" }));
+
+    // 入れた休憩を押すと消える。
+    await userEvent.click(await canvas.findByRole("radio", { name: "休憩" }));
+    await user.pointer({ keys: "[MouseLeft]", target: timeline, coords: pointAt(row, "14:20") });
+    await waitFor(() => expect(getBreakBars(row)).toHaveLength(0));
+    await expect(body.queryByRole("dialog")).not.toBeInTheDocument();
   },
 };
 
-/** 休憩を選んでいる間に勤務のバーを押しても、休憩の編集だけが開き、勤務の欄を重ねて開かない。 */
+/** 休憩を選んでいる間に、休憩のない勤務を押すと、休憩の編集だけが開き、勤務の欄を重ねて開かない。 */
 export const DetailBreakToolOnBarInteractive: Story = {
   name: "Detail Break Tool On Bar Interactive",
   args: detailArgs,
@@ -385,7 +402,12 @@ export const DetailBreakToolOnBarInteractive: Story = {
     await userEvent.click(await canvas.findByRole("radio", { name: "休憩" }));
 
     const row = await findRow(canvasElement, "staff2");
-    await userEvent.click(getWorkBars(row)[0]);
+    const user = userEvent.setup();
+    await user.pointer({
+      keys: "[MouseLeft]",
+      target: row.lastElementChild as HTMLElement,
+      coords: pointAt(row, "13:00"),
+    });
 
     await expect(await body.findByRole("dialog")).toHaveTextContent("Bさんの休憩");
     // 勤務の欄は「休憩：…」と「休憩を変更」を持つ。休憩の編集と同時には開かない。
@@ -427,13 +449,14 @@ export const DetailPaintInteractive: Story = {
 // ==========================================
 // 人数の帯と、その日のテンプレートの操作
 // ==========================================
-const harnessRender = (args: ShiftFormArgs) => (
-  <StaffingHarness {...args} templates={templates} weekdayDays={weekdayDays} />
-);
+const harnessRender = (args: ShiftFormArgs) => <StaffingHarness {...args} templates={templates} />;
+
+// テンプレートのメニューのボタンは、人数の帯ではなく、日付の見出しにある。
+const findTemplateButton = (canvasElement: HTMLElement, label: string) =>
+  within(canvasElement).findByRole("button", { name: `この日のテンプレート: ${label}` });
 
 const openTemplateMenu = async (canvasElement: HTMLElement, label: string) => {
-  const staffing = within(await findStaffingSection(canvasElement));
-  await userEvent.click(await staffing.findByRole("button", { name: `この日のテンプレート: ${label}` }));
+  await userEvent.click(await findTemplateButton(canvasElement, label));
   return within(document.body);
 };
 
@@ -456,12 +479,9 @@ export const DetailBandSegmentInteractive: Story = {
     await expect(popover.getByText("人数 1人 / 必要 2人")).toBeInTheDocument();
     await expect(popover.getByText("1人足りません")).toBeInTheDocument();
     await expect(popover.getByText("見習いだけの時間です")).toBeInTheDocument();
-    // 見習いだけの時間帯は、確認事項として、その日の件数に入る。人数の印（▲と＋）とは別のバッジで出る。
+    // 見習いだけの時間帯は、確認事項として、その日の件数に入る。
     const dateChip = canvasElement.querySelector(`[data-date-chip="${WEEKDAY}"]`) as HTMLElement;
     await expect(within(dateChip).getByLabelText("確認事項1件")).toBeInTheDocument();
-    await expect(Array.from(dateChip.querySelectorAll("[data-staffing-mark]")).map((mark) => mark.textContent)).toEqual(
-      ["▲不足あり", "＋多い時間あり"],
-    );
   },
 };
 
@@ -494,7 +514,7 @@ export const DetailManyPositionsInteractive: Story = {
 
 /**
  * テンプレートのメニューからテンプレートを当てると、その日とテンプレートを1回で送り、帯の必要人数が変わる。
- * 当て直しても、保存していない勤務は消えない。その日だけの指定は、曜日の設定へ戻せる。
+ * 当て直しても、保存していない勤務は消えない。元のテンプレートも、同じメニューから選び直せる。
  */
 export const DetailApplyTemplateInteractive: Story = {
   name: "Detail Apply Template Interactive",
@@ -523,7 +543,7 @@ export const DetailApplyTemplateInteractive: Story = {
     ).toBeInTheDocument();
     await userEvent.click(await menu.findByRole("menuitem", { name: "繁忙日" }));
 
-    await expect(await staffing.findByRole("button", { name: "この日のテンプレート: 繁忙日" })).toBeInTheDocument();
+    await expect(await findTemplateButton(canvasElement, "繁忙日")).toBeInTheDocument();
     await expect((await readStaffingCalls(canvasElement)).calls).toEqual([
       { mutation: "applyDayTemplateToDates", dates: [WEEKDAY], templateId: "busy" },
     ]);
@@ -533,153 +553,21 @@ export const DetailApplyTemplateInteractive: Story = {
     await expect(getWorkBarColors(row)).toEqual([KITCHEN_RGB]);
     await expect(row).toHaveTextContent("17:00–22:00");
 
-    // 曜日の設定に戻す。
-    const resetMenu = await openTemplateMenu(canvasElement, "繁忙日");
-    await userEvent.click(await resetMenu.findByRole("menuitem", { name: "曜日の設定に戻す" }));
+    // 平日を選び直す。必要人数が元に戻り、9:00〜10:00のホールはちょうどになる。
+    const reselectMenu = await openTemplateMenu(canvasElement, "繁忙日");
+    await userEvent.click(await reselectMenu.findByRole("menuitem", { name: "平日" }));
 
-    await expect(await staffing.findByRole("button", { name: "この日のテンプレート: 平日" })).toBeInTheDocument();
+    await expect(await findTemplateButton(canvasElement, "平日")).toBeInTheDocument();
     await expect((await readStaffingCalls(canvasElement)).calls).toEqual([
       { mutation: "applyDayTemplateToDates", dates: [WEEKDAY], templateId: "busy" },
-      { mutation: "applyDayTemplateToDates", dates: [WEEKDAY], templateId: null },
+      { mutation: "applyDayTemplateToDates", dates: [WEEKDAY], templateId: "weekday" },
     ]);
+    await expect(await staffing.findByRole("button", { name: "ホール 09:00〜10:00 1/1" })).toBeInTheDocument();
     await expect(getWorkBarColors(row)).toEqual([KITCHEN_RGB]);
   },
 };
 
-/** 「ほかの日もまとめて変える」で、複数の日をチェックで選び、同じテンプレートを1回で当てる。 */
-export const DetailBulkApplyInteractive: Story = {
-  name: "Detail Bulk Apply Interactive",
-  args: detailArgs,
-  render: harnessRender,
-  globals: desktopGlobals,
-  parameters: { screenshot: { skip: true } },
-  play: async ({ canvasElement }) => {
-    const menu = await openTemplateMenu(canvasElement, "平日");
-    await userEvent.click(await menu.findByRole("menuitem", { name: "ほかの日もまとめて変える" }));
-
-    const dialog = within(await menu.findByRole("dialog", { name: "テンプレートをまとめて変える" }));
-    const submit = dialog.getByRole("button", { name: "変更する" });
-    // メニューを開いた日だけが選ばれている。テンプレートを選ぶまでは変更できない。
-    await expect(dialog.getByRole("checkbox", { name: "1/21(水)" })).toBeChecked();
-    await expect(dialog.getByText("1日を選択中")).toBeInTheDocument();
-    await expect(submit).toBeDisabled();
-
-    await userEvent.click(dialog.getByRole("combobox", { name: "当てるテンプレート" }));
-    await userEvent.click(await dialog.findByRole("option", { name: "繁忙日" }));
-    // 土日をまとめて選び、木曜を足す。
-    await userEvent.click(dialog.getByRole("button", { name: "土日" }));
-    await expect(dialog.getByRole("checkbox", { name: "1/21(水)" })).not.toBeChecked();
-    await userEvent.click(dialog.getByRole("checkbox", { name: "1/22(木)" }));
-    await expect(dialog.getByText("3日を選択中")).toBeInTheDocument();
-    await userEvent.click(submit);
-
-    await waitFor(() =>
-      expect(menu.queryByRole("dialog", { name: "テンプレートをまとめて変える" })).not.toBeInTheDocument(),
-    );
-    await expect((await readStaffingCalls(canvasElement)).calls).toEqual([
-      { mutation: "applyDayTemplateToDates", dates: [THURSDAY, SATURDAY, SUNDAY], templateId: "busy" },
-    ]);
-    // テンプレートを当てた日は、だれも入っていないため不足の印が付く。
-    const rail = within(canvasElement).getByRole("tablist", { name: "日付選択" });
-    await waitFor(() =>
-      expect(
-        Array.from(rail.querySelectorAll("[data-date-chip]")).map((chip) => [
-          chip.getAttribute("data-date-chip"),
-          Array.from(chip.querySelectorAll("[data-staffing-mark]")).map((mark) =>
-            mark.getAttribute("data-staffing-mark"),
-          ),
-        ]),
-      ).toEqual([
-        [WEEKDAY, ["shortage", "excess"]],
-        [THURSDAY, ["shortage"]],
-        [SATURDAY, ["shortage"]],
-        [SUNDAY, ["shortage"]],
-      ]),
-    );
-  },
-};
-
-/** 「この日だけ人数を変える」で、いまの必要人数に人数を入れて保存すると、その日だけの必要人数として送る。 */
-export const DetailCustomRequirementsInteractive: Story = {
-  name: "Detail Custom Requirements Interactive",
-  args: detailArgs,
-  render: harnessRender,
-  globals: desktopGlobals,
-  parameters: { screenshot: { skip: true } },
-  play: async ({ canvasElement }) => {
-    const staffing = within(await findStaffingSection(canvasElement));
-    const menu = await openTemplateMenu(canvasElement, "平日");
-    await userEvent.click(await menu.findByRole("menuitem", { name: "この日だけ人数を変える" }));
-
-    const dialogElement = await menu.findByRole("dialog", { name: "1月21日（水）の必要人数" });
-    const dialog = within(dialogElement);
-    await expect(dialog.getByText("この日だけの変更です。テンプレート「平日」は変わりません。")).toBeInTheDocument();
-
-    // レジの10:00〜13:00に、2人を入れる。人数を選ぶ欄は、Dialogの上に重ねず、帯のすぐ下に出る。
-    const registerBand = within(await dialog.findByRole("group", { name: "レジの必要人数" }));
-    await userEvent.click(registerBand.getByRole("button", { name: "時間を選んで入れる" }));
-    const countForm = within(await dialog.findByRole("group", { name: "レジの必要人数を入れる" }));
-    await userEvent.selectOptions(countForm.getByRole("combobox", { name: "開始" }), "10:00");
-    await userEvent.selectOptions(countForm.getByRole("combobox", { name: "終了" }), "13:00");
-    await userEvent.click(countForm.getByRole("button", { name: "2人" }));
-    await waitFor(() =>
-      expect(dialog.queryByRole("group", { name: "レジの必要人数を入れる" })).not.toBeInTheDocument(),
-    );
-
-    await userEvent.click(dialog.getByRole("button", { name: "保存する" }));
-
-    await waitFor(() =>
-      expect(menu.queryByRole("dialog", { name: "1月21日（水）の必要人数" })).not.toBeInTheDocument(),
-    );
-    // 入れた2人は、同じ時間に重ねた2本のバーとして保存の引数に入る。
-    const bar = (positionId: string, startTime: string, endTime: string) => ({ positionId, startTime, endTime });
-    await expect((await readStaffingCalls(canvasElement)).calls).toEqual([
-      {
-        mutation: "saveDayCustomRequirements",
-        date: WEEKDAY,
-        requirements: {
-          kind: "time",
-          bars: [
-            bar("hall", "09:00", "22:00"),
-            bar("hall", "11:00", "14:00"),
-            bar("kitchen", "11:00", "21:00"),
-            bar("kitchen", "12:00", "14:00"),
-            bar("register", "10:00", "13:00"),
-            bar("register", "10:00", "13:00"),
-          ],
-        },
-      },
-    ]);
-    // その日だけ変えた日として出て、レジの必要人数が帯に出る。
-    await expect(
-      await staffing.findByRole("button", { name: "この日のテンプレート: この日だけ変更" }),
-    ).toBeInTheDocument();
-    await expect(await staffing.findByRole("button", { name: "レジ 10:00〜13:00 0/2 ▲2" })).toBeInTheDocument();
-  },
-};
-
-/** 「この日だけ人数を変える」の導線から設定ページを開くと、Dialogを閉じてから移る。 */
-export const DetailCustomRequirementsOpenSetupInteractive: Story = {
-  name: "Detail Custom Requirements Open Setup Interactive",
-  args: detailArgs,
-  render: harnessRender,
-  globals: desktopGlobals,
-  parameters: { screenshot: { skip: true } },
-  play: async ({ canvasElement }) => {
-    const menu = await openTemplateMenu(canvasElement, "平日");
-    await userEvent.click(await menu.findByRole("menuitem", { name: "この日だけ人数を変える" }));
-    const dialogElement = await menu.findByRole("dialog", { name: "1月21日（水）の必要人数" });
-
-    await userEvent.click(within(dialogElement).getByRole("button", { name: "シフト作成の設定を開く" }));
-
-    await waitFor(() =>
-      expect(menu.queryByRole("dialog", { name: "1月21日（水）の必要人数" })).not.toBeInTheDocument(),
-    );
-    await expect(await readStaffingCalls(canvasElement)).toEqual({ calls: [], setupOpenCount: 1 });
-  },
-};
-
-/** テンプレートが当たらない日は、テンプレートのメニューに「未設定」と出て、その日だけの人数と設定ページへの導線を選べる。 */
+/** テンプレートが当たらない日は、テンプレートのメニューのボタンに「未設定」と出て、メニューから設定ページを開ける。 */
 export const DetailUnsetDayMenuInteractive: Story = {
   name: "Detail Unset Day Menu Interactive",
   args: { ...detailArgs, dates: [SATURDAY, SUNDAY], initialShifts: buildShifts(SATURDAY) },
@@ -695,9 +583,6 @@ export const DetailUnsetDayMenuInteractive: Story = {
     );
 
     const menu = await openTemplateMenu(canvasElement, "未設定");
-    await expect(await menu.findByRole("menuitem", { name: "この日だけ人数を変える" })).toBeInTheDocument();
-    // その日だけの指定がない日には「曜日の設定に戻す」を出さない。
-    await expect(menu.queryByRole("menuitem", { name: "曜日の設定に戻す" })).not.toBeInTheDocument();
     await userEvent.click(await menu.findByRole("menuitem", { name: "シフト作成の設定を開く" }));
 
     await expect(await readStaffingCalls(canvasElement)).toEqual({ calls: [], setupOpenCount: 1 });
@@ -713,7 +598,8 @@ export const DetailLocked: Story = {
     const staffing = within(await findStaffingSection(canvasElement));
     // 確定時の必要人数で、過不足は出す。
     await expect(await staffing.findByRole("button", { name: "ホール 18:00〜22:00 0/1 ▲1" })).toBeInTheDocument();
-    await expect(staffing.getByText("平日")).toBeInTheDocument();
-    await expect(staffing.queryByRole("button", { name: /この日のテンプレート/ })).not.toBeInTheDocument();
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("平日")).toBeInTheDocument();
+    await expect(canvas.queryByRole("button", { name: /この日のテンプレート/ })).not.toBeInTheDocument();
   },
 };

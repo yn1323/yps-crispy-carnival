@@ -23,6 +23,15 @@ describe("timelineGeometry", () => {
     expect(pixelToMinutes({ x: 30, timeRange: halfHourRange, hourWidth: 120 })).toBe(300);
   });
 
+  it("刻みを渡すと、timeRangeの刻みの代わりにその刻みへそろえる", () => {
+    // 12:10の位置。30分刻みでは12:00、15分刻みでは12:15になる。
+    const x = minutesToPixel(730, halfHourRange, 120);
+
+    expect(pixelToMinutes({ x, timeRange: halfHourRange, hourWidth: 120 })).toBe(720);
+    expect(pixelToMinutes({ x, timeRange: halfHourRange, hourWidth: 120, unit: 15 })).toBe(735);
+    expect(pixelToEditableMinutes({ x, timeRange: halfHourRange, hourWidth: 120, unit: 15 })).toBe(735);
+  });
+
   it("営業時間外の左端は編集可能開始時刻へクランプする", () => {
     const rawMinutes = pixelToRawMinutes({ x: 30, timeRange: halfHourRange, hourWidth: 120 });
 

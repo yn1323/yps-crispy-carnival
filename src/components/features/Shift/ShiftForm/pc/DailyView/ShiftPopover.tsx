@@ -1,8 +1,8 @@
 import { Badge, Box, chakra, Flex, Portal, Text } from "@chakra-ui/react";
 import { useAtomValue } from "jotai";
-import { useEffect } from "react";
-import { LuTrash2, LuX } from "react-icons/lu";
-import { Button, IconButton } from "@/src/components/ui/Button";
+import { useEffect, useRef } from "react";
+import { LuPlus, LuTrash2, LuX } from "react-icons/lu";
+import { IconButton } from "@/src/components/ui/Button";
 import type { ShiftData } from "@/src/domains/shift/types";
 import { detailModeAtom, isPositionSelectableAtom, shiftConfigAtom, usesPositionColorsAtom } from "../../stores";
 import { buildShiftPopoverViewModel } from "./script";
@@ -13,7 +13,8 @@ type ShiftPopoverProps = {
   isOpen: boolean;
   isStaffSubmitted: boolean;
   onClose: () => void;
-  onDeletePosition: (positionId: string) => void;
+  /** 一覧の1行を削除する。シンプル表示の1行は、ポジションの違う複数の勤務区間をまとめていることがある。 */
+  onDeletePosition: (segmentIds: string[]) => void;
   /** 勤務区間のポジションを変える。ポジションを選び分けられる場合だけ使う。 */
   onChangePosition?: (segmentId: string, positionId: string) => void;
   /** 休憩の編集を開く。編集できない場合は渡さない。 */
@@ -40,9 +41,14 @@ export const ShiftPopover = ({
   const usesPositionColors = useAtomValue(usesPositionColorsAtom);
   const isPositionSelectable = useAtomValue(isPositionSelectableAtom);
   const { positions } = useAtomValue(shiftConfigAtom);
+  const contentRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!isOpen) return;
-    const handleScroll = () => onClose();
+    // 表がスクロールすると勤務のバーから離れるため閉じる。欄の中の一覧のスクロールでは閉じない。
+    const handleScroll = (event: Event) => {
+      if (event.target instanceof Node && contentRef.current?.contains(event.target)) return;
+      onClose();
+    };
     window.addEventListener("scroll", handleScroll, true);
     return () => window.removeEventListener("scroll", handleScroll, true);
   }, [isOpen, onClose]);
@@ -76,13 +82,19 @@ export const ShiftPopover = ({
 
   const top = showBelow ? anchorRect.bottom + 8 : anchorRect.top - 8;
   const transform = showBelow ? adjustedTransform : `${adjustedTransform} translateY(-100%)`;
-  const viewModel = buildShiftPopoverViewModel({ shift, isStaffSubmitted, isReadOnly });
+  const viewModel = buildShiftPopoverViewModel({
+    shift,
+    isStaffSubmitted,
+    isReadOnly,
+    mergesAcrossPositions: !usesPositionColors,
+  });
 
   return (
     <Portal>
       {/* オーバーレイ: クリックで閉じる */}
       <Box position="fixed" inset={0} zIndex={10099} onClick={onClose} style={{ background: "transparent" }} />
       <Box
+        ref={contentRef}
         position="fixed"
         left={`${adjustedLeft}px`}
         top={`${top}px`}
@@ -137,7 +149,7 @@ export const ShiftPopover = ({
                       variant="ghost"
                       colorPalette="gray"
                       aria-label="時間帯を削除"
-                      onClick={() => onDeletePosition(segment.id)}
+                      onClick={() => onDeletePosition(segment.segmentIds)}
                       _hover={{ color: "red.500" }}
                     >
                       <LuTrash2 />
@@ -190,9 +202,18 @@ export const ShiftPopover = ({
               {viewModel.breakLabels.length > 0 ? `休憩：${viewModel.breakLabels.join(" / ")}` : "休憩：なし"}
             </Text>
             {onEditBreaks && (
-              <Button type="button" size="xs" variant="outline" onClick={onEditBreaks} flexShrink={0}>
-                休憩を変更
-              </Button>
+              <IconButton
+                type="button"
+                size="xs"
+                variant="outline"
+                colorPalette="gray"
+                aria-label="休憩を変更"
+                title="休憩を変更"
+                onClick={onEditBreaks}
+                flexShrink={0}
+              >
+                <LuPlus />
+              </IconButton>
             )}
           </Flex>
         )}

@@ -45,7 +45,7 @@ export const unsetDay = (date: string): ShiftFormStaffingDay => ({
   requirements: null,
 });
 
-/** その日だけ人数を変えた日。 */
+/** その日だけの必要人数を持つ日。 */
 export const customDay = (date: string, requirements: ShiftFormDayRequirements): ShiftFormStaffingDay => ({
   date,
   source: "dateCustom",
@@ -80,15 +80,13 @@ const visuallyHidden = {
 type HarnessProps = ShiftFormArgs & {
   /** 当てたときに、その日の必要人数になるテンプレート。 */
   templates: readonly StoryTemplate[];
-  /** その日だけの指定を消したときに戻る、曜日の設定の必要人数。渡さない場合は、最初の必要人数へ戻す。 */
-  weekdayDays?: readonly ShiftFormStaffingDay[];
 };
 
 /**
  * 必要人数の操作を受け取り、サーバーの代わりに日ごとの必要人数を書き換えるハーネス。
  * 受け取った引数は、検証のために「必要人数の操作」へJSONで記録する。
  */
-export const StaffingHarness = ({ templates, weekdayDays, ...args }: HarnessProps) => {
+export const StaffingHarness = ({ templates, ...args }: HarnessProps) => {
   const initialDays = args.staffing?.days ?? [];
   const [days, setDays] = useState<ShiftFormStaffingDay[]>(initialDays);
   const [calls, setCalls] = useState<string[]>([]);
@@ -97,7 +95,6 @@ export const StaffingHarness = ({ templates, weekdayDays, ...args }: HarnessProp
   // biome-ignore lint/correctness/useExhaustiveDependencies: Storyのargsは描画のたびに作り直されることがあるため、最初の値だけを使う。
   const detailActions = useMemo<NonNullable<ShiftFormArgs["detailActions"]>>(() => {
     const record = (call: unknown) => setCalls((current) => [...current, JSON.stringify(call)]);
-    const restoreDays = weekdayDays ?? initialDays;
     return {
       onOpenSetup: () => setSetupOpenCount((current) => current + 1),
       dayStaffingActions: {
@@ -108,15 +105,11 @@ export const StaffingHarness = ({ templates, weekdayDays, ...args }: HarnessProp
           setDays((current) =>
             current.map((day) => {
               if (!dates.includes(day.date)) return day;
-              if (!template) return restoreDays.find((item) => item.date === day.date) ?? unsetDay(day.date);
+              // テンプレートを指定しない呼び出しは、その日だけの指定を消す。最初の必要人数へ戻す。
+              if (!template) return initialDays.find((item) => item.date === day.date) ?? unsetDay(day.date);
               return templateDay(day.date, template, "dateTemplate");
             }),
           );
-          return true;
-        },
-        onSaveCustom: async (date, requirements) => {
-          record({ mutation: "saveDayCustomRequirements", date, requirements });
-          setDays((current) => current.map((day) => (day.date === date ? customDay(date, requirements) : day)));
           return true;
         },
       },

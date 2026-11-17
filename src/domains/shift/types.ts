@@ -86,7 +86,7 @@ export type TimeRange = {
 export type ViewMode = "daily" | "overview";
 
 // ドラッグモード（希望シフトバーは編集不可のため、ポジション関連のみ）
-export type DragMode = "position-resize-start" | "position-resize-end" | "paint" | null;
+export type DragMode = "position-resize-start" | "position-resize-end" | "paint" | "break" | null;
 
 // スタッフソートモード
 export type SortMode = "default" | "request" | "startTime";

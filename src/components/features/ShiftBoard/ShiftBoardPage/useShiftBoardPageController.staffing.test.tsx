@@ -12,12 +12,10 @@ const mocks = vi.hoisted(() => ({
   saveReference: Symbol("save"),
   confirmReference: Symbol("confirm"),
   applyTemplateReference: Symbol("applyDayTemplateToDates"),
-  saveCustomReference: Symbol("saveDayCustomRequirements"),
   provisionalQueryReference: Symbol("getProvisionalAssignments"),
   save: vi.fn(),
   confirm: vi.fn(),
   applyDayTemplateToDates: vi.fn(),
-  saveDayCustomRequirements: vi.fn(),
   navigate: vi.fn(),
   convexQuery: vi.fn(),
   toast: vi.fn(),
@@ -37,7 +35,6 @@ vi.mock("@/convex/_generated/api", () => ({
     shiftSetup: {
       mutations: {
         applyDayTemplateToDates: mocks.applyTemplateReference,
-        saveDayCustomRequirements: mocks.saveCustomReference,
       },
     },
   },
@@ -47,7 +44,6 @@ vi.mock("@/src/hooks/useShopMutation", () => ({
     if (reference === mocks.saveReference) return mocks.save;
     if (reference === mocks.confirmReference) return mocks.confirm;
     if (reference === mocks.applyTemplateReference) return mocks.applyDayTemplateToDates;
-    if (reference === mocks.saveCustomReference) return mocks.saveDayCustomRequirements;
     throw new Error("unexpected mutation reference");
   },
 }));
@@ -169,7 +165,6 @@ beforeEach(() => {
   mocks.save.mockResolvedValue(null);
   mocks.confirm.mockResolvedValue(null);
   mocks.applyDayTemplateToDates.mockResolvedValue(null);
-  mocks.saveDayCustomRequirements.mockResolvedValue(null);
   mocks.convexQuery.mockResolvedValue([]);
 });
 
@@ -649,38 +644,6 @@ describe("その日の必要人数の変更と設定ページへの導線", () =
 
     expect(mocks.applyDayTemplateToDates).toHaveBeenCalledTimes(1);
     expect(actionsOf(result).isPending).toBe(false);
-  });
-
-  it("この日だけの必要人数は、この募集と日付と必要人数を送り、保存したことを伝える", async () => {
-    const requirements = {
-      kind: "time" as const,
-      bars: [{ positionId: hallId as string, startTime: "09:00", endTime: "14:00" }],
-    };
-    const { result } = renderController({ staffing: templateStaffing });
-
-    let saved: boolean | undefined;
-    await act(async () => {
-      saved = await actionsOf(result).onSaveCustom(date, requirements);
-    });
-
-    expect(saved).toBe(true);
-    expect(mocks.saveDayCustomRequirements.mock.calls).toEqual([[{ recruitmentId, date, requirements }]]);
-    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "この日の必要人数を保存しました" });
-  });
-
-  it("この日だけの必要人数の保存に失敗した場合は、エラーを知らせて失敗を返す", async () => {
-    const error = new Error("rejected");
-    mocks.saveDayCustomRequirements.mockRejectedValue(error);
-    const { result } = renderController({ staffing: templateStaffing });
-
-    let saved: boolean | undefined;
-    await act(async () => {
-      saved = await actionsOf(result).onSaveCustom(date, { kind: "time", bars: [] });
-    });
-
-    expect(saved).toBe(false);
-    expect(mocks.showErrorToast).toHaveBeenCalledExactlyOnceWith(error);
-    expect(mocks.showSuccessToast).not.toHaveBeenCalled();
   });
 
   it("テンプレートを当て直して必要人数が変わっても、編集中の勤務を消さず、そのまま保存する", async () => {

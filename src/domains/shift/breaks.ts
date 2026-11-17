@@ -78,6 +78,36 @@ export const getEffectiveBreaks = (
   return mergeBreaks(segments.flatMap((segment) => getBreaksForSegment(segment, breaks)));
 };
 
+const isSameRanges = (a: readonly ShiftTimeRange[], b: readonly ShiftTimeRange[]): boolean =>
+  a.length === b.length && a.every((range, index) => range.start === b[index].start && range.end === b[index].end);
+
+/**
+ * 選んだ範囲を、その日の休憩へ足した結果を返す。時刻を持つ勤務で、勤務のバーの上をなぞって休憩を入れるときに使う。
+ * 勤務時間の内側だけを残し、重なる休憩と隣り合う休憩は1件にまとめる。勤務区間をまるごと覆う部分は入れない。
+ * 何も変わらない場合（範囲が勤務の外にある場合など）はnullを返す。
+ */
+export const addBreakRange = (
+  shift: Pick<ShiftData, "positions" | "breaks">,
+  range: ShiftTimeRange,
+): ShiftTimeRange[] | null => {
+  const current = getEffectiveBreaks(shift, { clipToWork: true });
+  const next = getEffectiveBreaks({ positions: shift.positions, breaks: [...current, range] }, { clipToWork: true });
+  return isSameRanges(current, next) ? null : next;
+};
+
+/** その時刻（分）を含む休憩を外した結果を返す。その時刻に休憩がなければnullを返す。 */
+export const removeBreakAt = (
+  shift: Pick<ShiftData, "positions" | "breaks">,
+  minutes: number,
+): ShiftTimeRange[] | null => {
+  const current = getEffectiveBreaks(shift, { clipToWork: true });
+  const next = current.filter((range) => {
+    const { start, end } = toMinuteRange(range);
+    return !(start <= minutes && minutes < end);
+  });
+  return next.length === current.length ? null : next;
+};
+
 /** 休憩を引いた勤務時間（分）。重なる勤務区間は二重に数えない。 */
 export const getWorkedMinutes = (shift: Pick<ShiftData, "positions" | "breaks">): number => {
   const merged: MinuteRange[] = [];

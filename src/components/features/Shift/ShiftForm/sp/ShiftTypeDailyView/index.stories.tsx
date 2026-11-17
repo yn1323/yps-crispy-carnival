@@ -4,7 +4,7 @@ import { ShiftForm } from "../..";
 import { mockShiftTypeDates } from "../../stories/fixtures";
 import { fullscreenParameters, mobileGlobals, shiftFormDecorators } from "../../stories/shared";
 import { readStaffingCalls, StaffingHarness } from "../../stories/staffingHarness";
-import { shiftTypeDetailArgs, shiftTypeDetailDays, shiftTypeDetailTemplates } from "../detailStoryFixtures";
+import { shiftTypeDetailArgs, shiftTypeDetailTemplates } from "../detailStoryFixtures";
 
 const meta = {
   title: "Features/Shift/ShiftForm/Shift Type/SP/Daily Detail",
@@ -85,9 +85,7 @@ export const BreakToolInteractive: Story = {
 export const ApplyTemplateInteractive: Story = {
   name: "Apply Template Interactive",
   args: shiftTypeDetailArgs,
-  render: (args) => (
-    <StaffingHarness {...args} templates={shiftTypeDetailTemplates} weekdayDays={shiftTypeDetailDays} />
-  ),
+  render: (args) => <StaffingHarness {...args} templates={shiftTypeDetailTemplates} />,
   globals: mobileGlobals,
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
