@@ -9,7 +9,7 @@ import { shiftConfigAtom } from "../../stores";
 import { StaffingSlotCount } from "../ShiftTypeDailyView/StaffingSlotCount";
 import { summarizeStaffingSlot } from "../ShiftTypeDailyView/script";
 
-/** 人数の下に添える、その日の型の名前。その日だけの指定は塗って見分ける。 */
+/** 人数の下に添える、その日のテンプレートの名前。その日だけの指定は塗って見分ける。 */
 const TemplateName = ({ view, trailing }: { view: DayStaffingView; trailing?: ReactNode }) => (
   <Flex as="span" align="center" justify="center" gap="2px" minW={0} maxW="100%" textStyle="2xs" fontWeight={600}>
     <Box
@@ -29,7 +29,7 @@ const TemplateName = ({ view, trailing }: { view: DayStaffingView; trailing?: Re
 
 /**
  * 週表の日付の列に置く、その日の人数と過不足。くわしく表示のときだけ出る。
- * 列が狭いため、セル全体を押すと、その日の型のメニューが開く。
+ * 列が狭いため、セル全体を押すと、その日のテンプレートのメニューが開く。
  */
 export const DateStaffingCell = ({ date, view }: { date: string; view: DayStaffingView }) => {
   const editor = useDayStaffingEditor();
@@ -47,14 +47,14 @@ export const DateStaffingCell = ({ date, view }: { date: string; view: DayStaffi
   }
 
   const countLabel = slot ? `の人数 ${summarizeStaffingSlot(slot).totalLabel}` : "";
-  // その日だけ別の型を当てた日は、色だけに頼らず、読み上げる名前でも伝える。
+  // その日だけ別のテンプレートを当てた日は、色だけに頼らず、読み上げる名前でも伝える。
   const templateLabel = `${view.template.label}${view.template.isDateSpecific && !view.template.isCustom ? "（この日だけ）" : ""}`;
   return (
     <Menu.Root positioning={{ placement: "bottom", gutter: 4 }}>
       <Menu.Trigger asChild>
         <chakra.button
           type="button"
-          aria-label={`${formatDateWithWeekday(date)}${countLabel}、この日の型: ${templateLabel}`}
+          aria-label={`${formatDateWithWeekday(date)}${countLabel}、この日のテンプレート: ${templateLabel}`}
           display="flex"
           flexDirection="column"
           alignItems="center"

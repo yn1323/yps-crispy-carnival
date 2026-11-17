@@ -494,7 +494,7 @@ const DateOnlyCell = ({
   detailMode: boolean;
   /** ポジションを塗り分ける表示のときだけ渡す、その日の勤務。 */
   positionSegment?: PositionSegment;
-  /** その日のポジションでの熟練度の印（新・責）。くわしく表示の、勤務のある日にだけ出す。 */
+  /** その日のポジションでの熟練度の印（見・リ）。くわしく表示の、勤務のある日にだけ出す。 */
   skillMark: ReactNode;
   /** くわしく表示で、休憩のある勤務の日だけ渡す。 */
   breakShift?: ShiftData;

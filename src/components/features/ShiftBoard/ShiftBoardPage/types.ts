@@ -49,7 +49,7 @@ export type ShiftBoardPageViewModel = {
     submitLabel: string;
     staffCount: number;
     warnings: DisplayIssue[];
-    /** 新人だけの時間帯。日、ポジション、時間帯の単位で出す。 */
+    /** 見習いだけの時間帯。日、ポジション、時間帯の単位で出す。 */
     newcomerOnlyItems: Array<{ key: string; label: string }>;
     unsubmittedNames: string[];
     hasUnsubmittedManager: boolean;

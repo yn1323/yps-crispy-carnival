@@ -22,16 +22,16 @@ import {
 } from "../stories/staffingHarness";
 
 // スマートフォンの「くわしく表示」のStoryで共有するfixture。
-// 複数ポジション、必要人数あり（不足、多い人数、新人だけ）、休憩あり、熟練度あり、仮の勤務ありを1画面で確かめられるようにする。
+// 複数ポジション、必要人数あり（不足、多い人数、見習いだけ）、休憩あり、熟練度あり、仮の勤務ありを1画面で確かめられるようにする。
 
 type ShiftFormArgs = ComponentProps<typeof ShiftForm>;
 
-export const hall: PositionType = { id: "hall", name: "ホール", color: "#3b82f6", isDefault: true };
-export const kitchen: PositionType = { id: "kitchen", name: "キッチン", color: "#c2410c", isDefault: false };
-export const register: PositionType = { id: "register", name: "レジ", color: "#7c3aed", isDefault: false };
+export const hall: PositionType = { id: "hall", name: "ホール", color: "#60a5fa", isDefault: true };
+export const kitchen: PositionType = { id: "kitchen", name: "キッチン", color: "#fb923c", isDefault: false };
+export const register: PositionType = { id: "register", name: "レジ", color: "#a78bfa", isDefault: false };
 export const detailPositions = [hall, kitchen, register];
 
-// 平日（月〜金）は型を当て、土日は未設定にする。
+// 平日（月〜金）はテンプレートを当て、土日は未設定にする。
 const weekdayDays = (dates: readonly string[], template: StoryTemplate) =>
   dates.map((date) => {
     const weekday = getDayOfWeek(date);
@@ -45,7 +45,7 @@ const noopStaffingActions = {
 };
 const detailActions = { onOpenSetup: () => {}, dayStaffingActions: noopStaffingActions };
 
-// staff1は、ホールでは責任者、キッチンでは新人。staff4は、キッチンとレジで新人。staff5は、ホールに入れない。
+// staff1は、ホールではリーダー、キッチンでは見習い。staff4は、キッチンとレジで見習い。staff5は、ホールが担当外。
 const withSkillLevels = (staffs: StaffType[]): StaffType[] =>
   withPositionSkills(staffs, {
     staff1: { [hall.id]: "lead", [kitchen.id]: "newcomer" },
@@ -94,7 +94,7 @@ const timeShift = (
 });
 
 export const timeDetailShifts: ShiftData[] = [
-  // ホールでは責任者、キッチンでは新人。途中でポジションが変わり、ホールの時間に休憩する。
+  // ホールではリーダー、キッチンでは見習い。途中でポジションが変わり、ホールの時間に休憩する。
   timeShift(
     "staff1",
     timeDetailDate,
@@ -110,7 +110,7 @@ export const timeDetailShifts: ShiftData[] = [
   }),
   // 未提出者へ入れた仮の勤務。
   timeShift("staff3", timeDetailDate, [[hall, "13:00", "17:00"]], { isProvisional: true }),
-  // レジでは新人。勤務と勤務の間が空いている。
+  // レジでは見習い。勤務と勤務の間が空いている。
   timeShift(
     "staff4",
     timeDetailDate,
@@ -129,7 +129,7 @@ export const timeDetailShifts: ShiftData[] = [
   }),
 ];
 
-// 平日の型。ホールは午前に2人、キッチンは午後に2人、レジは午後だけ1人が必要。
+// 平日のテンプレート。ホールは午前に2人、キッチンは午後に2人、レジは午後だけ1人が必要。
 export const timeWeekdayTemplate: StoryTemplate = {
   id: "weekday",
   name: "平日",
@@ -150,7 +150,7 @@ export const timeEventTemplate: StoryTemplate = {
   ]),
 };
 export const timeDetailTemplates = [timeWeekdayTemplate, timeEventTemplate];
-// 2026-01-23は金曜（平日の型が当たる）、24は土曜（型が当たらない）。
+// 2026-01-23は金曜（平日のテンプレートが当たる）、24は土曜（テンプレートが当たらない）。
 export const timeDetailDays = weekdayDays([timeDetailDate, timeDetailNextDate], timeWeekdayTemplate);
 export const timeDetailStaffing = buildStaffing({ templates: timeDetailTemplates, days: timeDetailDays });
 
@@ -201,7 +201,7 @@ const shiftTypeShift = (
 });
 
 const shiftTypeDetailShifts: ShiftData[] = [
-  // 責任者。早番と中番を続けて入り、早番の中で休憩する。
+  // リーダー。早番と中番を続けて入り、早番の中で休憩する。
   shiftTypeShift(
     "staff1",
     shiftTypeDate,
@@ -213,7 +213,7 @@ const shiftTypeDetailShifts: ShiftData[] = [
   ),
   shiftTypeShift("staff2", shiftTypeDate, [["middle", kitchen]]),
   shiftTypeShift("staff3", shiftTypeDate, [["late", hall]], { breaks: [{ start: "19:00", end: "19:30" }] }),
-  // 新人。
+  // 見習い。
   shiftTypeShift("staff4", shiftTypeDate, [["night", register]]),
   shiftTypeShift("staff5", shiftTypeDate, [], { requestedShiftTypeOptionIds: [] }),
   // 未提出者へ入れた仮の勤務。
@@ -318,12 +318,12 @@ const dateOnlyShift = (
 });
 
 const dateOnlyDetailShifts: ShiftData[] = [
-  // 責任者。休憩あり。
+  // リーダー。休憩あり。
   dateOnlyShift("staff1", dateOnlyDate, hall, { breaks: [{ start: "12:00", end: "13:00" }] }),
   dateOnlyShift("staff2", dateOnlyDate, kitchen),
   // 希望はあるが、まだ入れていない。
   dateOnlyShift("staff3", dateOnlyDate, null),
-  // 新人。
+  // 見習い。
   dateOnlyShift("staff4", dateOnlyDate, register),
   // 未提出者へ入れた仮の勤務。
   dateOnlyShift("staff6", dateOnlyDate, hall, { requestedTime: null, requestedTimes: [], isProvisional: true }),

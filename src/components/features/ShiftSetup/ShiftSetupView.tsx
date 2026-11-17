@@ -1,6 +1,7 @@
-import { Box, Link, Stack, Text } from "@chakra-ui/react";
+import { Box, Stack, Text } from "@chakra-ui/react";
 import { LuSlidersHorizontal } from "react-icons/lu";
 import { ReadOnlyNotice } from "@/src/components/shared/ReadOnlyNotice";
+import { AUTHENTICATED_APP_PAGE_CONTENT_HEIGHT } from "@/src/components/templates/AuthenticatedPageContent";
 import { AUTHENTICATED_APP_HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { DetailPageHeader } from "@/src/components/ui/DetailPageHeader";
 import { ShiftoriLoading } from "@/src/components/ui/ShiftoriLoading";
@@ -16,14 +17,12 @@ import type { LeaveDialogState, ShiftSetupEditorView } from "./types";
 type Props = ShiftSetupEditorView & {
   leaveDialog: LeaveDialogState;
   onBack: () => void;
-  /** シフトの一覧を開く。設定の結果を確かめる先として、ページの説明に置く。 */
-  onOpenShifts?: () => void;
 };
 
-/** PCで上端に留める見出しの行の高さ（px）。見出しのボタン44px、上下の余白16px、下の罫線1px。 */
-const PAGE_HEADER_ROW_HEIGHT_PX = 61;
-/** 上端に留める行の、ページの地色と境界。下を流れる内容と見分けられるようにする。 */
-const STICKY_SURFACE = { bg: "gray.50", borderBottomWidth: "1px", borderColor: "blackAlpha.200" } as const;
+/** PCで上端に留める見出しの行の高さ（px）。見出しのボタン44px、上下の余白16px。 */
+const PAGE_HEADER_ROW_HEIGHT_PX = 60;
+/** 上端に留める行の地色。ページと同じ色にして、下を流れる内容が透けないようにする。 */
+const STICKY_SURFACE = { bg: "gray.50" } as const;
 
 export function ShiftSetupView({
   setup,
@@ -38,7 +37,6 @@ export function ShiftSetupView({
   leaveDialog,
   intents,
   onBack,
-  onOpenShifts,
 }: Props) {
   // アプリのヘッダーは下へスクロールすると隠れる。隠れている間は、留める位置を画面の上端まで上げる。
   const isAppHeaderHidden = useHideOnScrollDown();
@@ -49,7 +47,8 @@ export function ShiftSetupView({
   };
 
   return (
-    <Stack gap={{ base: 4, md: 6 }}>
+    // 最後のセクションの下に余白を取り、ページの終わりが画面の下端に張り付かないようにする。
+    <Stack gap={{ base: 4, md: 6 }} pb={{ base: 10, md: 16 }}>
       {canWrite ? (
         // スクロールしても保存できるよう、保存の操作を画面の上端に留める。
         // PCは見出しの行ごと留める。スマートフォンは見出しと操作が1行に収まらないため、操作の行だけを留める。
@@ -66,8 +65,6 @@ export function ShiftSetupView({
           px={{ md: 4 }}
           py={{ md: 2 }}
           bg={{ md: STICKY_SURFACE.bg }}
-          borderBottomWidth={{ md: STICKY_SURFACE.borderBottomWidth }}
-          borderColor={STICKY_SURFACE.borderColor}
           css={stickyTransition}
         >
           <Box flex={1} minW={0}>
@@ -85,16 +82,9 @@ export function ShiftSetupView({
             px={{ base: 4, md: 0 }}
             py={{ base: 2, md: 0 }}
             bg={{ base: STICKY_SURFACE.bg, md: "transparent" }}
-            borderBottomWidth={{ base: STICKY_SURFACE.borderBottomWidth, md: 0 }}
-            borderColor={STICKY_SURFACE.borderColor}
             css={stickyTransition}
           >
-            <PendingChangesActions
-              sections={pendingSections}
-              isSaving={isSaving}
-              onReset={intents.onResetChanges}
-              onSave={intents.onSaveChanges}
-            />
+            <PendingChangesActions sections={pendingSections} isSaving={isSaving} onSave={intents.onSaveChanges} />
           </Box>
         </Box>
       ) : (
@@ -109,19 +99,7 @@ export function ShiftSetupView({
       )}
 
       <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-        より詳細にシフトを作成するため下準備です。
-        <br />
-        シフトの「くわしく」表示で利用可能です。
-        {onOpenShifts && (
-          <>
-            {" "}
-            <Link asChild color="teal.700" fontWeight="semibold">
-              <button type="button" onClick={onOpenShifts}>
-                シフトを開く
-              </button>
-            </Link>
-          </>
-        )}
+        詳細にシフトを作成するため設定です。 シフトの「くわしく」表示で利用します。
       </Text>
 
       <PositionsSection
@@ -162,5 +140,6 @@ export function ShiftSetupView({
 }
 
 export function ShiftSetupSkeleton() {
-  return <ShiftoriLoading variant="section" message="Loading..." minH="full" />;
+  // 直前に出る画面全体の読み込み表示と同じ位置・大きさに、ロゴを上下左右の中央へ置く。
+  return <ShiftoriLoading variant="section" message="Loading..." minH={AUTHENTICATED_APP_PAGE_CONTENT_HEIGHT} />;
 }

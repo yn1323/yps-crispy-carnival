@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Id } from "@/convex/_generated/dataModel";
+import { normalizeStaffingSegments } from "@/src/domains/shift/staffingSegments";
 import {
   applyPositionInputs,
   createDraftPositionId,
@@ -22,8 +23,8 @@ const draftA = createDraftPositionId(1);
 const savedA = "position-saved-a" as Id<"positions">;
 
 const positions: ShiftSetupPosition[] = [
-  { _id: hall, name: "ホール", color: "#3b82f6", isDefault: true },
-  { _id: kitchen, name: "キッチン", color: "#c2410c", isDefault: false },
+  { _id: hall, name: "ホール", color: "#60a5fa", isDefault: true },
+  { _id: kitchen, name: "キッチン", color: "#fb923c", isDefault: false },
 ];
 
 function template(requirements: DayTemplateRequirementsDraft): DayTemplateDraft {
@@ -54,33 +55,33 @@ describe("Dialogで決めた一覧の反映", () => {
     let sequence = 0;
     const next = applyPositionInputs(
       [
-        { name: "レジ", color: "#7c3aed" },
-        { id: kitchen, name: "厨房", color: "#db2777" },
-        { id: hall, name: "ホール", color: "#3b82f6" },
-        { name: "デリバリー", color: "#b45309" },
+        { name: "レジ", color: "#a78bfa" },
+        { id: kitchen, name: "厨房", color: "#f472b6" },
+        { id: hall, name: "ホール", color: "#60a5fa" },
+        { name: "デリバリー", color: "#eda40a" },
       ],
       positions,
       () => createDraftPositionId(++sequence),
     );
 
     expect(next).toEqual([
-      { _id: createDraftPositionId(1), name: "レジ", color: "#7c3aed", isDefault: false },
-      { _id: kitchen, name: "厨房", color: "#db2777", isDefault: false },
-      { _id: hall, name: "ホール", color: "#3b82f6", isDefault: true },
-      { _id: createDraftPositionId(2), name: "デリバリー", color: "#b45309", isDefault: false },
+      { _id: createDraftPositionId(1), name: "レジ", color: "#a78bfa", isDefault: false },
+      { _id: kitchen, name: "厨房", color: "#f472b6", isDefault: false },
+      { _id: hall, name: "ホール", color: "#60a5fa", isDefault: true },
+      { _id: createDraftPositionId(2), name: "デリバリー", color: "#eda40a", isDefault: false },
     ]);
   });
 
   it("前に足したポジションは、Dialogを開き直しても同じ仮のIDのままである", () => {
     const current: ShiftSetupPosition[] = [
       ...positions,
-      { _id: draftA, name: "レジ", color: "#7c3aed", isDefault: false },
+      { _id: draftA, name: "レジ", color: "#a78bfa", isDefault: false },
     ];
 
     const next = applyPositionInputs(
       [
-        { id: hall, name: "ホール", color: "#3b82f6" },
-        { id: draftA, name: "レジ係", color: "#7c3aed" },
+        { id: hall, name: "ホール", color: "#60a5fa" },
+        { id: draftA, name: "レジ係", color: "#a78bfa" },
       ],
       current,
       () => createDraftPositionId(99),
@@ -95,12 +96,12 @@ describe("Dialogで決めた一覧の反映", () => {
   it.each([
     { name: "同じ一覧", next: positions, expected: true },
     { name: "名前を変えた一覧", next: [positions[0], { ...positions[1], name: "厨房" }], expected: false },
-    { name: "色を変えた一覧", next: [positions[0], { ...positions[1], color: "#7c3aed" }], expected: false },
+    { name: "色を変えた一覧", next: [positions[0], { ...positions[1], color: "#a78bfa" }], expected: false },
     { name: "並び順を変えた一覧", next: [positions[1], positions[0]], expected: false },
     { name: "1件減らした一覧", next: [positions[0]], expected: false },
     {
       name: "1件足した一覧",
-      next: [...positions, { _id: draftA, name: "レジ", color: "#7c3aed", isDefault: false }],
+      next: [...positions, { _id: draftA, name: "レジ", color: "#a78bfa", isDefault: false }],
       expected: false,
     },
   ])("$name は、保存内容として同じかどうかを $expected と判定する", ({ next, expected }) => {
@@ -110,15 +111,15 @@ describe("Dialogで決めた一覧の反映", () => {
 
 describe("ポジションの保存の引数と応答", () => {
   const editing: ShiftSetupPosition[] = [
-    { _id: draftA, name: "レジ", color: "#7c3aed", isDefault: false },
+    { _id: draftA, name: "レジ", color: "#a78bfa", isDefault: false },
     ...positions,
   ];
 
   it("仮のIDは送らず、保存済みのポジションだけがIDを持つ", () => {
     expect(toPositionSaveInputs(editing)).toEqual([
-      { name: "レジ", color: "#7c3aed" },
-      { id: hall, name: "ホール", color: "#3b82f6" },
-      { id: kitchen, name: "キッチン", color: "#c2410c" },
+      { name: "レジ", color: "#a78bfa" },
+      { id: hall, name: "ホール", color: "#60a5fa" },
+      { id: kitchen, name: "キッチン", color: "#fb923c" },
     ]);
   });
 
@@ -141,20 +142,23 @@ describe("ポジションの保存の引数と応答", () => {
   });
 });
 
-describe("型の下書きが指すポジション", () => {
-  const bars = [
-    { id: "bar-1", positionId: hall, start: "09:00", end: "22:00" },
-    { id: "bar-2", positionId: register, start: "10:00", end: "20:00" },
-    { id: "bar-3", positionId: draftA, start: "11:00", end: "14:00" },
+describe("テンプレートの下書きが指すポジション", () => {
+  const segments = [
+    { positionId: hall, startTime: "09:00", endTime: "22:00", count: 2 },
+    { positionId: register, startTime: "10:00", endTime: "20:00", count: 1 },
+    { positionId: draftA, startTime: "11:00", endTime: "14:00", count: 3 },
   ];
 
-  it("一覧にないポジションのバーだけを外し、残したバーは変えない", () => {
+  it("一覧にないポジションの人数だけを外し、残した人数は変えない", () => {
     const [kept] = keepPositionsInDayTemplateDrafts(
-      [template({ kind: "time", bars })],
+      [template({ kind: "time", segments })],
       [{ _id: hall }, { _id: draftA }],
     );
 
-    expect(kept.requirements).toEqual({ kind: "time", bars: [bars[0], bars[2]] });
+    expect(kept.requirements).toEqual({
+      kind: "time",
+      segments: normalizeStaffingSegments([segments[0], segments[2]]),
+    });
   });
 
   it("一覧にないポジションの人数を外し、人数がなくなった勤務パターンの行は持たない", () => {
@@ -171,10 +175,10 @@ describe("型の下書きが指すポジション", () => {
     ]);
   });
 
-  it("仮のIDを保存後のIDへ置き換え、ほかのポジションのバーと人数は変えない", () => {
+  it("仮のIDを保存後のIDへ置き換え、ほかのポジションの人数は変えない", () => {
     const savedIds = new Map([[draftA as string, savedA]]);
     const drafts = [
-      template({ kind: "time", bars }),
+      template({ kind: "time", segments }),
       template({ kind: "shiftType", counts: { early: { [hall]: 2, [draftA]: 1 } } }),
       template({ kind: "dateOnly", counts: { [draftA]: 3 } }),
     ];
@@ -182,7 +186,11 @@ describe("型の下書きが指すポジション", () => {
     const replaced = replacePositionIdsInDayTemplateDrafts(drafts, savedIds);
 
     expect(replaced.map((draft) => draft.requirements)).toEqual([
-      { kind: "time", bars: [bars[0], bars[1], { ...bars[2], positionId: savedA }] },
+      {
+        kind: "time",
+        // IDが変わると並びも変わるため、正規化した並びで比べる。
+        segments: normalizeStaffingSegments([segments[0], segments[1], { ...segments[2], positionId: savedA }]),
+      },
       { kind: "shiftType", counts: { early: { [hall]: 2, [savedA]: 1 } } },
       { kind: "dateOnly", counts: { [savedA]: 3 } },
     ]);
@@ -207,16 +215,16 @@ describe("ポジションの一覧を変えたあとのスタッフの値", () =
     expect(reconcileStaffDrafts(staffs, drafts, positions)).toEqual({ "staff-c": { [hall]: "newcomer" } });
   });
 
-  it("残ったポジションのすべてが入れないになるスタッフは、入れないを外して全ポジションに入れるものとする", () => {
-    // キッチンだけを残す。保存済みの値でキッチンに入れないstaff-bは、入れるポジションが残らない。
+  it("残ったポジションのすべてが担当外になるスタッフは、担当外を外して全ポジションを担当できるものとする", () => {
+    // キッチンだけを残す。保存済みの値でキッチンが担当外のstaff-bは、担当できるポジションが残らない。
     expect(reconcileStaffDrafts(staffs, {}, [{ _id: kitchen }])).toEqual({ "staff-b": {} });
 
-    // ホールだけを残す。編集中の値でホールを入れないにしたstaff-cは、入れるポジションが残らない。
+    // ホールだけを残す。編集中の値でホールを担当外にしたstaff-cは、担当できるポジションが残らない。
     const drafts = { "staff-c": { [hall]: "unavailable" as const, [register]: "lead" as const } };
     expect(reconcileStaffDrafts(staffs, drafts, [{ _id: hall }])).toEqual({ "staff-c": {} });
   });
 
-  it("入れるポジションが残るスタッフの入れないは、そのまま保つ", () => {
+  it("担当できるポジションが残るスタッフの担当外は、そのまま保つ", () => {
     const drafts = { "staff-a": { [kitchen]: "unavailable" as const } };
 
     expect(reconcileStaffDrafts(staffs, drafts, [...positions, { _id: draftA }])).toEqual({

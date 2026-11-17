@@ -10,7 +10,7 @@ const mockStaffs = [
 ];
 
 const defaultPositionId = "position-1" as Id<"positions">;
-const mockPositions = [{ _id: defaultPositionId, name: "シフト", color: "#3b82f6", isDefault: true }];
+const mockPositions = [{ _id: defaultPositionId, name: "シフト", color: "#60a5fa", isDefault: true }];
 const timePattern = { kind: "time" as const, startTime: "09:00", endTime: "23:00" };
 const shiftTypePattern = {
   kind: "shiftType" as const,
@@ -178,10 +178,10 @@ export const ShiftType: Story = {
 const hallPositionId = "position-hall" as Id<"positions">;
 const kitchenPositionId = "position-kitchen" as Id<"positions">;
 const twoPositions = [
-  { _id: hallPositionId, name: "ホール", color: "#3b82f6", isDefault: true },
-  { _id: kitchenPositionId, name: "キッチン", color: "#c2410c", isDefault: false },
+  { _id: hallPositionId, name: "ホール", color: "#60a5fa", isDefault: true },
+  { _id: kitchenPositionId, name: "キッチン", color: "#fb923c", isDefault: false },
 ];
-const HALL_RGB = "rgb(59, 130, 246)";
+const HALL_RGB = "rgb(96, 165, 250)";
 // ポジションを塗り分けない表示の、勤務のバーの色（teal.600）。
 const DEFAULT_BAR_RGB = "rgb(13, 148, 136)";
 
@@ -265,8 +265,8 @@ const expectNoManagerOnlyParts = async (canvasElement: HTMLElement) => {
   await expect(canvas.queryByRole("radiogroup", { name: "表示の詳しさ" })).not.toBeInTheDocument();
   await expect(canvas.queryByRole("radiogroup", { name: "入れるもの" })).not.toBeInTheDocument();
   await expect(canvas.queryByRole("region", { name: "人数" })).not.toBeInTheDocument();
-  await expect(canvas.queryByText("責任者")).not.toBeInTheDocument();
-  await expect(canvas.queryByText("新人")).not.toBeInTheDocument();
+  await expect(canvas.queryByText("リーダー")).not.toBeInTheDocument();
+  await expect(canvas.queryByText("見習い")).not.toBeInTheDocument();
 };
 
 /** ポジションが2つ以上ある店舗では、ポジション名と休憩が見える。管理者向けの操作と情報は出ない。 */

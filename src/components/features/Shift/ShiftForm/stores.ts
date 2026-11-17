@@ -309,7 +309,7 @@ export const nameSkillPositionAtom = atom((get) => {
   });
 });
 
-// 勤務の区間に熟練度の印（新・責）を添えるかどうか。くわしく表示の、担当者の画面だけに出す。
+// 勤務の区間に熟練度の印（見・リ）を添えるかどうか。くわしく表示の、担当者の画面だけに出す。
 export const showsSegmentSkillMarksAtom = atom(
   (get) => get(detailModeAtom) && get(shiftConfigAtom).displayMode !== "confirmed",
 );
@@ -373,13 +373,13 @@ export const dayStaffingViewByDateAtom = atom((get) => {
 // 日付の一覧に出す、不足のある日と多い時間のある日の印。
 export const dayStaffingMarksByDateAtom = atom((get) => buildDayStaffingMarks(get(dayStaffingViewByDateAtom)));
 
-// その日の必要人数を変えられるか。閲覧専用と確定済みでは、型の名前だけを出す。
+// その日の必要人数を変えられるか。閲覧専用と確定済みでは、テンプレートの名前だけを出す。
 export const canEditDayStaffingAtom = atom((get) => {
   const config = get(shiftConfigAtom);
   return !config.isReadOnly && config.staffing !== undefined && !config.staffing.isLocked;
 });
 
-// 開いている、その日の型のDialog。bulkは「ほかの日もまとめて変える」、customは「この日だけ人数を変える」。
+// 開いている、その日のテンプレートのDialog。bulkは「ほかの日もまとめて変える」、customは「この日だけ人数を変える」。
 export const dayStaffingDialogAtom = atom<{ kind: "bulk" | "custom"; date: string } | null>(null);
 
 // 人ごとの合計（募集期間の全日）。時刻を持つ勤務は休憩を引いた時間、日付選択は出勤日数。
@@ -473,11 +473,11 @@ export const issueStaffIdSetForSelectedDateAtom = atom((get) => {
 // ==========================================
 export const validationWarningsAtom = atom<AssignmentWarning[]>([]);
 
-// 新人だけの時間帯（確認事項）。スタッフ1人に結び付かないため、スタッフ別の確認事項とは別に持つ。
+// 見習いだけの時間帯（確認事項）。スタッフ1人に結び付かないため、スタッフ別の確認事項とは別に持つ。
 export const newcomerOnlyPeriodsAtom = atom<NewcomerOnlyPeriod[]>([]);
 
 // DateRailのオレンジバッジ用: 日付ごとの確認事項件数。
-// 新人だけの時間帯は、帯の「新」の印で場所を確かめられる、くわしく表示のときだけ件数へ足す。
+// 見習いだけの時間帯は、帯の「見」の印で場所を確かめられる、くわしく表示のときだけ件数へ足す。
 export const warningCountByDateAtom = atom((get) => {
   const counts = issueCountByDate(get(validationWarningsAtom));
   if (!get(detailModeAtom)) return counts;

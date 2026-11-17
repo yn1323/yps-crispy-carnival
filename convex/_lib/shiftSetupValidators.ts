@@ -12,7 +12,7 @@ export const shiftDayTemplateWeekdayValidator = v.union(
 
 /**
  * スタッフとポジションの組み合わせごとの扱い。
- * 項目がないポジションは「入れる・熟練度が標準」として扱うため、標準以外だけを持つ。
+ * 項目がないポジションは「担当できる・熟練度が一人前」として扱うため、一人前以外だけを持つ。
  */
 export const staffPositionSkillValidator = v.object({
   positionId: v.id("positions"),

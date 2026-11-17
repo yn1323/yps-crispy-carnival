@@ -1,12 +1,16 @@
 import { DAY_TEMPLATE_ISSUE_MESSAGES, findDayRequirementsIssue } from "@/convex/shiftSetup/dayTemplates";
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import { getDayOfWeek, getWeekdayLabel } from "@/src/domains/shift/date";
-import { type EditableStaffingBar, toEditableStaffingBars } from "@/src/domains/shift/staffingBars";
+import {
+  barsToStaffingSegments,
+  type StaffingSegment,
+  staffingSegmentsToBars,
+} from "@/src/domains/shift/staffingSegments";
 import { formatShiftClockTimeRange } from "@/src/domains/shift/time";
 import { buildDayTemplateView, toStaffingBars } from "./staffingPresentation";
 import type { ShiftFormDayRequirements, ShiftFormStaffingDay } from "./types";
 
-// その日の型のDialog（この日だけ人数を変える、ほかの日もまとめて変える）に閉じる純粋処理。
+// その日のテンプレートのDialog（この日だけ人数を変える、ほかの日もまとめて変える）に閉じる純粋処理。
 
 // ==========================================
 // この日だけ人数を変える
@@ -14,9 +18,12 @@ import type { ShiftFormDayRequirements, ShiftFormStaffingDay } from "./types";
 /** 行のID → ポジションのID → 人数。0人は持たなくてよい。 */
 type DraftCounts = Record<string, Record<string, number>>;
 
-/** 編集中の必要人数。時間指定はバー、パターン選択と日付選択は人数の表で持つ。 */
+/**
+ * 編集中の必要人数。時間指定は時間ごとの人数の区間、パターン選択と日付選択は人数の表で持つ。
+ * 保存の形は、時間指定ではバー（1本が1人分）のままで、読み込みと保存の境目で区間と変える。
+ */
 export type DayRequirementsDraft =
-  | { kind: "time"; bars: EditableStaffingBar[] }
+  | { kind: "time"; segments: StaffingSegment[] }
   | { kind: "counts"; counts: DraftCounts };
 
 /** 日付選択の表の、1日を表す行のID。 */
@@ -31,7 +38,7 @@ export const buildDayRequirementsDraft = (
   pattern: ShiftSubmissionPattern,
 ): DayRequirementsDraft => {
   if (pattern.kind === "time") {
-    return { kind: "time", bars: toEditableStaffingBars(toStaffingBars(requirements) ?? []) };
+    return { kind: "time", segments: barsToStaffingSegments(toStaffingBars(requirements) ?? []) };
   }
   if (pattern.kind === "shiftType") {
     const options = requirements?.kind === "shiftType" ? requirements.options : [];
@@ -90,7 +97,12 @@ export const toDayRequirements = (
   if (draft.kind === "time") {
     return {
       kind: "time",
-      bars: draft.bars.map((bar) => ({ positionId: bar.positionId, startTime: bar.start, endTime: bar.end })),
+      // 人数の区間を、同じ人数の並びを表せる最少の本数のバーへ変える。
+      bars: staffingSegmentsToBars(draft.segments).map((bar) => ({
+        positionId: bar.positionId,
+        startTime: bar.start,
+        endTime: bar.end,
+      })),
     };
   }
   if (pattern.kind === "shiftType") {
@@ -119,21 +131,21 @@ export const formatDayRequirementsTitle = (date: string): string => {
   return `${month}月${day}日（${getWeekdayLabel(date)}）の必要人数`;
 };
 
-/** その日だけの変更で、型が変わらないことを伝える文。 */
+/** その日だけの変更で、テンプレートが変わらないことを伝える文。 */
 export const describeCustomRequirements = (templateName: string | null): string =>
   templateName
-    ? `この日だけの変更です。型「${templateName}」は変わりません。`
-    : "この日だけの変更です。型は変わりません。";
+    ? `この日だけの変更です。テンプレート「${templateName}」は変わりません。`
+    : "この日だけの変更です。テンプレートは変わりません。";
 
 // ==========================================
 // ほかの日もまとめて変える
 // ==========================================
-/** 型の選択で「曜日の設定に戻す」を表す値。型のIDと重ならない。 */
+/** テンプレートの選択で「曜日の設定に戻す」を表す値。テンプレートのIDと重ならない。 */
 export const BULK_RESET_VALUE = "__reset__";
 
 export type BulkApplyRow = {
   date: string;
-  /** いま当たっている型の名前。 */
+  /** いま当たっているテンプレートの名前。 */
   templateLabel: string;
   /** 定休日。選べない。 */
   isClosed: boolean;
@@ -166,5 +178,5 @@ export const selectBulkApplyDates = (rows: readonly BulkApplyRow[], preset: Bulk
     .filter((row) => !row.isClosed && (preset === "all" || row.isWeekend === (preset === "weekend")))
     .map((row) => row.date);
 
-/** 選んだ型の値を、当てる型のIDへ直す。「曜日の設定に戻す」はnull。 */
+/** 選んだテンプレートの値を、当てるテンプレートのIDへ直す。「曜日の設定に戻す」はnull。 */
 export const toBulkTemplateId = (choice: string): string | null => (choice === BULK_RESET_VALUE ? null : choice);

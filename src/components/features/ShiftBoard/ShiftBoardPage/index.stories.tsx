@@ -80,7 +80,7 @@ const mockData: ShiftBoardData = {
   ],
   requestedDates: [],
   shiftAssignments: [],
-  positions: [{ _id: "position-1" as Id<"positions">, name: "シフト", color: "#3b82f6", isDefault: true }],
+  positions: [{ _id: "position-1" as Id<"positions">, name: "シフト", color: "#60a5fa", isDefault: true }],
   timeRange: { start: 9, end: 22, unit: 30 },
 };
 
@@ -200,7 +200,7 @@ export const PCWithInitialWarnings: Story = {
   },
 };
 
-// 新人の鈴木さんが10:00〜18:00、標準の佐藤さんが11:00〜14:00に入る。佐藤さんがいない時間は新人だけになる。
+// 見習いの鈴木さんが10:00〜18:00、一人前の佐藤さんが11:00〜14:00に入る。佐藤さんがいない時間は見習いだけになる。
 // 過去の募集は確定できないため、先の日付にする。2099-01-21は水曜日。
 const newcomerOnlyData: ShiftBoardData = {
   ...mockData,
@@ -246,7 +246,7 @@ const newcomerOnlyStaffing: ShiftBoardStaffingData = {
   days: [],
 };
 
-/** 確定の前の確認に、新人だけの時間帯が、日と時間帯の単位で出る。確定は止めない。 */
+/** 確定の前の確認に、見習いだけの時間帯が、日と時間帯の単位で出る。確定は止めない。 */
 export const PCNewcomerOnlyConfirm: Story = {
   name: "PC Newcomer Only Confirm",
   args: {
@@ -261,7 +261,7 @@ export const PCNewcomerOnlyConfirm: Story = {
     await userEvent.click(await canvas.findByRole("button", { name: "シフトを確定して通知" }));
 
     const dialog = within(await screen.findByRole("dialog", { name: "シフトを確定しますか？" }));
-    const list = await dialog.findByRole("list", { name: "新人だけの時間帯" });
+    const list = await dialog.findByRole("list", { name: "見習いだけの時間帯" });
     // ポジションが1つの店舗では、ポジション名を省く。
     await expect(
       within(list)

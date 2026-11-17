@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { requiredDisplayTextSchema } from "../_lib/validation";
 import {
+  LEGACY_POSITION_COLOR_PALETTE,
   POSITION_ACTIVE_LIMIT,
   POSITION_COLOR_PALETTE,
   POSITION_NAME_MAX_LENGTH,
@@ -16,11 +17,12 @@ export const positionNameSchema = requiredDisplayTextSchema({
   maxLength: POSITION_NAME_MAX_LENGTH,
 });
 
-export const positionColorSchema = z
-  .string()
-  .refine((value) => (POSITION_COLOR_PALETTE as readonly string[]).includes(value), {
-    message: "色は一覧から選んでください",
-  });
+// 以前の色は、色を変えずに保存し直しても拒否しないよう、そのまま受け付ける。
+const ACCEPTED_POSITION_COLORS: readonly string[] = [...POSITION_COLOR_PALETTE, ...LEGACY_POSITION_COLOR_PALETTE];
+
+export const positionColorSchema = z.string().refine((value) => ACCEPTED_POSITION_COLORS.includes(value), {
+  message: "色は一覧から選んでください",
+});
 
 export const savePositionsSchema = z
   .object({

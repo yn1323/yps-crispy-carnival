@@ -27,7 +27,7 @@ const staffing: Pick<ShiftBoardStaffingData, "isLocked" | "templates" | "days"> 
 };
 
 describe("toShiftFormStaffing", () => {
-  it("当てられる型のIDをShiftFormの名前へ直し、日ごとの必要人数はそのまま渡す", () => {
+  it("当てられるテンプレートのIDをShiftFormの名前へ直し、日ごとの必要人数はそのまま渡す", () => {
     const breakRule = { minWorkMinutes: 360, breakMinutes: 45 };
 
     expect(toShiftFormStaffing(staffing, breakRule)).toEqual({
@@ -83,7 +83,7 @@ describe("toShiftFormStaffing", () => {
 });
 
 describe("mutationの引数への変換", () => {
-  it("型のIDと必要人数を、値を変えずに渡す", () => {
+  it("テンプレートのIDと必要人数を、値を変えずに渡す", () => {
     expect(toDayTemplateIdArg("template-1")).toBe("template-1");
     expect(toDayTemplateIdArg(null)).toBeNull();
 

@@ -6,7 +6,7 @@ const hall: PositionType = { id: "hall", name: "ホール", color: "#0d9488", is
 const kitchen: PositionType = { id: "kitchen", name: "キッチン", color: "#f97316", isDefault: false };
 const register: PositionType = { id: "register", name: "レジ", color: "#3b82f6", isDefault: false };
 
-// ホールでは責任者、キッチンでは新人、レジには入れない。
+// ホールではリーダー、キッチンでは見習い、レジは担当外。
 const staff: Pick<StaffType, "positionSkills"> = {
   positionSkills: [
     { positionId: hall.id, level: "lead" },
@@ -72,21 +72,21 @@ describe("buildNameSkillMark", () => {
     expect(marks).toEqual([
       {
         level: "lead",
-        label: "責任者",
+        label: "リーダー",
         position: { name: "ホール", color: "#0d9488" },
-        title: "ホールでは責任者です",
+        title: "ホールではリーダーです",
       },
       {
         level: "newcomer",
-        label: "新人",
+        label: "見習い",
         position: { name: "キッチン", color: "#f97316" },
-        title: "キッチンでは新人です",
+        title: "キッチンでは見習いです",
       },
       {
         level: "unavailable",
-        label: "入れない",
+        label: "担当外",
         position: { name: "レジ", color: "#3b82f6" },
-        title: "レジには入れません",
+        title: "レジは担当外です",
       },
     ]);
   });
@@ -94,13 +94,13 @@ describe("buildNameSkillMark", () => {
   it("ポジションが1つの店舗では、ポジションの名前と色を添えない", () => {
     expect(buildNameSkillMark({ staff, position: kitchen, positionCount: 1 })).toEqual({
       level: "newcomer",
-      label: "新人",
+      label: "見習い",
       position: null,
       title: null,
     });
   });
 
-  it("そのポジションで標準のスタッフには出さない", () => {
+  it("そのポジションで一人前のスタッフには出さない", () => {
     const drink: PositionType = { id: "drink", name: "ドリンク", color: "#111111", isDefault: false };
 
     expect(buildNameSkillMark({ staff, position: drink, positionCount: 4 })).toBeNull();
@@ -115,22 +115,22 @@ describe("buildNameSkillMark", () => {
 describe("buildSegmentSkillMark", () => {
   const segmentOf = (position: PositionType) => ({ positionId: position.id, positionName: position.name });
 
-  it("区間のポジションで新人なら「新」、責任者なら「責」を返す", () => {
+  it("区間のポジションで見習いなら「見」、リーダーなら「リ」を返す", () => {
     expect(buildSegmentSkillMark(staff, segmentOf(kitchen))).toEqual({
       level: "newcomer",
-      label: "新",
-      hiddenSuffix: "人",
-      title: "キッチンでは新人です",
+      label: "見",
+      hiddenSuffix: "習い",
+      title: "キッチンでは見習いです",
     });
     expect(buildSegmentSkillMark(staff, segmentOf(hall))).toEqual({
       level: "lead",
-      label: "責",
-      hiddenSuffix: "任者",
-      title: "ホールでは責任者です",
+      label: "リ",
+      hiddenSuffix: "ーダー",
+      title: "ホールではリーダーです",
     });
   });
 
-  it("区間のポジションで標準の勤務と、入れないポジションの勤務には出さない", () => {
+  it("区間のポジションで一人前の勤務と、担当外のポジションの勤務には出さない", () => {
     expect(buildSegmentSkillMark(staff, { positionId: "drink", positionName: "ドリンク" })).toBeNull();
     expect(buildSegmentSkillMark(staff, segmentOf(register))).toBeNull();
   });

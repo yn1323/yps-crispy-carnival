@@ -16,7 +16,7 @@ type Props = {
   staffCount: number;
   periodLabel: string;
   warnings?: DisplayIssue[];
-  /** 新人だけの時間帯。スタッフ1人に結び付かないため、スタッフ別の確認事項とは別の一覧で受け取る。 */
+  /** 見習いだけの時間帯。スタッフ1人に結び付かないため、スタッフ別の確認事項とは別の一覧で受け取る。 */
   newcomerOnlyItems?: ReadonlyArray<{ key: string; label: string }>;
   /** 初回確定でだけ表示する。確定後は提出リンクが閉じているため、再通知では扱わない。 */
   unsubmittedNames?: string[];
@@ -117,7 +117,7 @@ export const ConfirmShiftContent = ({
   );
 };
 
-const NEWCOMER_ONLY_LABEL = "新人だけの時間帯";
+const NEWCOMER_ONLY_LABEL = "見習いだけの時間帯";
 
 const UnsubmittedNameBadges = ({ names }: { names: string[] }) => (
   <Flex mt={2} gap={1.5} wrap="wrap" align="center">

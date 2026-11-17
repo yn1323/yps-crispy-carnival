@@ -174,7 +174,7 @@ export const ShiftBar = memo(function ShiftBar({
           />
         ))}
 
-      {/* そのポジションでの熟練度の印（新・責）。バーの右端に置き、入らないバーでは省く。 */}
+      {/* そのポジションでの熟練度の印（見・リ）。バーの右端に置き、入らないバーでは省く。 */}
       {showsSkillMarks &&
         viewModel.workBars.map(
           (bar) =>

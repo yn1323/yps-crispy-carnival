@@ -29,6 +29,7 @@ import { filterDayRequirementsByPositions } from "../shiftSetup/dayTemplates";
 import {
   listActivePositions,
   listDayTemplates,
+  listRecruitmentPositions,
   type RecruitmentStaffingDay,
   resolveRecruitmentStaffingDays,
   toPositionSkillsDto,
@@ -127,7 +128,7 @@ export const getShiftBoardData = managerQuery({
         .query("shiftAssignments")
         .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", args.recruitmentId))
         .take(SHIFT_ASSIGNMENT_LIMIT + 1),
-      listActivePositions(ctx, shop._id),
+      listRecruitmentPositions(ctx, recruitment),
     ]);
     if (shiftAssignments.length > SHIFT_ASSIGNMENT_LIMIT) {
       throw new Error("Shift assignment scope exceeds the supported limit");
@@ -379,7 +380,7 @@ type ShiftBoardStaffingDay = Omit<RecruitmentStaffingDay, "source"> & {
 
 /**
  * 確定済みの募集の必要人数を、確定時に保存した内容だけから返す。
- * 保存のない日（型が当たらなかった日、この機能より前に確定した募集）は未設定として返す。
+ * 保存のない日（テンプレートが当たらなかった日、この機能より前に確定した募集）は未設定として返す。
  */
 async function listConfirmedStaffingDays(
   ctx: QueryCtx,
@@ -410,23 +411,23 @@ async function listConfirmedStaffingDays(
 /**
  * シフト表の「くわしく」表示に使う、日ごとの必要人数、店舗の設定、スタッフの属性を返す。
  * 割当の下書き保存で再送しないよう、getShiftBoardDataとは別に購読する。
- * 未確定の募集は、いまの型とその日だけの指定から必要人数を決める。
- * 確定済みの募集は、確定時に保存した必要人数だけを返し、型を直しても変えない。
+ * 未確定の募集は、いまのテンプレートとその日だけの指定から必要人数を決める。
+ * 確定済みの募集は、確定時に保存した必要人数だけを返し、テンプレートを直しても変えない。
  */
 export const getShiftBoardStaffing = managerQuery({
   args: { recruitmentId: v.id("recruitments") },
   returns: v.union(
     v.object({
       breakRule: v.union(shiftBreakRuleValidator, v.null()),
-      // 全ポジションが標準（入れる・熟練度が標準）のスタッフは返さない。
-      // positionSkillsは標準以外のポジションだけを、ポジションの並び順で持つ。
+      // 全ポジションが一人前（担当できる・熟練度が一人前）のスタッフは返さない。
+      // positionSkillsは一人前以外のポジションだけを、ポジションの並び順で持つ。
       staffProfiles: v.array(
         v.object({ staffId: v.id("staffs"), positionSkills: v.array(staffPositionSkillValidator) }),
       ),
       hasPreviousConfirmedRecruitment: v.boolean(),
-      // 確定済みで、型の当て直しと「この日だけ変える」ができない。
+      // 確定済みで、テンプレートの当て直しと「この日だけ変える」ができない。
       isLocked: v.boolean(),
-      // まとめて当てるメニューに出す型。募集の集め方と種類が合う型だけを返す。
+      // まとめて当てるメニューに出すテンプレート。募集の集め方と種類が合うテンプレートだけを返す。
       templates: v.array(v.object({ _id: v.id("shiftDayTemplates"), name: v.string() })),
       // 募集期間の全日。requirementsがnullの日は未設定として扱う。
       days: v.array(
@@ -456,7 +457,8 @@ export const getShiftBoardStaffing = managerQuery({
     if (!recruitment) return null;
 
     const [positions, templates, staffs, previousRecruitment] = await Promise.all([
-      listActivePositions(ctx, shop._id),
+      // 確定済みの募集は確定した時点のポジションで読み、削除したポジションの必要人数も残す。
+      listRecruitmentPositions(ctx, recruitment),
       listDayTemplates(ctx, shop._id),
       ctx.db
         .query("staffs")

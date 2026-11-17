@@ -70,8 +70,8 @@ const setup: ShiftSetupData = {
   canWriteBusinessData: true,
   businessWriteBlockReason: null,
   positions: [
-    { _id: hall, name: "ホール", color: "#3b82f6", isDefault: true },
-    { _id: kitchen, name: "キッチン", color: "#c2410c", isDefault: false },
+    { _id: hall, name: "ホール", color: "#60a5fa", isDefault: true },
+    { _id: kitchen, name: "キッチン", color: "#fb923c", isDefault: false },
   ],
   dayTemplates: [
     {
@@ -91,19 +91,19 @@ const setup: ShiftSetupData = {
   assistAvailable: true,
 };
 
-const savedHallBar = { id: "bar-1", positionId: hall, start: "09:00", end: "22:00" };
-const lunchKitchenBar = { id: "bar-2", positionId: kitchen, start: "11:00", end: "14:00" };
+const savedHallSegment = { positionId: hall, startTime: "09:00", endTime: "22:00", count: 1 };
+const lunchKitchenSegment = { positionId: kitchen, startTime: "11:00", endTime: "14:00", count: 1 };
 
 type Controller = { current: ReturnType<typeof useShiftSetupController> };
 
-/** キッチンの昼のバーを1本足す。必要人数に保存していない変更を作るために使う。 */
-function addLunchKitchenBar(result: Controller) {
-  act(() => result.current.intents.onChangeBars(templateId, [savedHallBar, lunchKitchenBar]));
+/** キッチンの昼に1人を入れる。必要人数に保存していない変更を作るために使う。 */
+function addLunchKitchenCount(result: Controller) {
+  act(() => result.current.intents.onChangeSegments(templateId, [savedHallSegment, lunchKitchenSegment]));
 }
 
-function getBars(result: Controller, index = 0) {
+function getSegments(result: Controller, index = 0) {
   const { requirements } = result.current.dayTemplates.drafts[index];
-  return requirements.kind === "time" ? requirements.bars : [];
+  return requirements.kind === "time" ? requirements.segments : [];
 }
 
 function renderController(initialSetup: ShiftSetupData = setup) {
@@ -132,11 +132,11 @@ beforeEach(() => {
 });
 
 describe("必要人数とスタッフの保存", () => {
-  it("バーを足して保存すると、対象店舗とexpected organizationですべての型を送る", async () => {
+  it("人数を入れて保存すると、対象店舗とexpected organizationですべてのテンプレートを送る", async () => {
     mocks.saveDayTemplates.mockResolvedValue(null);
     const { result } = renderController();
 
-    addLunchKitchenBar(result);
+    addLunchKitchenCount(result);
     expect(result.current.pendingSections).toEqual(["dayTemplates"]);
 
     await act(async () => result.current.intents.onSaveChanges());
@@ -197,21 +197,24 @@ describe("必要人数とスタッフの保存", () => {
         ],
       },
     ],
-  ])("%sの型は、数字で入れた人数を保存の引数へ入れる", async (_, submissionPattern, requirements, rowId, expected) => {
-    mocks.saveDayTemplates.mockResolvedValue(null);
-    const { result } = renderController({
-      ...setup,
-      submissionPattern,
-      dayTemplates: [{ ...setup.dayTemplates[0], requirements }],
-    });
+  ])(
+    "%sのテンプレートは、数字で入れた人数を保存の引数へ入れる",
+    async (_, submissionPattern, requirements, rowId, expected) => {
+      mocks.saveDayTemplates.mockResolvedValue(null);
+      const { result } = renderController({
+        ...setup,
+        submissionPattern,
+        dayTemplates: [{ ...setup.dayTemplates[0], requirements }],
+      });
 
-    act(() => result.current.intents.onChangeRequiredCount(templateId, { rowId, positionId: kitchen, count: 3 }));
-    await act(async () => result.current.intents.onSaveChanges());
+      act(() => result.current.intents.onChangeRequiredCount(templateId, { rowId, positionId: kitchen, count: 3 }));
+      await act(async () => result.current.intents.onSaveChanges());
 
-    expect(mocks.saveDayTemplates.mock.calls.map(([args]) => args.templates[0].requirements)).toEqual([expected]);
-  });
+      expect(mocks.saveDayTemplates.mock.calls.map(([args]) => args.templates[0].requirements)).toEqual([expected]);
+    },
+  );
 
-  it("変えたスタッフだけを、ポジションごとの値で送り、標準は省く", async () => {
+  it("変えたスタッフだけを、ポジションごとの値で送り、一人前は省く", async () => {
     mocks.saveStaffShiftProfiles.mockResolvedValue(null);
     const { result } = renderController();
 
@@ -244,7 +247,7 @@ describe("必要人数とスタッフの保存", () => {
     expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "スタッフの設定を保存しました" });
   });
 
-  it("保存済みの値を標準へ戻したスタッフは、空の値で送る", async () => {
+  it("保存済みの値を一人前へ戻したスタッフは、空の値で送る", async () => {
     mocks.saveStaffShiftProfiles.mockResolvedValue(null);
     const { result } = renderController({
       ...setup,
@@ -261,7 +264,7 @@ describe("必要人数とスタッフの保存", () => {
     });
   });
 
-  it("最後に残った入れるポジションは、入れないにできない", () => {
+  it("最後に残った担当できるポジションは、担当外にできない", () => {
     const { result } = renderController();
 
     act(() => result.current.intents.onChangeStaffPositionLevel(staffA, kitchen, "unavailable"));
@@ -270,83 +273,13 @@ describe("必要人数とスタッフの保存", () => {
     expect(result.current.staffProfiles[staffA]).toEqual({ [kitchen]: "unavailable" });
   });
 
-  it("まとめて入れないを付けると、入れるポジションがなくなるスタッフを飛ばし、その人数を通知する", () => {
-    const { result } = renderController();
-    // 佐藤が入れるのは、キッチンだけになる。
-    act(() => result.current.intents.onChangeStaffPositionLevel(staffA, hall, "unavailable"));
-
-    act(() =>
-      result.current.intents.onChangeStaffPositionMarks({
-        positionId: kitchen,
-        staffIds: [staffA, staffB],
-        mark: "unavailable",
-        action: "apply",
-      }),
-    );
-
-    expect(result.current.staffProfiles).toEqual({
-      [staffA]: { [hall]: "unavailable" },
-      [staffB]: { [kitchen]: "unavailable" },
-    });
-    expect(mocks.toasterCreate).toHaveBeenCalledExactlyOnceWith({
-      title: "入れるポジションがなくなる1人は変えていません",
-      type: "info",
-    });
-    expect(result.current.pendingSections).toEqual(["staffs"]);
-  });
-
-  it("まとめて印を付けると、選んだスタッフだけが変わり、通知は出さない", () => {
-    const { result } = renderController();
-
-    act(() =>
-      result.current.intents.onChangeStaffPositionMarks({
-        positionId: kitchen,
-        staffIds: [staffB],
-        mark: "newcomer",
-        action: "apply",
-      }),
-    );
-
-    expect(result.current.staffProfiles).toEqual({ [staffA]: {}, [staffB]: { [kitchen]: "newcomer" } });
-    expect(mocks.toasterCreate).not.toHaveBeenCalled();
-    expect(result.current.pendingSections).toEqual(["staffs"]);
-  });
-
-  it("まとめて印を外すと、その印のスタッフだけが標準へ戻り、通知は出さない", () => {
-    const { result } = renderController({
-      ...setup,
-      staffs: [
-        { _id: staffA, name: "佐藤", positionSkills: [{ positionId: kitchen, level: "unavailable" }] },
-        { _id: staffB, name: "鈴木", positionSkills: [{ positionId: hall, level: "lead" }] },
-      ],
-    });
-    act(() => result.current.intents.onChangeStaffPositionLevel(staffB, kitchen, "newcomer"));
-
-    act(() =>
-      result.current.intents.onChangeStaffPositionMarks({
-        positionId: kitchen,
-        staffIds: [staffA, staffB],
-        mark: "unavailable",
-        action: "remove",
-      }),
-    );
-
-    // 別の印が付いた鈴木のキッチンと、ほかのポジションの値は変わらない。
-    expect(result.current.staffProfiles).toEqual({
-      [staffA]: {},
-      [staffB]: { [hall]: "lead", [kitchen]: "newcomer" },
-    });
-    expect(mocks.toasterCreate).not.toHaveBeenCalled();
-    expect(result.current.pendingSections).toEqual(["staffs"]);
-  });
-
   it("両方に変更があれば両方を保存し、スタッフの保存に失敗したら保存できた分だけを伝える", async () => {
     const error = new Error("network error");
     mocks.saveDayTemplates.mockResolvedValue(null);
     mocks.saveStaffShiftProfiles.mockRejectedValue(error);
     const { result } = renderController();
 
-    addLunchKitchenBar(result);
+    addLunchKitchenCount(result);
     act(() => result.current.intents.onChangeStaffPositionLevel(staffA, hall, "lead"));
     expect(result.current.pendingSections).toEqual(["dayTemplates", "staffs"]);
 
@@ -360,48 +293,39 @@ describe("必要人数とスタッフの保存", () => {
     expect(result.current.staffProfiles[staffA]).toEqual({ [hall]: "lead" });
   });
 
-  it("足したバーを消して元の内容へ戻すと、保存していない変更はなくなる", () => {
+  it("入れた人数を消して元の内容へ戻すと、保存していない変更はなくなる", () => {
     const { result } = renderController();
 
-    addLunchKitchenBar(result);
-    act(() => result.current.intents.onChangeBars(templateId, [savedHallBar]));
+    addLunchKitchenCount(result);
+    act(() => result.current.intents.onChangeSegments(templateId, [savedHallSegment]));
 
     expect(result.current.pendingSections).toEqual([]);
     expect(mocks.blockerOptions?.shouldBlockFn()).toBe(false);
   });
 
-  it("元に戻すと、必要人数とスタッフの編集中の値を捨てる", () => {
-    const { result } = renderController();
-
-    addLunchKitchenBar(result);
-    act(() => result.current.intents.onChangeStaffPositionLevel(staffA, hall, "lead"));
-    act(() => result.current.intents.onResetChanges());
-
-    expect(result.current.pendingSections).toEqual([]);
-    expect(getBars(result)).toEqual([savedHallBar]);
-    expect(result.current.staffProfiles[staffA]).toEqual({});
-  });
-
-  it("名前が空の型があれば保存せず、その型を開いて誤りを出す", async () => {
+  it("名前が空のテンプレートがあれば保存せず、そのテンプレートを開いて誤りを出す", async () => {
     const { result } = renderController();
 
     act(() => result.current.intents.onAddDayTemplate());
     const added = result.current.dayTemplates.drafts[1];
     act(() => result.current.intents.onRenameDayTemplate(templateId, ""));
-    // 入力の途中では誤りを出さない。編集しているのは、足したばかりの型である。
+    // 入力の途中では誤りを出さない。編集しているのは、足したばかりのテンプレートである。
     expect(result.current.dayTemplates.issueMessages).toEqual({});
     expect(result.current.dayTemplates.selectedRowKey).toBe(added.rowKey);
 
     await act(async () => result.current.intents.onSaveChanges());
 
     expect(mocks.saveDayTemplates).not.toHaveBeenCalled();
-    expect(result.current.dayTemplates.issueMessages).toEqual({ [templateId]: "型の名前を入力してください" });
+    expect(result.current.dayTemplates.issueMessages).toEqual({ [templateId]: "テンプレート名を入力してください" });
     expect(result.current.dayTemplates.selectedRowKey).toBe(templateId);
-    expect(mocks.toasterCreate).toHaveBeenCalledExactlyOnceWith({ title: "型の名前を入力してください", type: "error" });
+    expect(mocks.toasterCreate).toHaveBeenCalledExactlyOnceWith({
+      title: "テンプレート名を入力してください",
+      type: "error",
+    });
     expect(result.current.pendingSections).toEqual(["dayTemplates"]);
   });
 
-  it("受付時間の外に出たバーが残る型は保存せず、切りそろえたバーへ置き換えると保存できる", async () => {
+  it("受付時間の外に出た人数が残るテンプレートは保存せず、切りそろえた人数へ置き換えると保存できる", async () => {
     mocks.saveDayTemplates.mockResolvedValue(null);
     const { result } = renderController({
       ...setup,
@@ -412,19 +336,19 @@ describe("必要人数とスタッフの保存", () => {
         },
       ],
     });
-    // 読み込んだだけでは、外に出たバーを消さず、変更にも数えない。
-    expect(getBars(result)).toEqual([{ id: "bar-1", positionId: hall, start: "08:00", end: "12:00" }]);
+    // 読み込んだだけでは、外に出た人数を消さず、変更にも数えない。
+    expect(getSegments(result)).toEqual([{ positionId: hall, startTime: "08:00", endTime: "12:00", count: 1 }]);
     expect(result.current.pendingSections).toEqual([]);
 
     act(() => result.current.intents.onToggleHoliday(templateId));
     await act(async () => result.current.intents.onSaveChanges());
 
     expect(mocks.saveDayTemplates).not.toHaveBeenCalled();
-    expect(result.current.dayTemplates.issueMessages).toEqual({ [templateId]: "受付時間の外に出ているバーがあります" });
+    expect(result.current.dayTemplates.issueMessages).toEqual({ [templateId]: "受付時間の外に人数が入っています" });
 
     act(() =>
-      result.current.intents.onChangeBars(templateId, [
-        { id: "bar-1", positionId: hall, start: "09:00", end: "12:00" },
+      result.current.intents.onChangeSegments(templateId, [
+        { positionId: hall, startTime: "09:00", endTime: "12:00", count: 1 },
       ]),
     );
     expect(result.current.dayTemplates.issueMessages).toEqual({});
@@ -452,7 +376,7 @@ describe("必要人数とスタッフの保存", () => {
         }),
     );
     const { result } = renderController();
-    addLunchKitchenBar(result);
+    addLunchKitchenCount(result);
 
     act(() => {
       result.current.intents.onSaveChanges();
@@ -471,9 +395,9 @@ describe("保存の帯と離脱の確認を出す条件", () => {
   const notConfigured: ShiftSetupData = { ...setup, dayTemplates: [] };
 
   it.each([
-    ["型を追加した直後", setup, 1],
-    ["最初の型を作った直後", notConfigured, 0],
-  ])("%sは、足した型を開くが、保存していない変更に数えず、離脱も止めない", (_, initialSetup, index) => {
+    ["テンプレートを追加した直後", setup, 1],
+    ["最初のテンプレートを作った直後", notConfigured, 0],
+  ])("%sは、足したテンプレートを開くが、保存していない変更に数えず、離脱も止めない", (_, initialSetup, index) => {
     const { result } = renderController(initialSetup);
 
     act(() => result.current.intents.onAddDayTemplate());
@@ -493,16 +417,18 @@ describe("保存の帯と離脱の確認を出す条件", () => {
     ["曜日を外す", (result: Controller, rowKey: string) => result.current.intents.onToggleWeekday(rowKey, "sat")],
     ["祝日を選ぶ", (result: Controller, rowKey: string) => result.current.intents.onToggleHoliday(rowKey)],
     [
-      "バーを足す",
+      "人数を入れる",
       (result: Controller, rowKey: string) =>
-        result.current.intents.onChangeBars(rowKey, [{ id: "bar-1", positionId: hall, start: "10:00", end: "15:00" }]),
+        result.current.intents.onChangeSegments(rowKey, [
+          { positionId: hall, startTime: "10:00", endTime: "15:00", count: 1 },
+        ]),
     ],
     [
-      "ほかの型からコピーする",
+      "コピーする",
       (result: Controller, rowKey: string) =>
         result.current.intents.onCopyRequirements({ fromRowKey: templateId, toRowKey: rowKey }),
     ],
-  ])("足した型で%sと、保存していない変更になり、離脱を止める", (_, change) => {
+  ])("足したテンプレートで%sと、保存していない変更になり、離脱を止める", (_, change) => {
     const { result } = renderController();
     act(() => result.current.intents.onAddDayTemplate());
     const { rowKey } = result.current.dayTemplates.drafts[1];
@@ -514,20 +440,20 @@ describe("保存の帯と離脱の確認を出す条件", () => {
     expect(mocks.blockerOptions?.enableBeforeUnload()).toBe(true);
   });
 
-  it("足した型の名前を作ったときの値へ戻すと、保存していない変更はなくなる", () => {
+  it("足したテンプレートの名前を作ったときの値へ戻すと、保存していない変更はなくなる", () => {
     const { result } = renderController();
     act(() => result.current.intents.onAddDayTemplate());
     const { rowKey } = result.current.dayTemplates.drafts[1];
 
     act(() => result.current.intents.onRenameDayTemplate(rowKey, "土日"));
-    act(() => result.current.intents.onRenameDayTemplate(rowKey, "型2"));
+    act(() => result.current.intents.onRenameDayTemplate(rowKey, "テンプレート2"));
 
     expect(result.current.pendingSections).toEqual([]);
     expect(result.current.dayTemplates.drafts).toHaveLength(2);
     expect(mocks.blockerOptions?.shouldBlockFn()).toBe(false);
   });
 
-  it("何も入れていない型を足したあとで保存済みの型を変えると、足した型も一緒に保存する", async () => {
+  it("何も入れていないテンプレートを足したあとで保存済みのテンプレートを変えると、足したテンプレートも一緒に保存する", async () => {
     mocks.saveDayTemplates.mockResolvedValue(null);
     const { result } = renderController();
 
@@ -543,12 +469,12 @@ describe("保存の帯と離脱の確認を出す条件", () => {
     ).toEqual([
       [
         [templateId, "平日昼"],
-        [undefined, "型2"],
+        [undefined, "テンプレート2"],
       ],
     ]);
   });
 
-  it("スタッフだけを保存しても、何も入れていない足した型は送らず、編集中のまま残す", async () => {
+  it("スタッフだけを保存しても、何も入れていない足したテンプレートは送らず、編集中のまま残す", async () => {
     mocks.saveStaffShiftProfiles.mockResolvedValue(null);
     const { result } = renderController();
 
@@ -577,10 +503,10 @@ describe("保存の応答を待っている間", () => {
     return () => release?.();
   }
 
-  it("型とスタッフの編集、型の追加と削除、元に戻す操作を受け付けず、送った内容のまま保つ", async () => {
+  it("テンプレートとスタッフの編集、テンプレートの追加と削除を受け付けず、送った内容のまま保つ", async () => {
     const release = holdDayTemplateSave();
     const { result } = renderController();
-    addLunchKitchenBar(result);
+    addLunchKitchenCount(result);
     act(() => result.current.intents.onAddDayTemplate());
     const added = result.current.dayTemplates.drafts[1];
 
@@ -591,19 +517,12 @@ describe("保存の応答を待っている間", () => {
       result.current.intents.onRenameDayTemplate(templateId, "平日昼");
       result.current.intents.onToggleWeekday(templateId, "fri");
       result.current.intents.onToggleHoliday(templateId);
-      result.current.intents.onChangeBars(templateId, []);
+      result.current.intents.onChangeSegments(templateId, []);
       result.current.intents.onCopyRequirements({ fromRowKey: templateId, toRowKey: added.rowKey });
       result.current.intents.onRemoveDayTemplate(added.rowKey);
       result.current.intents.onAddDayTemplate();
       result.current.intents.onChangeStaffPositionLevel(staffA, hall, "lead");
       result.current.intents.onChangeStaffPositionLevel(staffA, kitchen, "unavailable");
-      result.current.intents.onChangeStaffPositionMarks({
-        positionId: kitchen,
-        staffIds: [staffA, staffB],
-        mark: "unavailable",
-        action: "apply",
-      });
-      result.current.intents.onResetChanges();
     });
 
     // 待っている間の操作は入らず、画面の値は送った内容と同じままである。
@@ -616,10 +535,10 @@ describe("保存の応答を待っている間", () => {
       ]),
     ).toEqual([
       [templateId, "平日", ["mon", "tue"], false],
-      [added.rowKey, "型2", ["sun", "thu", "fri", "sat"], false],
+      [added.rowKey, "テンプレート2", ["sun", "thu", "fri", "sat"], false],
     ]);
-    expect(getBars(result, 0)).toEqual([savedHallBar, lunchKitchenBar]);
-    expect(getBars(result, 1)).toEqual([]);
+    expect(getSegments(result, 0)).toEqual([savedHallSegment, lunchKitchenSegment]);
+    expect(getSegments(result, 1)).toEqual([]);
     expect(result.current.staffProfiles).toEqual({ [staffA]: {}, [staffB]: {} });
     expect(mocks.showSuccessToast).not.toHaveBeenCalled();
 
@@ -634,7 +553,7 @@ describe("保存の応答を待っている間", () => {
   it("応答のあとは、また編集でき、その編集は保存していない変更として残る", async () => {
     const release = holdDayTemplateSave();
     const { result } = renderController();
-    addLunchKitchenBar(result);
+    addLunchKitchenCount(result);
 
     act(() => result.current.intents.onSaveChanges());
     await waitFor(() => expect(result.current.isSaving).toBe(true));
@@ -662,10 +581,10 @@ describe("保存の応答を待っている間", () => {
   it("保存に失敗したあとも、編集中の値を残して続けて編集できる", async () => {
     mocks.saveDayTemplates.mockRejectedValue(new Error("network error"));
     const { result } = renderController();
-    addLunchKitchenBar(result);
+    addLunchKitchenCount(result);
 
     await act(async () => result.current.intents.onSaveChanges());
-    expect(getBars(result)).toEqual([savedHallBar, lunchKitchenBar]);
+    expect(getSegments(result)).toEqual([savedHallSegment, lunchKitchenSegment]);
 
     act(() => result.current.intents.onRenameDayTemplate(templateId, "平日昼"));
 
@@ -674,20 +593,21 @@ describe("保存の応答を待っている間", () => {
   });
 });
 
-describe("型の追加、切り替え、削除", () => {
-  it("足した型は、まだ割り当てていない営業日と空の必要人数を初期値に持ち、idなしで保存される", async () => {
+describe("テンプレートの追加、切り替え、削除", () => {
+  it("足したテンプレートは、まだ割り当てていない営業日と空の必要人数を初期値に持ち、idなしで保存される", async () => {
     mocks.saveDayTemplates.mockResolvedValue(null);
     const { result } = renderController();
     expect(result.current.dayTemplates.selectedRowKey).toBe(templateId);
 
     act(() => result.current.intents.onAddDayTemplate());
     const added = result.current.dayTemplates.drafts[1];
-    expect(added.name).toBe("型2");
+    expect(added.name).toBe("テンプレート2");
     // 定休日の水曜は初期値に入らない。
     expect(added.weekdays).toEqual(["sun", "thu", "fri", "sat"]);
-    // 足した型を、そのまま編集できるように選ぶ。
+    // 足したテンプレートを、そのまま編集できるように選ぶ。
     expect(result.current.dayTemplates.selectedRowKey).toBe(added.rowKey);
 
+    // 別のテンプレートが持つ火曜を選んでも、そのテンプレートからは外れない。
     act(() => result.current.intents.onToggleWeekday(added.rowKey, "tue"));
     act(() => result.current.intents.onToggleHoliday(added.rowKey));
     await act(async () => result.current.intents.onSaveChanges());
@@ -697,12 +617,12 @@ describe("型の追加、切り替え、削除", () => {
       {
         id: templateId,
         name: "平日",
-        weekdays: ["mon"],
+        weekdays: ["mon", "tue"],
         appliesToHolidays: false,
         requirements: { kind: "time", bars: [{ positionId: hall, startTime: "09:00", endTime: "22:00" }] },
       },
       {
-        name: "型2",
+        name: "テンプレート2",
         weekdays: ["sun", "tue", "thu", "fri", "sat"],
         appliesToHolidays: true,
         requirements: { kind: "time", bars: [] },
@@ -710,50 +630,50 @@ describe("型の追加、切り替え、削除", () => {
     ]);
   });
 
-  it("型を切り替えても、切り替える前の型の下書きは残る", () => {
+  it("テンプレートを切り替えても、切り替える前のテンプレートの下書きは残る", () => {
     const { result } = renderController();
 
     act(() => result.current.intents.onAddDayTemplate());
     const added = result.current.dayTemplates.drafts[1];
     act(() =>
-      result.current.intents.onChangeBars(added.rowKey, [
-        { id: "bar-1", positionId: hall, start: "10:00", end: "15:00" },
+      result.current.intents.onChangeSegments(added.rowKey, [
+        { positionId: hall, startTime: "10:00", endTime: "15:00", count: 1 },
       ]),
     );
     act(() => result.current.intents.onSelectDayTemplate(templateId));
-    addLunchKitchenBar(result);
+    addLunchKitchenCount(result);
     act(() => result.current.intents.onSelectDayTemplate(added.rowKey));
 
     expect(result.current.dayTemplates.selectedRowKey).toBe(added.rowKey);
-    expect(getBars(result, 0)).toEqual([savedHallBar, lunchKitchenBar]);
-    expect(getBars(result, 1)).toEqual([{ id: "bar-1", positionId: hall, start: "10:00", end: "15:00" }]);
+    expect(getSegments(result, 0)).toEqual([savedHallSegment, lunchKitchenSegment]);
+    expect(getSegments(result, 1)).toEqual([{ positionId: hall, startTime: "10:00", endTime: "15:00", count: 1 }]);
   });
 
-  it("ほかの型からコピーすると、選んだ型の必要人数で置き換わる", () => {
+  it("ほかのテンプレートからコピーすると、選んだテンプレートの必要人数で置き換わる", () => {
     const { result } = renderController();
 
     act(() => result.current.intents.onAddDayTemplate());
     const added = result.current.dayTemplates.drafts[1];
     act(() => result.current.intents.onCopyRequirements({ fromRowKey: templateId, toRowKey: added.rowKey }));
 
-    expect(getBars(result, 1)).toEqual([savedHallBar]);
-    expect(result.current.dayTemplates.drafts[1].name).toBe("型2");
-    // 見えている範囲がほとんど変わらないため、どの型から写したかを通知する。
+    expect(getSegments(result, 1)).toEqual([savedHallSegment]);
+    expect(result.current.dayTemplates.drafts[1].name).toBe("テンプレート2");
+    // 見えている範囲がほとんど変わらないため、どのテンプレートから写したかを通知する。
     expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "「平日」の必要人数をコピーしました" });
   });
 
-  it("コピー元が一覧にない場合と、同じ型を選んだ場合は、写さず通知もしない", () => {
+  it("コピー元が一覧にない場合と、同じテンプレートを選んだ場合は、写さず通知もしない", () => {
     const { result } = renderController();
 
     act(() => result.current.intents.onCopyRequirements({ fromRowKey: "missing", toRowKey: templateId }));
     act(() => result.current.intents.onCopyRequirements({ fromRowKey: templateId, toRowKey: templateId }));
 
-    expect(getBars(result)).toEqual([savedHallBar]);
+    expect(getSegments(result)).toEqual([savedHallSegment]);
     expect(result.current.pendingSections).toEqual([]);
     expect(mocks.showSuccessToast).not.toHaveBeenCalled();
   });
 
-  it("編集している型を削除すると、残った型を選び、保存の引数から外す", async () => {
+  it("編集しているテンプレートを削除すると、残ったテンプレートを選び、保存の引数から外す", async () => {
     mocks.saveDayTemplates.mockResolvedValue(null);
     const { result } = renderController();
 
@@ -769,15 +689,15 @@ describe("型の追加、切り替え、削除", () => {
 
     expect(
       mocks.saveDayTemplates.mock.calls.map(([args]) => args.templates.map((item: { name: string }) => item.name)),
-    ).toEqual([["型2"]]);
+    ).toEqual([["テンプレート2"]]);
   });
 
-  it("型は20件までで、21件目は足さない", () => {
+  it("テンプレートは10件までで、11件目は足さない", () => {
     const { result } = renderController();
 
-    for (let count = 0; count < 25; count += 1) act(() => result.current.intents.onAddDayTemplate());
+    for (let count = 0; count < 15; count += 1) act(() => result.current.intents.onAddDayTemplate());
 
-    expect(result.current.dayTemplates.drafts).toHaveLength(20);
+    expect(result.current.dayTemplates.drafts).toHaveLength(10);
     expect(result.current.dayTemplates.canAdd).toBe(false);
   });
 });
@@ -801,7 +721,7 @@ describe("AIサポート", () => {
     ],
   };
 
-  it("下書きは編集中の型を置き換えるだけで、保存するまで保存処理を呼ばない", async () => {
+  it("下書きは編集中のテンプレートを置き換えるだけで、保存するまで保存処理を呼ばない", async () => {
     mocks.suggestShiftSetup.mockResolvedValue(suggestion);
     mocks.saveDayTemplates.mockResolvedValue(null);
     const { result } = renderController();
@@ -815,10 +735,11 @@ describe("AIサポート", () => {
     expect(result.current.pendingSections).toEqual(["dayTemplates"]);
     expect(result.current.dayTemplates.drafts.map((draft) => [draft.id, draft.name])).toEqual([[undefined, "週末"]]);
     expect(result.current.dayTemplates.selectedRowKey).toBe(result.current.dayTemplates.drafts[0].rowKey);
-    // 下書きは、バーの形で表に入る。
-    expect(getBars(result)).toEqual([
-      { id: "bar-1", positionId: kitchen, start: "09:00", end: "22:00" },
-      { id: "bar-2", positionId: kitchen, start: "17:00", end: "21:00" },
+    // 下書きは、時間ごとの人数の区間で帯に入る。
+    expect(getSegments(result)).toEqual([
+      { positionId: kitchen, startTime: "09:00", endTime: "17:00", count: 1 },
+      { positionId: kitchen, startTime: "17:00", endTime: "21:00", count: 2 },
+      { positionId: kitchen, startTime: "21:00", endTime: "22:00", count: 1 },
     ]);
     expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
       title: "下書きを表に入れました",
@@ -847,12 +768,12 @@ describe("AIサポート", () => {
   });
 
   it.each([
-    ["unavailable", "いまはAIの下書きを使えません。\n「型を作る」から手で作れます。"],
+    ["unavailable", "いまはAIの下書きを使えません。\n「テンプレートを作る」から手で作れます。"],
     [
       "rateLimited",
       "短い時間に続けて作ったため、いまは下書きを作れません。\n少し時間をおいて、もう一度お試しください。",
     ],
-  ] as const)("%s のときは、いまの型を変えず、次にできることをDialogに出す", async (status, message) => {
+  ] as const)("%s のときは、いまのテンプレートを変えず、次にできることをDialogに出す", async (status, message) => {
     mocks.suggestShiftSetup.mockResolvedValue({ status });
     const { result } = renderController();
 
@@ -884,29 +805,29 @@ describe("AIサポート", () => {
 
 describe("ポジションの反映と保存", () => {
   const registerSaved = "position-register" as Id<"positions">;
-  const hallInput = { id: hall, name: "ホール", color: "#3b82f6" };
-  const kitchenInput = { id: kitchen, name: "キッチン", color: "#c2410c" };
-  const registerInput = { name: "レジ", color: "#7c3aed" };
+  const hallInput = { id: hall, name: "ホール", color: "#60a5fa" };
+  const kitchenInput = { id: kitchen, name: "キッチン", color: "#fb923c" };
+  const registerInput = { name: "レジ", color: "#a78bfa" };
   const setupAfterPositionSave: ShiftSetupData = {
     ...setup,
-    positions: [...setup.positions, { _id: registerSaved, name: "レジ", color: "#7c3aed", isDefault: false }],
+    positions: [...setup.positions, { _id: registerSaved, name: "レジ", color: "#a78bfa", isDefault: false }],
   };
 
-  /** レジを足して反映し、保存の前に、レジのバーを1本と佐藤の熟練度を入れる。レジの仮のIDを返す。 */
-  function addRegisterWithBarAndLevel(result: Controller) {
+  /** レジを足して反映し、保存の前に、レジの昼の1人と佐藤の熟練度を入れる。レジの仮のIDを返す。 */
+  function addRegisterWithCountAndLevel(result: Controller) {
     act(() => result.current.intents.onApplyPositions([hallInput, kitchenInput, registerInput]));
     const draftId = result.current.setup.positions[2]._id;
     act(() => {
-      result.current.intents.onChangeBars(templateId, [
-        savedHallBar,
-        { id: "bar-2", positionId: draftId, start: "11:00", end: "14:00" },
+      result.current.intents.onChangeSegments(templateId, [
+        savedHallSegment,
+        { positionId: draftId, startTime: "11:00", endTime: "14:00", count: 1 },
       ]);
       result.current.intents.onChangeStaffPositionLevel(staffA, draftId, "newcomer");
     });
     return draftId;
   }
 
-  const templatesWithRegisterBar = [
+  const templatesWithRegisterCount = [
     {
       id: templateId,
       name: "平日",
@@ -955,14 +876,14 @@ describe("ポジションの反映と保存", () => {
     expect(mocks.blockerOptions?.shouldBlockFn()).toBe(false);
   });
 
-  it("足したポジションのバーと熟練度は、ポジションを先に保存して受け取ったIDで送り、仮のIDを送らない", async () => {
+  it("足したポジションの人数と熟練度は、ポジションを先に保存して受け取ったIDで送り、仮のIDを送らない", async () => {
     mocks.savePositions.mockResolvedValue([hall, kitchen, registerSaved]);
     mocks.saveDayTemplates.mockResolvedValue(null);
     mocks.saveStaffShiftProfiles.mockResolvedValue(null);
     const { result } = renderController();
-    const draftId = addRegisterWithBarAndLevel(result);
-    // 保存の前から、足したポジションのバーと熟練度が編集中の値に入る。
-    expect(getBars(result).map((item) => item.positionId)).toEqual([hall, draftId]);
+    const draftId = addRegisterWithCountAndLevel(result);
+    // 保存の前から、足したポジションの人数と熟練度が編集中の値に入る。区間は、ポジションIDの順に並ぶ。
+    expect(getSegments(result).map((item) => item.positionId)).toEqual([draftId, hall]);
     expect(result.current.staffProfiles[staffA]).toEqual({ [draftId]: "newcomer" });
     expect(result.current.pendingSections).toEqual(["positions", "dayTemplates", "staffs"]);
 
@@ -972,7 +893,7 @@ describe("ポジションの反映と保存", () => {
       ...scope,
       positions: [hallInput, kitchenInput, registerInput],
     });
-    expect(mocks.saveDayTemplates).toHaveBeenCalledExactlyOnceWith({ ...scope, templates: templatesWithRegisterBar });
+    expect(mocks.saveDayTemplates).toHaveBeenCalledExactlyOnceWith({ ...scope, templates: templatesWithRegisterCount });
     expect(mocks.saveStaffShiftProfiles).toHaveBeenCalledExactlyOnceWith({
       ...scope,
       profiles: profilesWithRegisterLevel,
@@ -989,13 +910,13 @@ describe("ポジションの反映と保存", () => {
     expect(result.current.pendingSections).toEqual([]);
   });
 
-  it("ポジションの保存のあとで型の保存に失敗しても、もう一度の保存はポジションを作り直さず、受け取ったIDで続きを保存する", async () => {
+  it("ポジションの保存のあとでテンプレートの保存に失敗しても、もう一度の保存はポジションを作り直さず、受け取ったIDで続きを保存する", async () => {
     const error = new Error("network error");
     mocks.savePositions.mockResolvedValue([hall, kitchen, registerSaved]);
     mocks.saveDayTemplates.mockRejectedValueOnce(error).mockResolvedValue(null);
     mocks.saveStaffShiftProfiles.mockResolvedValue(null);
     const { result, rerender } = renderController();
-    addRegisterWithBarAndLevel(result);
+    addRegisterWithCountAndLevel(result);
 
     await act(async () => result.current.intents.onSaveChanges());
     // 保存できたポジションは、購読しているqueryの結果として届く。
@@ -1004,8 +925,8 @@ describe("ポジションの反映と保存", () => {
     expect(mocks.showErrorToast).toHaveBeenCalledExactlyOnceWith(error);
     expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "ポジションの設定を保存しました" });
     expect(mocks.saveStaffShiftProfiles).not.toHaveBeenCalled();
-    // 編集中のバーと熟練度は、保存後のIDを指す形で残る。
-    expect(getBars(result).map((item) => item.positionId)).toEqual([hall, registerSaved]);
+    // 編集中の人数と熟練度は、保存後のIDを指す形で残る。
+    expect(getSegments(result).map((item) => item.positionId)).toEqual([hall, registerSaved]);
     expect(result.current.staffProfiles[staffA]).toEqual({ [registerSaved]: "newcomer" });
     expect(result.current.pendingSections).toEqual(["dayTemplates", "staffs"]);
 
@@ -1013,8 +934,8 @@ describe("ポジションの反映と保存", () => {
 
     expect(mocks.savePositions).toHaveBeenCalledOnce();
     expect(mocks.saveDayTemplates.mock.calls).toEqual([
-      [{ ...scope, templates: templatesWithRegisterBar }],
-      [{ ...scope, templates: templatesWithRegisterBar }],
+      [{ ...scope, templates: templatesWithRegisterCount }],
+      [{ ...scope, templates: templatesWithRegisterCount }],
     ]);
     expect(mocks.saveStaffShiftProfiles).toHaveBeenCalledExactlyOnceWith({
       ...scope,
@@ -1023,13 +944,13 @@ describe("ポジションの反映と保存", () => {
     expect(result.current.pendingSections).toEqual([]);
   });
 
-  it("ポジションの保存に失敗したら、型とスタッフを保存せず、編集中の値を残してもう一度同じ内容で保存できる", async () => {
+  it("ポジションの保存に失敗したら、テンプレートとスタッフを保存せず、編集中の値を残してもう一度同じ内容で保存できる", async () => {
     const error = new Error("network error");
     mocks.savePositions.mockRejectedValueOnce(error).mockResolvedValue([hall, kitchen, registerSaved]);
     mocks.saveDayTemplates.mockResolvedValue(null);
     mocks.saveStaffShiftProfiles.mockResolvedValue(null);
     const { result } = renderController();
-    const draftId = addRegisterWithBarAndLevel(result);
+    const draftId = addRegisterWithCountAndLevel(result);
 
     await act(async () => result.current.intents.onSaveChanges());
 
@@ -1037,7 +958,7 @@ describe("ポジションの反映と保存", () => {
     expect(mocks.showSuccessToast).not.toHaveBeenCalled();
     expect(mocks.saveDayTemplates).not.toHaveBeenCalled();
     expect(mocks.saveStaffShiftProfiles).not.toHaveBeenCalled();
-    expect(getBars(result).map((item) => item.positionId)).toEqual([hall, draftId]);
+    expect(getSegments(result).map((item) => item.positionId)).toEqual([draftId, hall]);
     expect(result.current.pendingSections).toEqual(["positions", "dayTemplates", "staffs"]);
 
     await act(async () => result.current.intents.onSaveChanges());
@@ -1046,14 +967,14 @@ describe("ポジションの反映と保存", () => {
       [{ ...scope, positions: [hallInput, kitchenInput, registerInput] }],
       [{ ...scope, positions: [hallInput, kitchenInput, registerInput] }],
     ]);
-    expect(mocks.saveDayTemplates).toHaveBeenCalledExactlyOnceWith({ ...scope, templates: templatesWithRegisterBar });
+    expect(mocks.saveDayTemplates).toHaveBeenCalledExactlyOnceWith({ ...scope, templates: templatesWithRegisterCount });
     expect(mocks.saveStaffShiftProfiles).toHaveBeenCalledExactlyOnceWith({
       ...scope,
       profiles: profilesWithRegisterLevel,
     });
   });
 
-  it("型に入力の誤りがあれば、ポジションも保存しない", async () => {
+  it("テンプレートに入力の誤りがあれば、ポジションも保存しない", async () => {
     const { result } = renderController();
     act(() => result.current.intents.onApplyPositions([hallInput, kitchenInput, registerInput]));
     act(() => result.current.intents.onRenameDayTemplate(templateId, ""));
@@ -1065,7 +986,7 @@ describe("ポジションの反映と保存", () => {
     expect(result.current.pendingSections).toEqual(["positions", "dayTemplates"]);
   });
 
-  it("ポジションを削除して反映すると、そのポジションのバーと熟練度が編集中の値から外れ、元に戻すと戻る", async () => {
+  it("ポジションを削除して反映すると、そのポジションの人数と熟練度が編集中の値から外れる", async () => {
     mocks.savePositions.mockResolvedValue([hall]);
     const { result } = renderController({
       ...setup,
@@ -1083,7 +1004,7 @@ describe("ポジションの反映と保存", () => {
       ],
       staffs: [
         { _id: staffA, name: "佐藤", positionSkills: [{ positionId: kitchen, level: "lead" }] },
-        // ホールに入れない鈴木は、キッチンを削除すると入れるポジションが残らない。
+        // ホールが担当外の鈴木は、キッチンを削除すると担当できるポジションが残らない。
         { _id: staffB, name: "鈴木", positionSkills: [{ positionId: hall, level: "unavailable" }] },
       ],
     });
@@ -1091,21 +1012,11 @@ describe("ポジションの反映と保存", () => {
 
     act(() => result.current.intents.onApplyPositions([hallInput]));
 
-    expect(getBars(result).map((item) => item.positionId)).toEqual([hall]);
-    // 削除したポジションの熟練度は外れ、入れるポジションが残らない鈴木は、ホールに入れるものとして扱う。
+    expect(getSegments(result).map((item) => item.positionId)).toEqual([hall]);
+    // 削除したポジションの熟練度は外れ、担当できるポジションが残らない鈴木は、ホールを担当できるものとして扱う。
     expect(result.current.staffProfiles).toEqual({ [staffA]: {}, [staffB]: {} });
-    // バーを外しただけの型は、保存する変更に数えない。
+    // 削除したポジションの人数を外しただけのテンプレートは、保存する変更に数えない。
     expect(result.current.pendingSections).toEqual(["positions", "staffs"]);
-
-    act(() => result.current.intents.onResetChanges());
-
-    expect(result.current.setup.positions).toEqual(setup.positions);
-    expect(getBars(result).map((item) => item.positionId)).toEqual([hall, kitchen]);
-    expect(result.current.staffProfiles).toEqual({
-      [staffA]: { [kitchen]: "lead" },
-      [staffB]: { [hall]: "unavailable" },
-    });
-    expect(result.current.pendingSections).toEqual([]);
     expect(mocks.savePositions).not.toHaveBeenCalled();
   });
 
@@ -1160,25 +1071,19 @@ describe("閲覧専用", () => {
     const { result } = renderController(readOnlySetup);
 
     act(() => {
-      result.current.intents.onChangeBars(templateId, [savedHallBar, lunchKitchenBar]);
+      result.current.intents.onChangeSegments(templateId, [savedHallSegment, lunchKitchenSegment]);
       result.current.intents.onRenameDayTemplate(templateId, "平日昼");
       result.current.intents.onToggleWeekday(templateId, "fri");
       result.current.intents.onToggleHoliday(templateId);
       result.current.intents.onAddDayTemplate();
       result.current.intents.onRemoveDayTemplate(templateId);
       result.current.intents.onChangeStaffPositionLevel(staffA, hall, "lead");
-      result.current.intents.onChangeStaffPositionMarks({
-        positionId: kitchen,
-        staffIds: [staffA, staffB],
-        mark: "unavailable",
-        action: "apply",
-      });
       result.current.positionsDialog.open();
       result.current.assistDialog.open();
     });
     await act(async () => {
       result.current.intents.onSaveChanges();
-      result.current.intents.onApplyPositions([{ id: hall, name: "フロア", color: "#3b82f6" }]);
+      result.current.intents.onApplyPositions([{ id: hall, name: "フロア", color: "#60a5fa" }]);
       result.current.intents.onRequestAssist("平日は昼が混みます");
     });
 
@@ -1186,7 +1091,7 @@ describe("閲覧専用", () => {
     expect(
       result.current.dayTemplates.drafts.map((draft) => [draft.name, draft.weekdays, draft.appliesToHolidays]),
     ).toEqual([["平日", ["mon", "tue"], false]]);
-    expect(getBars(result)).toEqual([savedHallBar]);
+    expect(getSegments(result)).toEqual([savedHallSegment]);
     expect(result.current.staffProfiles).toEqual({ [staffA]: {}, [staffB]: {} });
     expect(mocks.toasterCreate).not.toHaveBeenCalled();
     expect(result.current.positionsDialog.isOpen).toBe(false);
@@ -1203,14 +1108,14 @@ describe("閲覧専用", () => {
 
   it("編集の途中で書き込めなくなったら、編集中の値を捨てて離脱の確認も取り消す", () => {
     const { result, rerender } = renderController();
-    addLunchKitchenBar(result);
+    addLunchKitchenCount(result);
     act(() => result.current.positionsDialog.open());
     expect(mocks.blockerOptions?.shouldBlockFn()).toBe(true);
 
     act(() => rerender({ current: readOnlySetup }));
 
     expect(result.current.pendingSections).toEqual([]);
-    expect(getBars(result)).toEqual([savedHallBar]);
+    expect(getSegments(result)).toEqual([savedHallSegment]);
     expect(result.current.positionsDialog.isOpen).toBe(false);
     expect(mocks.blockerOptions?.shouldBlockFn()).toBe(false);
     expect(mocks.blocker.reset).toHaveBeenCalled();
@@ -1243,12 +1148,12 @@ describe("ページを離れる操作", () => {
     const { result } = renderController();
     expect(result.current.leaveDialog.isOpen).toBe(true);
 
-    addLunchKitchenBar(result);
+    addLunchKitchenCount(result);
     await act(async () => result.current.leaveDialog.onSaveAndLeave());
     expect(mocks.blocker.proceed).toHaveBeenCalledOnce();
     expect(mocks.blocker.reset).not.toHaveBeenCalled();
 
-    addLunchKitchenBar(result);
+    addLunchKitchenCount(result);
     await act(async () => result.current.leaveDialog.onSaveAndLeave());
     // 保存に失敗したら、離脱を取り消して画面に留まる。
     expect(mocks.blocker.proceed).toHaveBeenCalledOnce();

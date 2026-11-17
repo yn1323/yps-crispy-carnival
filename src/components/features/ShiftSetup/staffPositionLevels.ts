@@ -4,52 +4,30 @@ import type {
   ShiftSetupStaff,
   StaffPositionLevel,
   StaffPositionLevels,
-  StaffPositionMark,
-  StaffPositionMarkChange,
   StaffShiftProfileInput,
 } from "./types";
 
-// スタッフが、ポジションごとに入れるかどうかと熟練度を編集するための純粋処理。
-// 画面では「入れない／新人／標準／責任者」の4つの値で扱い、保存する形では標準を省く。
-// 標準は印を持たない。画面では、付ける印（新人／責任者／入れない）を選んでからマスを押して値を変える。
+// スタッフが、ポジションごとに担当できるかどうかと熟練度を編集するための純粋処理。
+// 画面では「担当外／見習い／一人前／リーダー」の4つの値で扱い、保存する形では一人前を省く。
+// 画面では、マスを押すたびに値が順に切り替わる。
 
 type PositionRef = Pick<ShiftSetupPosition, "_id">;
 
 const LEVEL_LABELS: Record<StaffPositionLevel, string> = {
-  unavailable: "入れない",
-  newcomer: "新人",
-  standard: "標準",
-  lead: "責任者",
+  unavailable: "担当外",
+  newcomer: "見習い",
+  standard: "一人前",
+  lead: "リーダー",
 };
 
-/** マスに出す短い印。新人と責任者は、シフト表の勤務に添える印にそろえる。 */
-const MARK_SYMBOLS: Record<StaffPositionMark, string> = { newcomer: "新", lead: "責", unavailable: "×" };
-
-const MARK_ORDER: readonly StaffPositionMark[] = ["newcomer", "lead", "unavailable"];
+/** マスを押すたびに切り替わる順。最後の「担当外」の次は、最初の一人前へ戻る。 */
+const STAFF_POSITION_LEVEL_ORDER: readonly StaffPositionLevel[] = ["standard", "newcomer", "lead", "unavailable"];
 
 export function getStaffPositionLevelLabel(level: StaffPositionLevel): string {
   return LEVEL_LABELS[level];
 }
 
-/** マスに出す短い印を返す。 */
-export function getStaffPositionMarkSymbol(mark: StaffPositionMark): string {
-  return MARK_SYMBOLS[mark];
-}
-
-/**
- * 付けられる印を、選ぶ順に返す。
- * ポジションが1件の店舗では、入れるポジションを選ぶ余地がないため「入れない」を出さない。
- */
-export function getStaffPositionMarkOptions(
-  positions: readonly PositionRef[],
-): Array<{ value: StaffPositionMark; label: string }> {
-  return MARK_ORDER.filter((mark) => mark !== "unavailable" || positions.length > 1).map((mark) => ({
-    value: mark,
-    label: LEVEL_LABELS[mark],
-  }));
-}
-
-/** 保存済みの値を、編集中の形（ポジションのID → 値。標準は持たない）へ直す。いまは無いポジションの値は捨てる。 */
+/** 保存済みの値を、編集中の形（ポジションのID → 値。一人前は持たない）へ直す。いまは無いポジションの値は捨てる。 */
 export function toStaffPositionLevels(
   staff: Pick<ShiftSetupStaff, "positionSkills">,
   positions: readonly PositionRef[],
@@ -70,7 +48,7 @@ function countAvailablePositions(levels: StaffPositionLevels, positions: readonl
   return positions.filter((position) => levels[position._id] !== "unavailable").length;
 }
 
-/** そのポジションが、スタッフに残った最後の「入れるポジション」かを返す。最後の1つは「入れない」にできない。 */
+/** そのポジションが、スタッフに残った最後の「担当できるポジション」かを返す。最後の1つは「担当外」にできない。 */
 export function isLastAvailablePosition(
   levels: StaffPositionLevels,
   positionId: string,
@@ -79,7 +57,7 @@ export function isLastAvailablePosition(
   return levels[positionId] !== "unavailable" && countAvailablePositions(levels, positions) <= 1;
 }
 
-/** 1つのポジションの値を変える。最後の1つを「入れない」にする操作は無視する。 */
+/** 1つのポジションの値を変える。最後の1つを「担当外」にする操作は無視する。 */
 export function setStaffPositionLevel(
   levels: StaffPositionLevels,
   positionId: string,
@@ -104,7 +82,7 @@ export function isSameStaffPositionLevels(
 
 /**
  * 保存する形へ直す。保存済みの値から変えたスタッフだけを返す。
- * 値はポジションの並び順に並べ、標準と、いまは無いポジションの値は送らない。
+ * 値はポジションの並び順に並べ、一人前と、いまは無いポジションの値は送らない。
  */
 export function toStaffProfileInputs(
   staffs: readonly ShiftSetupStaff[],
@@ -127,60 +105,16 @@ export function toStaffProfileInputs(
 }
 
 /**
- * マスを押したあとの値を返す。
- * 選んでいる印と同じ印のマスは標準へ戻し、それ以外のマスは選んでいる印に置き換える。
+ * マスを押したあとの値を返す。一人前、見習い、リーダー、担当外の順に切り替わり、担当外の次は一人前へ戻る。
+ * スタッフに残った最後の「担当できるポジション」では、担当外を飛ばして一人前へ戻る。
  */
-export function getStampedStaffPositionLevel(current: StaffPositionLevel, mark: StaffPositionMark): StaffPositionLevel {
-  return current === mark ? "standard" : mark;
-}
-
-/** 選んでいる印を、そのマスに付けられないかを返す。最後に残った「入れるポジション」には「入れない」を付けられない。 */
-export function isStaffPositionMarkBlocked(
+export function getNextStaffPositionLevel(
   levels: StaffPositionLevels,
   positionId: string,
-  mark: StaffPositionMark,
   positions: readonly PositionRef[],
-): boolean {
-  return mark === "unavailable" && isLastAvailablePosition(levels, positionId, positions);
-}
-
-/**
- * 1つのポジションの印を、選んだスタッフだけまとめて変える。選んでいないスタッフの値は変えない。
- * 「入れない」を付けると入れるポジションがなくなるスタッフは変えずに飛ばし、その人数を返す。
- */
-export function changeStaffPositionMarks(
-  profiles: Readonly<Record<string, StaffPositionLevels>>,
-  change: StaffPositionMarkChange,
-  positions: readonly PositionRef[],
-): { profiles: Record<string, StaffPositionLevels>; skippedCount: number } {
-  const { positionId, mark, action } = change;
-  let skippedCount = 0;
-  const next: Record<string, StaffPositionLevels> = { ...profiles };
-  for (const staffId of new Set(change.staffIds)) {
-    const levels = profiles[staffId];
-    if (!levels) continue;
-    if (action === "remove") {
-      if (levels[positionId] === mark) next[staffId] = setStaffPositionLevel(levels, positionId, "standard", positions);
-    } else if (isStaffPositionMarkBlocked(levels, positionId, mark, positions)) {
-      skippedCount += 1;
-    } else {
-      next[staffId] = setStaffPositionLevel(levels, positionId, mark, positions);
-    }
-  }
-  return { profiles: next, skippedCount };
-}
-
-/** 名前の比較に使う形へそろえる。全角と半角、大文字と小文字、空白の有無の違いを吸収する。 */
-function normalizeName(value: string): string {
-  return value.normalize("NFKC").toLowerCase().replace(/\s+/g, "");
-}
-
-/** 名前に検索語を含むスタッフだけを返す。検索語が空なら全員を返す。 */
-export function filterStaffsByName<Staff extends Pick<ShiftSetupStaff, "name">>(
-  staffs: readonly Staff[],
-  query: string,
-): Staff[] {
-  const keyword = normalizeName(query);
-  if (!keyword) return [...staffs];
-  return staffs.filter((staff) => normalizeName(staff.name).includes(keyword));
+): StaffPositionLevel {
+  const current = getStaffPositionLevel(levels, positionId);
+  const next =
+    STAFF_POSITION_LEVEL_ORDER[(STAFF_POSITION_LEVEL_ORDER.indexOf(current) + 1) % STAFF_POSITION_LEVEL_ORDER.length];
+  return next === "unavailable" && isLastAvailablePosition(levels, positionId, positions) ? "standard" : next;
 }

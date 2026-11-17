@@ -839,7 +839,7 @@ describe("閲覧専用のくわしく表示", () => {
 // ==========================================
 describe("全日の人数と過不足（dayStaffingViewByDateAtom / dayStaffingMarksByDateAtom）", () => {
   const thirdDate = "2026-07-16";
-  // ホールでは新人、キッチンでは標準。
+  // ホールでは見習い、キッチンでは一人前。
   const newcomer: StaffType = {
     id: "staff-new",
     name: "新田",
@@ -911,7 +911,7 @@ describe("全日の人数と過不足（dayStaffingViewByDateAtom / dayStaffingM
     expect(store.get(dayStaffingMarksByDateAtom).get(date)).toEqual({ hasShortage: true, hasExcess: false });
   });
 
-  it("新人だけが入っている区間に、新人だけの印を持たせる", () => {
+  it("見習いだけが入っている区間に、見習いだけの印を持たせる", () => {
     const store = createStaffingStore();
     store.set(replaceShiftDraftsAtom, [shiftOf(newcomer, date, "09:00", "18:00")]);
 
@@ -919,9 +919,9 @@ describe("全日の人数と過不足（dayStaffingViewByDateAtom / dayStaffingM
     expect(view?.bands[0].segments.map((segment) => [segment.label, segment.isNewcomerOnly])).toEqual([["1/1", true]]);
   });
 
-  it("新人だけの印は、入っているポジションでの値で決める", () => {
+  it("見習いだけの印は、入っているポジションでの値で決める", () => {
     const store = createStaffingStore();
-    // ホールでは新人の人が、標準のキッチンに1人で入っている。
+    // ホールでは見習いの人が、一人前のキッチンに1人で入っている。
     store.set(replaceShiftDraftsAtom, [
       draft({
         id: `shift-${newcomer.id}-${date}`,
@@ -1044,7 +1044,7 @@ describe("日付ごとの確認事項の件数（warningCountByDateAtom）", () 
     store.set(newcomerOnlyPeriodsAtom, [period(date, "09:00"), period(date, "14:00"), period(nextDate, "09:00")]);
   };
 
-  it("くわしく表示では、スタッフ別の確認事項に、新人だけの時間帯の件数を足す", () => {
+  it("くわしく表示では、スタッフ別の確認事項に、見習いだけの時間帯の件数を足す", () => {
     const store = createDetailStore();
     setWarnings(store);
 
@@ -1054,7 +1054,7 @@ describe("日付ごとの確認事項の件数（warningCountByDateAtom）", () 
     ]);
   });
 
-  it("シンプル表示では、新人だけの時間帯を件数へ足さない", () => {
+  it("シンプル表示では、見習いだけの時間帯を件数へ足さない", () => {
     const store = createDetailStore({}, { detailMode: false });
     setWarnings(store);
 

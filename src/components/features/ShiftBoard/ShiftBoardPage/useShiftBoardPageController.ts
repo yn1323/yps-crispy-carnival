@@ -252,7 +252,7 @@ export const useShiftBoardPageController = (
   // エラーは確定時に表示する。ワーニングは初期表示と編集後に表内バッジ/アイコンへ反映する
   const [validationIssues, setValidationIssues] = useState<AssignmentIssue[]>([]);
   const [validationWarnings, setValidationWarnings] = useState<AssignmentWarning[]>([]);
-  // 新人だけの時間帯（確認事項）。スタッフ1人に結び付かないため、スタッフ別の確認事項とは別に持つ。
+  // 見習いだけの時間帯（確認事項）。スタッフ1人に結び付かないため、スタッフ別の確認事項とは別に持つ。
   const [newcomerOnlyPeriods, setNewcomerOnlyPeriods] = useState<NewcomerOnlyPeriod[]>([]);
   const hasAttemptedConfirmRef = useRef(false);
 
@@ -298,7 +298,7 @@ export const useShiftBoardPageController = (
     [assignmentBuildOptions, computeCurrentWarnings, isConfirmed, shopClosedDateSet],
   );
 
-  // 新人だけの時間帯を数える。数えるのは、いま在籍しているシフト対象のスタッフの勤務だけで、定休日は含めない。
+  // 見習いだけの時間帯を数える。数えるのは、いま在籍しているシフト対象のスタッフの勤務だけで、定休日は含めない。
   const computeVisibleNewcomerOnlyPeriods = useCallback(
     (shifts: ShiftData[]) => {
       const activeStaffIds = new Set(staffs.filter((staff) => !staff.isRemoved).map((staff) => staff.id));
@@ -340,7 +340,7 @@ export const useShiftBoardPageController = (
     ],
   );
 
-  // 確認事項（スタッフ別と、新人だけの時間帯）を再評価し、表内のバッジとアイコン、確定の確認へ反映する。
+  // 確認事項（スタッフ別と、見習いだけの時間帯）を再評価し、表内のバッジとアイコン、確定の確認へ反映する。
   const refreshWarnings = useCallback(
     (shifts: ShiftData[]) => {
       setValidationWarnings(computeVisibleWarnings(shifts));
@@ -637,7 +637,7 @@ export const useShiftBoardPageController = (
     });
   }, [navigate, setupScope]);
 
-  // 型の当て直しと、その日だけの変更。必要人数だけを変え、シフト表の下書き（未保存の勤務）には触れない。
+  // テンプレートの当て直しと、その日だけの変更。必要人数だけを変え、シフト表の下書き（未保存の勤務）には触れない。
   const { run: runApplyDayTemplate, isRunning: isApplyingDayTemplate } = useSingleFlight(
     async (targetDates: string[], templateId: string | null) => {
       try {
@@ -646,7 +646,7 @@ export const useShiftBoardPageController = (
           dates: targetDates,
           templateId: toDayTemplateIdArg(templateId),
         });
-        if (targetDates.length > 1) showSuccessToast({ title: `${targetDates.length}日の型を変更しました` });
+        if (targetDates.length > 1) showSuccessToast({ title: `${targetDates.length}日のテンプレートを変更しました` });
         return true;
       } catch (error) {
         showErrorToast(error);
@@ -718,7 +718,7 @@ export const useShiftBoardPageController = (
     !isConfirmed &&
     hasUnsubmittedStaff &&
     staffing?.hasPreviousConfirmedRecruitment === true;
-  // 確定済みの募集は、確定した時点の必要人数を残すため、型の当て直しとその日だけの変更を出さない。
+  // 確定済みの募集は、確定した時点の必要人数を残すため、テンプレートの当て直しとその日だけの変更を出さない。
   const canEditDayStaffing = Boolean(setupScope) && !isReadOnly && staffing !== undefined && !staffing.isLocked;
   const detailActions = useMemo<ShiftFormDetailActions>(
     () => ({

@@ -10,7 +10,7 @@ import {
   SHIFT_DAY_TEMPLATE_REQUIRED_COUNT_MAX,
 } from "../constants";
 
-// 日の型（名前を付けた1日分の必要人数）と、その日に当たる必要人数の純粋処理。
+// テンプレート（名前を付けた1日分の必要人数）と、その日に当たる必要人数の純粋処理。
 // サーバー（mutations.ts、シフト表のquery）とフロント（設定ページ・シフト表）で共有する。
 // DBアクセス・Convex APIのインポート禁止（shiftBoard/validation.tsと同じ共有規約）。
 
@@ -126,7 +126,6 @@ export type DayTemplateIssue =
   | "NAME_TOO_LONG"
   | "NAME_DUPLICATED"
   | "WEEKDAY_DUPLICATED"
-  | "HOLIDAY_DUPLICATED"
   | "REQUIREMENTS_KIND_MISMATCH"
   | "BAR_LIMIT"
   | "BAR_TIME_INVALID"
@@ -139,20 +138,20 @@ export type DayTemplateIssue =
   | "COUNT_DUPLICATED"
   | "COUNT_INVALID";
 
+// 時間指定の必要人数は、画面では「この時間は何人」の帯で入れる。保存の形（バー）の誤りも、入れた人が直せるよう、人数の言葉で伝える。
 export const DAY_TEMPLATE_ISSUE_MESSAGES: Record<DayTemplateIssue, string> = {
-  TEMPLATE_LIMIT: `型は${SHIFT_DAY_TEMPLATE_LIMIT}件まで作れます`,
-  NAME_REQUIRED: "型の名前を入力してください",
-  NAME_TOO_LONG: `型の名前は${SHIFT_DAY_TEMPLATE_NAME_MAX_LENGTH}文字以内で入力してください`,
-  NAME_DUPLICATED: "型の名前が重複しています",
-  WEEKDAY_DUPLICATED: "同じ曜日を2つの型に割り当てることはできません",
-  HOLIDAY_DUPLICATED: "祝日に使う型は1つだけ選べます",
+  TEMPLATE_LIMIT: `テンプレートは${SHIFT_DAY_TEMPLATE_LIMIT}件まで作れます`,
+  NAME_REQUIRED: "テンプレート名を入力してください",
+  NAME_TOO_LONG: `テンプレート名は${SHIFT_DAY_TEMPLATE_NAME_MAX_LENGTH}文字以内で入力してください`,
+  NAME_DUPLICATED: "テンプレート名が重複しています",
+  WEEKDAY_DUPLICATED: "同じ曜日が重複しています",
   REQUIREMENTS_KIND_MISMATCH: "希望シフトの集め方に合わない必要人数があります",
-  BAR_LIMIT: `バーは1つの型に${SHIFT_DAY_TEMPLATE_BAR_LIMIT}本まで置けます`,
-  BAR_TIME_INVALID: "バーの時間の形式が正しくありません",
-  BAR_TIME_ORDER: "バーの終了時間は開始時間より後にしてください",
-  BAR_TIME_UNIT: `バーの時間は${SHIFT_BOARD_TIME_UNIT_MINUTES}分単位にしてください`,
-  BAR_OUT_OF_RANGE: "受付時間の外に出ているバーがあります",
-  BAR_CONCURRENT_LIMIT: `同じ時間に重ねられるバーは、1つのポジションで${SHIFT_DAY_TEMPLATE_CONCURRENT_BAR_LIMIT}本までです`,
+  BAR_LIMIT: "人数の変わり目が多すぎて保存できません。同じ人数が続く時間をまとめてください。",
+  BAR_TIME_INVALID: "人数を入れた時間の形式が正しくありません",
+  BAR_TIME_ORDER: "人数を入れる時間の終了は、開始より後にしてください",
+  BAR_TIME_UNIT: `人数を入れる時間は${SHIFT_BOARD_TIME_UNIT_MINUTES}分単位にしてください`,
+  BAR_OUT_OF_RANGE: "受付時間の外に人数が入っています",
+  BAR_CONCURRENT_LIMIT: `同じ時間に入れられる人数は、1つのポジションで${SHIFT_DAY_TEMPLATE_CONCURRENT_BAR_LIMIT}人までです`,
   OPTION_NOT_FOUND: "勤務パターンが見つかりません",
   OPTION_DUPLICATED: "同じ勤務パターンの必要人数が重複しています",
   COUNT_DUPLICATED: "同じポジションの必要人数が重複しています",
@@ -197,7 +196,7 @@ function findStaffingBarIssue(bars: ReadonlyArray<StaffingBar>, range: TimeRange
 
 /**
  * 1日分の必要人数を、希望シフトの集め方に照らして検証し、最初に見つけた違反を返す。
- * 型の保存では店舗の集め方、その日だけの必要人数では募集の集め方を渡す。
+ * テンプレートの保存では店舗の集め方、その日だけの必要人数では募集の集め方を渡す。
  */
 export function findDayRequirementsIssue(
   requirements: DayRequirements,
@@ -235,13 +234,11 @@ type DayTemplateValidationInput = {
   pattern: ShiftSubmissionPattern;
 };
 
-/** 日の型の一覧を検証し、最初に見つけた違反を返す。違反がなければnullを返す。 */
+/** 日のテンプレートの一覧を検証し、最初に見つけた違反を返す。違反がなければnullを返す。 */
 export function findDayTemplateIssue(input: DayTemplateValidationInput): DayTemplateIssue | null {
   if (input.templates.length > SHIFT_DAY_TEMPLATE_LIMIT) return "TEMPLATE_LIMIT";
 
   const names = new Set<string>();
-  const weekdays = new Set<ShiftSetupWeekday>();
-  let hasHolidayTemplate = false;
   for (const template of input.templates) {
     const name = template.name.trim();
     if (!name) return "NAME_REQUIRED";
@@ -249,14 +246,8 @@ export function findDayTemplateIssue(input: DayTemplateValidationInput): DayTemp
     if (names.has(name)) return "NAME_DUPLICATED";
     names.add(name);
 
-    for (const weekday of template.weekdays) {
-      if (weekdays.has(weekday)) return "WEEKDAY_DUPLICATED";
-      weekdays.add(weekday);
-    }
-    if (template.appliesToHolidays) {
-      if (hasHolidayTemplate) return "HOLIDAY_DUPLICATED";
-      hasHolidayTemplate = true;
-    }
+    // 同じ曜日や祝日は、複数のテンプレートで選べる。1つのテンプレートの中で同じ曜日を重ねることだけを拒否する。
+    if (new Set(template.weekdays).size !== template.weekdays.length) return "WEEKDAY_DUPLICATED";
 
     const requirementsIssue = findDayRequirementsIssue(template.requirements, input.pattern);
     if (requirementsIssue) return requirementsIssue;
@@ -346,7 +337,7 @@ export function projectDayRequirementsForPattern<PositionId extends string>(
   return requirements;
 }
 
-/** その日だけの指定。別の型を当てるか、その日だけの必要人数を持つ。 */
+/** その日だけの指定。別のテンプレートを当てるか、その日だけの必要人数を持つ。 */
 export type DayStaffingOverride<TemplateId extends string = string, PositionId extends string = string> =
   | { date: string; kind: "template"; templateId: TemplateId }
   | { date: string; kind: "custom"; requirements: DayRequirements<PositionId> };
@@ -356,7 +347,7 @@ export type DayStaffingSource = "dateCustom" | "dateTemplate" | "holiday" | "wee
 
 export type ResolvedDayStaffing<TemplateId extends string = string, PositionId extends string = string> = {
   source: DayStaffingSource;
-  /** 当たった型。その日だけの必要人数（dateCustom）と未設定（none）ではnull。 */
+  /** 当たったテンプレート。その日だけの必要人数（dateCustom）と未設定（none）ではnull。 */
   templateId: TemplateId | null;
   templateName: string | null;
   requirements: DayRequirements<PositionId> | null;
@@ -364,7 +355,7 @@ export type ResolvedDayStaffing<TemplateId extends string = string, PositionId e
 
 type ResolveDayStaffingInput<TemplateId extends string, PositionId extends string> = {
   date: string;
-  /** 設定した並び順の型。同じ曜日を持つ型が複数あっても、先頭の型を使う。 */
+  /** 設定した並び順のテンプレート。同じ曜日を持つテンプレートが複数あっても、先頭のテンプレートを使う。 */
   templates: ReadonlyArray<
     Omit<DayTemplate<TemplateId, PositionId>, "weekdays"> & { weekdays: readonly ShiftSetupWeekday[] }
   >;
@@ -375,8 +366,9 @@ type ResolveDayStaffingInput<TemplateId extends string, PositionId extends strin
 
 /**
  * その日に当たる必要人数を決める。
- * 優先順位は「その日だけの指定 ＞ 祝日に使う型（その日が祝日の場合）＞ 曜日の型」。
- * 削除済みの型を指す指定は無視して、下の順位へ落とす。
+ * 優先順位は「その日だけの指定 ＞ 祝日に使うテンプレート（その日が祝日の場合）＞ 曜日のテンプレート」。
+ * 同じ曜日や祝日を選んだテンプレートが複数あるときは、並びの先頭のテンプレートを使う。
+ * 削除済みのテンプレートを指す指定は無視して、下の順位へ落とす。
  */
 export function resolveDayStaffing<TemplateId extends string, PositionId extends string>(
   input: ResolveDayStaffingInput<TemplateId, PositionId>,

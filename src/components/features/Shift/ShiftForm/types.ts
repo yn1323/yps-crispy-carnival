@@ -11,7 +11,7 @@ export type ShiftFormStaffingSource = "confirmed" | "dateCustom" | "dateTemplate
 export type ShiftFormStaffingDay = {
   date: string;
   source: ShiftFormStaffingSource;
-  /** 当たっている型。その日だけの必要人数、未設定、確定済みではnull。 */
+  /** 当たっているテンプレート。その日だけの必要人数、未設定、確定済みではnull。 */
   templateId: string | null;
   templateName: string | null;
   requirements: ShiftFormDayRequirements | null;
@@ -20,9 +20,9 @@ export type ShiftFormStaffingDay = {
 /** 「くわしく」表示で使う、店舗の設定と日ごとの必要人数。 */
 export type ShiftFormStaffing = {
   breakRule: ShiftBreakRule | null;
-  /** 確定済みで、型の当て直しとその日だけの変更ができない。 */
+  /** 確定済みで、テンプレートの当て直しとその日だけの変更ができない。 */
   isLocked: boolean;
-  /** その日に当てられる型。 */
+  /** その日に当てられるテンプレート。 */
   templates: Array<{ id: string; name: string }>;
   days: ShiftFormStaffingDay[];
 };

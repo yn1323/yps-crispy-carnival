@@ -17,7 +17,7 @@ export type StaffingPositionCount = {
   shortage: number;
   // 必要人数より多い人数。多くない場合と必要人数が未設定の場合は0。
   excess: number;
-  // そのポジションに1人以上いて、全員がそのポジションで新人のときtrue。
+  // そのポジションに1人以上いて、全員がそのポジションで見習いのときtrue。
   isNewcomerOnly: boolean;
 };
 
@@ -35,7 +35,7 @@ type CountInput = {
   shifts: readonly ShiftData[];
   // 人数を出すポジションのID。並び順は表示順。
   positionIds: readonly string[];
-  // ポジションごとの、新人のstaffId。省略すると、新人だけの印は付かない。
+  // ポジションごとの、見習いのstaffId。省略すると、見習いだけの印は付かない。
   newcomerStaffIdsByPositionId?: NewcomerStaffIdsByPositionId;
 };
 
@@ -60,7 +60,7 @@ const prepareShift = (shift: ShiftData): PreparedShift => ({
   })),
 });
 
-// 新人かどうかは、スタッフではなく、入っているポジションでの値で決める。
+// 見習いかどうかは、スタッフではなく、入っているポジションでの値で決める。
 const isNewcomerOnly = (
   staffIds: readonly string[],
   positionId: string,
@@ -151,7 +151,7 @@ export type PositionStaffingBandSegment = {
   required: number | null;
   // 人数と必要人数の差。足りないと負、多いと正。未設定は0。
   diff: number;
-  // その区間に1人以上いて、全員がそのポジションで新人のときtrue。
+  // その区間に1人以上いて、全員がそのポジションで見習いのときtrue。
   isNewcomerOnly: boolean;
 };
 
@@ -175,7 +175,7 @@ export const buildPositionStaffingBands = (input: {
   bars: readonly StaffingBar[] | null;
   // 帯を出すポジションのID。並び順は表示順。
   positionIds: readonly string[];
-  // ポジションごとの、新人のstaffId。省略すると、新人だけの印は付かない。
+  // ポジションごとの、見習いのstaffId。省略すると、見習いだけの印は付かない。
   newcomerStaffIdsByPositionId?: NewcomerStaffIdsByPositionId;
   // 数える範囲（分）。募集の受付時間にあたる。
   startMinutes: number;
@@ -251,10 +251,10 @@ export const buildPositionStaffingBands = (input: {
 };
 
 // ==========================================
-// 新人だけの時間帯
+// 見習いだけの時間帯
 // ==========================================
 
-/** あるポジションに入っている人が全員、そのポジションで新人の区切り。確定の前の確認事項に使う。 */
+/** あるポジションに入っている人が全員、そのポジションで見習いの区切り。確定の前の確認事項に使う。 */
 export type NewcomerOnlyPeriod = {
   date: string;
   positionId: string;
@@ -269,8 +269,8 @@ export type NewcomerOnlyPattern =
   | { kind: "dateOnly" };
 
 /**
- * 新人だけの区切りを、日、ポジション、区切りの単位で並べて返す。
- * 時間指定は、新人だけの状態が続く時間を1件にまとめる（人数が変わっても、新人だけである限り区切らない）。
+ * 見習いだけの区切りを、日、ポジション、区切りの単位で並べて返す。
+ * 時間指定は、見習いだけの状態が続く時間を1件にまとめる（人数が変わっても、見習いだけである限り区切らない）。
  */
 export const listNewcomerOnlyPeriods = (input: {
   // 数える対象の勤務（シフト対象で在籍しているスタッフ分）。日付は問わない。
@@ -278,7 +278,7 @@ export const listNewcomerOnlyPeriods = (input: {
   // 数える日。並び順は結果の並び順。定休日は渡さない。
   dates: readonly string[];
   positionIds: readonly string[];
-  // ポジションごとの、新人のstaffId。
+  // ポジションごとの、見習いのstaffId。
   newcomerStaffIdsByPositionId: NewcomerStaffIdsByPositionId;
   pattern: NewcomerOnlyPattern;
 }): NewcomerOnlyPeriod[] => {
@@ -294,7 +294,7 @@ export const listNewcomerOnlyPeriods = (input: {
 
   return input.dates.flatMap((date): NewcomerOnlyPeriod[] => {
     const shifts = shiftsByDate.get(date) ?? [];
-    // 新人として入っている勤務がない日は、新人だけの区切りもない。
+    // 見習いとして入っている勤務がない日は、見習いだけの区切りもない。
     const hasNewcomerWork = shifts.some((shift) =>
       shift.positions.some((position) => newcomerStaffIdsByPositionId.get(position.positionId)?.has(shift.staffId)),
     );

@@ -13,7 +13,7 @@ export const mockDates = [
 export const mockTimeRange: TimeRange = { start: 9, end: 22, unit: 30 };
 
 export const mockPositions: PositionType[] = [
-  { id: "pos-1", name: "ホール", color: "#3b82f6", isDefault: true },
+  { id: "pos-1", name: "ホール", color: "#60a5fa", isDefault: true },
   { id: "pos-2", name: "キッチン", color: "#f59e0b", isDefault: false },
   { id: "pos-3", name: "レジ", color: "#10b981", isDefault: false },
 ];
@@ -50,19 +50,19 @@ const createShift = (
 export const mockShifts: ShiftData[] = [
   // 鈴木太郎 - 月火水木金出勤
   createShift("s1", "鈴木太郎", "2026-01-20", "10:00", "18:00", [
-    { positionId: "pos-1", positionName: "ホール", color: "#3b82f6", start: "10:00", end: "18:00" },
+    { positionId: "pos-1", positionName: "ホール", color: "#60a5fa", start: "10:00", end: "18:00" },
   ]),
   createShift("s1", "鈴木太郎", "2026-01-21", "10:00", "18:00", [
-    { positionId: "pos-1", positionName: "ホール", color: "#3b82f6", start: "10:00", end: "18:00" },
+    { positionId: "pos-1", positionName: "ホール", color: "#60a5fa", start: "10:00", end: "18:00" },
   ]),
   createShift("s1", "鈴木太郎", "2026-01-22", "10:00", "18:00", [
-    { positionId: "pos-1", positionName: "ホール", color: "#3b82f6", start: "10:00", end: "18:00" },
+    { positionId: "pos-1", positionName: "ホール", color: "#60a5fa", start: "10:00", end: "18:00" },
   ]),
   createShift("s1", "鈴木太郎", "2026-01-23", "10:00", "14:00", [
-    { positionId: "pos-1", positionName: "ホール", color: "#3b82f6", start: "10:00", end: "14:00" },
+    { positionId: "pos-1", positionName: "ホール", color: "#60a5fa", start: "10:00", end: "14:00" },
   ]),
   createShift("s1", "鈴木太郎", "2026-01-24", "10:00", "18:00", [
-    { positionId: "pos-1", positionName: "ホール", color: "#3b82f6", start: "10:00", end: "18:00" },
+    { positionId: "pos-1", positionName: "ホール", color: "#60a5fa", start: "10:00", end: "18:00" },
   ]),
 
   // 佐藤花子 - 火水金日出勤
@@ -81,19 +81,19 @@ export const mockShifts: ShiftData[] = [
 
   // 山田美咲 - 月水木金日出勤（午後）
   createShift("s4", "山田美咲", "2026-01-20", "14:00", "21:00", [
-    { positionId: "pos-1", positionName: "ホール", color: "#3b82f6", start: "14:00", end: "21:00" },
+    { positionId: "pos-1", positionName: "ホール", color: "#60a5fa", start: "14:00", end: "21:00" },
   ]),
   createShift("s4", "山田美咲", "2026-01-22", "14:00", "21:00", [
-    { positionId: "pos-1", positionName: "ホール", color: "#3b82f6", start: "14:00", end: "21:00" },
+    { positionId: "pos-1", positionName: "ホール", color: "#60a5fa", start: "14:00", end: "21:00" },
   ]),
   createShift("s4", "山田美咲", "2026-01-23", "14:00", "21:00", [
-    { positionId: "pos-1", positionName: "ホール", color: "#3b82f6", start: "14:00", end: "21:00" },
+    { positionId: "pos-1", positionName: "ホール", color: "#60a5fa", start: "14:00", end: "21:00" },
   ]),
   createShift("s4", "山田美咲", "2026-01-24", "14:00", "21:00", [
-    { positionId: "pos-1", positionName: "ホール", color: "#3b82f6", start: "14:00", end: "21:00" },
+    { positionId: "pos-1", positionName: "ホール", color: "#60a5fa", start: "14:00", end: "21:00" },
   ]),
   createShift("s4", "山田美咲", "2026-01-26", "14:00", "21:00", [
-    { positionId: "pos-1", positionName: "ホール", color: "#3b82f6", start: "14:00", end: "21:00" },
+    { positionId: "pos-1", positionName: "ホール", color: "#60a5fa", start: "14:00", end: "21:00" },
   ]),
 
   // 高橋翔太 - 月火木金出勤（午前短め）
@@ -125,16 +125,16 @@ export const mockShifts: ShiftData[] = [
   // 伊藤健一 - 火木土出勤
   // Day 1 (月) はチュートリアル誘導用にイレギュラー出勤を入れておく（NG連絡を受けて削除する想定）
   createShift("s7", "伊藤健一", "2026-01-20", "12:00", "20:00", [
-    { positionId: "pos-1", positionName: "ホール", color: "#3b82f6", start: "12:00", end: "20:00" },
+    { positionId: "pos-1", positionName: "ホール", color: "#60a5fa", start: "12:00", end: "20:00" },
   ]),
   createShift("s7", "伊藤健一", "2026-01-21", "12:00", "20:00", [
-    { positionId: "pos-1", positionName: "ホール", color: "#3b82f6", start: "12:00", end: "20:00" },
+    { positionId: "pos-1", positionName: "ホール", color: "#60a5fa", start: "12:00", end: "20:00" },
   ]),
   createShift("s7", "伊藤健一", "2026-01-23", "12:00", "20:00", [
-    { positionId: "pos-1", positionName: "ホール", color: "#3b82f6", start: "12:00", end: "20:00" },
+    { positionId: "pos-1", positionName: "ホール", color: "#60a5fa", start: "12:00", end: "20:00" },
   ]),
   createShift("s7", "伊藤健一", "2026-01-25", "12:00", "20:00", [
-    { positionId: "pos-1", positionName: "ホール", color: "#3b82f6", start: "12:00", end: "20:00" },
+    { positionId: "pos-1", positionName: "ホール", color: "#60a5fa", start: "12:00", end: "20:00" },
   ]),
 
   // 中村真理 - 月火水木金出勤

@@ -9,6 +9,7 @@ import {
 } from "../_lib/shiftSetupValidators";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
 import { SHIFT_BOARD_STAFF_LIMIT } from "../constants";
+import { getOrganizationStaffOrderScope } from "../organization/staffOrder";
 import { getOrganizationAccessPolicy } from "../organizationBilling/service";
 import { isShiftTargetStaff } from "../staff/service";
 import { listActivePositions, listDayTemplates, toDayTemplateDto, toPositionSkillsDto } from "./service";
@@ -44,7 +45,7 @@ const shiftSetupValidator = v.object({
     v.object({
       _id: v.id("staffs"),
       name: v.string(),
-      // 標準（入れる・熟練度が標準）のポジションは含めない。並びはpositionsと同じ順。
+      // 一人前（担当できる・熟練度が一人前）のポジションは含めない。並びはpositionsと同じ順。
       positionSkills: v.array(staffPositionSkillValidator),
     }),
   ),
@@ -60,7 +61,7 @@ export const getShiftSetup = managerQuery({
     const { shop, organization } = ctx;
     if (!shop || !organization) return null;
 
-    const [positions, templates, staffs, organizationAccess] = await Promise.all([
+    const [positions, templates, staffs, organizationAccess, staffOrderScope] = await Promise.all([
       listActivePositions(ctx, shop._id),
       listDayTemplates(ctx, shop._id),
       ctx.db
@@ -68,8 +69,18 @@ export const getShiftSetup = managerQuery({
         .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
         .take(SHIFT_BOARD_STAFF_LIMIT),
       getOrganizationAccessPolicy(ctx, organization._id),
+      getOrganizationStaffOrderScope(ctx, { organizationId: organization._id, shopId: shop._id }),
     ]);
     const activePositionIds = new Set(positions.map((position) => position._id));
+    // スタッフは、ダッシュボードとシフト表と同じ並び順で返す。並び順をまだ持たない組織では、登録した順にする。
+    const staffOrderEntries =
+      staffOrderScope.mode === "ordered"
+        ? await ctx.db
+            .query("shopStaffOrderEntries")
+            .withIndex("by_shopId_and_displayOrder", (q) => q.eq("shopId", shop._id))
+            .take(SHIFT_BOARD_STAFF_LIMIT + 1)
+        : [];
+    const staffOrder = new Map(staffOrderEntries.map((entry, index) => [entry.staffId, index]));
     const businessWriteBlockReason =
       !organizationAccess || organizationAccess.usageLimitStatus?.kind === "unknown"
         ? ("usageLimitEvaluationUnavailable" as const)
@@ -91,7 +102,11 @@ export const getShiftSetup = managerQuery({
       breakRule: shop.breakRule ?? null,
       staffs: staffs
         .filter((staff) => staff.organizationId === shop.organizationId && isShiftTargetStaff(staff))
-        .sort((left, right) => left._creationTime - right._creationTime)
+        .sort(
+          (left, right) =>
+            (staffOrder.get(left._id) ?? Number.POSITIVE_INFINITY) -
+              (staffOrder.get(right._id) ?? Number.POSITIVE_INFINITY) || left._creationTime - right._creationTime,
+        )
         .map((staff) => ({
           _id: staff._id,
           name: staff.name,

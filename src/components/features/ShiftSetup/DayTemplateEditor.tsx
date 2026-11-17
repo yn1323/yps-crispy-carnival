@@ -1,19 +1,23 @@
-import { Alert, Box, chakra, Field, Flex, Grid, Stack, Text } from "@chakra-ui/react";
+import { Alert, chakra, Field, Flex, Grid, Stack, Text } from "@chakra-ui/react";
 import { type RefObject, useId, useMemo, useState } from "react";
 import { LuCopy, LuTrash2 } from "react-icons/lu";
-import { SHIFT_DAY_TEMPLATE_NAME_MAX_LENGTH, SHIFT_DAY_TEMPLATE_REQUIRED_COUNT_MAX } from "@/convex/constants";
+import {
+  SHIFT_DAY_TEMPLATE_CONCURRENT_BAR_LIMIT,
+  SHIFT_DAY_TEMPLATE_NAME_MAX_LENGTH,
+  SHIFT_DAY_TEMPLATE_REQUIRED_COUNT_MAX,
+} from "@/convex/constants";
+import type { ShiftSetupWeekday } from "@/convex/shiftSetup/dayTemplates";
 import { DAY_TEMPLATE_ISSUE_MESSAGES } from "@/convex/shiftSetup/dayTemplates";
-import { RequiredCountStrip, StaffingBarEditor } from "@/src/components/shared/StaffingBarEditor";
+import { StaffingCountBandEditor } from "@/src/components/shared/StaffingCountBandEditor";
 import { StaffingCountTable } from "@/src/components/shared/StaffingCountTable";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
 import { Input, NativeSelect } from "@/src/components/ui/FormControls";
 import {
-  DAY_TEMPLATE_BAR_LIMITS,
   getDayTemplateLabel,
   getRequiredCountRows,
   getRequiredCountTableCounts,
-  getStaffingBarRange,
+  getStaffingSegmentRange,
   needsDayTemplateReentry,
 } from "./dayTemplateDrafts";
 import { WEEKDAY_OPTIONS } from "./script";
@@ -24,7 +28,17 @@ const COUNT_TABLE_DESCRIPTIONS = {
   dateOnly: "1日に必要な人数をポジション別に入れます。空欄は未設定です。",
 } as const;
 
-const ACTION_BUTTON_HEIGHT = { base: "44px", md: "36px" };
+/** 名前の右に置く操作。スマートフォンでは名前の欄と1行に収めるため、アイコンだけを出す。 */
+const ACTION_BUTTON_PROPS = {
+  type: "button",
+  variant: "ghost",
+  size: "sm",
+  minH: { base: "44px", md: "36px" },
+  minW: { base: "44px", md: "auto" },
+  px: { base: 0, md: 3.5 },
+  gap: 1.5,
+} as const;
+const ACTION_LABEL_DISPLAY = { base: "none", md: "inline" } as const;
 
 type Props = {
   draft: DayTemplateDraft;
@@ -33,14 +47,14 @@ type Props = {
   canWrite: boolean;
   issueMessage?: string;
   intents: ShiftSetupIntents;
-  /** 型の名前の欄。型を足したあとに、ここへフォーカスを移すために受け取る。 */
+  /** テンプレート名の欄。テンプレートを足したあとに、ここへフォーカスを移すために受け取る。 */
   nameInputRef: RefObject<HTMLInputElement | null>;
 };
 
-/** 名前の欄を見える位置へ送るときに空ける、上（ヘッダー、保存の操作、「編集する型」）と下（メインメニュー）の余白。 */
+/** 名前の欄を見える位置へ送るときに空ける、上（ヘッダー、保存の操作、テンプレートの一覧）と下（メインメニュー）の余白。 */
 const NAME_FIELD_SCROLL_MARGIN = { top: "14rem", bottom: "5rem" };
 
-/** 選んだ型の、名前、使う日、必要人数を編集する。 */
+/** 選んだテンプレートの、名前、使う日、必要人数を編集する。 */
 export function DayTemplateEditor({ draft, drafts, setup, canWrite, issueMessage, intents, nameInputRef }: Props) {
   const dayLabelId = useId();
   const [isCopyDialogOpen, setIsCopyDialogOpen] = useState(false);
@@ -48,28 +62,22 @@ export function DayTemplateEditor({ draft, drafts, setup, canWrite, issueMessage
   const templateLabel = getDayTemplateLabel(draft);
   const otherDrafts = drafts.filter((candidate) => candidate.rowKey !== draft.rowKey);
   const closedDays = new Set(setup.regularClosedDays);
-  const holidayOwner = draft.appliesToHolidays ? undefined : otherDrafts.find((other) => other.appliesToHolidays);
-  const dayNotes = [
-    "祝日は曜日より優先します。",
-    ...(canWrite && otherDrafts.length > 0 ? ["別の型が使っている日を押すと、この型へ移ります。"] : []),
-    ...(closedDays.size > 0 ? ["「休」は定休日です。"] : []),
-    ...(draft.weekdays.length === 0 && !draft.appliesToHolidays
-      ? ["曜日も祝日も選ばない型は、シフト表で日付を選んで当てられます。"]
-      : []),
-  ];
 
   return (
     <Stack
       role="group"
       aria-label={templateLabel}
-      gap={{ base: 4, md: 5 }}
+      // 名前、使う日、必要人数の3つのまとまりを、間を空けて見分けられるようにする。
+      gap={{ base: 6, md: 8 }}
       px={{ base: 3, md: 5 }}
       pt={{ base: 4, md: 5 }}
       minW={0}
     >
-      <Flex gap={3} align="flex-end" justify="space-between" wrap="wrap">
+      <Flex gap={{ base: 1, md: 3 }} align="flex-end" justify="space-between" wrap={{ base: "nowrap", md: "wrap" }}>
         <Field.Root flex="1 1 12rem" maxW="20rem" minW={0}>
-          <Field.Label>型の名前</Field.Label>
+          <Field.Label fontWeight="semibold" color="gray.900">
+            テンプレート名
+          </Field.Label>
           <Input
             ref={nameInputRef}
             value={draft.name}
@@ -79,40 +87,34 @@ export function DayTemplateEditor({ draft, drafts, setup, canWrite, issueMessage
             scrollMarginTop={NAME_FIELD_SCROLL_MARGIN.top}
             scrollMarginBottom={NAME_FIELD_SCROLL_MARGIN.bottom}
             disabled={!canWrite}
-            // 「通常」「型2」などの初期値を消さずに打ち替えられるよう、欄に入ったら全体を選ぶ。
+            // 「通常」「テンプレート2」などの初期値を消さずに打ち替えられるよう、欄に入ったら全体を選ぶ。
             onFocus={(event) => event.currentTarget.select()}
             onChange={(event) => intents.onRenameDayTemplate(draft.rowKey, event.target.value)}
           />
         </Field.Root>
-        <Flex gap={1} wrap="wrap">
+        <Flex gap={1} flexShrink={0} wrap={{ md: "wrap" }}>
           {otherDrafts.length > 0 && (
             <Button
-              type="button"
-              variant="ghost"
+              {...ACTION_BUTTON_PROPS}
               colorPalette="teal"
-              size="sm"
-              minH={ACTION_BUTTON_HEIGHT}
-              gap={1.5}
+              aria-label="コピーする"
               disabled={!canWrite}
               onClick={() => setIsCopyDialogOpen(true)}
             >
               <LuCopy aria-hidden />
-              ほかの型からコピー
+              <chakra.span display={ACTION_LABEL_DISPLAY}>コピーする</chakra.span>
             </Button>
           )}
           <Button
-            type="button"
-            variant="ghost"
+            {...ACTION_BUTTON_PROPS}
             colorPalette="red"
             color="red.600"
-            size="sm"
-            minH={ACTION_BUTTON_HEIGHT}
-            gap={1.5}
+            aria-label="削除する"
             disabled={!canWrite}
             onClick={() => setIsRemoveDialogOpen(true)}
           >
             <LuTrash2 aria-hidden />
-            この型を削除
+            <chakra.span display={ACTION_LABEL_DISPLAY}>削除する</chakra.span>
           </Button>
         </Flex>
       </Flex>
@@ -125,13 +127,12 @@ export function DayTemplateEditor({ draft, drafts, setup, canWrite, issueMessage
 
       <Stack gap={2}>
         <Text id={dayLabelId} fontSize="sm" fontWeight="semibold" color="gray.900">
-          この型を使う日
+          このテンプレートを使う日
         </Text>
         <Flex role="group" aria-labelledby={dayLabelId} gap={{ base: 2, md: 3 }} wrap="wrap">
           <Grid templateColumns="repeat(7, minmax(0, 1fr))" gap={{ base: 1, md: 1.5 }} flex="1 1 16rem" maxW="26rem">
             {WEEKDAY_OPTIONS.map((day) => {
               const isSelected = draft.weekdays.includes(day.value);
-              const owner = isSelected ? undefined : otherDrafts.find((other) => other.weekdays.includes(day.value));
               return (
                 <DayToggle
                   key={day.value}
@@ -139,7 +140,7 @@ export function DayTemplateEditor({ draft, drafts, setup, canWrite, issueMessage
                   name={`${day.label}曜日`}
                   isSelected={isSelected}
                   isClosed={closedDays.has(day.value)}
-                  ownerLabel={owner ? getDayTemplateLabel(owner) : undefined}
+                  tone={WEEKEND_TONES[day.value]}
                   disabled={!canWrite}
                   onToggle={() => intents.onToggleWeekday(draft.rowKey, day.value)}
                 />
@@ -151,15 +152,22 @@ export function DayTemplateEditor({ draft, drafts, setup, canWrite, issueMessage
             name="祝日"
             isSelected={draft.appliesToHolidays}
             isClosed={false}
-            ownerLabel={holidayOwner ? getDayTemplateLabel(holidayOwner) : undefined}
+            tone="holiday"
             disabled={!canWrite}
             isWide
             onToggle={() => intents.onToggleHoliday(draft.rowKey)}
           />
+          {/* 曜日を1つも選んでいない状態を示す。押すと曜日をすべて外し、祝日はそのまま残す。 */}
+          <DayToggle
+            label="指定しない"
+            name="曜日を指定しない"
+            isSelected={draft.weekdays.length === 0}
+            isClosed={false}
+            disabled={!canWrite}
+            isWide
+            onToggle={() => intents.onClearWeekdays(draft.rowKey)}
+          />
         </Flex>
-        <Text fontSize="xs" color="fg.muted" lineHeight="tall">
-          {dayNotes.join("")}
-        </Text>
       </Stack>
 
       {needsDayTemplateReentry(draft) && (
@@ -184,7 +192,7 @@ export function DayTemplateEditor({ draft, drafts, setup, canWrite, issueMessage
         }}
       />
       <Dialog
-        title="型を削除"
+        title="テンプレートを削除"
         isOpen={isRemoveDialogOpen && canWrite}
         onOpenChange={({ open }) => {
           if (!open) setIsRemoveDialogOpen(false);
@@ -199,9 +207,9 @@ export function DayTemplateEditor({ draft, drafts, setup, canWrite, issueMessage
         submitColorPalette="red"
       >
         <Text fontSize="sm" lineHeight="tall">
-          「{templateLabel}」と、その必要人数を削除します。
+          「{templateLabel}」を削除します。
           <br />
-          保存するまでは「元に戻す」で取り消せます。
+          よろしいですか？
         </Text>
       </Dialog>
     </Stack>
@@ -210,7 +218,7 @@ export function DayTemplateEditor({ draft, drafts, setup, canWrite, issueMessage
 
 type RequirementsProps = Pick<Props, "draft" | "setup" | "canWrite" | "intents">;
 
-/** 必要人数の入力。時間指定はバー、パターン選択と日付選択は数字の表で入れる。 */
+/** 必要人数の入力。時間指定は時間の帯、パターン選択と日付選択は数字の表で入れる。 */
 function Requirements({ draft, setup, canWrite, intents }: RequirementsProps) {
   const { requirements } = draft;
   const pattern = setup.submissionPattern;
@@ -218,9 +226,9 @@ function Requirements({ draft, setup, canWrite, intents }: RequirementsProps) {
     () => setup.positions.map((position) => ({ id: position._id, name: position.name, color: position.color })),
     [setup.positions],
   );
-  const range = useMemo(() => getStaffingBarRange(pattern), [pattern]);
+  const range = useMemo(() => getStaffingSegmentRange(pattern), [pattern]);
 
-  // 編集の途中で希望シフトの集め方が変わった型は、いまの集め方の入力欄へ出せない。
+  // 編集の途中で希望シフトの集め方が変わったテンプレートは、いまの集め方の入力欄へ出せない。
   if (requirements.kind !== pattern.kind) {
     return (
       <Text role="alert" fontSize="sm" fontWeight="semibold" color="red.600" pb={{ base: 4, md: 5 }}>
@@ -231,25 +239,15 @@ function Requirements({ draft, setup, canWrite, intents }: RequirementsProps) {
 
   if (requirements.kind === "time" && range) {
     return (
-      <Stack gap={6} pb={{ base: 4, md: 5 }}>
-        <StaffingBarEditor
+      <Stack pb={{ base: 4, md: 5 }}>
+        <StaffingCountBandEditor
           positions={positions}
-          bars={requirements.bars}
-          onChange={(bars) => intents.onChangeBars(draft.rowKey, bars)}
+          segments={requirements.segments}
+          onChange={(segments) => intents.onChangeSegments(draft.rowKey, segments)}
           range={range}
           isReadOnly={!canWrite}
-          limits={DAY_TEMPLATE_BAR_LIMITS}
+          maxCount={SHIFT_DAY_TEMPLATE_CONCURRENT_BAR_LIMIT}
         />
-        <Box
-          // バーの表から離して、表の下に置く。画面の下端には留めない。
-          pt={5}
-          borderTopWidth="1px"
-          borderColor="gray.200"
-          // 狭い画面では「できあがる必要人数」をバーの表の中に出すため、中身がなければ枠ごと出さない。
-          _empty={{ display: "none" }}
-        >
-          <RequiredCountStrip positions={positions} bars={requirements.bars} range={range} />
-        </Box>
       </Stack>
     );
   }
@@ -275,6 +273,12 @@ function Requirements({ draft, setup, canWrite, intents }: RequirementsProps) {
   );
 }
 
+type DayTone = "saturday" | "sunday" | "holiday";
+
+/** 土曜は青、日曜と祝日は赤。選択中は地が濃いため、白のままにする。 */
+const DAY_TONE_COLORS: Record<DayTone, string> = { saturday: "blue.600", sunday: "red.600", holiday: "red.600" };
+const WEEKEND_TONES: Partial<Record<ShiftSetupWeekday, DayTone>> = { sat: "saturday", sun: "sunday" };
+
 type DayToggleProps = {
   /** ボタンに出す文字。 */
   label: string;
@@ -282,29 +286,16 @@ type DayToggleProps = {
   name: string;
   isSelected: boolean;
   isClosed: boolean;
-  /** この日を持っている別の型の名前。 */
-  ownerLabel?: string;
+  /** 土曜、日曜、祝日。シフト表と同じく、文字の色で見分けられるようにする。 */
+  tone?: DayTone;
   disabled: boolean;
   /** 曜日の列に並べず、文字の幅に合わせて広げる。 */
   isWide?: boolean;
   onToggle: () => void;
 };
 
-function DayToggle({
-  label,
-  name,
-  isSelected,
-  isClosed,
-  ownerLabel,
-  disabled,
-  isWide = false,
-  onToggle,
-}: DayToggleProps) {
-  const accessibleLabel = [
-    name,
-    ...(isClosed ? ["定休日"] : []),
-    ...(ownerLabel ? [`${ownerLabel}で使用中`] : []),
-  ].join("・");
+function DayToggle({ label, name, isSelected, isClosed, tone, disabled, isWide = false, onToggle }: DayToggleProps) {
+  const accessibleLabel = [name, ...(isClosed ? ["定休日"] : [])].join("・");
 
   return (
     <chakra.button
@@ -332,12 +323,12 @@ function DayToggle({
       _focusVisible={{ outline: "2px solid", outlineColor: "teal.700", outlineOffset: "2px" }}
       {...(isSelected
         ? { bg: "teal.600", borderColor: "teal.600", color: "white", _active: { bg: "teal.700" } }
-        : ownerLabel
-          ? { bg: "gray.100", borderColor: "gray.200", color: "gray.500", _active: { bg: "gray.200" } }
-          : { bg: "white", borderColor: "gray.300", color: "gray.800", _active: { bg: "gray.100" } })}
+        : { bg: "white", borderColor: "gray.300", color: "gray.800", _active: { bg: "gray.100" } })}
       onClick={onToggle}
     >
-      <span aria-hidden>{label}</span>
+      <chakra.span aria-hidden color={tone && !isSelected ? DAY_TONE_COLORS[tone] : undefined}>
+        {label}
+      </chakra.span>
       {isClosed && (
         <chakra.span aria-hidden fontSize="2xs" fontWeight="normal">
           休
@@ -355,15 +346,15 @@ type CopyDialogProps = {
   onCopy: (fromRowKey: string) => void;
 };
 
-/** コピー元の型を選び、いまの必要人数が置き換わることを確かめてから写す。 */
+/** コピー元のテンプレートを選び、いまの必要人数が置き換わることを確かめてから写す。 */
 function CopyRequirementsDialog({ isOpen, templateLabel, sources, onClose, onCopy }: CopyDialogProps) {
   const [selectedRowKey, setSelectedRowKey] = useState<string>();
-  // コピー元を選んだあとで、その型が一覧からなくなった場合は、先頭の型へ戻す。
+  // コピー元を選んだあとで、そのテンプレートが一覧からなくなった場合は、先頭のテンプレートへ戻す。
   const source = sources.find((candidate) => candidate.rowKey === selectedRowKey) ?? sources[0];
 
   return (
     <Dialog
-      title="ほかの型からコピー"
+      title="別テンプレートの人員設定をコピーする"
       isOpen={isOpen && source !== undefined}
       onOpenChange={({ open }) => {
         if (!open) onClose();
@@ -376,7 +367,7 @@ function CopyRequirementsDialog({ isOpen, templateLabel, sources, onClose, onCop
     >
       <Stack gap={4}>
         <Field.Root>
-          <Field.Label>コピーする型</Field.Label>
+          <Field.Label>コピーもとテンプレート</Field.Label>
           <NativeSelect.Root>
             <NativeSelect.Field
               value={source?.rowKey ?? ""}
@@ -394,9 +385,7 @@ function CopyRequirementsDialog({ isOpen, templateLabel, sources, onClose, onCop
           </NativeSelect.Root>
         </Field.Root>
         <Text fontSize="sm" lineHeight="tall">
-          「{templateLabel}」の必要人数は、選んだ型の内容で置き換わります。
-          <br />
-          名前と使う日は変わりません。
+          「{templateLabel}」に反映します。
         </Text>
       </Stack>
     </Dialog>

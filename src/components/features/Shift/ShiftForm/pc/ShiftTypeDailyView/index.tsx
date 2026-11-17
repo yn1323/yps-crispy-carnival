@@ -139,7 +139,7 @@ export const ShiftTypeDailyView = () => {
                 <Box as="thead" {...(detailMode ? STICKY_HEAD_PROPS : undefined)}>
                   <Box as="tr" bg="gray.50">
                     {/* 人数の行には勤務パターンごとの人数だけを置き、左の見出しは2行分を結合する。 */}
-                    {/* くわしく表示では結合をやめ、人数の行の左に見出しと、その日の型のメニューを置く。 */}
+                    {/* くわしく表示では結合をやめ、人数の行の左に見出しと、その日のテンプレートのメニューを置く。 */}
                     <HeaderCell rowSpan={leadingHeaderRowSpan}>スタッフ</HeaderCell>
                     <HeaderCell rowSpan={leadingHeaderRowSpan}>{viewModel.requestHeaderLabel}</HeaderCell>
                     {dateNotes.hasNotes && <HeaderCell rowSpan={leadingHeaderRowSpan}>連絡事項</HeaderCell>}

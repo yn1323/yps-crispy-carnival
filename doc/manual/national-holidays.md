@@ -4,7 +4,7 @@
 >
 > 対象: 祝日の表（`nationalHolidays`）を持つConvex deployment
 
-祝日の表は、[シフト作成の設定](../features/shift-setup.md)の「祝日に使う型」を、どの日に当てるかを決めるためのデータです。  
+祝日の表は、[シフト作成の設定](../features/shift-setup.md)の「祝日に使うテンプレート」を、どの日に当てるかを決めるためのデータです。  
 店舗の画面からは更新できません。  運営者が、年ごとにこの手順で入れます。
 
 ## 更新する場面
@@ -13,7 +13,7 @@
 - 祝日が年の途中で変わったとき。
 - localまたはDevelopmentで[開発用網羅シード](development-seed.md)を実行したあと。  シードは全テーブルを空にするため、祝日の表も空になります。
 
-翌年分を入れないまま年を越すと、翌年の祝日は祝日として扱われず、曜日の型が当たります。  
+翌年分を入れないまま年を越すと、翌年の祝日は祝日として扱われず、曜日のテンプレートが当たります。  
 店舗へ知らせる仕組みはないため、年末までに翌年分を入れてください。
 
 ## 入れる内容
@@ -57,11 +57,11 @@ pnpm exec convex run nationalHoliday/mutations:replaceNationalHolidaysForYear \
 コマンドは、消した件数と入れた件数を`{ deletedCount, insertedCount }`で返します。  
 入れた件数が、渡した一覧の件数と同じであることを確かめます。
 
-画面では、祝日に使う型を持つ店舗のシフト表を「くわしく」表示で開き、祝日の日にその型の名前が出ることを確かめます。
+画面では、祝日に使うテンプレートを持つ店舗のシフト表を「くわしく」表示で開き、祝日の日にそのテンプレートの名前が出ることを確かめます。
 
 ## 影響する範囲
 
-- 確定していない募集のシフト表は、次に開いたときから新しい祝日で型が当たります。
+- 確定していない募集のシフト表は、次に開いたときから新しい祝日でテンプレートが当たります。
 - 確定済みの募集は、確定した時点の必要人数を保存しているため、変わりません。
 - その日だけの指定がある日は、祝日よりその指定が優先されます。
 
@@ -71,4 +71,4 @@ pnpm exec convex run nationalHoliday/mutations:replaceNationalHolidaysForYear \
 |---|---|
 | 祝日の置き換え | `convex/nationalHoliday/mutations.ts` |
 | 期間内の祝日の読み取り | `convex/nationalHoliday/service.ts` |
-| その日に当たる型の解決 | `convex/shiftSetup/dayTemplates.ts` |
+| その日に当たるテンプレートの解決 | `convex/shiftSetup/dayTemplates.ts` |

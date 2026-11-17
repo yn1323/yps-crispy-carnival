@@ -97,15 +97,15 @@ describe("buildRandomShiftSetupDraft", () => {
     });
 
     expect(draft.map((template) => template.requirements)).toEqual([
-      // 平日の型は、受付時間いっぱいの1本だけになる。
+      // 平日のテンプレートは、受付時間いっぱいの1本だけになる。
       { kind: "time", bars: expected.slice(0, 1) },
-      // 週末の型は、昼と夜の時間帯へ1本ずつ足す。
+      // 週末のテンプレートは、昼と夜の時間帯へ1本ずつ足す。
       { kind: "time", bars: expected },
     ]);
     expect(findDayTemplateIssue({ templates: draft, pattern })).toBeNull();
   });
 
-  it("時間指定で最も多くバーを足しても、保存できる型になる", () => {
+  it("時間指定で最も多くバーを足しても、保存できるテンプレートになる", () => {
     const pattern: ShiftSubmissionPattern = { kind: "time", startTime: "09:00", endTime: "22:00" };
     const draft = buildRandomShiftSetupDraft({
       pattern,
@@ -196,7 +196,7 @@ describe("buildRandomShiftSetupDraft", () => {
     expect(findDayTemplateIssue({ templates: draft, pattern })).toBeNull();
   });
 
-  it("定休日の曜日を型に割り当てない", () => {
+  it("定休日の曜日をテンプレートに割り当てない", () => {
     const draft = buildRandomShiftSetupDraft({
       pattern: { kind: "dateOnly" },
       positionIds: ["hall"],
@@ -210,7 +210,7 @@ describe("buildRandomShiftSetupDraft", () => {
     ]);
   });
 
-  it("曜日がすべて定休日のまとまりは型を作らない", () => {
+  it("曜日がすべて定休日のまとまりはテンプレートを作らない", () => {
     const draft = buildRandomShiftSetupDraft({
       pattern: { kind: "dateOnly" },
       positionIds: ["hall"],
@@ -263,7 +263,7 @@ describe("buildRandomShiftSetupDraft", () => {
     ]);
   });
 
-  it("ポジションがなければ、必要人数を入れずに型だけを返す", () => {
+  it("ポジションがなければ、必要人数を入れずにテンプレートだけを返す", () => {
     const build = (pattern: ShiftSubmissionPattern) =>
       buildRandomShiftSetupDraft({ pattern, positionIds: [], regularClosedDays: [], random: () => 0 }).map(
         (template) => template.requirements,

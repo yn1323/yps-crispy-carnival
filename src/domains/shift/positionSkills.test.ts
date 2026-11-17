@@ -13,7 +13,7 @@ describe("getPositionSkill", () => {
     { positionId: REGISTER, level: "unavailable" },
   ];
 
-  it("ポジションごとに設定した値（責任者、新人、入れない）を返す", () => {
+  it("ポジションごとに設定した値（リーダー、見習い、担当外）を返す", () => {
     const staff = { positionSkills };
 
     expect([HALL, KITCHEN, REGISTER].map((positionId) => getPositionSkill(staff, positionId))).toEqual([
@@ -23,16 +23,16 @@ describe("getPositionSkill", () => {
     ]);
   });
 
-  it("値のないポジションは標準を返す", () => {
+  it("値のないポジションは一人前を返す", () => {
     expect(getPositionSkill({ positionSkills }, "drink")).toBe("standard");
   });
 
-  it("ポジションの値を1つも持たないスタッフは、どのポジションでも標準を返す", () => {
+  it("ポジションの値を1つも持たないスタッフは、どのポジションでも一人前を返す", () => {
     expect(getPositionSkill({}, HALL)).toBe("standard");
     expect(getPositionSkill({ positionSkills: [] }, HALL)).toBe("standard");
   });
 
-  it("スタッフが分からない場合は標準を返す", () => {
+  it("スタッフが分からない場合は一人前を返す", () => {
     expect(getPositionSkill(undefined, HALL)).toBe("standard");
   });
 });
@@ -41,7 +41,7 @@ describe("collectNewcomerStaffIdsByPositionId", () => {
   const toPlain = (result: Map<string, Set<string>>) =>
     [...result].map(([positionId, staffIds]) => [positionId, [...staffIds].sort()]);
 
-  it("そのポジションで新人のスタッフだけを、ポジションごとに集める", () => {
+  it("そのポジションで見習いのスタッフだけを、ポジションごとに集める", () => {
     const result = collectNewcomerStaffIdsByPositionId([
       {
         id: "a",
@@ -71,7 +71,7 @@ describe("collectNewcomerStaffIdsByPositionId", () => {
     expect(toPlain(result)).toEqual([[HALL, ["active"]]]);
   });
 
-  it("新人が1人もいなければ、空の結果を返す", () => {
+  it("見習いが1人もいなければ、空の結果を返す", () => {
     const result = collectNewcomerStaffIdsByPositionId([
       { id: "a", positionSkills: [{ positionId: HALL, level: "lead" }] },
       { id: "b" },

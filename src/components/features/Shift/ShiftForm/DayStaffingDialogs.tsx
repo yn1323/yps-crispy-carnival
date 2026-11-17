@@ -1,18 +1,15 @@
 import { Box, Checkbox, Flex, Stack, Text } from "@chakra-ui/react";
 import { useAtom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
-import {
-  SHIFT_DAY_TEMPLATE_BAR_LIMIT,
-  SHIFT_DAY_TEMPLATE_CONCURRENT_BAR_LIMIT,
-  SHIFT_DAY_TEMPLATE_REQUIRED_COUNT_MAX,
-} from "@/convex/constants";
+import { SHIFT_DAY_TEMPLATE_CONCURRENT_BAR_LIMIT, SHIFT_DAY_TEMPLATE_REQUIRED_COUNT_MAX } from "@/convex/constants";
 import { getEditableEndMinutes, getEditableStartMinutes } from "@/src/components/shared/ShiftTimeline/timelineGeometry";
-import { RequiredCountStrip, StaffingBarEditor } from "@/src/components/shared/StaffingBarEditor";
+import { StaffingCountBandEditor } from "@/src/components/shared/StaffingCountBandEditor";
 import { StaffingCountTable } from "@/src/components/shared/StaffingCountTable";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
 import { Select, type SelectItemType } from "@/src/components/ui/Select";
 import { formatDateWithWeekday } from "@/src/domains/shift/date";
+import { toStaffingDisplayPositions } from "@/src/domains/shift/operations";
 import {
   BULK_RESET_VALUE,
   type BulkApplyPreset,
@@ -33,18 +30,13 @@ import { useDayStaffingEditor } from "./staffingParts";
 import { buildDayTemplateView } from "./staffingPresentation";
 import { dayStaffingDialogAtom, shiftConfigAtom } from "./stores";
 
-const BAR_LIMITS = {
-  maxConcurrentPerPosition: SHIFT_DAY_TEMPLATE_CONCURRENT_BAR_LIMIT,
-  maxBars: SHIFT_DAY_TEMPLATE_BAR_LIMIT,
-};
-
 const BULK_PRESETS: ReadonlyArray<{ preset: BulkApplyPreset; label: string }> = [
   { preset: "weekday", label: "平日" },
   { preset: "weekend", label: "土日" },
   { preset: "all", label: "すべて" },
 ];
 
-/** 募集期間の日をチェックで選び、同じ型を1回で当てるDialog。 */
+/** 募集期間の日をチェックで選び、同じテンプレートを1回で当てるDialog。 */
 const BulkApplyDialog = () => {
   const [target, setTarget] = useAtom(dayStaffingDialogAtom);
   const config = useAtomValue(shiftConfigAtom);
@@ -84,7 +76,7 @@ const BulkApplyDialog = () => {
 
   return (
     <Dialog
-      title="型をまとめて変える"
+      title="テンプレートをまとめて変える"
       isOpen={isOpen}
       onOpenChange={(details) => {
         if (!details.open) close();
@@ -100,11 +92,11 @@ const BulkApplyDialog = () => {
     >
       <Stack gap={4}>
         <Select
-          label="当てる型"
+          label="当てるテンプレート"
           items={templateItems}
           value={choice}
           onChange={setChoice}
-          placeholder="型を選択"
+          placeholder="テンプレートを選択"
           usePortal={false}
         />
         <Stack gap={2}>
@@ -185,7 +177,7 @@ const BulkApplyDialog = () => {
                     borderColor="gray.300"
                     _checked={{ bg: "teal.500", borderColor: "teal.500" }}
                   />
-                  {/* 読み上げる名前は日付だけにする。いまの型は、行の補足として見せる。 */}
+                  {/* 読み上げる名前は日付だけにする。いまのテンプレートは、行の補足として見せる。 */}
                   <Checkbox.Label
                     aria-label={dateLabel}
                     display="flex"
@@ -212,7 +204,7 @@ const BulkApplyDialog = () => {
   );
 };
 
-/** その日だけの必要人数を変えるDialog。いまの必要人数を初期値にし、型は変えない。 */
+/** その日だけの必要人数を変えるDialog。いまの必要人数を初期値にし、テンプレートは変えない。 */
 const CustomRequirementsDialog = () => {
   const [target, setTarget] = useAtom(dayStaffingDialogAtom);
   const config = useAtomValue(shiftConfigAtom);
@@ -221,7 +213,9 @@ const CustomRequirementsDialog = () => {
   const [draft, setDraft] = useState<DayRequirementsDraft | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const { positions, submissionPattern, timeRange } = config;
+  const { submissionPattern, timeRange } = config;
+  // ポジションを分けていない店舗では、仮の名前を見せず、店全体の人数として出す。
+  const positions = useMemo(() => toStaffingDisplayPositions(config.positions), [config.positions]);
   const date = target?.kind === "custom" ? target.date : null;
   const day = date ? config.staffing?.days.find((item) => item.date === date) : undefined;
 
@@ -282,20 +276,15 @@ const CustomRequirementsDialog = () => {
           {describeCustomRequirements(buildDayTemplateView(day).templateName)}
         </Text>
         {draft?.kind === "time" && (
-          <>
-            <StaffingBarEditor
-              positions={positions}
-              bars={draft.bars}
-              onChange={(bars) => updateDraft({ kind: "time", bars })}
-              range={range}
-              limits={BAR_LIMITS}
-              formPresentation="inline"
-            />
-            {/* 狭い画面では、できあがる必要人数をバーの表の中に出すため、ここは空になる。 */}
-            <Box pt={3} borderTopWidth="1px" borderColor="gray.200" _empty={{ display: "none" }}>
-              <RequiredCountStrip positions={positions} bars={draft.bars} range={range} />
-            </Box>
-          </>
+          // Dialogの上に吹き出しを重ねないよう、人数を選ぶ欄は帯のすぐ下に出す。
+          <StaffingCountBandEditor
+            positions={positions}
+            segments={draft.segments}
+            onChange={(segments) => updateDraft({ kind: "time", segments })}
+            range={range}
+            maxCount={SHIFT_DAY_TEMPLATE_CONCURRENT_BAR_LIMIT}
+            formPresentation="inline"
+          />
         )}
         {draft?.kind === "counts" && (
           <StaffingCountTable
@@ -313,7 +302,7 @@ const CustomRequirementsDialog = () => {
         )}
         <Flex align="center" columnGap={3} rowGap={1} wrap="wrap" pt={3} borderTopWidth="1px" borderColor="gray.200">
           <Text textStyle="xs" color="gray.600">
-            毎週の人数を変えるには型を編集します
+            毎週の人数を変えるにはテンプレートを編集します
           </Text>
           {onOpenSetup && (
             <Button
@@ -336,7 +325,7 @@ const CustomRequirementsDialog = () => {
   );
 };
 
-/** その日の型のメニューから開くDialog。シフト表に1つだけ置く。 */
+/** その日のテンプレートのメニューから開くDialog。シフト表に1つだけ置く。 */
 export const DayStaffingDialogs = () => (
   <>
     <BulkApplyDialog />

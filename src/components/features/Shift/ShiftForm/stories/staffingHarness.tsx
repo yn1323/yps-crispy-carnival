@@ -23,7 +23,7 @@ export const staffingCounts = (counts: readonly CountSpec[]) =>
 
 export type StoryTemplate = { id: string; name: string; requirements: ShiftFormDayRequirements };
 
-/** 曜日の設定で型が当たっている日。 */
+/** 曜日の設定でテンプレートが当たっている日。 */
 export const templateDay = (
   date: string,
   template: StoryTemplate,
@@ -36,7 +36,7 @@ export const templateDay = (
   requirements: template.requirements,
 });
 
-/** 型が当たらない日。 */
+/** テンプレートが当たらない日。 */
 export const unsetDay = (date: string): ShiftFormStaffingDay => ({
   date,
   source: "none",
@@ -78,7 +78,7 @@ const visuallyHidden = {
 } as const;
 
 type HarnessProps = ShiftFormArgs & {
-  /** 当てたときに、その日の必要人数になる型。 */
+  /** 当てたときに、その日の必要人数になるテンプレート。 */
   templates: readonly StoryTemplate[];
   /** その日だけの指定を消したときに戻る、曜日の設定の必要人数。渡さない場合は、最初の必要人数へ戻す。 */
   weekdayDays?: readonly ShiftFormStaffingDay[];

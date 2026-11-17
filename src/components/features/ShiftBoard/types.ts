@@ -65,15 +65,15 @@ export type ShiftBoardData = {
 /** シフト表の「くわしく」表示に使う、日ごとの必要人数、店舗の設定、スタッフの属性。 */
 export type ShiftBoardStaffingData = {
   breakRule: { minWorkMinutes: number; breakMinutes: number } | null;
-  /** ポジションごとの値（入れない、新人、責任者）を持つスタッフ。標準のポジションと、値のないスタッフは含まない。 */
+  /** ポジションごとの値（担当外、見習い、リーダー）を持つスタッフ。一人前のポジションと、値のないスタッフは含まない。 */
   staffProfiles: Array<{
     staffId: Id<"staffs">;
     positionSkills: Array<{ positionId: Id<"positions">; level: "unavailable" | "newcomer" | "lead" }>;
   }>;
   hasPreviousConfirmedRecruitment: boolean;
-  /** 確定済みで、型の当て直しとその日だけの変更ができない。 */
+  /** 確定済みで、テンプレートの当て直しとその日だけの変更ができない。 */
   isLocked: boolean;
-  /** その日に当てられる型。 */
+  /** その日に当てられるテンプレート。 */
   templates: Array<{ _id: Id<"shiftDayTemplates">; name: string }>;
   /** 募集期間の全日。requirementsがnullの日は未設定として扱う。 */
   days: Array<{

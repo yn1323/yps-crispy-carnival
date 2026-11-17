@@ -11,7 +11,7 @@ export type AssignmentWarningCode =
   | "NOT_SUBMITTED" // 未提出スタッフが勤務に入っている
   | "OFF_REQUEST" // 休み希望の日に勤務が入っている
   | "OUTSIDE_REQUESTED_TIME" // 希望時間の枠外にはみ出した勤務（時間指定の募集・パターン選択の募集）
-  | "POSITION_UNAVAILABLE"; // スタッフが入れないポジションの勤務
+  | "POSITION_UNAVAILABLE"; // スタッフが担当外のポジションの勤務
 
 export type AssignmentWarning = {
   code: AssignmentWarningCode;
@@ -28,7 +28,7 @@ export type AssignmentWarningInput = {
   shifts: ShiftData[];
   staffs: Array<{ id: string; isSubmitted: boolean; positionSkills?: readonly StaffPositionSkill[] }>;
   pattern: AssignmentWarningPattern;
-  // ポジション名。入れないポジションの確認事項に使う。
+  // ポジション名。担当外のポジションの確認事項に使う。
   positions?: ReadonlyArray<{ id: string; name: string }>;
 };
 
@@ -56,7 +56,7 @@ export function computeAssignmentWarnings(input: AssignmentWarningInput): Assign
     const add = (code: AssignmentWarningCode, message: string) =>
       warnings.push({ code, date: shift.date, staffId: shift.staffId, message });
 
-    // 入れないポジションは、希望との食い違いより先に知らせる。1セル1件の決まりは保つ。
+    // 担当外のポジションは、希望との食い違いより先に知らせる。1セル1件の決まりは保つ。
     const staff = staffById.get(shift.staffId);
     const unavailableNames = [
       ...new Set(
@@ -66,7 +66,7 @@ export function computeAssignmentWarnings(input: AssignmentWarningInput): Assign
       ),
     ];
     if (unavailableNames.length > 0) {
-      add("POSITION_UNAVAILABLE", `入れないポジションの勤務があります（${unavailableNames.join("・")}）`);
+      add("POSITION_UNAVAILABLE", `担当外のポジションの勤務があります（${unavailableNames.join("・")}）`);
       continue;
     }
 

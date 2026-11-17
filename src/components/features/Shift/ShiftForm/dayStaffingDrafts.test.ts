@@ -28,12 +28,13 @@ const dateOnlyPattern: ShiftSubmissionPattern = { kind: "dateOnly" };
 const positionIds = ["hall", "kitchen"];
 
 describe("buildDayRequirementsDraft", () => {
-  it("時間指定は、いまのバーに編集用のidを振って初期値にする", () => {
+  it("時間指定は、いまのバーの重なった本数を、時間ごとの人数の区間にして初期値にする", () => {
     const draft = buildDayRequirementsDraft(
       {
         kind: "time",
         bars: [
           { positionId: "hall", startTime: "09:00", endTime: "14:00" },
+          { positionId: "hall", startTime: "11:00", endTime: "14:00" },
           { positionId: "kitchen", startTime: "11:00", endTime: "22:00" },
         ],
       },
@@ -42,9 +43,10 @@ describe("buildDayRequirementsDraft", () => {
 
     expect(draft).toEqual({
       kind: "time",
-      bars: [
-        { id: "bar-1", positionId: "hall", start: "09:00", end: "14:00" },
-        { id: "bar-2", positionId: "kitchen", start: "11:00", end: "22:00" },
+      segments: [
+        { positionId: "hall", startTime: "09:00", endTime: "11:00", count: 1 },
+        { positionId: "hall", startTime: "11:00", endTime: "14:00", count: 2 },
+        { positionId: "kitchen", startTime: "11:00", endTime: "22:00", count: 1 },
       ],
     });
   });
@@ -79,7 +81,7 @@ describe("buildDayRequirementsDraft", () => {
   });
 
   it("未設定の日は、集め方に合わせた空の状態から始める", () => {
-    expect(buildDayRequirementsDraft(null, timePattern)).toEqual({ kind: "time", bars: [] });
+    expect(buildDayRequirementsDraft(null, timePattern)).toEqual({ kind: "time", segments: [] });
     expect(buildDayRequirementsDraft(null, shiftTypePattern)).toEqual({ kind: "counts", counts: {} });
     expect(buildDayRequirementsDraft(null, dateOnlyPattern)).toEqual({
       kind: "counts",
@@ -117,13 +119,13 @@ describe("setDraftCount", () => {
 });
 
 describe("toDayRequirements", () => {
-  it("時間指定は、編集用のidを外し、開始と終了を保存する名前へ直す", () => {
+  it("時間指定は、人数の分だけバーを重ね、同じ人数以上が続く時間を1本のバーにして送る", () => {
     const requirements = toDayRequirements(
       {
         kind: "time",
-        bars: [
-          { id: "bar-1", positionId: "hall", start: "09:00", end: "14:00" },
-          { id: "bar-3", positionId: "hall", start: "09:00", end: "14:00" },
+        segments: [
+          { positionId: "hall", startTime: "09:00", endTime: "11:00", count: 1 },
+          { positionId: "hall", startTime: "11:00", endTime: "14:00", count: 2 },
         ],
       },
       timePattern,
@@ -134,9 +136,23 @@ describe("toDayRequirements", () => {
       kind: "time",
       bars: [
         { positionId: "hall", startTime: "09:00", endTime: "14:00" },
-        { positionId: "hall", startTime: "09:00", endTime: "14:00" },
+        { positionId: "hall", startTime: "11:00", endTime: "14:00" },
       ],
     });
+  });
+
+  it("読み込んだ必要人数をそのまま保存する形へ戻すと、時間ごとの人数が変わらない", () => {
+    const saved = {
+      kind: "time" as const,
+      bars: [
+        { positionId: "hall", startTime: "11:00", endTime: "22:00" },
+        { positionId: "hall", startTime: "09:00", endTime: "14:00" },
+      ],
+    };
+    const requirements = toDayRequirements(buildDayRequirementsDraft(saved, timePattern), timePattern, positionIds);
+
+    // バーの置き方は変わるが、09:00〜11:00 が1人、11:00〜14:00 が2人、14:00〜22:00 が1人のままである。
+    expect(buildDayRequirementsDraft(requirements, timePattern)).toEqual(buildDayRequirementsDraft(saved, timePattern));
   });
 
   it("パターン選択は、0人のマスと、人数のない勤務パターンを送らず、設定の順に並べる", () => {
@@ -193,13 +209,13 @@ describe("findDayRequirementsError", () => {
     expect(findDayRequirementsError({ kind: "time", bars: [] }, timePattern)).toBeNull();
   });
 
-  it("受付時間の外に出たバーは、サーバーと同じ文で止める", () => {
+  it("受付時間の外に出た人数は、サーバーと同じ文で止める", () => {
     expect(
       findDayRequirementsError(
         { kind: "time", bars: [{ positionId: "hall", startTime: "08:00", endTime: "12:00" }] },
         timePattern,
       ),
-    ).toBe("受付時間の外に出ているバーがあります");
+    ).toBe("受付時間の外に人数が入っています");
   });
 
   it("上限を超える人数は、サーバーと同じ文で止める", () => {
@@ -216,12 +232,12 @@ describe("formatDayRequirementsTitle / describeCustomRequirements", () => {
     expect(formatDayRequirementsTitle("2026-06-03")).toBe("6月3日（水）の必要人数");
   });
 
-  it("型が当たっている日は、その型が変わらないことを名前で伝える", () => {
-    expect(describeCustomRequirements("通常")).toBe("この日だけの変更です。型「通常」は変わりません。");
+  it("テンプレートが当たっている日は、そのテンプレートが変わらないことを名前で伝える", () => {
+    expect(describeCustomRequirements("通常")).toBe("この日だけの変更です。テンプレート「通常」は変わりません。");
   });
 
-  it("型の名前が分からない日は、名前を出さずに伝える", () => {
-    expect(describeCustomRequirements(null)).toBe("この日だけの変更です。型は変わりません。");
+  it("テンプレートの名前が分からない日は、名前を出さずに伝える", () => {
+    expect(describeCustomRequirements(null)).toBe("この日だけの変更です。テンプレートは変わりません。");
   });
 });
 
@@ -246,7 +262,7 @@ describe("buildBulkApplyRows / selectBulkApplyDates", () => {
     ],
   });
 
-  it("募集期間の日ごとに、いまの型、定休日、土日を返す", () => {
+  it("募集期間の日ごとに、いまのテンプレート、定休日、土日を返す", () => {
     expect(rows).toEqual([
       { date: "2026-06-05", templateLabel: "通常", isClosed: false, isWeekend: false },
       { date: "2026-06-06", templateLabel: "未設定", isClosed: true, isWeekend: true },
@@ -261,7 +277,7 @@ describe("buildBulkApplyRows / selectBulkApplyDates", () => {
     expect(selectBulkApplyDates(rows, "all")).toEqual(["2026-06-05", "2026-06-07", "2026-06-08"]);
   });
 
-  it("型の選択は、型のIDをそのまま返し、「曜日の設定に戻す」をnullにする", () => {
+  it("テンプレートの選択は、テンプレートのIDをそのまま返し、「曜日の設定に戻す」をnullにする", () => {
     expect(toBulkTemplateId("template-1")).toBe("template-1");
     expect(toBulkTemplateId(BULK_RESET_VALUE)).toBeNull();
   });

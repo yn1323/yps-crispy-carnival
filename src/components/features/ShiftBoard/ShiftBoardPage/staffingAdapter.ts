@@ -8,7 +8,7 @@ import type { ShiftBoardStaffingData } from "../types";
 
 /**
  * サーバーが解決した日ごとの必要人数を、ShiftFormへ渡す形にする。
- * 日ごとの必要人数はそのまま渡し、型のIDだけをShiftFormの名前へ直す。
+ * 日ごとの必要人数はそのまま渡し、テンプレートのIDだけをShiftFormの名前へ直す。
  * 休憩の決まりは、値が同じ間は同じ参照を保つため、呼び出し元でまとめたものを受け取る。
  */
 export const toShiftFormStaffing = (
@@ -28,7 +28,7 @@ export const toShiftFormStaffing = (
 });
 
 /**
- * スタッフごとの、ポジションの値（入れない、新人、責任者）を、staffIdから引ける形にする。
+ * スタッフごとの、ポジションの値（担当外、見習い、リーダー）を、staffIdから引ける形にする。
  * 値を1つも持たないスタッフは、結果に含めない。
  */
 export const toPositionSkillsByStaffId = (
@@ -43,7 +43,7 @@ export const toPositionSkillsByStaffId = (
       ]),
   );
 
-/** ShiftFormが返す型のIDを、mutationの引数へ直す。nullは、その日だけの指定を消すことを表す。 */
+/** ShiftFormが返すテンプレートのIDを、mutationの引数へ直す。nullは、その日だけの指定を消すことを表す。 */
 export const toDayTemplateIdArg = (templateId: string | null): Id<"shiftDayTemplates"> | null =>
   templateId as Id<"shiftDayTemplates"> | null;
 

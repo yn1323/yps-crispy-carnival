@@ -386,9 +386,21 @@ describe("findDayTemplateIssue", () => {
     ).toBeNull();
   });
 
-  it("型の数は上限ちょうどまで受け付け、1件でも超えると違反にする", () => {
+  it("同じ曜日や祝日を、複数のテンプレートで選べる", () => {
+    expect(
+      findDayTemplateIssue({
+        pattern: TIME_PATTERN,
+        templates: [
+          template({ name: "金曜", weekdays: ["fri"], appliesToHolidays: true }),
+          template({ name: "金曜（繁忙期）", weekdays: ["fri"], appliesToHolidays: true }),
+        ],
+      }),
+    ).toBeNull();
+  });
+
+  it("テンプレートの数は上限ちょうどまで受け付け、1件でも超えると違反にする", () => {
     const templates = Array.from({ length: SHIFT_DAY_TEMPLATE_LIMIT + 1 }, (_, index) =>
-      template({ name: `型${index}` }),
+      template({ name: `テンプレート${index}` }),
     );
 
     expect(
@@ -415,22 +427,9 @@ describe("findDayTemplateIssue", () => {
       issue: "NAME_DUPLICATED",
     },
     {
-      name: "同じ曜日を2つの型に割り当てる",
-      templates: [template({ name: "平日", weekdays: ["mon", "tue"] }), template({ name: "火曜", weekdays: ["tue"] })],
-      issue: "WEEKDAY_DUPLICATED",
-    },
-    {
-      name: "1つの型に同じ曜日を2回入れる",
+      name: "1つのテンプレートに同じ曜日を2回入れる",
       templates: [template({ weekdays: ["mon", "mon"] })],
       issue: "WEEKDAY_DUPLICATED",
-    },
-    {
-      name: "祝日に使う型を2つ選ぶ",
-      templates: [
-        template({ name: "祝日", appliesToHolidays: true }),
-        template({ name: "年末年始", appliesToHolidays: true }),
-      ],
-      issue: "HOLIDAY_DUPLICATED",
     },
     {
       name: "必要人数の種類が店舗の集め方と違う",
@@ -438,7 +437,7 @@ describe("findDayTemplateIssue", () => {
       issue: "REQUIREMENTS_KIND_MISMATCH",
     },
     {
-      name: "2つ目の型のバーが30分刻みでない",
+      name: "2つ目のテンプレートのバーが30分刻みでない",
       templates: [
         template({ name: "平日" }),
         template({ name: "週末", requirements: timeRequirements([bar("hall", "10:10", "12:00")]) }),
@@ -680,7 +679,7 @@ describe("resolveDayStaffing", () => {
   const resolve = (date: string, overrides: DayStaffingOverride[] = [], usedTemplates = templates) =>
     resolveDayStaffing({ date, templates: usedTemplates, overrides, holidayDates });
 
-  it("指定も祝日もない日は、曜日の型を当てる", () => {
+  it("指定も祝日もない日は、曜日のテンプレートを当てる", () => {
     expect(resolve("2026-01-13")).toEqual({
       source: "weekday",
       templateId: "weekday",
@@ -695,11 +694,11 @@ describe("resolveDayStaffing", () => {
     });
   });
 
-  it("どの型にも割り当てていない曜日は、未設定にする", () => {
+  it("どのテンプレートにも割り当てていない曜日は、未設定にする", () => {
     expect(resolve("2026-01-18")).toEqual({ source: "none", templateId: null, templateName: null, requirements: null });
   });
 
-  it("祝日は、曜日の型より祝日に使う型を優先する", () => {
+  it("祝日は、曜日のテンプレートより祝日に使うテンプレートを優先する", () => {
     expect(resolve("2026-01-12")).toEqual({
       source: "holiday",
       templateId: "holiday",
@@ -708,7 +707,7 @@ describe("resolveDayStaffing", () => {
     });
   });
 
-  it("祝日に使う型がなければ、祝日でも曜日の型を当てる", () => {
+  it("祝日に使うテンプレートがなければ、祝日でも曜日のテンプレートを当てる", () => {
     const withoutHolidayTemplate = templates.filter((item) => !item.appliesToHolidays);
 
     expect(resolve("2026-01-12", [], withoutHolidayTemplate)).toEqual({
@@ -719,7 +718,26 @@ describe("resolveDayStaffing", () => {
     });
   });
 
-  it("その日だけ当てた型は、祝日に使う型と曜日の型より優先する", () => {
+  it("同じ曜日や祝日を選んだテンプレートが複数あれば、並びの先頭のテンプレートを当てる", () => {
+    const busyRequirements = timeRequirements([bar("hall", "09:00", "15:00")]);
+    const withBusyTemplate: DayTemplate[] = [
+      ...templates,
+      { id: "busy", name: "繁忙期", weekdays: ["tue"], appliesToHolidays: true, requirements: busyRequirements },
+    ];
+
+    expect(resolve("2026-01-12", [], withBusyTemplate)).toMatchObject({ source: "holiday", templateId: "holiday" });
+    expect(resolve("2026-01-13", [], withBusyTemplate)).toMatchObject({ source: "weekday", templateId: "weekday" });
+    expect(resolve("2026-01-12", [], withBusyTemplate.toReversed())).toMatchObject({
+      source: "holiday",
+      templateId: "busy",
+    });
+    expect(resolve("2026-01-13", [], withBusyTemplate.toReversed())).toMatchObject({
+      source: "weekday",
+      templateId: "busy",
+    });
+  });
+
+  it("その日だけ当てたテンプレートは、祝日に使うテンプレートと曜日のテンプレートより優先する", () => {
     const overrides: DayStaffingOverride[] = [
       { date: "2026-01-12", kind: "template", templateId: "yearEnd" },
       { date: "2026-01-13", kind: "template", templateId: "weekend" },
@@ -742,7 +760,7 @@ describe("resolveDayStaffing", () => {
     expect(resolve("2026-01-17", overrides)).toMatchObject({ source: "weekday", templateId: "weekend" });
   });
 
-  it("その日だけの必要人数は、祝日に使う型と曜日の型より優先し、型を持たない", () => {
+  it("その日だけの必要人数は、祝日に使うテンプレートと曜日のテンプレートより優先し、テンプレートを持たない", () => {
     const overrides: DayStaffingOverride[] = [{ date: "2026-01-12", kind: "custom", requirements: customRequirements }];
 
     expect(resolve("2026-01-12", overrides)).toEqual({
@@ -753,7 +771,7 @@ describe("resolveDayStaffing", () => {
     });
   });
 
-  it("削除済みの型を指す指定は無視し、祝日なら祝日に使う型、そうでなければ曜日の型へ落とす", () => {
+  it("削除済みのテンプレートを指す指定は無視し、祝日なら祝日に使うテンプレート、そうでなければ曜日のテンプレートへ落とす", () => {
     const overrides: DayStaffingOverride[] = [
       { date: "2026-01-12", kind: "template", templateId: "deleted" },
       { date: "2026-01-13", kind: "template", templateId: "deleted" },

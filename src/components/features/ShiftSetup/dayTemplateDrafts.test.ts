@@ -1,11 +1,23 @@
 import { describe, expect, it } from "vitest";
 import type { Id } from "@/convex/_generated/dataModel";
-import { SHIFT_DAY_TEMPLATE_LIMIT, SHIFT_DAY_TEMPLATE_REQUIRED_COUNT_MAX } from "@/convex/constants";
-import { toEditableStaffingBars, trimBarsToRange } from "@/src/domains/shift/staffingBars";
+import {
+  SHIFT_DAY_TEMPLATE_BAR_LIMIT,
+  SHIFT_DAY_TEMPLATE_CONCURRENT_BAR_LIMIT,
+  SHIFT_DAY_TEMPLATE_LIMIT,
+  SHIFT_DAY_TEMPLATE_REQUIRED_COUNT_MAX,
+} from "@/convex/constants";
+import {
+  barsToStaffingSegments,
+  type StaffingSegment,
+  setStaffingCount,
+  trimSegmentsToRange,
+} from "@/src/domains/shift/staffingSegments";
+import { timeToMinutes } from "@/src/domains/shift/time";
 import {
   ALL_DAY_ROW_ID,
-  changeDayTemplateBars,
+  changeDayTemplateSegments,
   changeRequiredCount,
+  clearDayTemplateWeekdays,
   copyDayTemplateRequirements,
   createDayTemplateDraft,
   findDayTemplateDraftIssues,
@@ -14,7 +26,7 @@ import {
   getDayTemplateLabel,
   getRequiredCountRows,
   getRequiredCountTableCounts,
-  getStaffingBarRange,
+  getStaffingSegmentRange,
   getUnassignedWeekdays,
   hasPendingDayTemplateChanges,
   isSameDayTemplateInputs,
@@ -22,6 +34,7 @@ import {
   needsDayTemplateReentry,
   removeDayTemplate,
   renameDayTemplate,
+  reorderDayTemplates,
   resolveSelectedDayTemplate,
   toDayTemplateDrafts,
   toDayTemplateDraftsFromSuggestion,
@@ -56,8 +69,37 @@ const timeContext = { positions, pattern: timePattern };
 
 const bar = (positionId: string, start: string, end: string) => ({ positionId, start, end });
 
+const seg = (positionId: string, startTime: string, endTime: string, count: number): StaffingSegment => ({
+  positionId,
+  startTime,
+  endTime,
+  count,
+});
+
+/** 重ねたバーの本数から、編集中の人数の区間を作る。 */
 function timeRequirements(...bars: ReturnType<typeof bar>[]): DayTemplateRequirementsDraft {
-  return { kind: "time", bars: toEditableStaffingBars(bars) };
+  return { kind: "time", segments: barsToStaffingSegments(bars) };
+}
+
+/** 編集中のテンプレートの、1つの範囲の人数を置き換える。 */
+function setCount(
+  drafts: readonly DayTemplateDraft[],
+  rowKey: string,
+  range: { positionId: string; start: string; end: string; count: number },
+) {
+  const target = drafts.find((item) => item.rowKey === rowKey);
+  const segments = target?.requirements.kind === "time" ? target.requirements.segments : [];
+  return changeDayTemplateSegments(
+    drafts,
+    rowKey,
+    setStaffingCount({
+      segments,
+      positionId: range.positionId,
+      startMinutes: timeToMinutes(range.start),
+      endMinutes: timeToMinutes(range.end),
+      count: range.count,
+    }),
+  );
 }
 
 function draft(overrides: Partial<DayTemplateDraft> = {}): DayTemplateDraft {
@@ -84,8 +126,8 @@ function savedTemplate(overrides: Partial<ShiftSetupDayTemplate> = {}): ShiftSet
   };
 }
 
-describe("保存済みの型を編集中の形へ直す", () => {
-  it("時間指定は、バーの時刻の名前を直し、型の中で一意なidを振る。受付時間の外のバーも残す", () => {
+describe("保存済みのテンプレートを編集中の形へ直す", () => {
+  it("時間指定は、重なったバーの本数を、時間ごとの人数の区間にする。受付時間の外の人数も残す", () => {
     const [converted] = toDayTemplateDrafts([
       savedTemplate({
         appliesToHolidays: true,
@@ -94,6 +136,7 @@ describe("保存済みの型を編集中の形へ直す", () => {
           bars: [
             { positionId: hall, startTime: "07:00", endTime: "10:00" },
             { positionId: hall, startTime: "11:00", endTime: "14:00" },
+            { positionId: hall, startTime: "11:00", endTime: "13:00" },
             { positionId: kitchen, startTime: "11:00", endTime: "14:00" },
           ],
         },
@@ -108,10 +151,11 @@ describe("保存済みの型を編集中の形へ直す", () => {
       appliesToHolidays: true,
       requirements: {
         kind: "time",
-        bars: [
-          { id: "bar-1", positionId: hall, start: "07:00", end: "10:00" },
-          { id: "bar-2", positionId: hall, start: "11:00", end: "14:00" },
-          { id: "bar-3", positionId: kitchen, start: "11:00", end: "14:00" },
+        segments: [
+          seg(hall, "07:00", "10:00", 1),
+          seg(hall, "11:00", "13:00", 2),
+          seg(hall, "13:00", "14:00", 1),
+          seg(kitchen, "11:00", "14:00", 1),
         ],
       },
       requiresReentry: false,
@@ -156,7 +200,7 @@ describe("保存済みの型を編集中の形へ直す", () => {
     expect(converted.requirements).toEqual({ kind: "dateOnly", counts: { [hall]: 4, [kitchen]: 2 } });
   });
 
-  it("集め方を変えたあとの型は、空の必要人数と、入れ直しの印を持つ", () => {
+  it("集め方を変えたあとのテンプレートは、空の必要人数と、入れ直しの印を持つ", () => {
     const [converted] = toDayTemplateDrafts([
       savedTemplate({ requirements: { kind: "dateOnly", counts: [] }, requiresReentry: true }),
     ]);
@@ -172,7 +216,7 @@ describe("保存済みの型を編集中の形へ直す", () => {
     expect(needsDayTemplateReentry(reentered)).toBe(false);
   });
 
-  it("AIの下書きは、idを持たない新しい型になり、バーの形で入る", () => {
+  it("AIの下書きは、idを持たない新しいテンプレートになり、時間ごとの人数の区間で入る", () => {
     let count = 0;
     const converted = toDayTemplateDraftsFromSuggestion(
       [
@@ -203,10 +247,7 @@ describe("保存済みの型を編集中の形へ直す", () => {
         appliesToHolidays: false,
         requirements: {
           kind: "time",
-          bars: [
-            { id: "bar-1", positionId: hall, start: "09:00", end: "22:00" },
-            { id: "bar-2", positionId: hall, start: "11:00", end: "14:00" },
-          ],
+          segments: [seg(hall, "09:00", "11:00", 1), seg(hall, "11:00", "14:00", 2), seg(hall, "14:00", "22:00", 1)],
         },
         requiresReentry: false,
       },
@@ -215,7 +256,7 @@ describe("保存済みの型を編集中の形へ直す", () => {
 });
 
 describe("保存する形への変換", () => {
-  it("バーのidと行の識別子を外し、曜日は日曜から、バーは開始・終了・ポジションの順に並べる", () => {
+  it("行の識別子を外し、曜日は日曜から、人数をバーへ変えて開始・終了・ポジションの順に並べる", () => {
     const inputs = toDayTemplateInputs(
       [
         draft({
@@ -261,7 +302,7 @@ describe("保存する形への変換", () => {
     ]);
   });
 
-  it("同じ時間のバーは、本数分をそのまま送る。隣り合うバーはつなげない", () => {
+  it("人数の分だけバーを重ね、同じ人数以上が続く時間は1本のバーにつなげて送る", () => {
     const [input] = toDayTemplateInputs(
       [
         draft({
@@ -277,15 +318,15 @@ describe("保存する形への変換", () => {
 
     expect(input.requirements).toEqual({
       kind: "time",
+      // 10:00〜14:00 が2人、14:00〜18:00 が1人。1人目の層は 10:00〜18:00 の1本になる。
       bars: [
         { positionId: hall, startTime: "10:00", endTime: "14:00" },
-        { positionId: hall, startTime: "10:00", endTime: "14:00" },
-        { positionId: hall, startTime: "14:00", endTime: "18:00" },
+        { positionId: hall, startTime: "10:00", endTime: "18:00" },
       ],
     });
   });
 
-  it("いまは無いポジションのバーと人数は送らない", () => {
+  it("いまは無いポジションの人数は送らない", () => {
     const [timeInput] = toDayTemplateInputs(
       [
         draft({
@@ -349,39 +390,55 @@ describe("変更の有無の判定", () => {
   ];
   const savedDrafts = toDayTemplateDrafts(saved);
   const savedInputs = toDayTemplateInputs(savedDrafts, timeContext);
-  const [savedDraft] = savedDrafts;
-  const savedBars = savedDraft.requirements.kind === "time" ? savedDraft.requirements.bars : [];
 
-  it("保存済みの型をそのまま直した値は、保存内容として同じとみなす", () => {
+  it("保存済みのテンプレートをそのまま直した値は、保存内容として同じとみなす", () => {
     expect(isSameDayTemplateInputs(toDayTemplateInputs(savedDrafts, timeContext), savedInputs)).toBe(true);
   });
 
-  it("バーのidと並びだけが違う値は、保存内容として同じとみなす", () => {
-    const reordered = changeDayTemplateBars(savedDrafts, templateId, [
-      { ...savedBars[1], id: "bar-9" },
-      { ...savedBars[0], id: "bar-8" },
+  it("バーの置き方が違っても、時間ごとの人数が同じなら、保存内容として同じとみなす", () => {
+    // 09:00〜14:00 と 11:00〜22:00 の2本。人数は、通しの1本に昼の1本を重ねた保存済みのテンプレートと同じになる。
+    const staggered = toDayTemplateDrafts([
+      savedTemplate({
+        requirements: {
+          kind: "time",
+          bars: [
+            { positionId: hall, startTime: "11:00", endTime: "22:00" },
+            { positionId: hall, startTime: "09:00", endTime: "14:00" },
+          ],
+        },
+      }),
     ]);
 
-    expect(isSameDayTemplateInputs(toDayTemplateInputs(reordered, timeContext), savedInputs)).toBe(true);
+    expect(isSameDayTemplateInputs(toDayTemplateInputs(staggered, timeContext), savedInputs)).toBe(true);
+    expect(hasPendingDayTemplateChanges(staggered, savedInputs, timeContext)).toBe(false);
+  });
+
+  it("人数を入れてから元の人数に戻すと、保存内容として同じに戻る", () => {
+    const changed = setCount(savedDrafts, templateId, { positionId: hall, start: "15:00", end: "17:00", count: 4 });
+    const restored = setCount(changed, templateId, { positionId: hall, start: "15:00", end: "17:00", count: 1 });
+
+    expect(hasPendingDayTemplateChanges(changed, savedInputs, timeContext)).toBe(true);
+    expect(hasPendingDayTemplateChanges(restored, savedInputs, timeContext)).toBe(false);
   });
 
   it.each([
-    ["バーを1本足す", changeDayTemplateBars(savedDrafts, templateId, [...savedBars, { ...savedBars[1], id: "bar-3" }])],
+    ["人数を増やす", setCount(savedDrafts, templateId, { positionId: hall, start: "11:00", end: "14:00", count: 3 })],
     [
-      "バーの終了を変える",
-      changeDayTemplateBars(savedDrafts, templateId, [savedBars[0], { ...savedBars[1], end: "15:00" }]),
+      "人数の多い時間を延ばす",
+      setCount(savedDrafts, templateId, { positionId: hall, start: "14:00", end: "15:00", count: 2 }),
     ],
+    ["人数を消す", setCount(savedDrafts, templateId, { positionId: hall, start: "09:00", end: "10:00", count: 0 })],
     ["名前を変える", renameDayTemplate(savedDrafts, templateId, "平日昼")],
     ["曜日を外す", toggleDayTemplateWeekday(savedDrafts, templateId, "tue")],
     ["祝日を選ぶ", toggleDayTemplateHoliday(savedDrafts, templateId)],
-    ["型を削除する", removeDayTemplate(savedDrafts, templateId)],
+    ["テンプレートを削除する", removeDayTemplate(savedDrafts, templateId)],
   ])("%sと、保存内容が変わる", (_, changed) => {
     expect(isSameDayTemplateInputs(toDayTemplateInputs(changed, timeContext), savedInputs)).toBe(false);
   });
 });
 
-describe("新しく足す型の初期値", () => {
-  it("最初の型は「通常」で、定休日を除くすべての曜日を持ち、祝日は選ばない", () => {
+describe("新しく足すテンプレートの初期値", () => {
+  it("最初のテンプレートは「通常」で、定休日を除くすべての曜日を持ち、祝日は選ばない", () => {
     expect(
       createDayTemplateDraft({ drafts: [], pattern: timePattern, regularClosedDays: ["wed"], rowKey: "new-1" }),
     ).toEqual({
@@ -389,9 +446,9 @@ describe("新しく足す型の初期値", () => {
       name: "通常",
       weekdays: ["sun", "mon", "tue", "thu", "fri", "sat"],
       appliesToHolidays: false,
-      requirements: { kind: "time", bars: [] },
+      requirements: { kind: "time", segments: [] },
       requiresReentry: false,
-      // 作ったときの名前と曜日を控え、何も入れていない型かを見分ける。
+      // 作ったときの名前と曜日を控え、何も入れていないテンプレートかを見分ける。
       initial: { name: "通常", weekdays: ["sun", "mon", "tue", "thu", "fri", "sat"] },
     });
   });
@@ -399,12 +456,12 @@ describe("新しく足す型の初期値", () => {
   it("2つ目以降は、まだ割り当てていない営業日と、重ならない名前を初期値にする", () => {
     const drafts = [
       draft({ rowKey: "a", name: "平日", weekdays: ["mon", "tue", "thu", "fri"] }),
-      draft({ rowKey: "b", name: "型3", weekdays: [] }),
+      draft({ rowKey: "b", name: "テンプレート3", weekdays: [] }),
     ];
 
     const added = createDayTemplateDraft({ drafts, pattern: timePattern, regularClosedDays: ["wed"], rowKey: "new-1" });
 
-    expect(added.name).toBe("型4");
+    expect(added.name).toBe("テンプレート4");
     expect(added.weekdays).toEqual(["sun", "sat"]);
   });
 
@@ -417,14 +474,14 @@ describe("新しく足す型の初期値", () => {
     ).toEqual(requirements);
   });
 
-  it("どの型にも割り当てていない曜日を返す", () => {
+  it("どのテンプレートにも割り当てていない曜日を返す", () => {
     expect(
       getUnassignedWeekdays([draft({ weekdays: ["mon", "tue", "wed", "thu"] }), draft({ weekdays: ["sat"] })]),
     ).toEqual(["sun", "fri"]);
   });
 });
 
-describe("作ったまま何も入れていない新しい型", () => {
+describe("作ったまま何も入れていない新しいテンプレート", () => {
   const saved = [
     savedTemplate({
       requirements: { kind: "time", bars: [{ positionId: hall, startTime: "09:00", endTime: "22:00" }] },
@@ -440,14 +497,14 @@ describe("作ったまま何も入れていない新しい型", () => {
   });
   const withAdded = [...savedDrafts, added];
 
-  it("足したままの型は、何も入れていない型で、保存していない変更に数えない", () => {
+  it("足したままのテンプレートは、何も入れていないテンプレートで、保存していない変更に数えない", () => {
     expect(isUntouchedNewDayTemplate(added)).toBe(true);
     expect(hasPendingDayTemplateChanges(withAdded, savedInputs, timeContext)).toBe(false);
-    // 保存する内容としては、型が1つ増えている。
+    // 保存する内容としては、テンプレートが1つ増えている。
     expect(isSameDayTemplateInputs(toDayTemplateInputs(withAdded, timeContext), savedInputs)).toBe(false);
   });
 
-  it("最初の型を作っただけのときも、保存していない変更に数えない", () => {
+  it("最初のテンプレートを作っただけのときも、保存していない変更に数えない", () => {
     const first = createDayTemplateDraft({ drafts: [], pattern: timePattern, regularClosedDays: [], rowKey: "new-1" });
 
     expect(hasPendingDayTemplateChanges([first], [], timeContext)).toBe(false);
@@ -457,14 +514,12 @@ describe("作ったまま何も入れていない新しい型", () => {
     ["名前を変える", renameDayTemplate(withAdded, "new-1", "土日")],
     ["名前の末尾に空白を足す", renameDayTemplate(withAdded, "new-1", `${added.name} `)],
     ["曜日を外す", toggleDayTemplateWeekday(withAdded, "new-1", "sat")],
-    ["別の型の曜日を移す", toggleDayTemplateWeekday(withAdded, "new-1", "mon")],
+    ["別のテンプレートと同じ曜日を選ぶ", toggleDayTemplateWeekday(withAdded, "new-1", "mon")],
+    ["曜日を指定しない", clearDayTemplateWeekdays(withAdded, "new-1")],
     ["祝日を選ぶ", toggleDayTemplateHoliday(withAdded, "new-1")],
-    [
-      "バーを1本足す",
-      changeDayTemplateBars(withAdded, "new-1", [{ id: "bar-1", positionId: hall, start: "10:00", end: "15:00" }]),
-    ],
-    ["ほかの型からコピーする", copyDayTemplateRequirements(withAdded, { fromRowKey: templateId, toRowKey: "new-1" })],
-  ])("足した型で%sと、保存していない変更に数える", (_, changed) => {
+    ["人数を入れる", changeDayTemplateSegments(withAdded, "new-1", [seg(hall, "10:00", "15:00", 1)])],
+    ["コピーする", copyDayTemplateRequirements(withAdded, { fromRowKey: templateId, toRowKey: "new-1" })],
+  ])("足したテンプレートで%sと、保存していない変更に数える", (_, changed) => {
     expect(isUntouchedNewDayTemplate(changed[1])).toBe(false);
     expect(hasPendingDayTemplateChanges(changed, savedInputs, timeContext)).toBe(true);
   });
@@ -472,7 +527,7 @@ describe("作ったまま何も入れていない新しい型", () => {
   it.each([
     [shiftTypePattern, { rowId: "early", positionId: hall, count: 2 }],
     [dateOnlyPattern, { rowId: ALL_DAY_ROW_ID, positionId: hall, count: 2 }],
-  ] as const)("数字で入れる型は、人数を入れると変更に数え、0へ戻すと数えない", (pattern, change) => {
+  ] as const)("数字で入れるテンプレートは、人数を入れると変更に数え、0へ戻すと数えない", (pattern, change) => {
     const first = createDayTemplateDraft({ drafts: [], pattern, regularClosedDays: [], rowKey: "new-1" });
     const context = { positions, pattern };
     const entered = changeRequiredCount([first], "new-1", change);
@@ -483,7 +538,7 @@ describe("作ったまま何も入れていない新しい型", () => {
     ).toBe(false);
   });
 
-  it("変えた名前と曜日を作ったときの値へ戻すと、何も入れていない型へ戻る", () => {
+  it("変えた名前と曜日を作ったときの値へ戻すと、何も入れていないテンプレートへ戻る", () => {
     const renamed = renameDayTemplate(withAdded, "new-1", "土日");
     const toggled = toggleDayTemplateWeekday(renamed, "new-1", "sat");
     expect(isUntouchedNewDayTemplate(toggled[1])).toBe(false);
@@ -494,14 +549,14 @@ describe("作ったまま何も入れていない新しい型", () => {
     expect(hasPendingDayTemplateChanges(restored, savedInputs, timeContext)).toBe(false);
   });
 
-  it("足した型が何も入れていなくても、保存済みの型を変えていれば変更に数える", () => {
+  it("足したテンプレートが何も入れていなくても、保存済みのテンプレートを変えていれば変更に数える", () => {
     const changed = renameDayTemplate(withAdded, templateId, "平日昼");
 
     expect(isUntouchedNewDayTemplate(changed[1])).toBe(true);
     expect(hasPendingDayTemplateChanges(changed, savedInputs, timeContext)).toBe(true);
   });
 
-  it("保存済みの型とAIの下書きは、何も入れていない新しい型として扱わない", () => {
+  it("保存済みのテンプレートとAIの下書きは、何も入れていない新しいテンプレートとして扱わない", () => {
     const emptySaved = toDayTemplateDrafts([savedTemplate()]);
     const suggested = toDayTemplateDraftsFromSuggestion(
       [{ name: "通常", weekdays: ["mon"], appliesToHolidays: false, requirements: { kind: "time", bars: [] } }],
@@ -514,52 +569,68 @@ describe("作ったまま何も入れていない新しい型", () => {
   });
 });
 
-describe("型の名前と削除", () => {
+describe("テンプレートの名前と削除", () => {
   const drafts = [draft({ rowKey: "a", name: "平日" }), draft({ rowKey: "b", name: "土日", weekdays: ["sat"] })];
 
-  it("名前を変えても、ほかの型と行の識別子は変わらない", () => {
+  it("名前を変えても、ほかのテンプレートと行の識別子は変わらない", () => {
     expect(renameDayTemplate(drafts, "b", "週末").map((item) => [item.rowKey, item.name])).toEqual([
       ["a", "平日"],
       ["b", "週末"],
     ]);
   });
 
-  it("削除すると、その型だけがなくなる", () => {
+  it("削除すると、そのテンプレートだけがなくなる", () => {
     expect(removeDayTemplate(drafts, "a").map((item) => item.rowKey)).toEqual(["b"]);
   });
 
-  it("名前が空の型は「名前のない型」と呼ぶ", () => {
-    expect(getDayTemplateLabel({ name: "  " })).toBe("名前のない型");
+  it("つかんだテンプレートを重ねた位置へ動かし、並びが変わると保存内容も変わる", () => {
+    const three = [...drafts, draft({ rowKey: "c", name: "祝日", weekdays: [], appliesToHolidays: true })];
+    const keys = (items: readonly { rowKey: string }[]) => items.map((item) => item.rowKey);
+
+    expect(keys(reorderDayTemplates(three, "c", "a"))).toEqual(["c", "a", "b"]);
+    expect(keys(reorderDayTemplates(three, "a", "c"))).toEqual(["b", "c", "a"]);
+    // 同じ位置へ重ねた場合と、一覧にないテンプレートは、並びを変えない。
+    expect(keys(reorderDayTemplates(three, "b", "b"))).toEqual(["a", "b", "c"]);
+    expect(keys(reorderDayTemplates(three, "unknown", "a"))).toEqual(["a", "b", "c"]);
+
+    const saved = toDayTemplateInputs(three, timeContext);
+    expect(isSameDayTemplateInputs(toDayTemplateInputs(reorderDayTemplates(three, "c", "a"), timeContext), saved)).toBe(
+      false,
+    );
+  });
+
+  it("名前が空のテンプレートは「名前のないテンプレート」と呼ぶ", () => {
+    expect(getDayTemplateLabel({ name: "  " })).toBe("名前のないテンプレート");
     expect(getDayTemplateLabel({ name: " 祝日 " })).toBe("祝日");
   });
 });
 
-describe("編集する型の選択", () => {
+describe("編集するテンプレートの選択", () => {
   const drafts = [draft({ rowKey: "a" }), draft({ rowKey: "b" }), draft({ rowKey: "c" })];
 
-  it("選んだ型が一覧にあれば、その型を返す", () => {
+  it("選んだテンプレートが一覧にあれば、そのテンプレートを返す", () => {
     expect(resolveSelectedDayTemplate(drafts, { rowKey: "b", index: 0 })?.rowKey).toBe("b");
   });
 
-  it("何も選んでいなければ、先頭の型を返す", () => {
+  it("何も選んでいなければ、先頭のテンプレートを返す", () => {
     expect(resolveSelectedDayTemplate(drafts, { rowKey: null, index: 0 })?.rowKey).toBe("a");
   });
 
-  it("途中の型を削除したあとは、すぐ下にあった型へ移る", () => {
+  it("途中のテンプレートを削除したあとは、すぐ下にあったテンプレートへ移る", () => {
     expect(resolveSelectedDayTemplate(removeDayTemplate(drafts, "b"), { rowKey: null, index: 1 })?.rowKey).toBe("c");
   });
 
-  it("最後の型を削除したあとは、すぐ上の型へ移る", () => {
+  it("最後のテンプレートを削除したあとは、すぐ上のテンプレートへ移る", () => {
     expect(resolveSelectedDayTemplate(removeDayTemplate(drafts, "c"), { rowKey: null, index: 2 })?.rowKey).toBe("b");
   });
 
-  it("保存して識別子が変わっても、同じ位置の型を選んだままにする", () => {
+  it("保存して識別子が変わっても、同じ位置のテンプレートを選んだままにする", () => {
     const saved = [draft({ rowKey: "a" }), draft({ rowKey: "b" }), draft({ rowKey: "template-added" })];
 
     expect(resolveSelectedDayTemplate(saved, { rowKey: "new-1", index: 2 })?.rowKey).toBe("template-added");
   });
 
-  it("型が1つもなければnullを返す", () => {
+  it("テンプレートが1つもなければnullを返す", () => {
     expect(resolveSelectedDayTemplate([], { rowKey: "a", index: 0 })).toBeNull();
   });
 });
@@ -572,26 +643,42 @@ describe("曜日と祝日の割り当て", () => {
   const weekdaysOf = (list: DayTemplateDraft[]) => list.map((item) => item.weekdays);
   const holidaysOf = (list: DayTemplateDraft[]) => list.map((item) => item.appliesToHolidays);
 
-  it("割り当てていない曜日を押すと、その型に入る", () => {
+  it("割り当てていない曜日を押すと、そのテンプレートに入る", () => {
     expect(weekdaysOf(toggleDayTemplateWeekday(drafts, "b", "sun"))).toEqual([
       ["mon", "tue"],
       ["sat", "sun"],
     ]);
   });
 
-  it("別の型が持つ曜日を押すと、その型から外して移す", () => {
-    expect(weekdaysOf(toggleDayTemplateWeekday(drafts, "b", "tue"))).toEqual([["mon"], ["sat", "tue"]]);
+  it("別のテンプレートが持つ曜日を押しても、そのテンプレートからは外さない", () => {
+    expect(weekdaysOf(toggleDayTemplateWeekday(drafts, "b", "tue"))).toEqual([
+      ["mon", "tue"],
+      ["sat", "tue"],
+    ]);
   });
 
-  it("選んでいる曜日を押すと外れ、どの型にも入らない曜日になる", () => {
+  it("選んでいる曜日を押すと外れ、どのテンプレートにも入らない曜日になる", () => {
     expect(weekdaysOf(toggleDayTemplateWeekday(drafts, "a", "mon"))).toEqual([["tue"], ["sat"]]);
   });
 
-  it("別の型が祝日を持っていたら、その型から外して移す", () => {
-    expect(holidaysOf(toggleDayTemplateHoliday(drafts, "b"))).toEqual([false, true]);
+  it("別のテンプレートが祝日を持っていても、そのテンプレートからは外さない", () => {
+    expect(holidaysOf(toggleDayTemplateHoliday(drafts, "b"))).toEqual([true, true]);
   });
 
-  it("選んでいる祝日を押すと外れ、祝日に使う型がなくなる", () => {
+  it("曜日を指定しないと、そのテンプレートの曜日だけをすべて外し、祝日とほかのテンプレートは変えない", () => {
+    const cleared = clearDayTemplateWeekdays(drafts, "a");
+
+    expect(weekdaysOf(cleared)).toEqual([[], ["sat"]]);
+    expect(holidaysOf(cleared)).toEqual([true, false]);
+  });
+
+  it("曜日を選んでいないテンプレートで指定しないを押しても、何も変えない", () => {
+    const cleared = clearDayTemplateWeekdays(drafts, "a");
+
+    expect(clearDayTemplateWeekdays(cleared, "a")[0]).toBe(cleared[0]);
+  });
+
+  it("選んでいる祝日を押すと外れ、祝日に使うテンプレートがなくなる", () => {
     expect(holidaysOf(toggleDayTemplateHoliday(drafts, "a"))).toEqual([false, false]);
   });
 
@@ -642,7 +729,7 @@ describe("数字で入れる必要人数", () => {
     expect(change(dateOnlyDraft, ALL_DAY_ROW_ID, hall, count)).toEqual({ kind: "dateOnly", counts: {} });
   });
 
-  it("時間指定の型は、数字の入力で変わらない", () => {
+  it("時間指定のテンプレートは、数字の入力で変わらない", () => {
     const timeDraft = draft();
 
     expect(change(timeDraft, "early", hall, 3)).toEqual(timeDraft.requirements);
@@ -663,28 +750,35 @@ describe("数字で入れる必要人数", () => {
   });
 });
 
-describe("バーの置き換え", () => {
-  it("時間指定の型のバーを、渡したバーで置き換える", () => {
-    const bars = toEditableStaffingBars([bar(kitchen, "17:00", "21:00")]);
+describe("人数の区間の置き換え", () => {
+  it("時間指定のテンプレートの人数を、渡した区間で置き換える。区間は正規化して持つ", () => {
+    const [changed] = changeDayTemplateSegments([draft()], "a", [
+      seg(kitchen, "19:00", "21:00", 2),
+      seg(kitchen, "17:00", "19:00", 2),
+      seg(hall, "11:00", "14:00", 3),
+    ]);
 
-    expect(changeDayTemplateBars([draft()], "a", bars)[0].requirements).toEqual({ kind: "time", bars });
+    expect(changed.requirements).toEqual({
+      kind: "time",
+      segments: [seg(hall, "11:00", "14:00", 3), seg(kitchen, "17:00", "21:00", 2)],
+    });
   });
 
-  it("時間指定でない型は変えない", () => {
+  it("時間指定でないテンプレートは変えない", () => {
     const dateOnlyDraft = draft({ requirements: { kind: "dateOnly", counts: { [hall]: 1 } } });
 
-    expect(changeDayTemplateBars([dateOnlyDraft], "a", [])[0]).toEqual(dateOnlyDraft);
+    expect(changeDayTemplateSegments([dateOnlyDraft], "a", [])[0]).toEqual(dateOnlyDraft);
   });
 
-  it("バーを置ける範囲は、時間指定の受付時間を分で返す。ほかの集め方ではnullを返す", () => {
-    expect(getStaffingBarRange(timePattern)).toEqual({ startMinutes: 540, endMinutes: 1320 });
-    expect(getStaffingBarRange(shiftTypePattern)).toBeNull();
-    expect(getStaffingBarRange(dateOnlyPattern)).toBeNull();
+  it("人数を入れられる範囲は、時間指定の受付時間を分で返す。ほかの集め方ではnullを返す", () => {
+    expect(getStaffingSegmentRange(timePattern)).toEqual({ startMinutes: 540, endMinutes: 1320 });
+    expect(getStaffingSegmentRange(shiftTypePattern)).toBeNull();
+    expect(getStaffingSegmentRange(dateOnlyPattern)).toBeNull();
   });
 });
 
-describe("ほかの型からコピー", () => {
-  it("コピー元のバーで置き換え、名前と使う日は変えない。コピー元は変わらない", () => {
+describe("コピーする", () => {
+  it("コピー元の人数で置き換え、名前と使う日は変えない。コピー元は変わらない", () => {
     const source = draft({
       rowKey: "a",
       requirements: timeRequirements(bar(hall, "09:00", "22:00"), bar(kitchen, "11:00", "14:00")),
@@ -719,7 +813,7 @@ describe("ほかの型からコピー", () => {
     ]);
   });
 
-  it("コピー元が見つからない場合と、同じ型を指した場合は変えない", () => {
+  it("コピー元が見つからない場合と、同じテンプレートを指した場合は変えない", () => {
     const drafts = [draft({ rowKey: "a" }), draft({ rowKey: "b", requirements: timeRequirements() })];
 
     expect(copyDayTemplateRequirements(drafts, { fromRowKey: "missing", toRowKey: "b" })).toEqual(drafts);
@@ -727,7 +821,7 @@ describe("ほかの型からコピー", () => {
   });
 });
 
-describe("型ごとの入力の誤り", () => {
+describe("テンプレートごとの入力の誤り", () => {
   const issuesOf = (drafts: DayTemplateDraft[], pattern: ShiftSetupSubmissionPattern = timePattern) =>
     findDayTemplateDraftIssues(drafts, { positions, pattern });
 
@@ -740,7 +834,7 @@ describe("型ごとの入力の誤り", () => {
     ).toEqual({});
   });
 
-  it("空の名前と、受付時間の外に出たバーは、その型の誤りとして返す", () => {
+  it("空の名前と、受付時間の外に出た人数は、そのテンプレートの誤りとして返す", () => {
     expect(
       issuesOf([
         draft({ rowKey: "a", name: "  " }),
@@ -755,10 +849,14 @@ describe("型ごとの入力の誤り", () => {
     ).toEqual({ a: "NAME_REQUIRED", c: "BAR_OUT_OF_RANGE" });
   });
 
-  it("受付時間の外に出たバーは、切りそろえると誤りでなくなる", () => {
-    const outside = toEditableStaffingBars([bar(hall, "08:00", "12:00"), bar(hall, "07:00", "09:00")]);
-    const trimmed = trimBarsToRange({ bars: outside, range: { startMinutes: 540, endMinutes: 1320 }, unitMinutes: 30 });
-    const [target] = changeDayTemplateBars([draft()], "a", trimmed);
+  it("受付時間の外に出た人数は、切りそろえると誤りでなくなる", () => {
+    const outside = barsToStaffingSegments([bar(hall, "08:00", "12:00"), bar(hall, "07:00", "09:00")]);
+    const trimmed = trimSegmentsToRange({
+      segments: outside,
+      range: { startMinutes: 540, endMinutes: 1320 },
+      unitMinutes: 30,
+    });
+    const [target] = changeDayTemplateSegments([draft()], "a", trimmed);
 
     expect(issuesOf([target])).toEqual({});
     expect(toDayTemplateInputs([target], timeContext)[0].requirements).toEqual({
@@ -767,16 +865,41 @@ describe("型ごとの入力の誤り", () => {
     });
   });
 
-  it("同じ時間に重なるバーが1ポジションで10本を超える型を、誤りとして返す", () => {
-    const tenBars = Array.from({ length: 10 }, () => bar(hall, "11:00", "14:00"));
+  it("1つの時間の人数が1ポジションの上限（50人）を超えるテンプレートを、誤りとして返す", () => {
+    const withCount = (count: number) =>
+      draft({ requirements: { kind: "time", segments: [seg(hall, "11:00", "14:00", count)] } });
 
-    expect(issuesOf([draft({ requirements: timeRequirements(...tenBars) })])).toEqual({});
-    expect(issuesOf([draft({ requirements: timeRequirements(...tenBars, bar(hall, "13:30", "15:00")) })])).toEqual({
-      a: "BAR_CONCURRENT_LIMIT",
-    });
+    expect(SHIFT_DAY_TEMPLATE_CONCURRENT_BAR_LIMIT).toBe(50);
+    expect(issuesOf([withCount(50)])).toEqual({});
+    expect(issuesOf([withCount(51)])).toEqual({ a: "BAR_CONCURRENT_LIMIT" });
   });
 
-  it("名前、曜日、祝日の重複は、あとから出てくる型の誤りとして返す", () => {
+  it("人数をバーへ変えた本数が、1つのテンプレートの上限を超えるテンプレートを、誤りとして返す", () => {
+    // 30分おきに10人と0人を繰り返すと、人数の入った時間1つにつき、バーが10本になる。
+    const blocks = (positionId: string, blockCount: number) =>
+      Array.from({ length: blockCount }, (_, index) => {
+        const start = 9 * 60 + index * 60;
+        const time = (minutes: number) =>
+          `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+        return seg(positionId, time(start), time(start + 30), 10);
+      });
+    const atLimit = draft({ requirements: { kind: "time", segments: [...blocks(hall, 13), ...blocks(kitchen, 7)] } });
+    const overLimit = draft({
+      requirements: {
+        kind: "time",
+        segments: [...blocks(hall, 13), ...blocks(kitchen, 7), seg(kitchen, "20:00", "20:30", 1)],
+      },
+    });
+
+    const atLimitRequirements = toDayTemplateInputs([atLimit], timeContext)[0].requirements;
+    expect(atLimitRequirements.kind === "time" ? atLimitRequirements.bars : []).toHaveLength(
+      SHIFT_DAY_TEMPLATE_BAR_LIMIT,
+    );
+    expect(issuesOf([atLimit])).toEqual({});
+    expect(issuesOf([overLimit])).toEqual({ a: "BAR_LIMIT" });
+  });
+
+  it("名前の重複は、あとから出てくるテンプレートの誤りとして返し、曜日と祝日の重なりは誤りにしない", () => {
     expect(
       issuesOf([
         draft({ rowKey: "a", name: "平日", weekdays: ["mon"], appliesToHolidays: true }),
@@ -784,17 +907,19 @@ describe("型ごとの入力の誤り", () => {
         draft({ rowKey: "c", name: "月曜", weekdays: ["mon"] }),
         draft({ rowKey: "d", name: "祝日", weekdays: [], appliesToHolidays: true }),
       ]),
-    ).toEqual({ b: "NAME_DUPLICATED", c: "WEEKDAY_DUPLICATED", d: "HOLIDAY_DUPLICATED" });
+    ).toEqual({ b: "NAME_DUPLICATED" });
   });
 
   it("いまの集め方と種類が違う必要人数を、誤りとして返す", () => {
     expect(issuesOf([draft()], dateOnlyPattern)).toEqual({ a: "REQUIREMENTS_KIND_MISMATCH" });
   });
 
-  it("型は20件まで誤りにならず、21件で一覧全体の誤りになる", () => {
+  it("テンプレートは20件まで誤りにならず、21件で一覧全体の誤りになる", () => {
     const build = (length: number) =>
       toDayTemplateInputs(
-        Array.from({ length }, (_, index) => draft({ rowKey: `row-${index}`, name: `型${index}`, weekdays: [] })),
+        Array.from({ length }, (_, index) =>
+          draft({ rowKey: `row-${index}`, name: `テンプレート${index}`, weekdays: [] }),
+        ),
         timeContext,
       );
 
@@ -803,7 +928,7 @@ describe("型ごとの入力の誤り", () => {
   });
 });
 
-describe("型を使う日の要約", () => {
+describe("テンプレートを使う日の要約", () => {
   it.each([
     [["mon", "tue", "wed", "thu", "fri"], false, "月〜金"],
     [["sat", "sun"], false, "土・日"],
@@ -813,7 +938,7 @@ describe("型を使う日の要約", () => {
     [["sun", "mon", "tue", "wed", "thu", "fri", "sat"], false, "毎日"],
     [["sat", "sun"], true, "土・日・祝日"],
     [[], true, "祝日"],
-    [[], false, "個別に当てる"],
+    [[], false, "個別"],
   ] as const)("曜日%jと祝日%sは「%s」と表す", (weekdays, appliesToHolidays, expected) => {
     expect(formatDayTemplateUsage({ weekdays: [...weekdays], appliesToHolidays })).toBe(expected);
   });

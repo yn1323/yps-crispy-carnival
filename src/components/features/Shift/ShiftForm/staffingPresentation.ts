@@ -1,5 +1,6 @@
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import { getEditableEndMinutes, getEditableStartMinutes } from "@/src/components/shared/ShiftTimeline/timelineGeometry";
+import { toStaffingDisplayPositions } from "@/src/domains/shift/operations";
 import type { NewcomerStaffIdsByPositionId } from "@/src/domains/shift/positionSkills";
 import {
   buildPositionStaffingBands,
@@ -30,7 +31,7 @@ export type StaffingCountView = {
   count: number;
   required: number | null;
   tone: StaffingTone;
-  /** 1人以上いて、全員が新人。 */
+  /** 1人以上いて、全員が見習い。 */
   isNewcomerOnly: boolean;
   /** 「2/3 ▲1」「2/1 ＋1」「3/3」。未設定は人数だけの「2」。 */
   label: string;
@@ -80,7 +81,7 @@ const describeTone = (view: StaffingCountView): string | null => {
 /** 押したときの欄と読み上げに出す、人数の説明。 */
 export const describeStaffingCount = (view: StaffingCountView): string[] => [
   view.required === null ? `人数 ${view.count}人` : `人数 ${view.count}人 / 必要 ${view.required}人`,
-  ...[describeTone(view), view.isNewcomerOnly ? "新人だけの時間です" : null].flatMap((line) => (line ? [line] : [])),
+  ...[describeTone(view), view.isNewcomerOnly ? "見習いだけの時間です" : null].flatMap((line) => (line ? [line] : [])),
 ];
 
 // ==========================================
@@ -110,7 +111,7 @@ export type StaffingBandSegmentView = StaffingCountView & {
   endMinutes: number;
   /** 「11:00–14:00」 */
   timeLabel: string;
-  /** titleと読み上げに使う全文。「ホール 11:00–14:00 2/3 ▲1、新人だけ」 */
+  /** titleと読み上げに使う全文。「ホール 11:00–14:00 2/3 ▲1、見習いだけ」 */
   description: string;
 };
 
@@ -127,14 +128,14 @@ export type StaffingBandView = {
 };
 
 // ==========================================
-// その日の型
+// その日のテンプレート
 // ==========================================
 export type DayTemplateView = {
-  /** メニューに出す名前。型の名前、「（この日だけ変更）」、「未設定」のいずれか。 */
+  /** メニューに出す名前。テンプレートの名前、「（この日だけ変更）」、「未設定」のいずれか。 */
   label: string;
-  /** いま当たっている型。型の一覧でチェックを付ける。 */
+  /** いま当たっているテンプレート。テンプレートの一覧でチェックを付ける。 */
   templateId: string | null;
-  /** いま当たっている型の名前。その日だけの変更の説明に使う。 */
+  /** いま当たっているテンプレートの名前。その日だけの変更の説明に使う。 */
   templateName: string | null;
   /** その日だけ人数を変えている。 */
   isCustom: boolean;
@@ -145,7 +146,7 @@ export type DayTemplateView = {
 const UNSET_TEMPLATE_LABEL = "未設定";
 const CUSTOM_TEMPLATE_LABEL = "この日だけ変更";
 
-/** その日の型のメニューに出す名前と、選べる操作の元になる状態を返す。 */
+/** その日のテンプレートのメニューに出す名前と、選べる操作の元になる状態を返す。 */
 export const buildDayTemplateView = (day: ShiftFormStaffingDay | undefined): DayTemplateView => {
   const unset: DayTemplateView = {
     label: UNSET_TEMPLATE_LABEL,
@@ -157,7 +158,7 @@ export const buildDayTemplateView = (day: ShiftFormStaffingDay | undefined): Day
   if (!day) return unset;
 
   const isDateSpecific = day.source === "dateCustom" || day.source === "dateTemplate";
-  // その日だけ人数を変えた日。確定済みは、型の名前を持たずに必要人数だけが残っている日がこれにあたる。
+  // その日だけ人数を変えた日。確定済みは、テンプレートの名前を持たずに必要人数だけが残っている日がこれにあたる。
   const isCustom = day.source === "dateCustom" || (day.source === "confirmed" && !day.templateName);
   if (day.requirements === null) return { ...unset, isDateSpecific };
   if (isCustom) {
@@ -205,7 +206,7 @@ type BuildInput = {
   timeRange: TimeRange;
   // サーバーが解決した、その日の必要人数。渡さない日は未設定として扱う。
   day: ShiftFormStaffingDay | undefined;
-  // ポジションごとの、新人のstaffId
+  // ポジションごとの、見習いのstaffId
   newcomerStaffIdsByPositionId?: NewcomerStaffIdsByPositionId;
 };
 
@@ -263,7 +264,7 @@ const buildSlotViews = (input: BuildInput): StaffingSlotView[] => {
       ? countStaffingByShiftType({ ...base, optionIds: input.submissionPattern.options.map((option) => option.id) })
       : [countStaffingByDay(base)];
 
-  const positionById = new Map(input.positions.map((position) => [position.id, position]));
+  const positionById = new Map(toStaffingDisplayPositions(input.positions).map((position) => [position.id, position]));
   return counts.map((count) => ({
     id: slotId(count),
     label: slotLabel(count, input.submissionPattern),
@@ -288,7 +289,7 @@ const buildBandViews = (input: BuildInput): StaffingBandView[] => {
     startMinutes: getEditableStartMinutes(input.timeRange),
     endMinutes: getEditableEndMinutes(input.timeRange),
   });
-  const positionById = new Map(input.positions.map((position) => [position.id, position]));
+  const positionById = new Map(toStaffingDisplayPositions(input.positions).map((position) => [position.id, position]));
   return bands.flatMap((band) => {
     const position = positionById.get(band.positionId);
     if (!position) return [];
@@ -304,7 +305,7 @@ const buildBandViews = (input: BuildInput): StaffingBandView[] => {
           startMinutes: timeToMinutes(segment.start),
           endMinutes: timeToMinutes(segment.end),
           timeLabel,
-          description: `${position.name} ${timeLabel} ${count.label}${count.isNewcomerOnly ? "、新人だけ" : ""}`,
+          description: `${position.name} ${timeLabel} ${count.label}${count.isNewcomerOnly ? "、見習いだけ" : ""}`,
         };
       });
     return [
@@ -363,7 +364,7 @@ export const formatStaffingCount = (count: number, required: number | null): str
 const BAND_LABEL_CHAR_WIDTH_PX = 7;
 // 区間の左右の余白と枠。
 const BAND_LABEL_PADDING_PX = 8;
-// 新人だけの印「新」の幅と、文字との間。
+// 見習いだけの印「見」の幅と、文字との間。
 const BAND_NEWCOMER_MARK_WIDTH_PX = 16;
 
 const estimateBandLabelWidth = (label: string): number =>
@@ -380,7 +381,7 @@ export type BandSegmentContent = {
 /**
  * 区間の幅に入る文字を決める。
  * 全文（「2/3 ▲1」）が入らない幅では差だけ（「▲1」「＋1」。ちょうどと未設定は人数だけ）にし、それも入らない幅では文字を出さない。
- * 新人だけの区間は、印「新」を出せる形を先に選ぶ。全文と印が並ばない幅では、差だけにして印を残す。
+ * 見習いだけの区間は、印「見」を出せる形を先に選ぶ。全文と印が並ばない幅では、差だけにして印を残す。
  * 印が入らない幅では、印を省いて文字だけを出す。
  */
 export const resolveBandSegmentContent = (

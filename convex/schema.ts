@@ -558,8 +558,8 @@ const schema = defineSchema({
     userId: v.optional(v.id("users")),
     // シフト対象外フラグ（店舗共通アドレス等、シフトを出さないスタッフ）。
     excludedFromShift: v.boolean(),
-    // ポジションごとの扱い（入れない、新人、責任者）。項目がないポジションは「入れる・熟練度が標準」を表す。
-    // 省略は「全ポジションが標準」を表す業務上の任意項目で、backfillは不要。
+    // ポジションごとの扱い（担当外、見習い、リーダー）。項目がないポジションは「担当できる・熟練度が一人前」を表す。
+    // 省略は「全ポジションが一人前」を表す業務上の任意項目で、backfillは不要。
     // 1つのポジションに1項目で、件数は店舗の有効なポジション数（POSITION_ACTIVE_LIMIT）を超えない。
     positionSkills: v.optional(v.array(staffPositionSkillValidator)),
     isDeleted: v.boolean(),
@@ -744,6 +744,19 @@ const schema = defineSchema({
     // シフト表の下書き保存時刻。保存後の希望表示優先順位判定に使う。
     // assignmentがない募集では未設定が正しいためoptionalを維持する。
     draftSavedAt: v.optional(v.number()),
+    // 未確定から確定へ変わった時点の、店舗のポジション（設定した並び順）。
+    // 確定済みのシフトは、あとで設定の名前を変えても削除しても、この一覧で表示する。再確定では書き直さない。
+    // 未確定の募集と、この項目より前に確定した募集では省略し、いまの設定を読む。backfillは不要。
+    confirmedPositions: v.optional(
+      v.array(
+        v.object({
+          positionId: v.id("positions"),
+          name: v.string(),
+          color: v.string(),
+          isDefault: v.boolean(),
+        }),
+      ),
+    ),
     // 確定・再送通知の最新semantic operation。optional wideningのため既存行のbackfillは不要。
     lastConfirmationNotificationOperationKey: v.optional(v.string()),
     // Date.nowに依存しない通知operation世代。semantic operationが変わった時だけ進める。
@@ -858,7 +871,7 @@ const schema = defineSchema({
     .index("by_shopId_isDeleted", ["shopId", "isDeleted"]),
 
   // ========================================
-  // シフト作成の設定（日の型）
+  // シフト作成の設定（必要人数のテンプレート）
   // ========================================
   // 名前を付けた1日分の必要人数。使う日は曜日と祝日で決める。
   // 件数はSHIFT_DAY_TEMPLATE_LIMIT、バーはSHIFT_DAY_TEMPLATE_BAR_LIMIT、人数はPOSITION_ACTIVE_LIMITで上限を持つ。
@@ -867,12 +880,12 @@ const schema = defineSchema({
     name: v.string(),
     sortOrder: v.number(),
     weekdays: v.array(shiftDayTemplateWeekdayValidator),
-    // 祝日（nationalHolidaysにある日）に使う型。店舗で1つだけ持てる。
+    // 祝日（nationalHolidaysにある日）に使うテンプレート。店舗で1つだけ持てる。
     appliesToHolidays: v.boolean(),
     requirements: dayRequirementsValidator,
   }).index("by_shopId", ["shopId"]),
 
-  // その日だけの指定。別の型を当てるか、その日だけの必要人数を持つ。曜日と祝日の型より優先する。
+  // その日だけの指定。別のテンプレートを当てるか、その日だけの必要人数を持つ。曜日と祝日のテンプレートより優先する。
   shiftDayTemplateOverrides: defineTable(
     v.union(
       v.object({
@@ -897,8 +910,8 @@ const schema = defineSchema({
     name: v.string(),
   }).index("by_date", ["date"]),
 
-  // 募集を確定した時点の、日ごとの必要人数。確定済みのシフト表は、型を直してもこの内容を表示する。
-  // 型が当たらない日は行を作らない。
+  // 募集を確定した時点の、日ごとの必要人数。確定済みのシフト表は、テンプレートを直してもこの内容を表示する。
+  // テンプレートが当たらない日は行を作らない。
   recruitmentStaffingSnapshots: defineTable({
     recruitmentId: v.id("recruitments"),
     shopId: v.id("shops"),

@@ -174,12 +174,27 @@ export const NOTIFICATION_FAILURE_REMINDER_PENDING_PAGE_SIZE = 100;
 export const NOTIFICATION_FAILURE_REMINDER_MANAGER_LIMIT = 20;
 
 export const DEFAULT_POSITION_NAME = "シフト";
-export const DEFAULT_POSITION_COLOR = "#3b82f6";
+export const DEFAULT_POSITION_COLOR = "#60a5fa";
 // 既存の読み手はpositionsを50件の窓で読む。画面で選び分けられる数に収めるため、有効な件数を10件までにする。
 export const POSITION_ACTIVE_LIMIT = 10;
 export const POSITION_NAME_MAX_LENGTH = 20;
 // ポジションの色は自由入力にせず、シフト表で見分けられる用意済みの色から選ぶ。
+// 色の上には白い文字を載せる。明るい色でそろえつつ、白い文字が沈む黄・青緑・黄緑・水色は一段濃くしている。
 export const POSITION_COLOR_PALETTE = [
+  "#60a5fa",
+  "#fb923c",
+  "#a78bfa",
+  "#f472b6",
+  "#eda40a",
+  "#14b8a6",
+  "#f87171",
+  "#94a3b8",
+  "#78bd14",
+  "#06b6d4",
+] as const;
+// 以前の色の一覧。保存済みのポジションと、確定した時点のポジションに残っている。
+// 選択肢には出さないが、保存では受け付け、画面にもそのままの色で表示する。並びは今の一覧と対応している。
+export const LEGACY_POSITION_COLOR_PALETTE = [
   "#3b82f6",
   "#c2410c",
   "#7c3aed",
@@ -191,13 +206,13 @@ export const POSITION_COLOR_PALETTE = [
   "#4d7c0f",
   "#0e7490",
 ] as const;
-// 日の型: 曜日ごとの型に、祝日や年末年始のような日の型を足しても、一覧で選び分けられる件数に収める。
-export const SHIFT_DAY_TEMPLATE_LIMIT = 20;
+// テンプレート: 曜日ごとのテンプレートに、祝日や年末年始のような日のテンプレートを足しても、一覧で選び分けられる件数に収める。
+export const SHIFT_DAY_TEMPLATE_LIMIT = 10;
 export const SHIFT_DAY_TEMPLATE_NAME_MAX_LENGTH = 20;
-export const SHIFT_DAY_TEMPLATE_REQUIRED_COUNT_MAX = 99;
-// 時間指定の必要人数は、1本のバーが1人分を表す。1つの型に置けるバーと、1ポジションで同時に重なるバーに上限を持つ。
+export const SHIFT_DAY_TEMPLATE_REQUIRED_COUNT_MAX = 50;
+// 時間指定の必要人数は、1本のバーが1人分を表す。1つのテンプレートに置けるバーと、1ポジションで同時に重なるバーに上限を持つ。
 export const SHIFT_DAY_TEMPLATE_BAR_LIMIT = 200;
-export const SHIFT_DAY_TEMPLATE_CONCURRENT_BAR_LIMIT = 10;
+export const SHIFT_DAY_TEMPLATE_CONCURRENT_BAR_LIMIT = 50;
 // 祝日の表の更新で、1年分として受け付ける件数。
 export const NATIONAL_HOLIDAY_YEAR_LIMIT = 50;
 export const NATIONAL_HOLIDAY_NAME_MAX_LENGTH = 30;

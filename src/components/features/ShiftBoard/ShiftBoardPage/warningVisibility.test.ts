@@ -106,7 +106,7 @@ describe("visibleNewcomerOnlyPeriods", () => {
     buildAssignmentsOptions: { submissionPatternKind: "time" as const },
   };
 
-  it("未確定では、すべての新人だけの時間帯を出す", () => {
+  it("未確定では、すべての見習いだけの時間帯を出す", () => {
     expect(
       visibleNewcomerOnlyPeriods({ periods, currentShifts: [], baselineShifts: [], ...options, isConfirmed: false }),
     ).toEqual(periods);

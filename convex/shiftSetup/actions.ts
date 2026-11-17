@@ -24,7 +24,7 @@ const assistResultValidator = v.union(
 type AssistResult = Infer<typeof assistResultValidator>;
 
 /**
- * 店の状況から、日の型の下書きを返す。設定は保存しない。
+ * 店の状況から、テンプレートの下書きを返す。設定は保存しない。
  * いまは実際のAIにつながず、入力された文章を読まずに必要人数をランダムな値で埋める。
  * 文章は保存もログ出力もしない。
  */

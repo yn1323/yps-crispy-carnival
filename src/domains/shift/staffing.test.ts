@@ -27,11 +27,11 @@ const segment = (
   ...overrides,
 });
 
-// ポジションごとの新人。new1とnew2は、どのポジションでも新人として扱う。
+// ポジションごとの見習い。new1とnew2は、どのポジションでも見習いとして扱う。
 const newcomersAt = (staffIdsByPositionId: Record<string, string[]>) =>
   new Map(Object.entries(staffIdsByPositionId).map(([positionId, staffIds]) => [positionId, new Set(staffIds)]));
 const newcomersEverywhere = newcomersAt({ [HALL]: ["new1", "new2"], [KITCHEN]: ["new1", "new2"] });
-// mixは、ホールでは標準、キッチンでは新人。
+// mixは、ホールでは一人前、キッチンでは見習い。
 const kitchenOnlyNewcomer = newcomersAt({ [KITCHEN]: ["mix"] });
 
 const shift = (staffId: string, positions: PositionSegment[], breaks?: ShiftData["breaks"]): ShiftData => ({
@@ -214,7 +214,7 @@ describe("countStaffingByDay", () => {
   });
 });
 
-describe("countStaffingByShiftType / countStaffingByDay の多い人数と新人だけの印", () => {
+describe("countStaffingByShiftType / countStaffingByDay の多い人数と見習いだけの印", () => {
   const early = { shiftTypeOptionId: "early" };
 
   it("パターン選択: 必要人数より多い人数を返し、ちょうどと不足は0にする", () => {
@@ -260,7 +260,7 @@ describe("countStaffingByShiftType / countStaffingByDay の多い人数と新人
     expect(result.hasExcess).toBe(false);
   });
 
-  it("パターン選択: 入っている人が全員新人のポジションだけに印を付ける", () => {
+  it("パターン選択: 入っている人が全員見習いのポジションだけに印を付ける", () => {
     const [result] = countStaffingByShiftType({
       shifts: [
         shift("new1", [segment("09:00", "15:00", HALL, early)]),
@@ -275,11 +275,11 @@ describe("countStaffingByShiftType / countStaffingByDay の多い人数と新人
       newcomerStaffIdsByPositionId: newcomersEverywhere,
     });
 
-    // ホールは新人2人、キッチンは標準と新人、レジはだれもいない。
+    // ホールは見習い2人、キッチンは一人前と見習い、レジはだれもいない。
     expect(result.positions.map((position) => position.isNewcomerOnly)).toEqual([true, false, false]);
   });
 
-  it("パターン選択: ホールでは標準でキッチンでは新人の人は、キッチンに入ったときだけ新人として数える", () => {
+  it("パターン選択: ホールでは一人前でキッチンでは見習いの人は、キッチンに入ったときだけ見習いとして数える", () => {
     const result = countStaffingByShiftType({
       shifts: [
         shift("mix", [
@@ -300,7 +300,7 @@ describe("countStaffingByShiftType / countStaffingByDay の多い人数と新人
     ]);
   });
 
-  it("日付選択: ホールでは標準でキッチンでは新人の人は、キッチンに入った日だけ新人として数える", () => {
+  it("日付選択: ホールでは一人前でキッチンでは見習いの人は、キッチンに入った日だけ見習いとして数える", () => {
     const count = (positionId: string) =>
       countStaffingByDay({
         shifts: [shift("mix", [segment("09:00", "22:00", positionId)])],
@@ -313,7 +313,7 @@ describe("countStaffingByShiftType / countStaffingByDay の多い人数と新人
     expect(count(KITCHEN)).toEqual([false, true]);
   });
 
-  it("新人のstaffIdを渡さなければ、新人だけの印は付かない", () => {
+  it("見習いのstaffIdを渡さなければ、見習いだけの印は付かない", () => {
     const [result] = countStaffingByShiftType({
       shifts: [shift("new1", [segment("09:00", "15:00", HALL, early)])],
       positionIds,
@@ -324,7 +324,7 @@ describe("countStaffingByShiftType / countStaffingByDay の多い人数と新人
     expect(result.positions.map((position) => position.isNewcomerOnly)).toEqual([false, false]);
   });
 
-  it("日付選択: 多い人数と新人だけの印を返す", () => {
+  it("日付選択: 多い人数と見習いだけの印を返す", () => {
     const result = countStaffingByDay({
       shifts: [
         shift("new1", [segment("09:00", "22:00", HALL)]),
@@ -498,8 +498,8 @@ describe("buildPositionStaffingBands", () => {
     ]);
   });
 
-  describe("新人だけの区間", () => {
-    it("1人以上いて全員が新人の区間だけに印を付け、印が変わる時刻で区切る", () => {
+  describe("見習いだけの区間", () => {
+    it("1人以上いて全員が見習いの区間だけに印を付け、印が変わる時刻で区切る", () => {
       const [hall] = band({
         shifts: [
           shift("new1", [segment("09:00", "18:00")]),
@@ -519,7 +519,7 @@ describe("buildPositionStaffingBands", () => {
       ]);
     });
 
-    it("標準の人が休憩に入り、新人だけが残る区間に印を付ける", () => {
+    it("一人前の人が休憩に入り、見習いだけが残る区間に印を付ける", () => {
       const [hall] = band({
         shifts: [
           shift("new1", [segment("09:00", "22:00")]),
@@ -536,7 +536,7 @@ describe("buildPositionStaffingBands", () => {
       ]);
     });
 
-    it("ほかのポジションに標準の人がいても、そのポジションが新人だけなら印を付ける", () => {
+    it("ほかのポジションに一人前の人がいても、そのポジションが見習いだけなら印を付ける", () => {
       const result = band({
         shifts: [shift("new1", [segment("09:00", "22:00", HALL)]), shift("a", [segment("09:00", "22:00", KITCHEN)])],
         bars: null,
@@ -550,7 +550,7 @@ describe("buildPositionStaffingBands", () => {
       ]);
     });
 
-    it("ホールでは標準でキッチンでは新人の人が1人でいる場合、キッチンの区間だけに印を付ける", () => {
+    it("ホールでは一人前でキッチンでは見習いの人が1人でいる場合、キッチンの区間だけに印を付ける", () => {
       const result = band({
         shifts: [shift("mix", [segment("09:00", "13:00", HALL), segment("13:00", "22:00", KITCHEN)])],
         bars: null,
@@ -572,7 +572,7 @@ describe("buildPositionStaffingBands", () => {
       ]);
     });
 
-    it("キッチンで新人の人と、キッチンで標準の人が一緒にいる区間には印を付けない", () => {
+    it("キッチンで見習いの人と、キッチンで一人前の人が一緒にいる区間には印を付けない", () => {
       const [, kitchen] = band({
         shifts: [shift("mix", [segment("09:00", "22:00", KITCHEN)]), shift("a", [segment("12:00", "15:00", KITCHEN)])],
         bars: null,
@@ -587,7 +587,7 @@ describe("buildPositionStaffingBands", () => {
       ]);
     });
 
-    it("新人のstaffIdを渡さなければ印は付かない", () => {
+    it("見習いのstaffIdを渡さなければ印は付かない", () => {
       const [hall] = band({ shifts: [shift("new1", [segment("09:00", "22:00")])], bars: null });
 
       expect(hall.segments.map((item) => item.isNewcomerOnly)).toEqual([false]);
@@ -649,7 +649,7 @@ describe("listNewcomerOnlyPeriods", () => {
   const on = (date: string, item: ShiftData): ShiftData => ({ ...item, id: `${item.id}-${date}`, date });
   const timePattern = { kind: "time" as const, startMinutes: 9 * 60, endMinutes: 22 * 60 };
 
-  it("時間指定: 新人だけの時間を、日、ポジション、時間帯の単位で返す", () => {
+  it("時間指定: 見習いだけの時間を、日、ポジション、時間帯の単位で返す", () => {
     const result = listNewcomerOnlyPeriods({
       shifts: [
         on("2026-05-21", shift("a", [segment("09:00", "17:00", HALL)])),
@@ -670,7 +670,7 @@ describe("listNewcomerOnlyPeriods", () => {
     ]);
   });
 
-  it("時間指定: 新人の人数が途中で変わっても、新人だけが続く時間は1件にまとめる", () => {
+  it("時間指定: 見習いの人数が途中で変わっても、見習いだけが続く時間は1件にまとめる", () => {
     const result = listNewcomerOnlyPeriods({
       shifts: [shift("new1", [segment("10:00", "18:00", HALL)]), shift("new2", [segment("12:00", "15:00", HALL)])],
       dates: ["2026-05-21"],
@@ -684,7 +684,7 @@ describe("listNewcomerOnlyPeriods", () => {
     ]);
   });
 
-  it("時間指定: 標準の人が入る時間をはさむと、前後を別の件にする", () => {
+  it("時間指定: 一人前の人が入る時間をはさむと、前後を別の件にする", () => {
     const result = listNewcomerOnlyPeriods({
       shifts: [shift("new1", [segment("09:00", "18:00", HALL)]), shift("a", [segment("12:00", "14:00", HALL)])],
       dates: ["2026-05-21"],
@@ -699,7 +699,7 @@ describe("listNewcomerOnlyPeriods", () => {
     ]);
   });
 
-  it("時間指定: 標準の人の休憩で新人だけが残る時間も返す", () => {
+  it("時間指定: 一人前の人の休憩で見習いだけが残る時間も返す", () => {
     const result = listNewcomerOnlyPeriods({
       shifts: [
         shift("a", [segment("09:00", "18:00", HALL)], [{ start: "12:00", end: "13:00" }]),
@@ -716,7 +716,7 @@ describe("listNewcomerOnlyPeriods", () => {
     ]);
   });
 
-  it("パターン選択: 新人だけの勤務パターンとポジションを返す", () => {
+  it("パターン選択: 見習いだけの勤務パターンとポジションを返す", () => {
     const early = { shiftTypeOptionId: "early" };
     const late = { shiftTypeOptionId: "late" };
     const result = listNewcomerOnlyPeriods({
@@ -737,7 +737,7 @@ describe("listNewcomerOnlyPeriods", () => {
     ]);
   });
 
-  it("日付選択: 新人だけのポジションを1日の単位で返す", () => {
+  it("日付選択: 見習いだけのポジションを1日の単位で返す", () => {
     const result = listNewcomerOnlyPeriods({
       shifts: [
         shift("new1", [segment("09:00", "22:00", HALL)]),
@@ -753,11 +753,11 @@ describe("listNewcomerOnlyPeriods", () => {
     expect(result).toEqual([{ date: "2026-05-21", positionId: HALL, scope: { kind: "allDay" } }]);
   });
 
-  it("ホールでは標準でキッチンでは新人の人は、キッチンに1人でいる時間だけを返す", () => {
+  it("ホールでは一人前でキッチンでは見習いの人は、キッチンに1人でいる時間だけを返す", () => {
     const result = listNewcomerOnlyPeriods({
       shifts: [
         on("2026-05-21", shift("mix", [segment("09:00", "13:00", HALL), segment("13:00", "18:00", KITCHEN)])),
-        // ホールにだけ入る日は、新人として入る勤務がないため何も返さない。
+        // ホールにだけ入る日は、見習いとして入る勤務がないため何も返さない。
         on("2026-05-22", shift("mix", [segment("09:00", "18:00", HALL)])),
       ],
       dates: ["2026-05-21", "2026-05-22"],
@@ -771,7 +771,7 @@ describe("listNewcomerOnlyPeriods", () => {
     ]);
   });
 
-  it("渡した日だけを数え、新人がいない店舗では何も返さない", () => {
+  it("渡した日だけを数え、見習いがいない店舗では何も返さない", () => {
     const shifts = [on("2026-05-23", shift("new1", [segment("09:00", "12:00", HALL)]))];
 
     expect(

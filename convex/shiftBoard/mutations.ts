@@ -21,7 +21,12 @@ import { ensureNotificationFanoutOperation } from "../notification/fanout";
 import { getBusinessNotificationOrigin } from "../notificationOutbox/origin";
 import { ensureDefaultPosition } from "../position/service";
 import { getActiveRecruitmentInShop } from "../recruitment/service";
-import { listActivePositions, listDayTemplates, resolveRecruitmentStaffingDays } from "../shiftSetup/service";
+import {
+  listActivePositions,
+  listDayTemplates,
+  listRecruitmentPositions,
+  resolveRecruitmentStaffingDays,
+} from "../shiftSetup/service";
 import { getActiveStaffInShop, isShiftTargetStaff } from "../staff/service";
 import { buildAssignmentIssue, SHIFT_ASSIGNMENT_VALIDATION, validateShiftAssignments } from "./validation";
 
@@ -235,6 +240,12 @@ export const saveShiftAssignments = managerMutation({
     }
     const uniqueStaffIds = [...new Set(args.assignments.map((a) => a.staffId))];
     const uniquePositionIds = [...new Set(args.assignments.flatMap((a) => (a.positionId ? [a.positionId] : [])))];
+    const recruitmentPositions = await listRecruitmentPositions(ctx, recruitment);
+    const usesConfirmedPositions =
+      recruitment.status === "confirmed" && (recruitment.confirmedPositions?.length ?? 0) > 0;
+    const confirmedPositionIds = usesConfirmedPositions
+      ? new Set(recruitmentPositions.map((position) => position._id))
+      : null;
     await Promise.all(
       [
         uniqueStaffIds.map(async (staffId) => {
@@ -244,6 +255,8 @@ export const saveShiftAssignments = managerMutation({
           }
         }),
         uniquePositionIds.map(async (positionId) => {
+          // 確定済みの募集では、確定した時点のポジションを、あとで削除していても使える。
+          if (confirmedPositionIds?.has(positionId)) return;
           const position = await ctx.db.get(positionId);
           if (!position || position.isDeleted || position.shopId !== ctx.shop._id) {
             throw new ConvexError("Not found");
@@ -262,7 +275,10 @@ export const saveShiftAssignments = managerMutation({
     }
 
     const draftSavedAt = Date.now();
-    const defaultPositionId = await ensureDefaultPosition(ctx, ctx.shop._id);
+    // 確定済みの募集では、確定した時点の既定のポジションへ寄せる。
+    const defaultPositionId =
+      (usesConfirmedPositions ? recruitmentPositions.find((position) => position.isDefault)?._id : undefined) ??
+      (await ensureDefaultPosition(ctx, ctx.shop._id));
     // 仮の勤務は未提出者のものだけを保存する。画面を開いている間に提出したスタッフの仮の勤務は、
     // 希望を優先するために保存しない。開き直すと、そのスタッフの希望が勤務の候補として出る。
     const submittedStaffIds = args.assignments.some((assignment) => assignment.isProvisional)
@@ -310,8 +326,8 @@ export const saveShiftAssignments = managerMutation({
 });
 
 /**
- * 確定した時点の、募集期間の各日の必要人数（募集の集め方へ写したもの）と型の名前を保存する。
- * 確定済みのシフト表は、この内容だけを表示する。型が当たらない日は行を作らない。
+ * 確定した時点の、募集期間の各日の必要人数（募集の集め方へ写したもの）とテンプレートの名前を保存する。
+ * 確定済みのシフト表は、この内容だけを表示する。テンプレートが当たらない日は行を作らない。
  */
 async function saveRecruitmentStaffingSnapshots(ctx: MutationCtx, recruitment: Doc<"recruitments">) {
   const [positions, templates] = await Promise.all([
@@ -536,9 +552,19 @@ export const confirmRecruitment = managerMutation({
     }
     const confirmedAt = Date.now();
     // 再確定も同じ導線で許可する。再通知では前回通知時点から変わったスタッフだけに届ける。
+    // 未確定から確定へ変わるときだけ、確定した時点のポジションを残す。再確定では書き直さない。
+    const confirmedPositions = isResend
+      ? undefined
+      : (await listActivePositions(ctx, recruitment.shopId)).map((position) => ({
+          positionId: position._id,
+          name: position.name,
+          color: position.color,
+          isDefault: position.isDefault,
+        }));
     await ctx.db.patch(args.recruitmentId, {
       status: "confirmed",
       confirmedAt,
+      ...(confirmedPositions ? { confirmedPositions } : {}),
       lastConfirmationNotificationOperationKey: operationKey,
       lastConfirmationNotificationRunId: notificationRunId,
     });

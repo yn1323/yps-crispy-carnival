@@ -1,9 +1,5 @@
 import type { Id } from "@/convex/_generated/dataModel";
-import {
-  SHIFT_DAY_TEMPLATE_BAR_LIMIT,
-  SHIFT_DAY_TEMPLATE_CONCURRENT_BAR_LIMIT,
-  SHIFT_DAY_TEMPLATE_REQUIRED_COUNT_MAX,
-} from "@/convex/constants";
+import { SHIFT_DAY_TEMPLATE_REQUIRED_COUNT_MAX } from "@/convex/constants";
 import {
   compareStaffingBars,
   type DayRequirements,
@@ -13,11 +9,12 @@ import {
   type ShiftSetupWeekday,
 } from "@/convex/shiftSetup/dayTemplates";
 import {
-  type EditableStaffingBar,
-  type StaffingBarLimits,
-  type StaffingBarRange,
-  toEditableStaffingBars,
-} from "@/src/domains/shift/staffingBars";
+  barsToStaffingSegments,
+  normalizeStaffingSegments,
+  type StaffingSegment,
+  type StaffingSegmentRange,
+  staffingSegmentsToBars,
+} from "@/src/domains/shift/staffingSegments";
 import { formatShiftClockTimeRange, timeToMinutes } from "@/src/domains/shift/time";
 import { WEEKDAY_OPTIONS } from "./script";
 import type {
@@ -31,24 +28,19 @@ import type {
   ShiftSetupSubmissionPattern,
 } from "./types";
 
-// 日の型（名前を付けた1日分の必要人数）を編集するための純粋処理。
-// 検証は convex/shiftSetup/dayTemplates.ts、バーの操作は src/domains/shift/staffingBars.ts を正とし、
-// ここでは保存の形と編集中の値の変換、型の一覧の操作だけを持つ。
+// テンプレート（名前を付けた1日分の必要人数）を編集するための純粋処理。
+// 検証は convex/shiftSetup/dayTemplates.ts、人数の区間の操作は src/domains/shift/staffingSegments.ts を正とし、
+// ここでは保存の形と編集中の値の変換、テンプレートの一覧の操作だけを持つ。
+// 時間指定の必要人数は、編集中は「この時間は何人」の区間で持ち、保存の形（1本が1人分のバー）とは読み込みと保存の境目で変える。
 
 type PositionRef = Pick<ShiftSetupPosition, "_id">;
 type StoredRequirements = DayRequirements<Id<"positions">>;
 
 const FIRST_TEMPLATE_NAME = "通常";
-const UNNAMED_TEMPLATE_LABEL = "名前のない型";
+const UNNAMED_TEMPLATE_LABEL = "名前のないテンプレート";
 
 /** 日付選択の必要人数を表に出すときの、1行だけの行のID。 */
 export const ALL_DAY_ROW_ID = "allDay";
-
-/** バーの編集部品へ渡す上限。サーバーの検証と同じ値にする。 */
-export const DAY_TEMPLATE_BAR_LIMITS: StaffingBarLimits = {
-  maxConcurrentPerPosition: SHIFT_DAY_TEMPLATE_CONCURRENT_BAR_LIMIT,
-  maxBars: SHIFT_DAY_TEMPLATE_BAR_LIMIT,
-};
 
 function toCountRecord(counts: ReadonlyArray<{ positionId: string; count: number }>): Record<string, number> {
   const record: Record<string, number> = {};
@@ -58,12 +50,12 @@ function toCountRecord(counts: ReadonlyArray<{ positionId: string; count: number
   return record;
 }
 
-/** 保存の形の必要人数を、編集中の形へ直す。バーには編集用のidを振る。 */
+/** 保存の形の必要人数を、編集中の形へ直す。バーは、重なった本数を数えて、時間ごとの人数の区間にする。 */
 function toRequirementsDraft(requirements: StoredRequirements): DayTemplateRequirementsDraft {
   if (requirements.kind === "time") {
     return {
       kind: "time",
-      bars: toEditableStaffingBars(
+      segments: barsToStaffingSegments(
         requirements.bars.map((bar) => ({ positionId: bar.positionId, start: bar.startTime, end: bar.endTime })),
       ),
     };
@@ -80,12 +72,12 @@ function toRequirementsDraft(requirements: StoredRequirements): DayTemplateRequi
 }
 
 function createEmptyRequirementsDraft(kind: DayTemplateRequirementsDraft["kind"]): DayTemplateRequirementsDraft {
-  if (kind === "time") return { kind: "time", bars: [] };
+  if (kind === "time") return { kind: "time", segments: [] };
   if (kind === "shiftType") return { kind: "shiftType", counts: {} };
   return { kind: "dateOnly", counts: {} };
 }
 
-/** 保存済みの日の型を、編集中の形へ直す。 */
+/** 保存済みの日のテンプレートを、編集中の形へ直す。 */
 export function toDayTemplateDrafts(templates: readonly ShiftSetupDayTemplate[]): DayTemplateDraft[] {
   return templates.map((template) => ({
     rowKey: template._id,
@@ -98,7 +90,7 @@ export function toDayTemplateDrafts(templates: readonly ShiftSetupDayTemplate[])
   }));
 }
 
-/** AIサポートの下書きを、まだ保存していない新しい型として編集中の形へ直す。 */
+/** AIサポートの下書きを、まだ保存していない新しいテンプレートとして編集中の形へ直す。 */
 export function toDayTemplateDraftsFromSuggestion(
   templates: readonly ShiftSetupAssistTemplate[],
   createRowKey: () => string,
@@ -114,7 +106,7 @@ export function toDayTemplateDraftsFromSuggestion(
 }
 
 type InputContext = {
-  /** いまあるポジション。並び順は表示順。一覧にないポジションのバーと人数は送らない。 */
+  /** いまあるポジション。並び順は表示順。一覧にないポジションの人数は送らない。 */
   positions: readonly PositionRef[];
   pattern: ShiftSetupSubmissionPattern;
 };
@@ -130,9 +122,11 @@ function toStoredRequirements(requirements: DayTemplateRequirementsDraft, contex
     });
 
   if (requirements.kind === "time") {
+    // 人数の区間を、同じ人数の並びを表せる最少の本数のバーへ変える。
+    // 保存済みのバーの置き方が違っても、時間ごとの人数が同じなら、同じ並びのバーになる。
     return {
       kind: "time",
-      bars: requirements.bars
+      bars: staffingSegmentsToBars(requirements.segments)
         .flatMap((bar) => {
           const positionId = positionIds.get(bar.positionId);
           return positionId ? [{ positionId, startTime: bar.start, endTime: bar.end }] : [];
@@ -159,8 +153,8 @@ function toStoredRequirements(requirements: DayTemplateRequirementsDraft, contex
 
 /**
  * 保存する形へ直す。
- * 人数0と、いまは無いポジションのバーと人数は送らない。
- * 曜日は日曜から、バーは開始の早い順に並べ、行の識別子とバーのidは外す。
+ * 人数0と、いまは無いポジションの人数は送らない。時間指定の人数は、バー（1本が1人分）へ変える。
+ * 曜日は日曜から、バーは開始の早い順に並べ、行の識別子は外す。
  */
 export function toDayTemplateInputs(drafts: readonly DayTemplateDraft[], context: InputContext): DayTemplateInput[] {
   return drafts.map((draft) => ({
@@ -172,12 +166,16 @@ export function toDayTemplateInputs(drafts: readonly DayTemplateDraft[], context
   }));
 }
 
-/** 保存内容として同じかを返す。変更の有無の判定に使う。 */
+/**
+ * 保存内容として同じかを返す。変更の有無の判定に使う。
+ * 時間指定の人数は、どちらも toDayTemplateInputs で同じ並びのバーへそろえてから比べる。
+ * そのため、保存済みのバーの置き方と違っていても、時間ごとの人数が同じなら同じと判定する。
+ */
 export function isSameDayTemplateInputs(left: readonly DayTemplateInput[], right: readonly DayTemplateInput[]) {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-/** どの型にも割り当てていない曜日を返す。 */
+/** どのテンプレートにも割り当てていない曜日を返す。 */
 export function getUnassignedWeekdays(drafts: readonly DayTemplateDraft[]): ShiftSetupWeekday[] {
   const assigned = new Set(drafts.flatMap((draft) => draft.weekdays));
   return SHIFT_SETUP_WEEKDAYS.filter((weekday) => !assigned.has(weekday));
@@ -187,15 +185,15 @@ function createDefaultName(drafts: readonly DayTemplateDraft[]): string {
   const names = new Set(drafts.map((draft) => draft.name.trim()));
   if (drafts.length === 0) return FIRST_TEMPLATE_NAME;
   for (let number = drafts.length + 1; ; number += 1) {
-    const name = `型${number}`;
+    const name = `テンプレート${number}`;
     if (!names.has(name)) return name;
   }
 }
 
 /**
- * 新しく足す型を作る。
+ * 新しく足すテンプレートを作る。
  * 曜日は、まだ割り当てていない営業日を初期値にする。祝日は選ばない。
- * 必要人数は空で始める。ほかの型と同じ内容から始めたいときは、画面の「ほかの型からコピー」で写す。
+ * 必要人数は空で始める。ほかのテンプレートと同じ内容から始めたいときは、画面の「コピーする」で写す。
  */
 export function createDayTemplateDraft(input: {
   drafts: readonly DayTemplateDraft[];
@@ -233,17 +231,32 @@ export function removeDayTemplate(drafts: readonly DayTemplateDraft[], rowKey: s
   return drafts.filter((draft) => draft.rowKey !== rowKey);
 }
 
+/** つかんだテンプレートを、重ねたテンプレートの位置へ動かす。どちらかが一覧になければ、そのまま返す。 */
+export function reorderDayTemplates(
+  drafts: readonly DayTemplateDraft[],
+  activeRowKey: string,
+  overRowKey: string,
+): DayTemplateDraft[] {
+  const from = drafts.findIndex((draft) => draft.rowKey === activeRowKey);
+  const to = drafts.findIndex((draft) => draft.rowKey === overRowKey);
+  if (from < 0 || to < 0 || from === to) return [...drafts];
+  const next = [...drafts];
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  return next;
+}
+
 export type DayTemplateSelection = {
-  /** 選んだ型の`rowKey`。 */
+  /** 選んだテンプレートの`rowKey`。 */
   rowKey: string | null;
-  /** 選んだ型の、一覧の中の位置。`rowKey`の型が一覧からなくなったときに使う。 */
+  /** 選んだテンプレートの、一覧の中の位置。`rowKey`のテンプレートが一覧からなくなったときに使う。 */
   index: number;
 };
 
 /**
- * 編集する型を返す。型が1つもなければnullを返す。
- * 選んだ型が一覧からなくなった場合は、同じ位置の型、なければ最後の型を選ぶ。
- * 型を削除したあとはすぐ下の型へ移り、新しい型を保存してidが変わったあとも同じ型を選んだままにするためである。
+ * 編集するテンプレートを返す。テンプレートが1つもなければnullを返す。
+ * 選んだテンプレートが一覧からなくなった場合は、同じ位置のテンプレート、なければ最後のテンプレートを選ぶ。
+ * テンプレートを削除したあとはすぐ下のテンプレートへ移り、新しいテンプレートを保存してidが変わったあとも同じテンプレートを選んだままにするためである。
  */
 export function resolveSelectedDayTemplate(
   drafts: readonly DayTemplateDraft[],
@@ -258,53 +271,49 @@ export function resolveSelectedDayTemplate(
 
 /**
  * 曜日の割り当てを切り替える。
- * 1つの曜日は1つの型にだけ割り当てられるため、別の型が持つ曜日を選んだら、その型から外して移す。
+ * 同じ曜日は複数のテンプレートで選べるため、ほかのテンプレートは変えない。その曜日には並びの先頭のテンプレートが当たる。
  */
 export function toggleDayTemplateWeekday(
   drafts: readonly DayTemplateDraft[],
   rowKey: string,
   weekday: ShiftSetupWeekday,
 ): DayTemplateDraft[] {
-  const target = drafts.find((draft) => draft.rowKey === rowKey);
-  if (!target) return [...drafts];
-  const isAssigned = target.weekdays.includes(weekday);
-
   return drafts.map((draft) => {
-    if (draft.rowKey === rowKey) {
-      return {
-        ...draft,
-        weekdays: isAssigned ? draft.weekdays.filter((day) => day !== weekday) : [...draft.weekdays, weekday],
-      };
-    }
-    return draft.weekdays.includes(weekday)
-      ? { ...draft, weekdays: draft.weekdays.filter((day) => day !== weekday) }
-      : draft;
+    if (draft.rowKey !== rowKey) return draft;
+    const weekdays = draft.weekdays.includes(weekday)
+      ? draft.weekdays.filter((day) => day !== weekday)
+      : [...draft.weekdays, weekday];
+    return { ...draft, weekdays };
   });
+}
+
+/** 曜日をすべて外す。祝日の選択は変えない。曜日も祝日も選ばないテンプレートは、シフト表で日付を選んで当てる。 */
+export function clearDayTemplateWeekdays(drafts: readonly DayTemplateDraft[], rowKey: string): DayTemplateDraft[] {
+  return drafts.map((draft) =>
+    draft.rowKey === rowKey && draft.weekdays.length > 0 ? { ...draft, weekdays: [] } : draft,
+  );
 }
 
 /**
  * 祝日に使うかどうかを切り替える。
- * 祝日に使える型は1つだけのため、選んだら、別の型の祝日を外して移す。
+ * 祝日は複数のテンプレートで選べるため、ほかのテンプレートは変えない。祝日には並びの先頭のテンプレートが当たる。
  */
 export function toggleDayTemplateHoliday(drafts: readonly DayTemplateDraft[], rowKey: string): DayTemplateDraft[] {
-  const target = drafts.find((draft) => draft.rowKey === rowKey);
-  if (!target) return [...drafts];
-  const next = !target.appliesToHolidays;
-
-  return drafts.map((draft) => {
-    if (draft.rowKey === rowKey) return { ...draft, appliesToHolidays: next };
-    return next && draft.appliesToHolidays ? { ...draft, appliesToHolidays: false } : draft;
-  });
+  return drafts.map((draft) =>
+    draft.rowKey === rowKey ? { ...draft, appliesToHolidays: !draft.appliesToHolidays } : draft,
+  );
 }
 
-/** 時間指定の型のバーを置き換える。時間指定でない型は変えない。 */
-export function changeDayTemplateBars(
+/** 時間指定のテンプレートの人数の区間を置き換える。時間指定でないテンプレートは変えない。 */
+export function changeDayTemplateSegments(
   drafts: readonly DayTemplateDraft[],
   rowKey: string,
-  bars: readonly EditableStaffingBar[],
+  segments: readonly StaffingSegment[],
 ): DayTemplateDraft[] {
   return updateDraft(drafts, rowKey, (draft) =>
-    draft.requirements.kind === "time" ? { ...draft, requirements: { kind: "time", bars: [...bars] } } : draft,
+    draft.requirements.kind === "time"
+      ? { ...draft, requirements: { kind: "time", segments: normalizeStaffingSegments(segments) } }
+      : draft,
   );
 }
 
@@ -316,7 +325,7 @@ function setCount(record: Readonly<Record<string, number>>, positionId: string, 
 }
 
 /**
- * パターン選択と日付選択の型の、1マスの人数を変える。
+ * パターン選択と日付選択のテンプレートの、1マスの人数を変える。
  * 0から上限までの整数に収め、0は「未設定」として持たない。
  */
 export function changeRequiredCount(
@@ -352,8 +361,9 @@ export function changeRequiredCount(
 }
 
 function cloneRequirementsDraft(requirements: DayTemplateRequirementsDraft): DayTemplateRequirementsDraft {
-  // バーのidは型の中だけで一意ならよいため、写した先で振り直す。
-  if (requirements.kind === "time") return { kind: "time", bars: toEditableStaffingBars(requirements.bars) };
+  if (requirements.kind === "time") {
+    return { kind: "time", segments: requirements.segments.map((segment) => ({ ...segment })) };
+  }
   if (requirements.kind === "dateOnly") return { kind: "dateOnly", counts: { ...requirements.counts } };
   return {
     kind: "shiftType",
@@ -363,7 +373,7 @@ function cloneRequirementsDraft(requirements: DayTemplateRequirementsDraft): Day
   };
 }
 
-/** 別の型の必要人数を写して、いまの必要人数を置き換える。名前と使う日は変えない。 */
+/** 別のテンプレートの必要人数を写して、いまの必要人数を置き換える。名前と使う日は変えない。 */
 export function copyDayTemplateRequirements(
   drafts: readonly DayTemplateDraft[],
   target: { fromRowKey: string; toRowKey: string },
@@ -389,7 +399,7 @@ function remapCounts(
 }
 
 /**
- * 型の下書きが指すポジションのIDを、`resolve`の返す値へ置き換える。nullを返したポジションのバーと人数は外す。
+ * テンプレートの下書きが指すポジションのIDを、`resolve`の返す値へ置き換える。nullを返したポジションの人数は外す。
  * ポジションを削除したときと、新しく足したポジションの仮のIDを保存後のIDへ直すときに使う。
  * 人数がなくなった勤務パターンの行は持たない。
  */
@@ -400,11 +410,14 @@ export function remapDayTemplateDraftPositions(
   return drafts.map((draft) => {
     const { requirements } = draft;
     if (requirements.kind === "time") {
-      const bars = requirements.bars.flatMap((bar) => {
-        const positionId = resolve(bar.positionId);
-        return positionId === null ? [] : [{ ...bar, positionId }];
-      });
-      return { ...draft, requirements: { kind: "time", bars } };
+      // IDが変わると並びも変わるため、正規化し直す。
+      const segments = normalizeStaffingSegments(
+        requirements.segments.flatMap((segment) => {
+          const positionId = resolve(segment.positionId);
+          return positionId === null ? [] : [{ ...segment, positionId }];
+        }),
+      );
+      return { ...draft, requirements: { kind: "time", segments } };
     }
     if (requirements.kind === "dateOnly") {
       return { ...draft, requirements: { kind: "dateOnly", counts: remapCounts(requirements.counts, resolve) } };
@@ -420,13 +433,13 @@ export function remapDayTemplateDraftPositions(
 
 /** 必要人数を1つも入れていないかを返す。 */
 function isDayTemplateRequirementsEmpty(requirements: DayTemplateRequirementsDraft): boolean {
-  if (requirements.kind === "time") return requirements.bars.length === 0;
+  if (requirements.kind === "time") return requirements.segments.length === 0;
   return Object.keys(requirements.counts).length === 0;
 }
 
 /**
- * 作ったまま、まだ何も入れていない新しい型かを返す。
- * 名前と使う日が作ったときのままで、必要人数が空の型を指す。
+ * 作ったまま、まだ何も入れていない新しいテンプレートかを返す。
+ * 名前と使う日が作ったときのままで、必要人数が空のテンプレートを指す。
  */
 export function isUntouchedNewDayTemplate(draft: DayTemplateDraft): boolean {
   const { initial } = draft;
@@ -441,8 +454,8 @@ export function isUntouchedNewDayTemplate(draft: DayTemplateDraft): boolean {
 }
 
 /**
- * 保存していない変更として扱う型の変更があるかを返す。
- * 作ったまま何も入れていない新しい型は変更に数えない。「型を追加」を押しただけで、保存と離脱の確認を求めないためである。
+ * 保存していない変更として扱うテンプレートの変更があるかを返す。
+ * 作ったまま何も入れていない新しいテンプレートは変更に数えない。「テンプレートを追加」を押しただけで、保存と離脱の確認を求めないためである。
  */
 export function hasPendingDayTemplateChanges(
   drafts: readonly DayTemplateDraft[],
@@ -453,14 +466,14 @@ export function hasPendingDayTemplateChanges(
   return !isSameDayTemplateInputs(toDayTemplateInputs(entered, context), savedInputs);
 }
 
-/** 希望シフトの集め方を変えたあと、まだ必要人数を入れ直していない型かを返す。 */
+/** 希望シフトの集め方を変えたあと、まだ必要人数を入れ直していないテンプレートかを返す。 */
 export function needsDayTemplateReentry(draft: DayTemplateDraft): boolean {
   return draft.requiresReentry && isDayTemplateRequirementsEmpty(draft.requirements);
 }
 
 /**
- * 型ごとの入力の誤りを返す。誤りのない型は結果に含めない。
- * 型をまたぐ誤り（名前、曜日、祝日の重複）は、あとから出てくる型の誤りとして返す。
+ * テンプレートごとの入力の誤りを返す。誤りのないテンプレートは結果に含めない。
+ * テンプレートをまたぐ誤り（名前の重複）は、あとから出てくるテンプレートの誤りとして返す。
  */
 export function findDayTemplateDraftIssues(
   drafts: readonly DayTemplateDraft[],
@@ -469,30 +482,20 @@ export function findDayTemplateDraftIssues(
   const inputs = toDayTemplateInputs(drafts, context);
   const issues: Record<string, DayTemplateIssue> = {};
   const names = new Set<string>();
-  const weekdays = new Set<ShiftSetupWeekday>();
-  let hasHolidayTemplate = false;
 
   drafts.forEach((draft, index) => {
     const input = inputs[index];
     const name = draft.name.trim();
-    const crossTemplateIssue: DayTemplateIssue | null = names.has(name)
-      ? "NAME_DUPLICATED"
-      : input.weekdays.some((weekday) => weekdays.has(weekday))
-        ? "WEEKDAY_DUPLICATED"
-        : input.appliesToHolidays && hasHolidayTemplate
-          ? "HOLIDAY_DUPLICATED"
-          : null;
+    const crossTemplateIssue: DayTemplateIssue | null = names.has(name) ? "NAME_DUPLICATED" : null;
     const issue = findDayTemplateIssue({ templates: [input], pattern: context.pattern }) ?? crossTemplateIssue;
     if (issue) issues[draft.rowKey] = issue;
 
     names.add(name);
-    for (const weekday of input.weekdays) weekdays.add(weekday);
-    hasHolidayTemplate ||= input.appliesToHolidays;
   });
   return issues;
 }
 
-/** 型の一覧全体を検証する。型ごとの検証では見つからない件数の上限も含む。 */
+/** テンプレートの一覧全体を検証する。テンプレートごとの検証では見つからない件数の上限も含む。 */
 export function findDayTemplateInputsIssue(
   inputs: readonly DayTemplateInput[],
   pattern: ShiftSetupSubmissionPattern,
@@ -500,14 +503,14 @@ export function findDayTemplateInputsIssue(
   return findDayTemplateIssue({ templates: inputs, pattern });
 }
 
-/** 型の見出しに出す名前。名前が空の型も一覧で選べるようにする。 */
+/** テンプレートの見出しに出す名前。名前が空のテンプレートも一覧で選べるようにする。 */
 export function getDayTemplateLabel(draft: Pick<DayTemplateDraft, "name">): string {
   return draft.name.trim() || UNNAMED_TEMPLATE_LABEL;
 }
 
 /**
- * 型を使う日を「月〜金」「土・日・祝日」の形で返す。
- * 3日以上続く曜日は「〜」でつなぐ。曜日も祝日も選んでいない型は「個別に当てる」と返す。
+ * テンプレートを使う日を「月〜金」「土・日・祝日」の形で返す。
+ * 3日以上続く曜日は「〜」でつなぐ。曜日も祝日も選んでいないテンプレートは「個別」と返す。
  */
 export function formatDayTemplateUsage(draft: Pick<DayTemplateDraft, "weekdays" | "appliesToHolidays">): string {
   const selected = WEEKDAY_OPTIONS.filter((day) => draft.weekdays.includes(day.value));
@@ -529,7 +532,7 @@ export function formatDayTemplateUsage(draft: Pick<DayTemplateDraft, "weekdays" 
     flush();
   }
   if (draft.appliesToHolidays) parts.push("祝日");
-  return parts.length > 0 ? parts.join("・") : "個別に当てる";
+  return parts.length > 0 ? parts.join("・") : "個別";
 }
 
 export type RequiredCountRow = { id: string; label: string; detail?: string };
@@ -556,8 +559,8 @@ export function getRequiredCountTableCounts(
   return {};
 }
 
-/** バーを置ける範囲（分）。時間指定でない集め方ではnullを返す。 */
-export function getStaffingBarRange(pattern: ShiftSetupSubmissionPattern): StaffingBarRange | null {
+/** 人数を入れられる範囲（分）。時間指定でない集め方ではnullを返す。 */
+export function getStaffingSegmentRange(pattern: ShiftSetupSubmissionPattern): StaffingSegmentRange | null {
   if (pattern.kind !== "time") return null;
   return { startMinutes: timeToMinutes(pattern.startTime), endMinutes: timeToMinutes(pattern.endTime) };
 }

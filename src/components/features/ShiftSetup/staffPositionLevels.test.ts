@@ -1,16 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
-  changeStaffPositionMarks,
-  filterStaffsByName,
+  getNextStaffPositionLevel,
   getStaffPositionLevel,
   getStaffPositionLevelLabel,
-  getStaffPositionMarkOptions,
-  getStaffPositionMarkSymbol,
-  getStampedStaffPositionLevel,
   isLastAvailablePosition,
   isSameStaffPositionLevels,
-  isStaffPositionMarkBlocked,
   setStaffPositionLevel,
   toStaffPositionLevels,
   toStaffProfileInputs,
@@ -31,36 +26,16 @@ function staff(overrides: Partial<ShiftSetupStaff> = {}): ShiftSetupStaff {
   return { _id: staffA, name: "佐藤 花子", positionSkills: [], ...overrides };
 }
 
-describe("付けられる印", () => {
-  it("ポジションが2件以上の店舗では、新人、責任者、入れないの順に3つを付けられる", () => {
-    expect(getStaffPositionMarkOptions(positions)).toEqual([
-      { value: "newcomer", label: "新人" },
-      { value: "lead", label: "責任者" },
-      { value: "unavailable", label: "入れない" },
-    ]);
-  });
-
-  it("ポジションが1件の店舗では、入れないを出さない", () => {
-    expect(getStaffPositionMarkOptions([{ _id: hall }]).map((option) => option.value)).toEqual(["newcomer", "lead"]);
-  });
-
+describe("値の名前", () => {
   it("値の名前を返す", () => {
     expect(
       (["unavailable", "newcomer", "standard", "lead"] as const).map((level) => getStaffPositionLevelLabel(level)),
-    ).toEqual(["入れない", "新人", "標準", "責任者"]);
-  });
-
-  it("マスに出す短い印を返す", () => {
-    expect((["newcomer", "lead", "unavailable"] as const).map((mark) => getStaffPositionMarkSymbol(mark))).toEqual([
-      "新",
-      "責",
-      "×",
-    ]);
+    ).toEqual(["担当外", "見習い", "一人前", "リーダー"]);
   });
 });
 
 describe("保存済みの値と編集中の値の変換", () => {
-  it("保存済みの値を、ポジションのIDから値を引ける形へ直し、値のないポジションは標準として読む", () => {
+  it("保存済みの値を、ポジションのIDから値を引ける形へ直し、値のないポジションは一人前として読む", () => {
     const levels = toStaffPositionLevels(
       staff({
         positionSkills: [
@@ -87,7 +62,7 @@ describe("保存済みの値と編集中の値の変換", () => {
 });
 
 describe("1つのポジションの値を変える", () => {
-  it("標準以外の値を持ち、標準へ戻すと値を持たない", () => {
+  it("一人前以外の値を持ち、一人前へ戻すと値を持たない", () => {
     const newcomer = setStaffPositionLevel({}, kitchen, "newcomer", positions);
     expect(newcomer).toEqual({ [kitchen]: "newcomer" });
 
@@ -96,7 +71,7 @@ describe("1つのポジションの値を変える", () => {
     expect(setStaffPositionLevel(lead, kitchen, "standard", positions)).toEqual({});
   });
 
-  it("入れるポジションが2つ以上あれば、入れないにできる", () => {
+  it("担当できるポジションが2つ以上あれば、担当外にできる", () => {
     const levels: StaffPositionLevels = { [kitchen]: "unavailable" };
 
     expect(isLastAvailablePosition(levels, hall, positions)).toBe(false);
@@ -106,20 +81,20 @@ describe("1つのポジションの値を変える", () => {
     });
   });
 
-  it("最後に残った1つは、入れないにできない。新人や責任者には変えられる", () => {
+  it("最後に残った1つは、担当外にできない。見習いやリーダーには変えられる", () => {
     const levels: StaffPositionLevels = { [hall]: "unavailable", [kitchen]: "unavailable" };
 
     expect(isLastAvailablePosition(levels, register, positions)).toBe(true);
     expect(setStaffPositionLevel(levels, register, "unavailable", positions)).toBe(levels);
     expect(setStaffPositionLevel(levels, register, "lead", positions)).toEqual({ ...levels, [register]: "lead" });
-    // すでに入れないポジションは、最後の1つではない。
+    // すでに担当外のポジションは、最後の1つではない。
     expect(isLastAvailablePosition(levels, hall, positions)).toBe(false);
   });
 
   it("いまは無いポジションの値は、残りの数に数えない", () => {
     const levels: StaffPositionLevels = { [kitchen]: "unavailable", [register]: "unavailable" };
 
-    // 削除済みのポジションに値が残っていても、入れるのはホールだけである。
+    // 削除済みのポジションに値が残っていても、担当できるのはホールだけである。
     expect(isLastAvailablePosition({ ...levels, [removed]: "lead" }, hall, positions)).toBe(true);
   });
 
@@ -129,7 +104,7 @@ describe("1つのポジションの値を変える", () => {
 });
 
 describe("変更の有無と保存する形", () => {
-  it("標準を持たない値と、標準へ戻した値は同じとみなす", () => {
+  it("一人前を持たない値と、一人前へ戻した値は同じとみなす", () => {
     expect(
       isSameStaffPositionLevels({}, setStaffPositionLevel({ [hall]: "lead" }, hall, "standard", positions), positions),
     ).toBe(true);
@@ -138,7 +113,7 @@ describe("変更の有無と保存する形", () => {
     expect(isSameStaffPositionLevels({ [removed]: "lead" }, {}, positions)).toBe(true);
   });
 
-  it("保存済みの値から変えたスタッフだけを、ポジションの並び順にそろえ、標準を省いて返す", () => {
+  it("保存済みの値から変えたスタッフだけを、ポジションの並び順にそろえ、一人前を省いて返す", () => {
     const staffs = [
       staff({ _id: staffA, positionSkills: [{ positionId: kitchen, level: "unavailable" }] }),
       staff({ _id: staffB, name: "鈴木 次郎" }),
@@ -153,7 +128,7 @@ describe("変更の有無と保存する形", () => {
           [staffA]: { [register]: "newcomer", [removed]: "lead", [hall]: "lead" },
           // 保存済みの値と同じ。
           [staffB]: {},
-          // すべて標準へ戻した。
+          // すべて一人前へ戻した。
           [staffC]: {},
         },
         positions,
@@ -175,170 +150,57 @@ describe("変更の有無と保存する形", () => {
   });
 });
 
-describe("マスを押して印を付ける", () => {
-  it("印のないマスには、選んでいる印が付く", () => {
-    expect(
-      (["newcomer", "lead", "unavailable"] as const).map((mark) => getStampedStaffPositionLevel("standard", mark)),
-    ).toEqual(["newcomer", "lead", "unavailable"]);
+describe("マスを押すたびに値を切り替える", () => {
+  /** 同じマスを`times`回押したときの値を、押した順に返す。 */
+  function press(
+    initial: StaffPositionLevels,
+    positionId: string,
+    times: number,
+    targetPositions: ReadonlyArray<{ _id: Id<"positions"> }> = positions,
+  ) {
+    let levels = initial;
+    return Array.from({ length: times }, () => {
+      const next = getNextStaffPositionLevel(levels, positionId, targetPositions);
+      levels = setStaffPositionLevel(levels, positionId, next, targetPositions);
+      return next;
+    });
+  }
+
+  it("一人前、見習い、リーダー、担当外の順に切り替わり、担当外の次は一人前へ戻る", () => {
+    expect(press({}, hall, 5)).toEqual(["newcomer", "lead", "unavailable", "standard", "newcomer"]);
   });
 
-  it("選んでいる印と同じ印のマスは、標準へ戻る", () => {
-    expect(
-      (["newcomer", "lead", "unavailable"] as const).map((mark) => getStampedStaffPositionLevel(mark, mark)),
-    ).toEqual(["standard", "standard", "standard"]);
+  it("保存済みの値の続きから切り替わる", () => {
+    expect(getNextStaffPositionLevel({ [hall]: "newcomer" }, hall, positions)).toBe("lead");
+    expect(getNextStaffPositionLevel({ [hall]: "lead" }, hall, positions)).toBe("unavailable");
+    expect(getNextStaffPositionLevel({ [hall]: "unavailable" }, hall, positions)).toBe("standard");
   });
 
-  it("別の印が付いたマスは、選んでいる印に置き換わる", () => {
-    expect(getStampedStaffPositionLevel("lead", "newcomer")).toBe("newcomer");
-    expect(getStampedStaffPositionLevel("unavailable", "lead")).toBe("lead");
-    expect(getStampedStaffPositionLevel("newcomer", "unavailable")).toBe("unavailable");
-  });
-
-  it("最後に残った入れるポジションには、入れないだけを付けられない", () => {
+  it("最後に残った担当できるポジションでは、担当外を飛ばして一人前へ戻る", () => {
     const levels: StaffPositionLevels = { [hall]: "unavailable", [kitchen]: "unavailable" };
 
-    expect(
-      (["newcomer", "lead", "unavailable"] as const).map((mark) =>
-        isStaffPositionMarkBlocked(levels, register, mark, positions),
-      ),
-    ).toEqual([false, false, true]);
-    // すでに入れないのマスは、もう一度押して外せる。
-    expect(isStaffPositionMarkBlocked(levels, hall, "unavailable", positions)).toBe(false);
+    expect(press(levels, register, 4)).toEqual(["newcomer", "lead", "standard", "newcomer"]);
   });
 
-  it("入れるポジションが2つ以上あれば、入れないを付けられる", () => {
-    expect(isStaffPositionMarkBlocked({ [kitchen]: "unavailable" }, hall, "unavailable", positions)).toBe(false);
-  });
-
-  it("ポジションが1件の店舗では、その1件に入れないを付けられない", () => {
-    expect(isStaffPositionMarkBlocked({}, hall, "unavailable", [{ _id: hall }])).toBe(true);
-  });
-});
-
-describe("まとめて印を付ける、外す", () => {
-  const profiles: Record<string, StaffPositionLevels> = {
-    [staffA]: { [kitchen]: "lead" },
-    // 入れるのはキッチンだけ。
-    [staffB]: { [hall]: "unavailable", [register]: "unavailable" },
-    [staffC]: { [kitchen]: "unavailable" },
-  };
-  const everyone = [staffA, staffB, staffC];
-
-  it("選んだスタッフ全員に印を付け、別の印が付いていたスタッフは置き換える", () => {
-    expect(
-      changeStaffPositionMarks(
-        profiles,
-        { positionId: kitchen, staffIds: everyone, mark: "newcomer", action: "apply" },
-        positions,
-      ),
-    ).toEqual({
-      profiles: {
-        [staffA]: { [kitchen]: "newcomer" },
-        [staffB]: { [hall]: "unavailable", [kitchen]: "newcomer", [register]: "unavailable" },
-        [staffC]: { [kitchen]: "newcomer" },
-      },
-      skippedCount: 0,
-    });
-  });
-
-  it("選んでいないスタッフの値は変えない", () => {
-    const result = changeStaffPositionMarks(
-      profiles,
-      { positionId: kitchen, staffIds: [staffC], mark: "newcomer", action: "apply" },
-      positions,
+  it("担当できるポジションが2つ残っていれば、担当外へ切り替わる", () => {
+    expect(getNextStaffPositionLevel({ [kitchen]: "unavailable", [hall]: "lead" }, hall, positions)).toBe(
+      "unavailable",
     );
-
-    expect(result).toEqual({
-      profiles: { ...profiles, [staffC]: { [kitchen]: "newcomer" } },
-      skippedCount: 0,
-    });
-    // 変えていないスタッフは、同じ値をそのまま返す。
-    expect(result.profiles[staffA]).toBe(profiles[staffA]);
   });
 
-  it("入れないを付けると入れるポジションがなくなるスタッフは変えず、その人数を返す", () => {
-    expect(
-      changeStaffPositionMarks(
-        profiles,
-        { positionId: kitchen, staffIds: everyone, mark: "unavailable", action: "apply" },
-        positions,
-      ),
-    ).toEqual({
-      profiles: {
-        [staffA]: { [kitchen]: "unavailable" },
-        [staffB]: { [hall]: "unavailable", [register]: "unavailable" },
-        [staffC]: { [kitchen]: "unavailable" },
-      },
-      skippedCount: 1,
-    });
+  it("すでに担当外のマスは、ほかに担当できるポジションが1つだけでも一人前へ戻せる", () => {
+    const levels: StaffPositionLevels = { [hall]: "unavailable", [kitchen]: "unavailable" };
+
+    expect(getNextStaffPositionLevel(levels, hall, positions)).toBe("standard");
   });
 
-  it("選んでいないスタッフは、入れるポジションがなくなる人数に数えない", () => {
-    expect(
-      changeStaffPositionMarks(
-        profiles,
-        { positionId: kitchen, staffIds: [staffA], mark: "unavailable", action: "apply" },
-        positions,
-      ).skippedCount,
-    ).toBe(0);
+  it("いまは無いポジションの値は、担当できるポジションに数えない", () => {
+    const levels: StaffPositionLevels = { [kitchen]: "unavailable", [register]: "unavailable", [removed]: "lead" };
+
+    expect(getNextStaffPositionLevel({ ...levels, [hall]: "lead" }, hall, positions)).toBe("standard");
   });
 
-  it("外すときは、その印が付いているスタッフだけを標準へ戻し、別の印は残す", () => {
-    expect(
-      changeStaffPositionMarks(
-        profiles,
-        { positionId: kitchen, staffIds: everyone, mark: "unavailable", action: "remove" },
-        positions,
-      ),
-    ).toEqual({
-      profiles: {
-        [staffA]: { [kitchen]: "lead" },
-        [staffB]: { [hall]: "unavailable", [register]: "unavailable" },
-        [staffC]: {},
-      },
-      skippedCount: 0,
-    });
-  });
-
-  it("対象のスタッフがいなければ、何も変えない", () => {
-    expect(
-      changeStaffPositionMarks(
-        profiles,
-        { positionId: kitchen, staffIds: [], mark: "newcomer", action: "apply" },
-        positions,
-      ),
-    ).toEqual({ profiles, skippedCount: 0 });
-  });
-
-  it("一覧にないスタッフと、重ねて渡したスタッフは数えない", () => {
-    const unknown = "staff-unknown" as Id<"staffs">;
-
-    expect(
-      changeStaffPositionMarks(
-        profiles,
-        { positionId: kitchen, staffIds: [unknown, staffB, staffB], mark: "unavailable", action: "apply" },
-        positions,
-      ),
-    ).toEqual({ profiles, skippedCount: 1 });
-  });
-});
-
-describe("名前の絞り込み", () => {
-  const staffs = [{ name: "佐藤 花子" }, { name: "鈴木 次郎" }, { name: "Ｊｏｈｎ Smith" }];
-
-  it("検索語が空か空白だけなら、全員を返す", () => {
-    expect(filterStaffsByName(staffs, "")).toEqual(staffs);
-    expect(filterStaffsByName(staffs, "　 ")).toEqual(staffs);
-  });
-
-  it("名前に検索語を含むスタッフだけを返す", () => {
-    expect(filterStaffsByName(staffs, "鈴木")).toEqual([{ name: "鈴木 次郎" }]);
-    expect(filterStaffsByName(staffs, "山田")).toEqual([]);
-  });
-
-  it("空白の有無、全角と半角、大文字と小文字の違いを区別しない", () => {
-    expect(filterStaffsByName(staffs, "佐藤花子")).toEqual([{ name: "佐藤 花子" }]);
-    expect(filterStaffsByName(staffs, "佐藤　花")).toEqual([{ name: "佐藤 花子" }]);
-    expect(filterStaffsByName(staffs, "john smith")).toEqual([{ name: "Ｊｏｈｎ Smith" }]);
+  it("ポジションが1件の店舗では、一人前、見習い、リーダーの順に切り替わり、担当外にはならない", () => {
+    expect(press({}, hall, 4, [{ _id: hall }])).toEqual(["newcomer", "lead", "standard", "newcomer"]);
   });
 });

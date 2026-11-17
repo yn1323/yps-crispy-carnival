@@ -1,64 +1,63 @@
-import { Box, chakra, Field, Flex, Grid, Menu, Portal, Stack, Text, useBreakpointValue } from "@chakra-ui/react";
-import { useState } from "react";
-import { LuChevronDown, LuSearchX, LuUsers } from "react-icons/lu";
+import { Box, chakra, Flex, Grid, Stack, Text, useBreakpointValue, VisuallyHidden } from "@chakra-ui/react";
+import { useRef, useState } from "react";
+import { LuCircleHelp, LuUser, LuUsers } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
+import { Dialog, DialogActionArea, useDialog } from "@/src/components/ui/Dialog";
 import { Empty } from "@/src/components/ui/Empty";
-import { Input } from "@/src/components/ui/FormControls";
-import { PositionDot, SegmentedRadio, SetupCard, SetupSection } from "./parts";
-import {
-  filterStaffsByName,
-  getStaffPositionLevel,
-  getStaffPositionLevelLabel,
-  getStaffPositionMarkOptions,
-  getStaffPositionMarkSymbol,
-  getStampedStaffPositionLevel,
-  isStaffPositionMarkBlocked,
-} from "./staffPositionLevels";
+import { isPositionsUnsplit } from "@/src/domains/shift/operations";
+import { PositionBadge, PositionDot, SetupCard, SetupLockedNote, SetupSection } from "./parts";
+import { getNextStaffPositionLevel, getStaffPositionLevel, getStaffPositionLevelLabel } from "./staffPositionLevels";
 import type {
   ShiftSetupIntents,
   ShiftSetupPosition,
   ShiftSetupStaff,
   StaffPositionLevel,
   StaffPositionLevels,
-  StaffPositionMark,
-  StaffPositionMarkChange,
 } from "./types";
 
-/** 説明文。操作の仕方、印のない場合の扱い、シフト表での見え方の順に並べる。閲覧専用では、操作の仕方を出さない。 */
-const DESCRIPTION = {
-  howTo: "付ける印を選んでスタッフのポジションを押すと印が付き、もう一度押すと外れます。",
-  noMark: "印のないポジションは標準です。",
-};
-const SINGLE_POSITION_DESCRIPTION = {
-  howTo: "付ける印を選んでスタッフの熟練度を押すと印が付き、もう一度押すと外れます。",
-  noMark: "印のないスタッフは標準です。",
-};
-const SHIFT_BOARD_NOTE = "新人と責任者の印は、シフト表にも出ます。";
-const LAST_POSITION_REASON = "入れるポジションは1つ以上必要です";
-/** ポジションが1件の店舗で、ポジションの名前の代わりに出す見出し。 */
-const SINGLE_POSITION_LABEL = "熟練度";
-/** PCで上端に留める、付ける印の行の高さ（px）。表の見出しの行は、この行のすぐ下に留める。 */
-const MARK_BAR_HEIGHT_PX = 52;
-const MENU_ITEM_PROPS = { cursor: "pointer", minH: { base: "44px", md: "36px" }, px: 3, py: 2 } as const;
+/** セクションの見出しの下に出す説明。ほかのセクションと同じく、何を設定するかを先に伝える。 */
+const SECTION_DESCRIPTION = "スタッフのスキルを設定します。スキルを押すことで切り替えられます。";
+const SINGLE_POSITION_SECTION_DESCRIPTION = "スタッフの熟練度を設定します。スキルが足りない時間帯に警告を出します。";
 const STICKY_TRANSITION = {
   transition: "top 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
   "@media (prefers-reduced-motion: reduce)": { transition: "none" },
 } as const;
 
 /**
- * 印の配色。新人と責任者の色は、シフト表の印にそろえる。印は必ず文字でも出す。
- * `surface`は、スマートフォンでポジションの名前ごと囲むマスの地の色。
+ * 値ごとのマスの配色。どの値も、淡い地に同じ色みの濃い文字を載せる。値は必ず言葉でも出す。
+ * 見習いの橙とリーダーの緑は、シフト表の印にそろえる。一人前は青、担当外は灰色にする。
+ * カーソルを載せたときと押している間は、地を1段ずつ濃くする。
  */
-const MARK_STYLES: Record<StaffPositionMark, { bg: string; color: string; surface: string }> = {
-  newcomer: { bg: "orange.100", color: "orange.800", surface: "orange.50" },
-  lead: { bg: "green.100", color: "green.800", surface: "green.50" },
-  unavailable: { bg: "gray.200", color: "gray.700", surface: "gray.100" },
+const LEVEL_STYLES: Record<StaffPositionLevel, { bg: string; hoverBg: string; activeBg: string; color: string }> = {
+  standard: { bg: "blue.100", hoverBg: "blue.200", activeBg: "blue.300", color: "blue.800" },
+  newcomer: { bg: "orange.100", hoverBg: "orange.200", activeBg: "orange.300", color: "orange.800" },
+  lead: { bg: "green.100", hoverBg: "green.200", activeBg: "green.300", color: "green.800" },
+  unavailable: { bg: "gray.200", hoverBg: "gray.300", activeBg: "gray.400", color: "gray.700" },
 };
 
-type MarkOption = ReturnType<typeof getStaffPositionMarkOptions>[number];
-type BulkAction = StaffPositionMarkChange["action"];
+/** スキルの役割に並べる順。熟練度の低いほうから並べ、担当外を最後に置く。マスを押して切り替わる順とは別に決める。 */
+const LEGEND_ORDER: readonly StaffPositionLevel[] = ["newcomer", "standard", "lead", "unavailable"];
 
-type Intents = Pick<ShiftSetupIntents, "onChangeStaffPositionLevel" | "onChangeStaffPositionMarks">;
+/**
+ * PCの表の、列の見出しとマスの文字の大きさ。ふだんは14pxで出す。
+ * ポジションが多く、列が「リーダー」の4文字を収められない幅になったときだけ、12pxへ下げる。
+ * 画面の幅ではなく、列自身の幅で切り替えるため、見出しとマスの親をコンテナにする。
+ */
+const TABLE_COLUMN_FONT_SWITCH = {
+  containerType: "inline-size",
+  "& > :is(button, span)": { fontSize: "0.75rem" },
+  "@container (min-width: 4.25rem)": { "& > :is(button, span)": { fontSize: "0.875rem" } },
+} as const;
+
+/** スキルの役割に出す、4つのスキルの意味。 */
+const LEVEL_DESCRIPTIONS: Record<StaffPositionLevel, string> = {
+  newcomer: "ポジション担当開始時点。シフト作成時に見習いのみポジションがある場合、警告を表示します。",
+  standard: "ポジションを一人で担当できる。",
+  lead: "ポジションの担当に加え、突発的なできごとへの対応も任せられる。",
+  unavailable: "そのポジション担当外。自動シフト作成時にそのポジションに割り当たることがない。",
+};
+
+type Intents = Pick<ShiftSetupIntents, "onChangeStaffPositionLevel">;
 
 type Props = {
   staffs: readonly ShiftSetupStaff[];
@@ -68,15 +67,15 @@ type Props = {
   canWrite: boolean;
   /** 保存の応答を待っている間。値を操作できない状態にする。 */
   isSaving: boolean;
-  /** 付ける印の行を留める位置。ページの見出しの行のすぐ下にする。 */
+  /** 表の見出しの行を留める位置。ページの見出しの行のすぐ下にする。 */
   headerStickyTop: string;
   intents: Intents;
 };
 
 /**
  * スタッフの、ポジションごとの熟練度。
- * 付ける印（新人、責任者、入れない）を選んでからマスを押すと、1回の操作で印が付く。
- * 同じ印のマスをもう一度押すと標準へ戻り、別の印のマスは選んでいる印に置き換わる。
+ * マスを押すたびに、一人前、見習い、リーダー、担当外の順に値が切り替わる。
+ * スタッフに残った最後の「担当できるポジション」では、担当外を飛ばして一人前へ戻る。
  */
 export function StaffProfilesSection({
   staffs,
@@ -87,72 +86,60 @@ export function StaffProfilesSection({
   headerStickyTop,
   intents,
 }: Props) {
-  const [nameQuery, setNameQuery] = useState("");
-  const [selectedMark, setSelectedMark] = useState<StaffPositionMark>("newcomer");
-  // 印を付けられなかったマスを押したときに出す理由。次の操作で消す。
-  const [notice, setNotice] = useState<string | null>(null);
+  // 押したあとの値。マスの読み上げ名が変わっても読み上げられないことがあるため、別に知らせる。
+  const [announcement, setAnnouncement] = useState("");
   const layout = useBreakpointValue<"narrow" | "wide">({ base: "narrow", md: "wide" }) ?? "wide";
+  const legendDialog = useDialog();
+  const legendButtonRef = useRef<HTMLButtonElement>(null);
 
-  // ポジションが1件の店舗では、入れるポジションを選ぶ余地がないため、熟練度だけを選ぶ。
-  const hasPositionChoice = positions.length > 1;
-  const description = hasPositionChoice ? DESCRIPTION : SINGLE_POSITION_DESCRIPTION;
-  const markOptions = getStaffPositionMarkOptions(positions);
-  // ポジションが1件になって「入れない」を選べなくなったら、最初の印へ戻す。
-  const mark = markOptions.find((option) => option.value === selectedMark) ?? markOptions[0];
-  const visibleStaffs = filterStaffsByName(staffs, nameQuery);
-  const isFiltered = visibleStaffs.length !== staffs.length;
+  // 熟練度はポジションごとに持つため、ポジションを追加するまでは中身を見せない。
+  const isLocked = isPositionsUnsplit(positions);
+  const hasLevels = !isLocked && staffs.length > 0;
 
-  const stamp = (staff: ShiftSetupStaff, position: ShiftSetupPosition) => {
-    const levels = profiles[staff._id] ?? {};
-    if (isStaffPositionMarkBlocked(levels, position._id, mark.value, positions)) {
-      setNotice(`${staff.name}さんが入れるポジションは1つ以上必要です`);
-      return;
-    }
-    setNotice(null);
-    intents.onChangeStaffPositionLevel(
-      staff._id,
-      position._id,
-      getStampedStaffPositionLevel(getStaffPositionLevel(levels, position._id), mark.value),
-    );
+  const cycle = (staff: ShiftSetupStaff, position: ShiftSetupPosition) => {
+    const next = getNextStaffPositionLevel(profiles[staff._id] ?? {}, position._id, positions);
+    intents.onChangeStaffPositionLevel(staff._id, position._id, next);
+    setAnnouncement(`${staff.name} ${position.name} ${getStaffPositionLevelLabel(next)}`);
   };
 
-  const bulk: BulkProps = {
-    mark,
-    // 名前で絞り込んでいる間は、表示しているスタッフだけを変える。
-    scope: isFiltered
-      ? `表示中の${visibleStaffs.length}人`
-      : visibleStaffs.length === 1
-        ? "1人"
-        : `${visibleStaffs.length}人全員`,
-    staffCount: visibleStaffs.length,
-    countMarked: (positionId) =>
-      visibleStaffs.filter((staff) => getStaffPositionLevel(profiles[staff._id] ?? {}, positionId) === mark.value)
-        .length,
-    onChange: (positionId, action) => {
-      setNotice(null);
-      intents.onChangeStaffPositionMarks({
-        positionId,
-        staffIds: visibleStaffs.map((staff) => staff._id),
-        mark: mark.value,
-        action,
-      });
-    },
-  };
-
-  const listProps: ListProps = {
-    staffs: visibleStaffs,
-    positions,
-    profiles,
-    canWrite,
-    hasPositionChoice,
-    mark,
-    bulk,
-    onStamp: stamp,
-  };
+  const listProps: ListProps = { staffs, positions, profiles, canWrite, onCycle: cycle };
 
   return (
-    <SetupSection headingId="shift-setup-staffs-heading" title="スタッフ" step={3} isBusy={isSaving}>
-      {staffs.length === 0 ? (
+    <SetupSection
+      headingId="shift-setup-staffs-heading"
+      title="スタッフのスキル"
+      step={3}
+      // ポジションが1件の店舗では、担当できるポジションを選ぶ余地がないため、熟練度だけを選ぶ。
+      description={positions.length > 1 ? SECTION_DESCRIPTION : SINGLE_POSITION_SECTION_DESCRIPTION}
+      isBusy={isSaving}
+      action={
+        hasLevels ? (
+          <Button
+            ref={legendButtonRef}
+            type="button"
+            variant="ghost"
+            colorPalette="teal"
+            size="sm"
+            gap={1.5}
+            minH={{ base: "44px", md: "36px" }}
+            // 幅320pxでも見出しが折り返さないよう、スマートフォンでは余白を詰め、アイコンを出さない。
+            px={{ base: 1.5, md: 3 }}
+            mr={{ base: -1.5, md: 0 }}
+            fontWeight="semibold"
+            flexShrink={0}
+            onClick={legendDialog.open}
+          >
+            <Box as="span" display={{ base: "none", md: "contents" }}>
+              <LuCircleHelp aria-hidden />
+            </Box>
+            スキルの役割
+          </Button>
+        ) : undefined
+      }
+    >
+      {isLocked ? (
+        <SetupLockedNote>ポジションを追加すると、熟練度を設定できます</SetupLockedNote>
+      ) : staffs.length === 0 ? (
         <Empty
           icon={LuUsers}
           title="シフト対象のスタッフがいません"
@@ -161,195 +148,91 @@ export function StaffProfilesSection({
           variant="section"
           py={8}
         />
-      ) : positions.length === 0 ? (
-        // 熟練度はポジションごとに持つため、ポジションが1件もない店舗では設定できない。
-        <Empty
-          icon={LuUsers}
-          title="ポジションがまだありません"
-          titleAs="h3"
-          description="ポジションを登録すると、ここで熟練度を設定できます。"
-          variant="section"
-          py={8}
-        />
       ) : (
-        // 付ける印の行を画面の上端に留めるため、このカードでは角からはみ出す内容を切らない。
+        // 表の見出しの行を画面の上端に留めるため、このカードでは角からはみ出す内容を切らない。
         <SetupCard clipsOverflow={false}>
-          <Stack gap={3} px={{ base: 3, md: 5 }} pt={4} pb={3}>
-            <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-              {canWrite && description.howTo}
-              {description.noMark}
-              {SHIFT_BOARD_NOTE}
-            </Text>
-            <Flex align="flex-end" columnGap={3} rowGap={1} wrap="wrap">
-              <Field.Root w="full" maxW={{ md: "20rem" }}>
-                <Field.Label>名前で絞り込む</Field.Label>
-                <Input
-                  type="search"
-                  value={nameQuery}
-                  placeholder="サンプル スタッフ"
-                  bg="white"
-                  onChange={(event) => setNameQuery(event.target.value)}
-                />
-              </Field.Root>
-              {isFiltered && visibleStaffs.length > 0 && (
-                <Text fontSize="sm" color="fg.muted" pb={{ md: 2 }}>
-                  {staffs.length}人中{visibleStaffs.length}人を表示
-                </Text>
-              )}
-            </Flex>
-          </Stack>
-
-          {visibleStaffs.length === 0 ? (
-            <Empty
-              icon={LuSearchX}
-              title="条件に合うスタッフがいません"
-              titleAs="h3"
-              // カードの中に置くため、枠を重ねない。
-              variant="plain"
-              py={8}
-              action={
-                <Button
-                  type="button"
-                  variant="outline"
-                  bg="white"
-                  minH={{ base: "44px", md: "40px" }}
-                  onClick={() => setNameQuery("")}
-                >
-                  絞り込みを解除
-                </Button>
-              }
-            />
+          {layout === "wide" ? (
+            <StaffLevelTable {...listProps} headerStickyTop={headerStickyTop} />
           ) : (
-            <>
-              <MarkBar
-                options={markOptions}
-                mark={mark.value}
-                canWrite={canWrite}
-                notice={notice}
-                stickyTop={headerStickyTop}
-                onChange={(value) => {
-                  setSelectedMark(value);
-                  setNotice(null);
-                }}
-              />
-              {layout === "wide" ? (
-                <StaffLevelTable
-                  {...listProps}
-                  headerStickyTop={`calc(${headerStickyTop} + ${MARK_BAR_HEIGHT_PX}px)`}
-                />
-              ) : (
-                <StaffLevelList {...listProps} />
-              )}
-            </>
+            <StaffLevelList {...listProps} />
           )}
+          <VisuallyHidden role="status">{announcement}</VisuallyHidden>
         </SetupCard>
       )}
+
+      <SkillLegendDialog
+        isOpen={legendDialog.isOpen && hasLevels}
+        onOpenChange={legendDialog.onOpenChange}
+        finalFocusEl={() => legendButtonRef.current}
+      />
     </SetupSection>
   );
 }
 
-// ---- 付ける印の選択 ----
+// ---- スキルの役割 ----
 
-/** マスに出す印。標準は印を持たないため、薄い線だけを出す。読み上げ名はマスの側で持つ。 */
-function LevelMark({ level }: { level: StaffPositionLevel }) {
-  if (level === "standard") {
-    return <Box as="span" flexShrink={0} w="10px" h="2px" borderRadius="full" bg="gray.300" aria-hidden />;
-  }
-  const { bg, color } = MARK_STYLES[level];
+type SkillLegendDialogProps = {
+  isOpen: boolean;
+  onOpenChange: (details: { open: boolean }) => void;
+  finalFocusEl: () => HTMLElement | null;
+};
+
+/** 4つのスキルを、マスと同じ見た目の見本と、その意味で説明する。読むだけのDialog。 */
+function SkillLegendDialog({ isOpen, onOpenChange, finalFocusEl }: SkillLegendDialogProps) {
+  return (
+    <Dialog
+      title="スキルの役割"
+      isOpen={isOpen}
+      onOpenChange={onOpenChange}
+      finalFocusEl={finalFocusEl}
+      maxW="lg"
+      // 「閉じる」を、ほかのDialogの主ボタンと同じ塗りで出す。既定の「閉じる」は枠だけのため、操作の行を渡す。
+      footer={
+        <DialogActionArea
+          layout="standard"
+          endAction={
+            <Button type="button" colorPalette="teal" onClick={() => onOpenChange({ open: false })}>
+              閉じる
+            </Button>
+          }
+        />
+      }
+    >
+      <Stack as="dl" gap={3} m={0}>
+        {LEGEND_ORDER.map((level) => (
+          <Flex key={level} align="flex-start" gap={3}>
+            <Box as="dt" flexShrink={0}>
+              <LevelSample level={level} />
+            </Box>
+            <Text as="dd" m={0} pt={1} fontSize="sm" lineHeight="tall" color="gray.800">
+              {LEVEL_DESCRIPTIONS[level]}
+            </Text>
+          </Flex>
+        ))}
+      </Stack>
+    </Dialog>
+  );
+}
+
+/** マスと同じ見た目の見本。押せない。 */
+function LevelSample({ level }: { level: StaffPositionLevel }) {
+  const { bg, color } = LEVEL_STYLES[level];
   return (
     <chakra.span
       display="inline-flex"
       alignItems="center"
       justifyContent="center"
-      flexShrink={0}
-      minW="24px"
-      h="24px"
+      w="5rem"
+      minH="32px"
       borderRadius="md"
-      fontSize="sm"
-      fontWeight="bold"
-      lineHeight="1"
       bg={bg}
       color={color}
-      aria-hidden
+      fontSize="sm"
+      fontWeight="semibold"
+      lineHeight="1"
     >
-      {getStaffPositionMarkSymbol(level)}
+      {getStaffPositionLevelLabel(level)}
     </chakra.span>
-  );
-}
-
-type MarkBarProps = {
-  options: readonly MarkOption[];
-  mark: StaffPositionMark;
-  canWrite: boolean;
-  notice: string | null;
-  stickyTop: string;
-  onChange: (mark: StaffPositionMark) => void;
-};
-
-/**
- * 付ける印を選ぶ行。スクロールしても選んでいる印を見失わないよう、画面の上端に留める。
- * 印と名前を並べて出すため、表の凡例も兼ねる。閲覧専用では、凡例だけを出す。
- */
-function MarkBar({ options, mark, canWrite, notice, stickyTop, onChange }: MarkBarProps) {
-  return (
-    <Flex
-      data-sticky-row=""
-      position="sticky"
-      top={stickyTop}
-      zIndex={2}
-      direction={{ base: "column", md: "row" }}
-      align={{ md: "center" }}
-      columnGap={3}
-      minH={{ md: `${MARK_BAR_HEIGHT_PX}px` }}
-      maxH={{ md: `${MARK_BAR_HEIGHT_PX}px` }}
-      px={{ base: 3, md: 5 }}
-      py={{ base: 2, md: 0 }}
-      bg="white"
-      borderTopWidth="1px"
-      borderBottomWidth={{ base: "1px", md: 0 }}
-      borderColor="blackAlpha.100"
-      css={STICKY_TRANSITION}
-    >
-      <Text fontSize="xs" fontWeight="semibold" color="fg.muted" flexShrink={0} mb={{ base: 1.5, md: 0 }}>
-        {canWrite ? "付ける印" : "印の意味"}
-      </Text>
-      {canWrite ? (
-        <SegmentedRadio
-          name="shift-setup-staff-mark"
-          label="付ける印"
-          value={mark}
-          options={options.map((option) => ({
-            value: option.value,
-            label: option.label,
-            prefix: <LevelMark level={option.value} />,
-          }))}
-          onChange={onChange}
-        />
-      ) : (
-        <Flex as="ul" listStyleType="none" wrap="wrap" columnGap={4} rowGap={1}>
-          {options.map((option) => (
-            <Flex as="li" key={option.value} align="center" gap={1.5} fontSize="sm" color="gray.800">
-              <LevelMark level={option.value} />
-              {option.label}
-            </Flex>
-          ))}
-        </Flex>
-      )}
-      {/* 印を付けられなかった理由。読み上げられるよう、空の間も置いておく。 */}
-      <Text
-        role="status"
-        flex={{ md: 1 }}
-        minW={0}
-        fontSize="xs"
-        fontWeight="semibold"
-        lineHeight="1.4"
-        color="orange.800"
-        lineClamp={2}
-        mt={{ base: notice ? 1.5 : 0, md: 0 }}
-      >
-        {notice}
-      </Text>
-    </Flex>
   );
 }
 
@@ -359,245 +242,67 @@ type LevelCellProps = {
   /** 読み上げに使う、スタッフとポジションの名前。 */
   label: string;
   level: StaffPositionLevel;
-  /** 選んでいる印を付けられないマス。押すと、理由を出す。 */
-  isBlocked: boolean;
   readOnly: boolean;
   /** マスの中に出す、ポジションの名前と色。PCの表では列の見出しが示すため、渡さない。 */
-  caption?: { name: string; color?: string };
+  caption?: { name: string; color: string };
   onPress: () => void;
 };
 
-/** スタッフとポジションの組み合わせ1つ。押すと、選んでいる印が付く。 */
-function LevelCell({ label, level, isBlocked, readOnly, caption, onPress }: LevelCellProps) {
-  // 閲覧専用では、押せない理由を出す場面がない。
-  const isBlockedNow = isBlocked && !readOnly;
-  const isInteractive = !readOnly && !isBlocked;
-  const surface = caption && level !== "standard" ? MARK_STYLES[level].surface : caption ? "white" : "transparent";
+/** スタッフとポジションの組み合わせ1つ。押すたびに、値が順に切り替わる。値は言葉で出し、地の色でも見分けられるようにする。 */
+function LevelCell({ label, level, readOnly, caption, onPress }: LevelCellProps) {
+  const { bg, hoverBg, activeBg, color } = LEVEL_STYLES[level];
+  const levelLabel = getStaffPositionLevelLabel(level);
 
   return (
-    <chakra.button
-      type="button"
-      aria-label={`${label} ${getStaffPositionLevelLabel(level)}`}
-      aria-disabled={isBlockedNow ? true : undefined}
-      title={isBlockedNow ? LAST_POSITION_REASON : undefined}
-      disabled={readOnly}
-      display="flex"
-      alignItems="center"
-      justifyContent={caption ? "space-between" : "center"}
-      gap={1.5}
-      w="full"
-      minH={caption ? "44px" : "36px"}
-      px={caption ? 2 : 0}
-      py={caption ? 1 : 0}
-      // 印を付けられないマスは、押す前に分かるよう点線で囲む。
-      borderWidth="1px"
-      borderStyle={isBlockedNow ? "dashed" : "solid"}
-      borderColor={isBlockedNow ? "gray.400" : caption ? "gray.200" : "transparent"}
-      borderRadius="md"
-      bg={surface}
-      textAlign="start"
-      cursor={readOnly ? "default" : isBlockedNow ? "not-allowed" : "pointer"}
-      transitionProperty="background-color"
-      transitionDuration="faster"
-      _active={isInteractive ? { bg: "gray.200", transitionDuration: "0ms" } : undefined}
-      _focusVisible={{ outline: "2px solid", outlineColor: "teal.700", outlineOffset: "1px" }}
-      css={
-        isInteractive
-          ? // 指で押したあとに色が残らないよう、カーソルを載せられる端末だけで色を変える。
-            { "@media (hover: hover)": { "&:hover:not(:active)": { bg: "gray.100" } } }
-          : undefined
-      }
-      onClick={onPress}
-    >
-      {caption && (
-        <>
-          {caption.color && <PositionDot color={caption.color} size="8px" />}
-          <chakra.span
-            flex={1}
-            minW={0}
-            fontSize="xs"
-            fontWeight="semibold"
-            lineHeight="1.3"
-            color={level === "unavailable" ? "gray.600" : "gray.800"}
-            overflowWrap="anywhere"
-          >
-            {caption.name}
-          </chakra.span>
-        </>
-      )}
-      <Box as="span" display="inline-flex" alignItems="center" opacity={isBlockedNow ? 0.4 : 1}>
-        <LevelMark level={level} />
-      </Box>
-    </chakra.button>
-  );
-}
-
-// ---- まとめて付ける、外す ----
-
-type BulkProps = {
-  /** 選んでいる印。 */
-  mark: MarkOption;
-  /** 対象のスタッフを示す言葉。名前で絞り込んでいる間は「表示中の3人」になる。 */
-  scope: string;
-  /** 対象のスタッフの人数。 */
-  staffCount: number;
-  /** 対象のスタッフのうち、そのポジションに選んでいる印が付いている人数を返す。 */
-  countMarked: (positionId: ShiftSetupPosition["_id"]) => number;
-  onChange: (positionId: ShiftSetupPosition["_id"], action: BulkAction) => void;
-};
-
-const formatBulkAction = (bulk: BulkProps, action: BulkAction) =>
-  action === "apply"
-    ? `${bulk.scope}に「${bulk.mark.label}」を付ける`
-    : `${bulk.scope}から「${bulk.mark.label}」を外す`;
-
-/** 変わるスタッフがいない操作は選べない。 */
-const canRunBulkAction = (bulk: BulkProps, positionId: ShiftSetupPosition["_id"], action: BulkAction) =>
-  action === "apply" ? bulk.countMarked(positionId) < bulk.staffCount : bulk.countMarked(positionId) > 0;
-
-/**
- * PCの表の、ポジションの列の見出し。押すと、その列の印をまとめて変えるメニューが開く。
- * 名前は省略せず、列の幅に収まらない分は折り返す。
- */
-function PositionColumnHeader({ position, bulk }: { position: ShiftSetupPosition; bulk?: BulkProps }) {
-  const nameCharacters = Array.from(position.name);
-  const nameHead = nameCharacters.slice(0, -1).join("");
-  const nameTail = nameCharacters.at(-1) ?? "";
-  const content = (
-    <>
-      <Box as="span" display="block" w="full" h="3px" borderRadius="full" style={{ background: position.color }} />
-      <chakra.span
-        display="block"
+    <Box h="full" css={caption ? undefined : TABLE_COLUMN_FONT_SWITCH}>
+      <chakra.button
+        type="button"
+        aria-label={`${label} ${levelLabel}`}
+        disabled={readOnly}
+        display="flex"
+        flexDirection={caption ? "column" : "row"}
+        alignItems={caption ? "stretch" : "center"}
+        justifyContent="center"
+        gap={1}
         w="full"
-        fontSize="xs"
+        // スマートフォンでは、同じ行のマスの高さをそろえる。
+        h="full"
+        minH={caption ? "52px" : "36px"}
+        px={caption ? 2.5 : 0}
+        py={caption ? 1.5 : 0}
+        borderRadius="md"
+        bg={bg}
+        color={color}
+        fontSize="sm"
         fontWeight="semibold"
         lineHeight="1.3"
-        color="gray.800"
-        textAlign="center"
-        overflowWrap="anywhere"
+        textAlign="start"
+        whiteSpace="nowrap"
+        cursor={readOnly ? "default" : "pointer"}
+        transitionProperty="background-color"
+        transitionDuration="faster"
+        _active={readOnly ? undefined : { bg: activeBg, transitionDuration: "0ms" }}
+        _focusVisible={{ outline: "2px solid", outlineColor: "teal.700", outlineOffset: "1px" }}
+        css={
+          readOnly
+            ? undefined
+            : // 指で押したあとに色が残らないよう、カーソルを載せられる端末だけで色を変える。
+              { "@media (hover: hover)": { "&:hover:not(:active)": { bg: hoverBg } } }
+        }
+        onClick={onPress}
       >
-        {bulk ? (
-          <>
-            {nameHead}
-            {/* 矢印だけが次の行へ送られないよう、名前の最後の1文字とつなげる。 */}
-            <chakra.span whiteSpace="nowrap">
-              {nameTail}
-              <Box as="span" display="inline-block" ms={0.5} color="gray.600" verticalAlign="-2px" aria-hidden>
-                <LuChevronDown size={12} />
-              </Box>
+        {caption && (
+          <Flex as="span" align="center" gap={1.5} minW={0}>
+            <PositionDot color={caption.color} size="8px" />
+            {/* 長い名前は1行で省略する。全文は、マスの読み上げ名に入っている。 */}
+            <chakra.span minW={0} fontSize="xs" fontWeight="medium" color="gray.700" truncate title={caption.name}>
+              {caption.name}
             </chakra.span>
-          </>
-        ) : (
-          position.name
+          </Flex>
         )}
-      </chakra.span>
-    </>
-  );
-  const frame = { display: "flex", flexDirection: "column", alignItems: "center", gap: 1, w: "full", px: 0.5 } as const;
-
-  if (!bulk) return <Box {...frame}>{content}</Box>;
-
-  return (
-    <Menu.Root
-      positioning={{ placement: "bottom-start", gutter: 4 }}
-      lazyMount
-      unmountOnExit
-      onSelect={({ value }) => bulk.onChange(position._id, value as BulkAction)}
-    >
-      <Menu.Trigger asChild>
-        <chakra.button
-          type="button"
-          aria-label={`${position.name}の印をまとめて変える`}
-          {...frame}
-          pb={1}
-          borderRadius="md"
-          cursor="pointer"
-          transitionProperty="background-color"
-          transitionDuration="faster"
-          _hover={{ bg: "gray.200" }}
-          _active={{ bg: "gray.300", transitionDuration: "0ms" }}
-          _expanded={{ bg: "gray.200" }}
-          _focusVisible={{ outline: "2px solid", outlineColor: "teal.700", outlineOffset: "2px" }}
-        >
-          {content}
-        </chakra.button>
-      </Menu.Trigger>
-      <Portal>
-        <Menu.Positioner>
-          <Menu.Content minW="15rem">
-            <Menu.ItemGroup>
-              <Menu.ItemGroupLabel display="flex" alignItems="center" gap={1.5} overflowWrap="anywhere">
-                <PositionDot color={position.color} size="10px" />
-                {position.name}
-              </Menu.ItemGroupLabel>
-              {(["apply", "remove"] as const).map((action) => (
-                <Menu.Item
-                  key={action}
-                  value={action}
-                  disabled={!canRunBulkAction(bulk, position._id, action)}
-                  {...MENU_ITEM_PROPS}
-                >
-                  <Menu.ItemText fontSize="sm" fontWeight="medium">
-                    {formatBulkAction(bulk, action)}
-                  </Menu.ItemText>
-                </Menu.Item>
-              ))}
-            </Menu.ItemGroup>
-          </Menu.Content>
-        </Menu.Positioner>
-      </Portal>
-    </Menu.Root>
-  );
-}
-
-type BulkPositionsMenuProps = {
-  action: BulkAction;
-  triggerLabel: string;
-  positions: readonly ShiftSetupPosition[];
-  bulk: BulkProps;
-};
-
-/** スマートフォンの、まとめて変えるボタン。押すと、印を付ける（外す）ポジションを選ぶメニューが開く。 */
-function BulkPositionsMenu({ action, triggerLabel, positions, bulk }: BulkPositionsMenuProps) {
-  return (
-    <Menu.Root
-      positioning={{ placement: "bottom-start", gutter: 4 }}
-      lazyMount
-      unmountOnExit
-      onSelect={({ value }) => {
-        const position = positions.find((candidate) => candidate._id === value);
-        if (position) bulk.onChange(position._id, action);
-      }}
-    >
-      <Menu.Trigger asChild>
-        <Button type="button" variant="outline" bg="white" size="sm" flex={1} minH="44px" gap={1} px={2}>
-          {triggerLabel}
-          <LuChevronDown aria-hidden />
-        </Button>
-      </Menu.Trigger>
-      <Portal>
-        <Menu.Positioner>
-          <Menu.Content minW="15rem">
-            <Menu.ItemGroup>
-              <Menu.ItemGroupLabel>{formatBulkAction(bulk, action)}</Menu.ItemGroupLabel>
-              {positions.map((position) => (
-                <Menu.Item
-                  key={position._id}
-                  value={position._id}
-                  disabled={!canRunBulkAction(bulk, position._id, action)}
-                  {...MENU_ITEM_PROPS}
-                >
-                  <PositionDot color={position.color} size="10px" />
-                  <Menu.ItemText fontSize="sm" fontWeight="medium" overflowWrap="anywhere">
-                    {position.name}
-                  </Menu.ItemText>
-                </Menu.Item>
-              ))}
-            </Menu.ItemGroup>
-          </Menu.Content>
-        </Menu.Positioner>
-      </Portal>
-    </Menu.Root>
+        <span aria-hidden>{levelLabel}</span>
+      </chakra.button>
+    </Box>
   );
 }
 
@@ -608,35 +313,27 @@ type ListProps = {
   positions: readonly ShiftSetupPosition[];
   profiles: Readonly<Record<string, StaffPositionLevels>>;
   canWrite: boolean;
-  hasPositionChoice: boolean;
-  mark: MarkOption;
-  bulk: BulkProps;
-  onStamp: (staff: ShiftSetupStaff, position: ShiftSetupPosition) => void;
+  onCycle: (staff: ShiftSetupStaff, position: ShiftSetupPosition) => void;
 };
 
 /** マス1つに渡す値を、スタッフとポジションから組み立てる。 */
 function buildCellProps(
-  { positions, profiles, canWrite, hasPositionChoice, mark, onStamp }: ListProps,
+  { profiles, canWrite, onCycle }: ListProps,
   staff: ShiftSetupStaff,
   position: ShiftSetupPosition,
 ) {
-  const levels = profiles[staff._id] ?? {};
   return {
-    label: `${staff.name} ${hasPositionChoice ? position.name : SINGLE_POSITION_LABEL}`,
-    level: getStaffPositionLevel(levels, position._id),
-    isBlocked: isStaffPositionMarkBlocked(levels, position._id, mark.value, positions),
+    label: `${staff.name} ${position.name}`,
+    level: getStaffPositionLevel(profiles[staff._id] ?? {}, position._id),
     readOnly: !canWrite,
-    onPress: () => onStamp(staff, position),
+    onPress: () => onCycle(staff, position),
   };
 }
 
-/**
- * PC: スタッフを行、ポジションを列にした表。
- * 標準のマスには印を出さず、標準以外の値だけが目に入るようにする。
- */
+/** PC: スタッフを行、ポジションを列にした表。列の見出しは、「1. ポジション」と同じバッジで出す。 */
 function StaffLevelTable(props: ListProps & { headerStickyTop: string }) {
-  const { staffs, positions, canWrite, hasPositionChoice, bulk, headerStickyTop } = props;
-  // ポジションが10件でも、名前を折り返して1024pxの幅に収める。列は左へ寄せ、余った幅は右に空ける。
+  const { staffs, positions, headerStickyTop } = props;
+  // ポジションが10件でも、1024pxの幅に収める。列は左へ寄せ、余った幅は右に空ける。
   const columns = `minmax(6.5rem, 14rem) repeat(${positions.length}, minmax(3rem, 7.5rem))`;
   const rowProps = {
     role: "row",
@@ -655,25 +352,24 @@ function StaffLevelTable(props: ListProps & { headerStickyTop: string }) {
         position="sticky"
         top={headerStickyTop}
         zIndex={1}
-        py={1.5}
-        bg="gray.50"
-        borderYWidth="1px"
-        borderColor="blackAlpha.100"
+        // 見出しの行の高さは、ポジションの数と名前の長さによらず1行分にする。
+        h="48px"
+        // ページの地（gray.50）と見分けられるよう、1段濃い地にする。
+        bg="gray.100"
+        borderBottomWidth="1px"
+        borderColor="gray.200"
+        // カードは角からはみ出す内容を切らないため、角に触れる見出しの行の側で角を丸める。
+        borderTopRadius="calc(var(--chakra-radii-xl) - 1px)"
         css={STICKY_TRANSITION}
       >
-        <Text role="columnheader" fontSize="xs" fontWeight="semibold" color="fg.muted">
+        <Text role="columnheader" fontSize="xs" fontWeight="semibold" color="gray.700">
           名前
         </Text>
         {positions.map((position) => (
-          <Box key={position._id} role="columnheader" minW={0}>
-            {hasPositionChoice ? (
-              <PositionColumnHeader position={position} bulk={canWrite ? bulk : undefined} />
-            ) : (
-              <Text fontSize="xs" fontWeight="semibold" color="fg.muted" textAlign="center">
-                {SINGLE_POSITION_LABEL}
-              </Text>
-            )}
-          </Box>
+          <Flex key={position._id} role="columnheader" justify="center" minW={0} css={TABLE_COLUMN_FONT_SWITCH}>
+            {/* 列の幅に収まらない名前は1行で省略し、全文をtitleに出す。 */}
+            <PositionBadge name={position.name} color={position.color} truncate compact />
+          </Flex>
         ))}
       </Grid>
 
@@ -682,16 +378,17 @@ function StaffLevelTable(props: ListProps & { headerStickyTop: string }) {
           key={staff._id}
           {...rowProps}
           aria-label={staff.name}
-          minH="44px"
-          py={1}
+          minH="58px"
+          py={2}
           borderTopWidth={index === 0 ? 0 : "1px"}
-          borderColor="blackAlpha.100"
+          borderColor="gray.200"
           borderBottomRadius={index === staffs.length - 1 ? "xl" : undefined}
           _hover={{ bg: "gray.50" }}
         >
-          <Text role="rowheader" fontSize="sm" fontWeight="semibold" color="gray.900" overflowWrap="anywhere">
-            {staff.name}
-          </Text>
+          <Flex role="rowheader" align="center" gap={2.5} minW={0} pr={2}>
+            <StaffAvatar />
+            <StaffName name={staff.name} />
+          </Flex>
           {positions.map((position) => (
             <Box key={position._id} role="cell" minW={0}>
               <LevelCell {...buildCellProps(props, staff, position)} />
@@ -703,42 +400,28 @@ function StaffLevelTable(props: ListProps & { headerStickyTop: string }) {
   );
 }
 
-/**
- * スマートフォン: スタッフごとに、ポジションのマスを並べる。
- * PCの表と同じく、付ける印を選んでからマスを押す。
- */
+/** スマートフォン: スタッフごとに、ポジションのマスを並べる。PCの表と同じく、マスを押すたびに値が切り替わる。 */
 function StaffLevelList(props: ListProps) {
-  const { staffs, positions, canWrite, hasPositionChoice, bulk } = props;
+  const { staffs, positions } = props;
 
   return (
     <Box>
-      {canWrite && hasPositionChoice && (
-        <Flex
-          role="group"
-          aria-label="印をまとめて変える"
-          gap={2}
-          px={3}
-          py={2}
-          borderBottomWidth="1px"
-          borderColor="blackAlpha.100"
-        >
-          <BulkPositionsMenu action="apply" triggerLabel="まとめて付ける" positions={positions} bulk={bulk} />
-          <BulkPositionsMenu action="remove" triggerLabel="まとめて外す" positions={positions} bulk={bulk} />
-        </Flex>
-      )}
       {staffs.map((staff, index) => (
         <Box
           key={staff._id}
           role="group"
           aria-label={staff.name}
           px={3}
-          py={3}
+          py={4}
           borderTopWidth={index === 0 ? 0 : "1px"}
-          borderColor="blackAlpha.100"
+          borderColor="gray.200"
         >
-          {hasPositionChoice ? (
-            <Stack gap={2}>
-              <StaffName name={staff.name} />
+          {positions.length > 1 ? (
+            <Stack gap={3}>
+              <Flex align="center" gap={2.5} minW={0}>
+                <StaffAvatar />
+                <StaffName name={staff.name} />
+              </Flex>
               <Grid templateColumns="repeat(2, minmax(0, 1fr))" gap={1.5}>
                 {positions.map((position) => (
                   <LevelCell
@@ -750,16 +433,38 @@ function StaffLevelList(props: ListProps) {
               </Grid>
             </Stack>
           ) : (
-            <Flex align="center" gap={3}>
+            <Flex align="center" gap={2.5}>
+              <StaffAvatar />
               <StaffName name={staff.name} />
-              <Box flexShrink={0} w="7rem">
-                <LevelCell {...buildCellProps(props, staff, positions[0])} caption={{ name: SINGLE_POSITION_LABEL }} />
+              <Box flexShrink={0} w="8.5rem">
+                <LevelCell
+                  {...buildCellProps(props, staff, positions[0])}
+                  caption={{ name: positions[0].name, color: positions[0].color }}
+                />
               </Box>
             </Flex>
           )}
         </Box>
       ))}
     </Box>
+  );
+}
+
+/** 名前の左に置く、人のアイコン。ほかの画面のスタッフの丸い印と同じ配色にする。装飾なので読み上げない。 */
+function StaffAvatar() {
+  return (
+    <Flex
+      boxSize="28px"
+      borderRadius="full"
+      bg="teal.50"
+      color="teal.700"
+      align="center"
+      justify="center"
+      flexShrink={0}
+      aria-hidden
+    >
+      <LuUser size={16} />
+    </Flex>
   );
 }
 

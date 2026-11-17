@@ -25,7 +25,7 @@ describe("確定した時点の必要人数シナリオ", () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  it("型を保存して募集を確定したあとで、型と祝日を変えても、確定済みのシフト表は確定した時点の必要人数のまま返し、未確定の募集だけが変更を反映する", async () => {
+  it("テンプレートを保存して募集を確定したあとで、テンプレートと祝日を変えても、確定済みのシフト表は確定した時点の必要人数のまま返し、未確定の募集だけが変更を反映する", async () => {
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
     const asManager = scenario.manager(MANAGER_SUBJECT);
@@ -61,7 +61,7 @@ describe("確定した時点の必要人数シナリオ", () => {
     };
     const customRequirements = { kind: "time" as const, bars: [bar(ids.kitchenPositionId, "17:00", "21:00")] };
 
-    // Act: 平日と週末の型を保存し、募集を作る。月曜に週末の型を当て、火曜はその日だけの必要人数にする。
+    // Act: 平日と週末のテンプレートを保存し、募集を作る。月曜に週末のテンプレートを当て、火曜はその日だけの必要人数にする。
     await asManager.saveDayTemplates([
       {
         name: "平日",
@@ -103,7 +103,7 @@ describe("確定した時点の必要人数シナリオ", () => {
     vi.setSystemTime(SCENARIO_NOW + 1_000);
     const confirmResult = await asManager.confirmRecruitment(recruitmentId);
 
-    // Assert: 確定済みのシフト表は、確定した時点の必要人数と型の名前を、型と結び付けずに返す。
+    // Assert: 確定済みのシフト表は、確定した時点の必要人数とテンプレートの名前を、テンプレートと結び付けずに返す。
     expect(confirmResult).toEqual({ status: "scheduled", notifiedStaffCount: 1 });
     const confirmedDays = [
       { date: SUNDAY, ...weekend },
@@ -118,7 +118,7 @@ describe("確定した時点の必要人数シナリオ", () => {
     expect(confirmedStaffing?.isLocked).toBe(true);
     expect(confirmedStaffing?.days).toEqual(confirmedDays);
 
-    // Act: 確定のあとで、平日の型を直し、週末の型を消して祝日の型を足し、水曜を祝日にする。
+    // Act: 確定のあとで、平日のテンプレートを直し、週末のテンプレートを消して祝日のテンプレートを足し、水曜を祝日にする。
     vi.setSystemTime(SCENARIO_NOW + 2_000);
     const changedWeekdayRequirements = {
       kind: "time" as const,
@@ -143,7 +143,7 @@ describe("確定した時点の必要人数シナリオ", () => {
       ],
     });
 
-    // Assert: 確定済みの募集では、型の当て直しと、その日だけの必要人数の保存を受け付けない。
+    // Assert: 確定済みの募集では、テンプレートの当て直しと、その日だけの必要人数の保存を受け付けない。
     await expect(
       asManager.applyDayTemplateToDates({ recruitmentId, dates: [THURSDAY], templateId: weekdayTemplateId }),
     ).rejects.toThrowError("確定済みのシフトでは、必要人数を変更できません。");
@@ -151,7 +151,7 @@ describe("確定した時点の必要人数シナリオ", () => {
       asManager.saveDayCustomRequirements({ recruitmentId, date: THURSDAY, requirements: customRequirements }),
     ).rejects.toThrowError("確定済みのシフトでは、必要人数を変更できません。");
 
-    // Assert: 確定済みのシフト表は、型と祝日を変えたあとも、確定した時点の必要人数のまま返す。
+    // Assert: 確定済みのシフト表は、テンプレートと祝日を変えたあとも、確定した時点の必要人数のまま返す。
     const afterChangeStaffing = await asManager.getShiftBoardStaffing(recruitmentId);
     expect(afterChangeStaffing?.isLocked).toBe(true);
     expect(afterChangeStaffing?.days).toEqual(confirmedDays);
@@ -163,7 +163,7 @@ describe("確定した時点の必要人数シナリオ", () => {
       deadline: scenarioDate(4),
     });
 
-    // Assert: 未確定の募集は、直したあとの型と祝日から必要人数を決める。型を消した週末は未設定になる。
+    // Assert: 未確定の募集は、直したあとのテンプレートと祝日から必要人数を決める。テンプレートを消した週末は未設定になる。
     const changedSetup = await asManager.getShiftSetup();
     const holidayTemplateId = changedSetup?.dayTemplates.find((template) => template.name === "祝日")?._id;
     if (!holidayTemplateId) throw new Error("expected the saved holiday template");

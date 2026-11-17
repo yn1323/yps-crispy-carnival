@@ -8,7 +8,7 @@ import { desktopGlobals, fullscreenParameters, mobileGlobals, shiftFormDecorator
 type ShiftFormArgs = ComponentProps<typeof ShiftForm>;
 
 // ポジションごとの熟練度の印を、時間指定の日別表示で確かめる。
-// Aさんは、ホールでは責任者、キッチンでは新人。Dさんは、キッチンとレジで新人。Eさんは、ホールに入れない。
+// Aさんは、ホールではリーダー、キッチンでは見習い。Dさんは、キッチンとレジで見習い。Eさんは、ホールが担当外。
 // Aさんはホール（10:00〜14:00）からキッチン（14:00〜18:00）へ移り、Dさんはレジに入る。Eさんは勤務がない。
 const meta = {
   title: "Features/Shift/ShiftForm/Position Skills",
@@ -41,12 +41,12 @@ const selectTool = async (canvasElement: HTMLElement, name: string) => {
   await userEvent.click(within(palette).getByRole("radio", { name }));
 };
 
-/** 名前の横の印と、勤務の区間の印を、文字で返す。印は「新人」「責任者」「入れない」と「新」「責」。 */
+/** 名前の横の印と、勤務の区間の印を、文字で返す。印は「見習い」「リーダー」「担当外」と「見」「リ」。 */
 const nameBadges = (row: ReturnType<typeof within>) =>
-  ["責任者", "新人", "入れない"].filter((label) => row.queryByText(label) !== null);
+  ["リーダー", "見習い", "担当外"].filter((label) => row.queryByText(label) !== null);
 const segmentMarks = (row: ReturnType<typeof within>) => [
-  ...row.queryAllByText("責").map(() => "責"),
-  ...row.queryAllByText("新").map(() => "新"),
+  ...row.queryAllByText("リ").map(() => "リ"),
+  ...row.queryAllByText("見").map(() => "見"),
 ];
 
 /** 「入れるもの」を切り替えると、名前の横の印が、選んだポジションでの値に変わる。勤務の区間の印は変わらない。 */
@@ -56,27 +56,27 @@ const expectNameMarkFollowsTool = async (canvasElement: HTMLElement) => {
   const rowE = await findRow(canvasElement, "staff5");
 
   // 選んでいなければ、既定のポジション（ホール）での値を出す。
-  await expect(await rowA.findByText("責任者")).toHaveAttribute("title", "ホールでは責任者です");
-  await expect(rowE.getByText("入れない")).toHaveAttribute("title", "ホールには入れません");
+  await expect(await rowA.findByText("リーダー")).toHaveAttribute("title", "ホールではリーダーです");
+  await expect(rowE.getByText("担当外")).toHaveAttribute("title", "ホールは担当外です");
   await expect(nameBadges(rowD)).toEqual([]);
-  // 勤務の区間には、その区間のポジションでの値が出る。Aさんはホールで「責」、キッチンで「新」。
-  await expect(segmentMarks(rowA)).toEqual(["責", "新"]);
+  // 勤務の区間には、その区間のポジションでの値が出る。Aさんはホールで「リ」、キッチンで「見」。
+  await expect(segmentMarks(rowA)).toEqual(["リ", "見"]);
 
   await selectTool(canvasElement, "キッチン");
-  await expect(await rowA.findByText("新人")).toHaveAttribute("title", "キッチンでは新人です");
-  await expect(rowD.getByText("新人")).toHaveAttribute("title", "キッチンでは新人です");
-  await expect(nameBadges(rowA)).toEqual(["新人"]);
+  await expect(await rowA.findByText("見習い")).toHaveAttribute("title", "キッチンでは見習いです");
+  await expect(rowD.getByText("見習い")).toHaveAttribute("title", "キッチンでは見習いです");
+  await expect(nameBadges(rowA)).toEqual(["見習い"]);
   await expect(nameBadges(rowE)).toEqual([]);
-  await expect(segmentMarks(rowA)).toEqual(["責", "新"]);
+  await expect(segmentMarks(rowA)).toEqual(["リ", "見"]);
 
   await selectTool(canvasElement, "レジ");
-  await expect(await rowD.findByText("新人")).toHaveAttribute("title", "レジでは新人です");
+  await expect(await rowD.findByText("見習い")).toHaveAttribute("title", "レジでは見習いです");
   await waitFor(() => expect(nameBadges(rowA)).toEqual([]));
 
   // 休憩を選んでいる間は、根拠にするポジションがないため、名前の横の印を出さない。
   await selectTool(canvasElement, "休憩");
   await waitFor(() => expect([rowA, rowD, rowE].map(nameBadges)).toEqual([[], [], []]));
-  await expect(segmentMarks(rowA)).toEqual(["責", "新"]);
+  await expect(segmentMarks(rowA)).toEqual(["リ", "見"]);
 };
 
 /** 閲覧専用では「入れるもの」がないため、名前の横の印を出さない。勤務の区間の印は出す。 */
@@ -84,9 +84,9 @@ const expectReadOnlyShowsSegmentMarksOnly = async (canvasElement: HTMLElement) =
   const canvas = within(canvasElement);
   const rowA = await findRow(canvasElement, "staff1");
 
-  await waitFor(() => expect(segmentMarks(rowA)).toEqual(["責", "新"]));
+  await waitFor(() => expect(segmentMarks(rowA)).toEqual(["リ", "見"]));
   await expect(canvas.queryByRole("radiogroup", { name: "入れるもの" })).not.toBeInTheDocument();
-  for (const label of ["責任者", "新人", "入れない"]) {
+  for (const label of ["リーダー", "見習い", "担当外"]) {
     await expect(canvas.queryByText(label)).not.toBeInTheDocument();
   }
 };
@@ -96,7 +96,7 @@ const expectNoSkillMarks = async (canvasElement: HTMLElement) => {
   const canvas = within(canvasElement);
   // ポジションの色分けは出る。その勤務が出たあとで、印がないことを確かめる。
   await waitFor(() => expect(canvas.queryAllByText("キッチン").length).toBeGreaterThan(0));
-  for (const label of ["責任者", "新人", "入れない", "責", "新"]) {
+  for (const label of ["リーダー", "見習い", "担当外", "リ", "見"]) {
     await expect(canvas.queryByText(label)).not.toBeInTheDocument();
   }
 };
@@ -120,16 +120,16 @@ export const HiddenInSimpleOnDesktop: Story = {
     const canvas = within(canvasElement);
     const rowA = await findRow(canvasElement, "staff1");
     const detailMode = within(await canvas.findByRole("radiogroup", { name: "表示の詳しさ" }));
-    await expect(await rowA.findByText("責任者")).toBeInTheDocument();
-    await expect(segmentMarks(rowA)).toEqual(["責", "新"]);
+    await expect(await rowA.findByText("リーダー")).toBeInTheDocument();
+    await expect(segmentMarks(rowA)).toEqual(["リ", "見"]);
 
     await userEvent.click(detailMode.getByRole("radio", { name: "シンプル" }));
     await waitFor(() => expect(nameBadges(rowA)).toEqual([]));
     await expect(segmentMarks(rowA)).toEqual([]);
 
     await userEvent.click(detailMode.getByRole("radio", { name: "くわしく" }));
-    await expect(await rowA.findByText("責任者")).toBeInTheDocument();
-    await expect(segmentMarks(rowA)).toEqual(["責", "新"]);
+    await expect(await rowA.findByText("リーダー")).toBeInTheDocument();
+    await expect(segmentMarks(rowA)).toEqual(["リ", "見"]);
   },
 };
 
@@ -148,9 +148,9 @@ export const ConfirmedForStaffOnDesktop: Story = {
 };
 
 /**
- * 帯の「新」は、ポジションごとに判定する。
- * Bさんが休憩に入る15:00〜15:30のキッチンは、キッチンで新人のAさんだけになる。
- * 同じAさんが1人でいる10:00〜12:00のホールは、ホールでは責任者なので、新人だけにならない。
+ * 帯の「見」は、ポジションごとに判定する。
+ * Bさんが休憩に入る15:00〜15:30のキッチンは、キッチンで見習いのAさんだけになる。
+ * 同じAさんが1人でいる10:00〜12:00のホールは、ホールではリーダーなので、見習いだけにならない。
  */
 export const NewcomerOnlyBandFollowsPositionOnDesktop: Story = {
   name: "Newcomer Only Band Follows Position On Desktop",
@@ -158,13 +158,13 @@ export const NewcomerOnlyBandFollowsPositionOnDesktop: Story = {
   globals: desktopGlobals,
   play: async ({ canvasElement }) => {
     const staffing = within(await within(canvasElement).findByRole("region", { name: "人数" }));
-    const kitchenSegment = await staffing.findByRole("button", { name: "キッチン 15:00〜15:30 1/2 ▲1、新人だけ" });
+    const kitchenSegment = await staffing.findByRole("button", { name: "キッチン 15:00〜15:30 1/2 ▲1、見習いだけ" });
     await expect(staffing.getByRole("button", { name: "ホール 10:00〜12:00 1/2 ▲1" })).toBeInTheDocument();
 
     await userEvent.click(kitchenSegment);
 
     const popover = within(await within(document.body).findByRole("dialog", { name: "キッチンの人数" }));
-    await expect(popover.getByText("新人だけの時間です")).toBeInTheDocument();
+    await expect(popover.getByText("見習いだけの時間です")).toBeInTheDocument();
   },
 };
 
@@ -188,8 +188,8 @@ export const HiddenInSimpleOnMobile: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const rowA = await findRow(canvasElement, "staff1");
-    await expect(await rowA.findByText("責任者")).toBeInTheDocument();
-    await expect(segmentMarks(rowA)).toEqual(["責", "新"]);
+    await expect(await rowA.findByText("リーダー")).toBeInTheDocument();
+    await expect(segmentMarks(rowA)).toEqual(["リ", "見"]);
 
     await userEvent.click(await canvas.findByRole("button", { name: "表示設定" }));
     await userEvent.click(
@@ -217,7 +217,7 @@ export const ConfirmedForStaffOnMobile: Story = {
   play: async ({ canvasElement }) => expectNoSkillMarks(canvasElement),
 };
 
-/** 人数のカードの「新人だけ」も、ポジションごとに判定する。 */
+/** 人数のカードの「見習いだけ」も、ポジションごとに判定する。 */
 export const NewcomerOnlyCardFollowsPositionOnMobile: Story = {
   name: "Newcomer Only Card Follows Position On Mobile",
   args: timeDetailArgs,
@@ -232,11 +232,11 @@ export const NewcomerOnlyCardFollowsPositionOnMobile: Story = {
 
     await userEvent.click(await card.findByRole("button", { name: "すべて見る" }));
 
-    // キッチンは、Bさんの休憩中だけ、キッチンで新人のAさんが1人になる。
+    // キッチンは、Bさんの休憩中だけ、キッチンで見習いのAさんが1人になる。
     await waitFor(() =>
-      expect(rowsOf("キッチン").filter((row) => row?.includes("新人だけ"))).toEqual(["15:00〜15:301/2 ▲1新人だけ"]),
+      expect(rowsOf("キッチン").filter((row) => row?.includes("見習いだけ"))).toEqual(["15:00〜15:301/2 ▲1見習いだけ"]),
     );
-    // ホールは、ホールで責任者のAさんが1人でいる時間も、新人だけにならない。
-    await expect(rowsOf("ホール").filter((row) => row?.includes("新人だけ"))).toEqual([]);
+    // ホールは、ホールでリーダーのAさんが1人でいる時間も、見習いだけにならない。
+    await expect(rowsOf("ホール").filter((row) => row?.includes("見習いだけ"))).toEqual([]);
   },
 };

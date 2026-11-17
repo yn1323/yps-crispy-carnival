@@ -57,7 +57,7 @@ async function seedAssistShop(
     });
     await ctx.db.insert("shiftDayTemplates", {
       shopId: actor.shopId,
-      name: "保存済みの型",
+      name: "保存済みのテンプレート",
       weekdays: ["mon"],
       sortOrder: 0,
       appliesToHolidays: false,
@@ -187,7 +187,7 @@ describe("shiftSetup/actions", () => {
         .action(api.shiftSetup.actions.suggestShiftSetup, { ...ids.scope, situation: SITUATION });
 
       if (result.status !== "ok") throw new Error(`expected an ok draft but received ${result.status}`);
-      // 本数と人数だけがランダムなので、それ以外の形は完全一致で確かめる。定休日（水・日）は型に入らない。
+      // 本数と人数だけがランダムなので、それ以外の形は完全一致で確かめる。定休日（水・日）はテンプレートに入らない。
       expect(
         result.templates.map((template) => ({ ...template, requirements: toRequirementsShape(template.requirements) })),
       ).toEqual(

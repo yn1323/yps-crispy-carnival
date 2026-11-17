@@ -250,12 +250,12 @@ describe("summarizeStaffingSlot", () => {
     ).toEqual({ totalLabel: "3/4", title: "早番 ホール 2/3 ▲1、キッチン 1/1" });
   });
 
-  it("多い人数と、新人だけのポジションを内訳で説明する", () => {
+  it("多い人数と、見習いだけのポジションを内訳で説明する", () => {
     expect(
       summarizeStaffingSlot(
         slot({ total: 3, positions: [position("ホール", 2, 1, true), position("キッチン", 1, 1)], hasExcess: true }),
       ),
-    ).toEqual({ totalLabel: "3/2", title: "早番 ホール 2/1 ＋1（新人だけ）、キッチン 1/1" });
+    ).toEqual({ totalLabel: "3/2", title: "早番 ホール 2/1 ＋1（見習いだけ）、キッチン 1/1" });
   });
 
   it("必要人数を設定していないポジションは、必要の合計に含めない", () => {

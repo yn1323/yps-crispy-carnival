@@ -29,7 +29,7 @@ export type PositionSegment = {
   id: string;
   positionId: string;
   positionName: string;
-  color: string; // "#3b82f6"
+  color: string; // "#60a5fa"
   start: string; // "10:00"
   end: string; // "14:00"
   shiftTypeOptionId?: string; // パターン選択の募集で選択されたパターンID
@@ -51,11 +51,11 @@ export type StaffType = {
   isRemoved?: boolean;
   displayOrder?: number;
   createdAt?: number;
-  // ポジションごとの値（入れない、新人、責任者）。ここにないポジションは標準。
+  // ポジションごとの値（担当外、見習い、リーダー）。ここにないポジションは一人前。
   positionSkills?: StaffPositionSkill[];
 };
 
-// そのポジションに入れない（unavailable）か、入れる場合の熟練度（newcomer、lead）。標準は持たない。
+// そのポジションが担当外（unavailable）か、担当できる場合の熟練度（newcomer、lead）。一人前は持たない。
 export type PositionSkillLevel = "unavailable" | "newcomer" | "lead";
 
 export type StaffPositionSkill = {

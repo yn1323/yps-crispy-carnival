@@ -69,7 +69,7 @@ export const visibleAssignmentWarnings = ({
 };
 
 /**
- * 新人だけの時間帯のうち、確認事項として出すものを返す。
+ * 見習いだけの時間帯のうち、確認事項として出すものを返す。
  * スタッフ別の確認事項と同じく、確定済みのシフトでは、開いた時点から勤務を変えた日のものだけを出す。
  */
 export const visibleNewcomerOnlyPeriods = ({

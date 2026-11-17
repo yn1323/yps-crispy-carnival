@@ -3,17 +3,15 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { POSITION_COLOR_PALETTE } from "@/convex/constants";
 import {
   addPositionDraft,
-  canMovePositionDraft,
-  canRemovePositionDraft,
   findPositionDraftErrors,
   formatPendingSections,
-  getFallbackPositionName,
-  getRemovedPositionNames,
-  movePositionDraft,
+  hasRenamedPosition,
   type PositionDraft,
   pickUnusedPositionColor,
+  reorderPositionDrafts,
   toPositionDrafts,
   toPositionInputs,
+  toUnsplitPositionInputs,
 } from "./script";
 import type { ShiftSetupPosition } from "./types";
 
@@ -22,20 +20,83 @@ const kitchen = "position-kitchen" as Id<"positions">;
 const register = "position-register" as Id<"positions">;
 
 const positions: ShiftSetupPosition[] = [
-  { _id: hall, name: "ホール", color: "#3b82f6", isDefault: true },
-  { _id: kitchen, name: "キッチン", color: "#c2410c", isDefault: false },
-  { _id: register, name: "レジ", color: "#7c3aed", isDefault: false },
+  { _id: hall, name: "ホール", color: "#60a5fa", isDefault: true },
+  { _id: kitchen, name: "キッチン", color: "#fb923c", isDefault: false },
+  { _id: register, name: "レジ", color: "#a78bfa", isDefault: false },
 ];
+
+describe("名前を付けていない最初のポジション（シフト）", () => {
+  const shift = "position-shift" as Id<"positions">;
+  const unnamed: ShiftSetupPosition = { _id: shift, name: "シフト", color: "#60a5fa", isDefault: true };
+  const kitchenPosition: ShiftSetupPosition = { _id: kitchen, name: "キッチン", color: "#fb923c", isDefault: false };
+
+  it("編集では名前の欄を空にして出し、利用者が付けた名前はそのまま出す", () => {
+    expect(toPositionDrafts([unnamed, kitchenPosition]).map((draft) => draft.name)).toEqual(["", "キッチン"]);
+    expect(toPositionDrafts(positions).map((draft) => draft.name)).toEqual(["ホール", "キッチン", "レジ"]);
+  });
+
+  it("名前を入れずに1件のまま決定すると、分けていない状態のままになる", () => {
+    const drafts = toPositionDrafts([unnamed]);
+
+    expect(findPositionDraftErrors(drafts)).toBeNull();
+    expect(toPositionInputs(drafts)).toEqual([{ id: shift, name: "シフト", color: "#60a5fa" }]);
+  });
+
+  it("2件以上では、名前が空の行と「シフト」の行を誤りにする", () => {
+    const blank = addPositionDraft(toPositionDrafts([unnamed]), "new-1").map((draft) =>
+      draft.rowKey === "new-1" ? { ...draft, name: "キッチン" } : draft,
+    );
+    expect(findPositionDraftErrors(blank)?.rows[shift]).toBe("ポジション名を入力してください");
+
+    const typed = blank.map((draft) => (draft.rowKey === shift ? { ...draft, name: "シフト" } : draft));
+    expect(findPositionDraftErrors(typed)?.rows).toEqual({ [shift]: "「シフト」以外の名前を入力してください" });
+
+    const named = blank.map((draft) => (draft.rowKey === shift ? { ...draft, name: "ホール" } : draft));
+    expect(findPositionDraftErrors(named)).toBeNull();
+  });
+
+  it("名前を変えたかは保存済みの名前と比べ、仮の名前へ初めて名前を付ける場合は数えない", () => {
+    const first = toPositionDrafts([unnamed]).map((draft) => ({ ...draft, name: "ホール" }));
+    expect(hasRenamedPosition([unnamed], first)).toBe(false);
+
+    const drafts = toPositionDrafts(positions);
+    expect(hasRenamedPosition(positions, drafts)).toBe(false);
+    expect(
+      hasRenamedPosition(
+        positions,
+        drafts.map((draft) => (draft.rowKey === kitchen ? { ...draft, name: " 厨房 " } : draft)),
+      ),
+    ).toBe(true);
+    // 名前を消している途中と、行を削除した場合は、名前の変更として数えない。
+    expect(
+      hasRenamedPosition(
+        positions,
+        drafts.map((draft) => (draft.rowKey === kitchen ? { ...draft, name: "" } : draft)),
+      ),
+    ).toBe(false);
+    expect(hasRenamedPosition(positions, drafts.slice(0, 1))).toBe(false);
+  });
+});
 
 describe("ポジションの編集", () => {
   const drafts = toPositionDrafts(positions);
   const names = (items: readonly PositionDraft[]) => items.map((item) => item.name);
 
   it("新しく足す行には、まだ使っていない色が入る", () => {
-    expect(pickUnusedPositionColor(drafts)).toBe("#db2777");
+    expect(pickUnusedPositionColor(drafts)).toBe("#f472b6");
 
     const added = addPositionDraft(drafts, "new-1");
-    expect(added.at(-1)).toEqual({ rowKey: "new-1", name: "", color: "#db2777", isDefault: false });
+    expect(added.at(-1)).toEqual({ rowKey: "new-1", name: "", color: "#f472b6", isDefault: false });
+  });
+
+  it("以前の色を使っている行は、同じ並びの今の色を使っているものとして数える", () => {
+    // 以前の青（#3b82f6）とオレンジ（#c2410c）の隣へ、よく似た今の青とオレンジを足さない。
+    const legacyDrafts = toPositionDrafts([
+      { _id: hall, name: "ホール", color: "#3b82f6", isDefault: true },
+      { _id: kitchen, name: "キッチン", color: "#c2410c", isDefault: false },
+    ]);
+
+    expect(pickUnusedPositionColor(legacyDrafts)).toBe("#a78bfa");
   });
 
   it("9色を使っていれば残りの1色を選び、すべての色を使っていれば一覧の先頭へ戻る", () => {
@@ -66,35 +127,32 @@ describe("ポジションの編集", () => {
     expect(addPositionDraft(ten, "new-1")).toEqual(ten);
   });
 
-  it("どのポジションも並び替えられ、端より先へは動かせない", () => {
-    expect(canMovePositionDraft(drafts, 0, -1)).toBe(false);
-    expect(canMovePositionDraft(drafts, 2, 1)).toBe(false);
-
-    expect(names(movePositionDraft(drafts, 0, 1))).toEqual(["キッチン", "ホール", "レジ"]);
-    expect(names(movePositionDraft(drafts, 2, -1))).toEqual(["ホール", "レジ", "キッチン"]);
-    expect(names(movePositionDraft(drafts, 2, 1))).toEqual(["ホール", "キッチン", "レジ"]);
+  it("つかんだ行を、重ねた行の位置へ動かす", () => {
+    expect(names(reorderPositionDrafts(drafts, hall, register))).toEqual(["キッチン", "レジ", "ホール"]);
+    expect(names(reorderPositionDrafts(drafts, register, hall))).toEqual(["レジ", "ホール", "キッチン"]);
+    expect(names(reorderPositionDrafts(drafts, kitchen, register))).toEqual(["ホール", "レジ", "キッチン"]);
+    // 同じ行へ重ねた場合と、一覧にない行は、並びを変えない。
+    expect(names(reorderPositionDrafts(drafts, hall, hall))).toEqual(["ホール", "キッチン", "レジ"]);
+    expect(names(reorderPositionDrafts(drafts, "unknown", hall))).toEqual(["ホール", "キッチン", "レジ"]);
   });
 
-  it("最後の1件は削除できず、2件以上あれば最初からあるポジションも削除できる", () => {
-    expect(canRemovePositionDraft(drafts)).toBe(true);
-    expect(canRemovePositionDraft(drafts.slice(0, 1))).toBe(false);
-  });
-
-  it("削除したポジションの勤務の表示先は、既定が残ればそのポジション、削除すれば先頭のポジションになる", () => {
-    expect(getFallbackPositionName([drafts[1], drafts[0]])).toBe("ホール");
-    expect(getFallbackPositionName(drafts.slice(1))).toBe("キッチン");
-    expect(getFallbackPositionName([])).toBeUndefined();
+  it("すべて削除して決定すると、既定のポジションを仮の名前へ戻して1件だけ残す", () => {
+    expect(findPositionDraftErrors([])).toBeNull();
+    expect(toUnsplitPositionInputs(positions)).toEqual([{ id: hall, name: "シフト", color: "#60a5fa" }]);
+    // 既定のポジションが見つからない場合は、先頭を残す。ポジションのない店舗では何も残さない。
+    expect(toUnsplitPositionInputs(positions.slice(1))).toEqual([{ id: kitchen, name: "シフト", color: "#fb923c" }]);
+    expect(toUnsplitPositionInputs([])).toEqual([]);
   });
 
   it("保存する形では、保存済みの行だけがidを持ち、名前の前後の空白を除く", () => {
     const inputs = toPositionInputs([
       ...drafts.slice(0, 1),
-      { rowKey: "new-1", name: " デリバリー ", color: "#db2777", isDefault: false },
+      { rowKey: "new-1", name: " デリバリー ", color: "#f472b6", isDefault: false },
     ]);
 
     expect(inputs).toEqual([
-      { id: hall, name: "ホール", color: "#3b82f6" },
-      { name: "デリバリー", color: "#db2777" },
+      { id: hall, name: "ホール", color: "#60a5fa" },
+      { name: "デリバリー", color: "#f472b6" },
     ]);
   });
 
@@ -103,20 +161,13 @@ describe("ポジションの編集", () => {
 
     const errors = findPositionDraftErrors([
       ...drafts,
-      { rowKey: "empty", name: "  ", color: "#db2777", isDefault: false },
-      { rowKey: "duplicated", name: "キッチン", color: "#b45309", isDefault: false },
+      { rowKey: "empty", name: "  ", color: "#f472b6", isDefault: false },
+      { rowKey: "duplicated", name: "キッチン", color: "#eda40a", isDefault: false },
     ]);
 
     expect(errors).toEqual({
       rows: { empty: "ポジション名を入力してください", duplicated: "ポジション名が重複しています" },
     });
-  });
-
-  it("保存すると削除される、保存済みのポジションの名前を返す", () => {
-    const kept = [drafts[0], { rowKey: "new-1", name: "デリバリー", color: "#db2777", isDefault: false }];
-
-    expect(getRemovedPositionNames(positions, kept)).toEqual(["キッチン", "レジ"]);
-    expect(getRemovedPositionNames(positions, drafts)).toEqual([]);
   });
 });
 

@@ -3,12 +3,15 @@ import {
   computeVisualBreaks,
   deletePositionFromShift,
   fillGapsWithBreak,
+  isPositionsUnsplit,
+  isUnnamedDefaultPosition,
   mergeAdjacentPositions,
   normalizePositions,
   paintPosition,
   resizeLinkedPositions,
   resizePosition,
   resolveDefaultPosition,
+  toStaffingDisplayPositions,
 } from "./operations";
 import type { LinkedResizeTarget, PositionSegment, PositionType, ShiftData } from "./types";
 
@@ -46,7 +49,33 @@ describe("resolveDefaultPosition", () => {
   });
 
   test("ポジションが空なら標準ポジションを返す", () => {
-    expect(resolveDefaultPosition([])).toEqual({ id: "default", name: "シフト", color: "#3b82f6", isDefault: true });
+    expect(resolveDefaultPosition([])).toEqual({ id: "default", name: "シフト", color: "#60a5fa", isDefault: true });
+  });
+});
+
+describe("名前を付けていない最初のポジション", () => {
+  const unnamed = { id: "default", name: "シフト", color: "#3b82f6", isDefault: true };
+  const hall = { id: "hall", name: "ホール", color: "#3b82f6", isDefault: true };
+  const kitchen = { id: "kitchen", name: "キッチン", color: "#c2410c", isDefault: false };
+
+  test("最初のポジションで、名前が仮の「シフト」のままのものだけを指す", () => {
+    expect(isUnnamedDefaultPosition(unnamed)).toBe(true);
+    expect(isUnnamedDefaultPosition(hall)).toBe(false);
+    // あとから足したポジションに付けた「シフト」は、利用者が付けた名前として扱う。
+    expect(isUnnamedDefaultPosition({ ...kitchen, name: "シフト" })).toBe(false);
+  });
+
+  test("ポジションがないか、名前のない最初のポジションだけの店舗を、分けていない店舗として扱う", () => {
+    expect(isPositionsUnsplit([])).toBe(true);
+    expect(isPositionsUnsplit([unnamed])).toBe(true);
+    expect(isPositionsUnsplit([hall])).toBe(false);
+    expect(isPositionsUnsplit([unnamed, kitchen])).toBe(false);
+  });
+
+  test("人数の表示では、分けていない店舗だけ名前を「全体」に替える", () => {
+    expect(toStaffingDisplayPositions([unnamed])).toEqual([{ ...unnamed, name: "全体" }]);
+    expect(toStaffingDisplayPositions([unnamed, kitchen])).toEqual([unnamed, kitchen]);
+    expect(toStaffingDisplayPositions([hall])).toEqual([hall]);
   });
 });
 

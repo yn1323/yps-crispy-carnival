@@ -15,8 +15,8 @@ import { useShiftFormInit } from "../hooks/useShiftFormInit";
 import type { ShiftFormStaffing } from "../stores";
 
 /**
- * スタッフへ、ポジションごとの値（入れない、新人、責任者）を付ける。
- * `{ staff1: { hall: "lead", kitchen: "newcomer" } }` の形で、標準以外のポジションだけを渡す。
+ * スタッフへ、ポジションごとの値（担当外、見習い、リーダー）を付ける。
+ * `{ staff1: { hall: "lead", kitchen: "newcomer" } }` の形で、一人前以外のポジションだけを渡す。
  */
 export const withPositionSkills = (
   staffs: readonly StaffType[],
@@ -38,7 +38,7 @@ export const mockStaffs: StaffType[] = [
 ];
 
 export const mockPositions: PositionType[] = [
-  { id: "default", name: "シフト", color: "#3b82f6", isDefault: true },
+  { id: "default", name: "シフト", color: "#60a5fa", isDefault: true },
   { id: "break", name: "休憩", color: "#6b7280", isDefault: false },
 ];
 
@@ -96,7 +96,7 @@ const workSeg = (staffId: string, date: string, start: string, end: string, suff
   id: `seg-${staffId}-${date}-${start}-${end}${suffix}`,
   positionId: "default",
   positionName: "シフト",
-  color: "#3b82f6",
+  color: "#60a5fa",
   start,
   end,
 });

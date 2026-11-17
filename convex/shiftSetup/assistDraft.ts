@@ -115,7 +115,7 @@ export function buildRandomShiftSetupDraft<PositionId extends string>(
       {
         name: group.name,
         weekdays,
-        // 祝日に使う型は、店舗が自分で選ぶ。
+        // 祝日に使うテンプレートは、店舗が自分で選ぶ。
         appliesToHolidays: false,
         requirements: buildDraftRequirements(input, group.extra),
       },

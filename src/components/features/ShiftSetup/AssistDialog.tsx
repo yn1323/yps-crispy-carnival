@@ -9,7 +9,7 @@ const FORM_ID = "shift-setup-assist-form";
 
 type Props = {
   dialog: DialogState & { isRunning: boolean; message?: string };
-  /** すでに型がある場合は、下書きで置き換わることを伝える。 */
+  /** すでにテンプレートがある場合は、下書きで置き換わることを伝える。 */
   hasTemplates: boolean;
   onRequest: (situation: string) => void;
 };
@@ -61,7 +61,7 @@ function AssistForm({ disabled, message, hasTemplates, onRequest }: FormProps) {
         <Text fontSize="sm" color="fg.muted" lineHeight="tall">
           店の状況を書くと、曜日ごとの必要人数の下書きを作ります。
           <br />
-          下書きは表に入るだけで、保存するまで設定は変わりません。
+          下書きは編集中の内容に入るだけで、保存するまで設定は変わりません。
         </Text>
 
         <Field.Root>
@@ -95,9 +95,9 @@ function AssistForm({ disabled, message, hasTemplates, onRequest }: FormProps) {
 
         {hasTemplates && (
           <Text fontSize="sm" color="orange.700" lineHeight="tall" bg="orange.50" borderRadius="md" px={3} py={2.5}>
-            いまの型は下書きで置き換わります。
+            いまの必要人数のテンプレートは、下書きで置き換わります。
             <br />
-            保存する前なら「元に戻す」で取り消せます。
+            「保存する」を押すと確定します。
           </Text>
         )}
       </Stack>

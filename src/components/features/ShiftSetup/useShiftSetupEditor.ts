@@ -5,10 +5,12 @@ import { assistSituationSchema } from "@/convex/shiftSetup/schemas";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useDialog } from "@/src/components/ui/Dialog";
 import { toaster } from "@/src/components/ui/toaster";
+import { isPositionsUnsplit } from "@/src/domains/shift/operations";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import {
-  changeDayTemplateBars,
+  changeDayTemplateSegments,
   changeRequiredCount,
+  clearDayTemplateWeekdays,
   copyDayTemplateRequirements,
   createDayTemplateDraft,
   type DayTemplateSelection,
@@ -19,6 +21,7 @@ import {
   isSameDayTemplateInputs,
   removeDayTemplate,
   renameDayTemplate,
+  reorderDayTemplates,
   resolveSelectedDayTemplate,
   toDayTemplateDrafts,
   toDayTemplateDraftsFromSuggestion,
@@ -41,7 +44,6 @@ import {
 } from "./positionDrafts";
 import { formatPendingSections } from "./script";
 import {
-  changeStaffPositionMarks,
   isSameStaffPositionLevels,
   setStaffPositionLevel,
   toStaffPositionLevels,
@@ -56,13 +58,12 @@ import type {
   ShiftSetupPosition,
   ShiftSetupRemote,
   StaffPositionLevels,
-  StaffPositionMarkChange,
 } from "./types";
 
-const ASSIST_UNAVAILABLE_MESSAGE = "いまはAIの下書きを使えません。\n「型を作る」から手で作れます。";
+const ASSIST_UNAVAILABLE_MESSAGE = "いまはAIの下書きを使えません。\n「テンプレートを作る」から手で作れます。";
 const ASSIST_RATE_LIMITED_MESSAGE =
   "短い時間に続けて作ったため、いまは下書きを作れません。\n少し時間をおいて、もう一度お試しください。";
-const ASSIST_EMPTY_MESSAGE = "下書きに入れる型がありませんでした。\n「型を作る」から手で作れます。";
+const ASSIST_EMPTY_MESSAGE = "下書きに入れるテンプレートがありませんでした。\n「テンプレートを作る」から手で作れます。";
 
 type Input = {
   setup: ShiftSetupData;
@@ -107,7 +108,7 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
 
   const viewSetup = useMemo(() => ({ ...setup, positions }), [setup, positions]);
   const inputContext = useMemo(() => ({ positions, pattern }), [positions, pattern]);
-  // 編集中の一覧から外したポジションのバーと人数は、保存済みの型からも外して表示する。
+  // 編集中の一覧から外したポジションの人数は、保存済みのテンプレートからも外して表示する。
   const savedDrafts = useMemo(
     () => keepPositionsInDayTemplateDrafts(toDayTemplateDrafts(setup.dayTemplates), positions),
     [setup.dayTemplates, positions],
@@ -116,7 +117,7 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
   const drafts = templateDrafts ?? savedDrafts;
   const selectedDraft = resolveSelectedDayTemplate(drafts, templateSelection);
   const templateInputs = toDayTemplateInputs(drafts, inputContext);
-  // 作ったまま何も入れていない新しい型だけが違いのときは、保存していない変更に数えない。
+  // 作ったまま何も入れていない新しいテンプレートだけが違いのときは、保存していない変更に数えない。
   const hasTemplateChanges = templateDrafts !== null && hasPendingDayTemplateChanges(drafts, savedInputs, inputContext);
   const hasPositionChanges = positionDrafts !== null && !isSamePositions(positionDrafts, savedPositions);
   const staffInputs = toStaffProfileInputs(staffs, staffDrafts, positions);
@@ -184,16 +185,6 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
     setStaffDrafts((current) => toStaffDrafts(update(resolveStaffProfiles(current))));
   };
 
-  const changePositionMarks = (change: StaffPositionMarkChange) => {
-    if (!canEdit()) return;
-    const result = changeStaffPositionMarks(resolveStaffProfiles(staffDrafts), change, positions);
-    setStaffDrafts(toStaffDrafts(result.profiles));
-    // 入れるポジションがなくなるスタッフは変えていないため、その人数を伝える。
-    if (result.skippedCount > 0) {
-      toaster.create({ title: `入れるポジションがなくなる${result.skippedCount}人は変えていません`, type: "info" });
-    }
-  };
-
   const { run: saveChanges, isRunning: isSaving } = useSingleFlight(async (): Promise<boolean> => {
     if (!canWrite) return false;
 
@@ -206,7 +197,7 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
         const invalidDraft = drafts[invalidIndex];
         const issue = invalidDraft ? issues[invalidDraft.rowKey] : findDayTemplateInputsIssue(templateInputs, pattern);
         if (issue) {
-          // 誤りのある型を開き、その型の中で誤りを読めるようにする。
+          // 誤りのあるテンプレートを開き、そのテンプレートの中で誤りを読めるようにする。
           if (invalidDraft) setTemplateSelection({ rowKey: invalidDraft.rowKey, index: invalidIndex });
           toaster.create({ title: DAY_TEMPLATE_ISSUE_MESSAGES[issue], type: "error" });
           return false;
@@ -214,7 +205,7 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
       }
 
       // 新しく足したポジションは、保存するまでIDがない。ポジションを先に保存してIDを受け取り、
-      // 型とスタッフの編集中の値が指す仮のIDを置き換えてから、続きを保存する。
+      // テンプレートとスタッフの編集中の値が指す仮のIDを置き換えてから、続きを保存する。
       let savedIds: SavedPositionIds = new Map();
       if (hasPositionChanges) {
         const ids = await remote.savePositions(toPositionSaveInputs(positions));
@@ -226,7 +217,7 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
         setTemplateDrafts((current) => current && replacePositionIdsInDayTemplateDrafts(current, replaceIds));
         setStaffDrafts((current) => replacePositionIdsInStaffDrafts(current, replaceIds));
       }
-      // 保存の引数は、保存後のIDを持つ一覧から作る。一覧にないIDのバー、人数、熟練度は引数に入らない。
+      // 保存の引数は、保存後のIDを持つ一覧から作る。一覧にないIDの人数と熟練度は引数に入らない。
       const positionsToSave = replacePositionIds(positions, savedIds);
 
       if (hasTemplateChanges) {
@@ -266,9 +257,22 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
     if (!canEdit()) return;
     const next = applyPositionInputs(inputs, positions, createNextDraftPositionId);
     setPositionDrafts(isSamePositions(next, savedPositions) ? null : next);
-    // 外したポジションのバー、人数、熟練度は、編集中の値からも外す。「元に戻す」で保存済みの内容へ戻る。
-    setTemplateDrafts((current) => current && keepPositionsInDayTemplateDrafts(current, next));
-    setStaffDrafts((current) => reconcileStaffDrafts(staffs, current, next));
+    // すべて削除してポジションのない状態へ戻した場合は、残した既定のポジションの人数と熟練度も外す。
+    // 画面では削除したと伝えており、あとでポジションを追加したときに古い値が戻らないようにする。
+    const isReset = !isPositionsUnsplit(positions) && isPositionsUnsplit(next);
+    // 外したポジションの人数と熟練度は、編集中の値からも外す。
+    setTemplateDrafts((current) =>
+      isReset
+        ? keepPositionsInDayTemplateDrafts(drafts, [])
+        : current && keepPositionsInDayTemplateDrafts(current, next),
+    );
+    setStaffDrafts((current) =>
+      reconcileStaffDrafts(
+        staffs,
+        isReset ? Object.fromEntries(staffs.map((staff) => [staff._id, {}])) : current,
+        next,
+      ),
+    );
     positionsDialog.close();
   };
 
@@ -316,7 +320,7 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
     const hasTarget = drafts.some((draft) => draft.rowKey === target.toRowKey);
     if (!canEdit() || !source || !hasTarget || target.fromRowKey === target.toRowKey) return;
     editTemplates((current) => copyDayTemplateRequirements(current, target));
-    // 写したあとも見えている範囲がほとんど変わらないため、どの型から写したかを伝える。
+    // 写したあとも見えている範囲がほとんど変わらないため、どのテンプレートから写したかを伝える。
     showSuccessToast({ title: `「${getDayTemplateLabel(source)}」の必要人数をコピーしました` });
   };
 
@@ -370,14 +374,27 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
         if (!canEdit()) return;
         const index = drafts.findIndex((draft) => draft.rowKey === rowKey);
         editTemplates((current) => removeDayTemplate(current, rowKey));
-        // 削除した型を編集していた場合は、同じ位置に来る型へ移る。
+        // 削除したテンプレートを編集していた場合は、同じ位置に来るテンプレートへ移る。
         if (selectedDraft?.rowKey === rowKey) setTemplateSelection({ rowKey: null, index });
+      },
+      onReorderDayTemplates: (activeRowKey, overRowKey) => {
+        if (!canEdit()) return;
+        editTemplates((current) => reorderDayTemplates(current, activeRowKey, overRowKey));
+        // 編集しているテンプレートは、並びを変えても同じものを開いたままにする。
+        if (selectedDraft) {
+          const index = reorderDayTemplates(drafts, activeRowKey, overRowKey).findIndex(
+            (draft) => draft.rowKey === selectedDraft.rowKey,
+          );
+          setTemplateSelection({ rowKey: selectedDraft.rowKey, index });
+        }
       },
       onRenameDayTemplate: (rowKey, name) => editTemplates((current) => renameDayTemplate(current, rowKey, name)),
       onToggleWeekday: (rowKey, weekday) =>
         editTemplates((current) => toggleDayTemplateWeekday(current, rowKey, weekday)),
       onToggleHoliday: (rowKey) => editTemplates((current) => toggleDayTemplateHoliday(current, rowKey)),
-      onChangeBars: (rowKey, bars) => editTemplates((current) => changeDayTemplateBars(current, rowKey, bars)),
+      onClearWeekdays: (rowKey) => editTemplates((current) => clearDayTemplateWeekdays(current, rowKey)),
+      onChangeSegments: (rowKey, segments) =>
+        editTemplates((current) => changeDayTemplateSegments(current, rowKey, segments)),
       onChangeRequiredCount: (rowKey, change) =>
         editTemplates((current) => changeRequiredCount(current, rowKey, change)),
       onCopyRequirements: copyRequirements,
@@ -388,14 +405,6 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
             ? { ...profiles, [staffId]: setStaffPositionLevel(levels, positionId, level, positions) }
             : profiles;
         }),
-      onChangeStaffPositionMarks: changePositionMarks,
-      onResetChanges: () => {
-        if (isSavingRef.current) return;
-        setPositionDrafts(null);
-        setTemplateDrafts(null);
-        setStaffDrafts({});
-        setHasAttemptedSave(false);
-      },
       onSaveChanges: () => void saveChanges(),
       onApplyPositions: applyPositions,
       onRequestAssist: (situation) => void requestAssist(situation),

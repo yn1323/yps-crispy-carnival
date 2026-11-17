@@ -16,7 +16,7 @@ export type ShiftBarSegmentViewModel = {
   width: number;
   isResizing: boolean;
   edgeShape: "isolated" | "start" | "middle" | "end";
-  // 熟練度の印（新・責）を、バーの右端に置けるかどうか。狭いバーと、勤務時刻のラベルに重なるバーには置かない。
+  // 熟練度の印（見・リ）を、バーの右端に置けるかどうか。狭いバーと、勤務時刻のラベルに重なるバーには置かない。
   fitsSkillMark: boolean;
 };
 

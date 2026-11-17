@@ -72,7 +72,7 @@ describe("buildNewcomerOnlyItems", () => {
     expect(items.map((item) => item.label)).toEqual(["11/23(月) 17:00〜22:00", "11/24(火)"]);
   });
 
-  it("新人だけの時間帯がなければ、空の一覧を返す", () => {
+  it("見習いだけの時間帯がなければ、空の一覧を返す", () => {
     expect(buildNewcomerOnlyItems({ periods: [], positions })).toEqual([]);
   });
 });

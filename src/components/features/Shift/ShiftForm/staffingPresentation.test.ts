@@ -90,7 +90,7 @@ const staffing = (overrides: Partial<ShiftFormStaffing> = {}): ShiftFormStaffing
   ...overrides,
 });
 
-/** どのポジションでも新人のスタッフを、ポジションごとの新人の形にする。 */
+/** どのポジションでも見習いのスタッフを、ポジションごとの見習いの形にする。 */
 const newcomersEverywhere = (staffIds: string[]) =>
   new Map(positions.map((position) => [position.id, new Set(staffIds)]));
 
@@ -110,7 +110,7 @@ const buildTimeView = (input: {
     newcomerStaffIdsByPositionId: input.newcomerStaffIdsByPositionId,
   });
 
-/** 帯の区間を、比べやすい形（時刻、文字、状態、新人だけ）へ射影する。 */
+/** 帯の区間を、比べやすい形（時刻、文字、状態、見習いだけ）へ射影する。 */
 const projectBands = (view: DayStaffingView) =>
   view.bands.map((band) => ({
     name: band.name,
@@ -191,11 +191,11 @@ describe("describeStaffingCount", () => {
     ]);
   });
 
-  it("多い区間で新人だけの場合は、多い人数と新人だけであることを説明する", () => {
+  it("多い区間で見習いだけの場合は、多い人数と見習いだけであることを説明する", () => {
     expect(describeStaffingCount(buildStaffingCountView({ count: 2, required: 1, isNewcomerOnly: true }))).toEqual([
       "人数 2人 / 必要 1人",
       "1人多くなっています",
-      "新人だけの時間です",
+      "見習いだけの時間です",
     ]);
   });
 
@@ -223,7 +223,7 @@ describe("toStaffingBars", () => {
 });
 
 describe("buildDayTemplateView", () => {
-  it("曜日、祝日の型が当たっている日は、型の名前を出し、その型にチェックを付ける", () => {
+  it("曜日、祝日のテンプレートが当たっている日は、テンプレートの名前を出し、そのテンプレートにチェックを付ける", () => {
     for (const source of ["weekday", "holiday"] as const) {
       expect(buildDayTemplateView(timeDay([bar("09:00", "13:00")], { source }))).toEqual({
         label: "通常",
@@ -235,7 +235,7 @@ describe("buildDayTemplateView", () => {
     }
   });
 
-  it("その日だけ別の型を当てた日は、型の名前を出し、曜日の設定へ戻せる", () => {
+  it("その日だけ別のテンプレートを当てた日は、テンプレートの名前を出し、曜日の設定へ戻せる", () => {
     const view = buildDayTemplateView(
       timeDay([bar("09:00", "13:00")], {
         source: "dateTemplate",
@@ -253,7 +253,7 @@ describe("buildDayTemplateView", () => {
     });
   });
 
-  it("その日だけ人数を変えた日は「この日だけ変更」と出し、どの型にもチェックを付けない", () => {
+  it("その日だけ人数を変えた日は「この日だけ変更」と出し、どのテンプレートにもチェックを付けない", () => {
     const view = buildDayTemplateView(
       timeDay([bar("09:00", "13:00")], { source: "dateCustom", templateId: null, templateName: null }),
     );
@@ -267,7 +267,7 @@ describe("buildDayTemplateView", () => {
     });
   });
 
-  it("その日だけ人数を変えた日で、元の型の名前が分かる場合は、名前のあとに「（この日だけ変更）」を付ける", () => {
+  it("その日だけ人数を変えた日で、元のテンプレートの名前が分かる場合は、名前のあとに「（この日だけ変更）」を付ける", () => {
     const view = buildDayTemplateView(
       timeDay([bar("09:00", "13:00")], { source: "dateCustom", templateId: null, templateName: "通常" }),
     );
@@ -276,14 +276,14 @@ describe("buildDayTemplateView", () => {
     expect(view.templateId).toBeNull();
   });
 
-  it("型が当たらない日と、必要人数が渡されない日は「未設定」と出す", () => {
+  it("テンプレートが当たらない日と、必要人数が渡されない日は「未設定」と出す", () => {
     const unset = { label: "未設定", templateId: null, templateName: null, isCustom: false, isDateSpecific: false };
 
     expect(buildDayTemplateView(day({ source: "none", templateId: null, templateName: null }))).toEqual(unset);
     expect(buildDayTemplateView(undefined)).toEqual(unset);
   });
 
-  it("型が当たっていても、集め方が合わず必要人数がない日は「未設定」と出し、どの型にもチェックを付けない", () => {
+  it("テンプレートが当たっていても、集め方が合わず必要人数がない日は「未設定」と出し、どのテンプレートにもチェックを付けない", () => {
     expect(buildDayTemplateView(day({ source: "weekday", requirements: null }))).toEqual({
       label: "未設定",
       templateId: null,
@@ -293,7 +293,7 @@ describe("buildDayTemplateView", () => {
     });
   });
 
-  it("確定済みの日は、確定時の型の名前を出す", () => {
+  it("確定済みの日は、確定時のテンプレートの名前を出す", () => {
     const view = buildDayTemplateView(
       timeDay([bar("09:00", "13:00")], { source: "confirmed", templateId: null, templateName: "通常" }),
     );
@@ -307,7 +307,7 @@ describe("buildDayTemplateView", () => {
     });
   });
 
-  it("確定済みで、型の名前がなく必要人数だけが残っている日は「この日だけ変更」と出す", () => {
+  it("確定済みで、テンプレートの名前がなく必要人数だけが残っている日は「この日だけ変更」と出す", () => {
     const view = buildDayTemplateView(
       timeDay([bar("09:00", "13:00")], { source: "confirmed", templateId: null, templateName: null }),
     );
@@ -385,7 +385,7 @@ describe("buildDayStaffingView", () => {
           startMinutes: 540,
           endMinutes: 660,
           timeLabel: "09:00〜11:00",
-          description: "ホール 09:00〜11:00 1/2 ▲1、新人だけ",
+          description: "ホール 09:00〜11:00 1/2 ▲1、見習いだけ",
           count: 1,
           required: 2,
           tone: "shortage",
@@ -467,7 +467,7 @@ describe("buildDayStaffingView", () => {
       }
     });
 
-    it("ホールでは標準でキッチンでは新人の人が1人でいる場合、キッチンの帯だけに新人だけの印を付ける", () => {
+    it("ホールでは一人前でキッチンでは見習いの人が1人でいる場合、キッチンの帯だけに見習いだけの印を付ける", () => {
       const view = buildTimeView({
         shifts: [shift("mix", [segment("09:00", "11:00", hall), segment("11:00", "13:00", kitchen)])],
         day: undefined,
@@ -480,7 +480,7 @@ describe("buildDayStaffingView", () => {
       ]);
     });
 
-    it("そのポジションの全員が新人の区間だけに印を付け、標準の人が入る時刻で区切る", () => {
+    it("そのポジションの全員が見習いの区間だけに印を付け、一人前の人が入る時刻で区切る", () => {
       const view = buildTimeView({
         shifts: [shift("new", [segment("09:00", "13:00")]), shift("std", [segment("11:00", "13:00")])],
         day: undefined,
@@ -524,7 +524,7 @@ describe("buildDayStaffingView", () => {
     const early = { shiftTypeOptionId: "early" };
     const late = { shiftTypeOptionId: "late" };
 
-    it("勤務パターンごとに、足りない人数、多い人数、新人だけの印を出す", () => {
+    it("勤務パターンごとに、足りない人数、多い人数、見習いだけの印を出す", () => {
       const view = buildDayStaffingView({
         date: thursday,
         shifts: [
@@ -600,7 +600,7 @@ describe("buildDayStaffingView", () => {
   });
 
   describe("日付選択", () => {
-    it("1日を1つの区切りとして、足りない人数、多い人数、新人だけの印を出す", () => {
+    it("1日を1つの区切りとして、足りない人数、多い人数、見習いだけの印を出す", () => {
       const view = buildDayStaffingView({
         date: thursday,
         shifts: [
@@ -697,7 +697,7 @@ describe("resolveBandSegmentContent", () => {
     expect(resolveBandSegmentContent(unset, 14).text).toBeNull();
   });
 
-  it("新人だけの区間は、全文と印が並ぶ幅（全文の幅＋16px）で両方を出す", () => {
+  it("見習いだけの区間は、全文と印が並ぶ幅（全文の幅＋16px）で両方を出す", () => {
     expect(resolveBandSegmentContent(shortageNewcomer, 66)).toEqual({
       text: "2/3 ▲1",
       isFullText: true,
@@ -705,7 +705,7 @@ describe("resolveBandSegmentContent", () => {
     });
   });
 
-  it("新人だけの区間は、全文と印が並ばない幅では、差だけにして印を残す", () => {
+  it("見習いだけの区間は、全文と印が並ばない幅では、差だけにして印を残す", () => {
     // 全文だけなら入る幅でも、印を優先する。
     expect(resolveBandSegmentContent(shortageNewcomer, 65)).toEqual({
       text: "▲1",
@@ -719,7 +719,7 @@ describe("resolveBandSegmentContent", () => {
     });
   });
 
-  it("新人だけの区間でも、印が入らない幅では、印を省いて文字だけを出す", () => {
+  it("見習いだけの区間でも、印が入らない幅では、印を省いて文字だけを出す", () => {
     expect(resolveBandSegmentContent(shortageNewcomer, 37)).toEqual({
       text: "▲1",
       isFullText: false,
@@ -837,7 +837,7 @@ describe("shouldDefaultToDetailMode", () => {
     expect(shouldDefaultToDetailMode({ positionCount: 1, staffing: undefined, hasStaffProfiles: false })).toBe(false);
     expect(shouldDefaultToDetailMode({ positionCount: 1, staffing: staffing(), hasStaffProfiles: false })).toBe(false);
     expect(shouldDefaultToDetailMode({ positionCount: 0, staffing: staffing(), hasStaffProfiles: false })).toBe(false);
-    // 型が当たらない日だけの募集は、設定がないのと同じに扱う。
+    // テンプレートが当たらない日だけの募集は、設定がないのと同じに扱う。
     expect(
       shouldDefaultToDetailMode({
         positionCount: 1,
@@ -851,7 +851,7 @@ describe("shouldDefaultToDetailMode", () => {
     expect(shouldDefaultToDetailMode({ positionCount: 2, staffing: undefined, hasStaffProfiles: false })).toBe(true);
   });
 
-  it("当てられる型がある店舗は、くわしくを初期状態にする", () => {
+  it("当てられるテンプレートがある店舗は、くわしくを初期状態にする", () => {
     expect(
       shouldDefaultToDetailMode({
         positionCount: 1,
@@ -861,7 +861,7 @@ describe("shouldDefaultToDetailMode", () => {
     ).toBe(true);
   });
 
-  it("必要人数を持つ日がある募集は、当てられる型がなくても、くわしくを初期状態にする", () => {
+  it("必要人数を持つ日がある募集は、当てられるテンプレートがなくても、くわしくを初期状態にする", () => {
     expect(
       shouldDefaultToDetailMode({
         positionCount: 1,

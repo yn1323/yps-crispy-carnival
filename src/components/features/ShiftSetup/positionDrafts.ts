@@ -88,7 +88,7 @@ export function replacePositionIds<Position extends PositionRef>(
   return positions.map((position) => ({ ...position, _id: savedIds.get(position._id) ?? position._id }));
 }
 
-/** 一覧にないポジションのバーと人数を、型の下書きから外す。 */
+/** 一覧にないポジションの人数を、テンプレートの下書きから外す。 */
 export function keepPositionsInDayTemplateDrafts(
   drafts: readonly DayTemplateDraft[],
   positions: readonly PositionRef[],
@@ -97,7 +97,7 @@ export function keepPositionsInDayTemplateDrafts(
   return remapDayTemplateDraftPositions(drafts, (positionId) => (keptIds.has(positionId) ? positionId : null));
 }
 
-/** 型の下書きが指すポジションのIDを、保存後のIDへ置き換える。 */
+/** テンプレートの下書きが指すポジションのIDを、保存後のIDへ置き換える。 */
 export function replacePositionIdsInDayTemplateDrafts(
   drafts: readonly DayTemplateDraft[],
   savedIds: SavedPositionIds,
@@ -108,7 +108,7 @@ export function replacePositionIdsInDayTemplateDrafts(
 /**
  * ポジションの一覧を変えたあとの、スタッフの編集中の値を返す。保存済みの値と同じになったスタッフは含めない。
  * 一覧にないポジションの値は外す。
- * 残ったポジションのすべてが「入れない」になったスタッフは、「入れない」を外して全ポジションに入れるものとする。
+ * 残ったポジションのすべてが「担当外」になったスタッフは、「担当外」を外して全ポジションを担当できるものとする。
  * 保存したあとにサーバーが返す値と、保存の前の表示をそろえるためである。
  */
 export function reconcileStaffDrafts(

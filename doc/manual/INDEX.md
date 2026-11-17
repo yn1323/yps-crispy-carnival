@@ -12,7 +12,7 @@
 | 利用規約・プライバシーポリシーを更新する | [法務文書のバージョン更新](legal-versioning.md) | 本文版、再同意版、更新日、対象利用者 |
 | 課金設定、Stripe公開、課金migrationを扱う | [組織課金の運用](organization-billing.md) | 対象環境、停止条件、migration、Stripe設定、復旧 |
 | 組織プランの遷移をStripe Sandboxで手動確認する | [組織プラン遷移の手動シナリオテスト](organization-billing-transition-scenario-test.md) | Trial短縮、専用アカウント、22ケース、日程、合否判定 |
-| 祝日に使う型のための祝日を、年ごとに入れる | [祝日の表の更新](national-holidays.md) | 対象の年、振替休日を含む一覧、入れた件数、シード実行後の入れ直し |
+| 祝日に使うテンプレートのための祝日を、年ごとに入れる | [祝日の表の更新](national-holidays.md) | 対象の年、振替休日を含む一覧、入れた件数、シード実行後の入れ直し |
 | Widen済みの保存形式をNarrowする | [Narrow Migrationの運用](narrow-migrations.md) | forward migration、全ページreadiness、schema Narrowの停止条件 |
 | Analyticsの新generationを構築し旧基盤から切り替える | [Analytics rollout](analytics-rollout.md) | 完全修飾deployment名、bootstrap、invariant、cutover、負荷、旧3テーブルの0件証跡 |
 | LINE設定、Webhook、通知障害を扱う | [LINE通知の運用](line-notification.md) | channel設定、署名、疎通、停止と復旧 |

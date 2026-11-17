@@ -2732,7 +2732,7 @@ describe("shiftBoard/mutations", () => {
 
       /**
        * 募集期間（2026-01-20 火 〜 01-26 月、受付時間 09:00-22:00）に、理由の違う必要人数が当たる設定を用意する。
-       * 01-21（水）は祝日、01-22（木）はその日だけの必要人数、01-23（金）は種類の違う型が当たる。
+       * 01-21（水）は祝日、01-22（木）はその日だけの必要人数、01-23（金）は種類の違うテンプレートが当たる。
        */
       async function seedStaffingSettings(t: TestConvex<typeof schema>) {
         const base = await setupTestData(t);
@@ -2774,7 +2774,7 @@ describe("shiftBoard/mutations", () => {
           });
           await ctx.db.insert("shiftDayTemplates", {
             shopId: base.shopId,
-            name: "集め方を変える前の型",
+            name: "集め方を変える前のテンプレート",
             weekdays: ["fri"],
             sortOrder: 2,
             appliesToHolidays: false,
@@ -2792,7 +2792,7 @@ describe("shiftBoard/mutations", () => {
         return { ...base, ...ids };
       }
 
-      it("未確定から確定へ変わるとき、型が当たる日の必要人数と型の名前を保存し、当たらない日の行は作らない", async () => {
+      it("未確定から確定へ変わるとき、テンプレートが当たる日の必要人数とテンプレートの名前を保存し、当たらない日の行は作らない", async () => {
         const t = convexTest(schema, modules);
         const ids = await seedStaffingSettings(t);
 
@@ -2808,7 +2808,7 @@ describe("shiftBoard/mutations", () => {
           })),
         ).toEqual(
           [
-            // 火曜: 曜日の型。受付時間をまたぐバーは内側だけにし、削除済みのポジションのバーを除く。
+            // 火曜: 曜日のテンプレート。受付時間をまたぐバーは内側だけにし、削除済みのポジションのバーを除く。
             {
               date: "2026-01-20",
               templateName: "平日",
@@ -2817,25 +2817,25 @@ describe("shiftBoard/mutations", () => {
                 bars: [bar(ids.hallPositionId, "09:00", "10:00"), bar(ids.hallPositionId, "09:00", "15:00")],
               },
             },
-            // 祝日の水曜: 祝日に使う型。
+            // 祝日の水曜: 祝日に使うテンプレート。
             {
               date: "2026-01-21",
               templateName: "祝日",
               requirements: { kind: "time", bars: [bar(ids.kitchenPositionId, "11:00", "14:00")] },
             },
-            // 木曜: その日だけの必要人数。型の名前を持たない。
+            // 木曜: その日だけの必要人数。テンプレートの名前を持たない。
             {
               date: "2026-01-22",
               templateName: null,
               requirements: { kind: "time", bars: [bar(ids.kitchenPositionId, "17:00", "22:00")] },
             },
-            // 金曜: 当たった型の種類が募集の集め方と違うため、必要人数は未設定になる。
-            { date: "2026-01-23", templateName: "集め方を変える前の型", requirements: null },
+            // 金曜: 当たったテンプレートの種類が募集の集め方と違うため、必要人数は未設定になる。
+            { date: "2026-01-23", templateName: "集め方を変える前のテンプレート", requirements: null },
           ].map((snapshot) => ({ recruitmentId: ids.recruitmentId, shopId: ids.shopId, ...snapshot })),
         );
       });
 
-      it("確定済みの募集の再確定と再通知では、型を直していても、保存した必要人数を書き直さない", async () => {
+      it("確定済みの募集の再確定と再通知では、テンプレートを直していても、保存した必要人数を書き直さない", async () => {
         const t = convexTest(schema, modules);
         const ids = await seedStaffingSettings(t);
         await confirm(t, ids);
@@ -2855,7 +2855,7 @@ describe("shiftBoard/mutations", () => {
         expect(await readSnapshots(t)).toEqual(saved);
       });
 
-      it("型を持たない店舗の確定では、必要人数を保存しない", async () => {
+      it("テンプレートを持たない店舗の確定では、必要人数を保存しない", async () => {
         const t = convexTest(schema, modules);
         const ids = await setupTestData(t);
 

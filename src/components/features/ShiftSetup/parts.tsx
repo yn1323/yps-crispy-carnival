@@ -37,7 +37,7 @@ export function SetupSection({ headingId, title, step, description, action, isBu
               boxSize="24px"
               flexShrink={0}
               borderRadius="full"
-              bg="gray.800"
+              bg="teal.600"
               color="white"
               fontSize="sm"
               fontWeight="bold"
@@ -69,6 +69,17 @@ export function SetupSection({ headingId, title, step, description, action, isBu
   );
 }
 
+/** ポジションを追加するまで設定できないセクションの中身。詳細は見せず、先にすることだけを伝える。 */
+export function SetupLockedNote({ children }: { children: ReactNode }) {
+  return (
+    <SetupCard>
+      <Text px={{ base: 4, md: 5 }} py={4} fontSize="sm" color="fg.muted">
+        {children}
+      </Text>
+    </SetupCard>
+  );
+}
+
 type SetupCardProps = {
   children: ReactNode;
   /**
@@ -97,17 +108,19 @@ type PositionBadgeProps = {
   color: string;
   /** 長い名前を1行で省略し、全文を`title`に出す。表の列の見出しなど、幅が決まっている場所で使う。 */
   truncate?: boolean;
+  /** 左右の余白を詰める。列の幅が狭い表の見出しで、名前を少しでも長く見せるために使う。 */
+  compact?: boolean;
 };
 
 /** ポジションを、その色の地と白い文字で示すバッジ。シフト表のポジションの見せ方にそろえる。 */
-export function PositionBadge({ name, color, truncate = false }: PositionBadgeProps) {
+export function PositionBadge({ name, color, truncate = false, compact = false }: PositionBadgeProps) {
   return (
     <chakra.span
       display={truncate ? "inline-block" : "inline-flex"}
       alignItems="center"
       minH="28px"
       maxW="full"
-      px={3}
+      px={compact ? 2 : 3}
       py={truncate ? 1 : 0.5}
       borderRadius="full"
       color="white"
@@ -128,94 +141,4 @@ export function PositionBadge({ name, color, truncate = false }: PositionBadgePr
 /** ポジションの色を示す丸。色は用意した一覧の値をそのまま当てる。 */
 export function PositionDot({ color, size = "12px" }: { color: string; size?: string }) {
   return <Box boxSize={size} borderRadius="full" flexShrink={0} style={{ background: color }} aria-hidden />;
-}
-
-type SegmentedRadioProps<Value extends string> = {
-  name: string;
-  label: string;
-  value: Value;
-  /** `prefix`は、名前の前に添える印。 */
-  options: ReadonlyArray<{ value: Value; label: string; prefix?: ReactNode }>;
-  disabled?: boolean;
-  /** 選べない値。ほかの値は選べるまま、その選択肢だけを無効にする。 */
-  disabledValues?: readonly Value[];
-  onChange: (value: Value) => void;
-};
-
-/** 少ない選択肢から1つを選ぶ、横並びの単一選択。選択中は濃いtealと白文字で示す。 */
-export function SegmentedRadio<Value extends string>({
-  name,
-  label,
-  value,
-  options,
-  disabled = false,
-  disabledValues = [],
-  onChange,
-}: SegmentedRadioProps<Value>) {
-  return (
-    <Flex role="radiogroup" aria-label={label} gap={1} flexShrink={0}>
-      {options.map((option) => {
-        const isDisabled = disabled || disabledValues.includes(option.value);
-        return (
-          <chakra.label
-            key={option.value}
-            position="relative"
-            display="flex"
-            alignItems="center"
-            justifyContent="center"
-            gap={1.5}
-            // スマートフォンでは幅いっぱいに並べ、名前の長い選択肢へ多めに幅を配る。
-            flex={{ base: "1 1 auto", md: "none" }}
-            minH={{ base: "44px", md: "32px" }}
-            // スマートフォンでは、選択肢が1行に収まるよう左右の余白を詰める。
-            px={{ base: 0.5, md: 3 }}
-            borderWidth="1px"
-            borderColor="gray.300"
-            borderRadius="md"
-            bg="white"
-            color="gray.700"
-            fontSize="sm"
-            fontWeight="semibold"
-            whiteSpace="nowrap"
-            cursor={isDisabled ? "not-allowed" : "pointer"}
-            transitionProperty="background-color"
-            transitionDuration="faster"
-            _hover={isDisabled ? undefined : { bg: "gray.50" }}
-            _active={isDisabled ? undefined : { bg: "gray.100", transitionDuration: "0ms" }}
-            css={{
-              // 選択中は、カーソルを載せても濃いtealの地と白い文字を保つ。中立のホバー色を当てると白い文字が読めなくなる。
-              "&:has(input:checked)": { bg: "teal.600", borderColor: "teal.600", color: "white" },
-              "&:has(input:checked):is(:hover, [data-hover])": { bg: "teal.700", borderColor: "teal.700" },
-              "&:has(input:checked):is(:active, [data-active])": { bg: "teal.800", borderColor: "teal.800" },
-              "&:has(input:disabled)": { opacity: 0.64 },
-              "&:has(input:focus-visible)": {
-                outlineWidth: "2px",
-                outlineStyle: "solid",
-                outlineColor: "teal.700",
-                outlineOffset: "2px",
-              },
-            }}
-          >
-            <chakra.input
-              type="radio"
-              name={name}
-              value={option.value}
-              checked={option.value === value}
-              disabled={isDisabled}
-              position="absolute"
-              inset={0}
-              w="full"
-              h="full"
-              m={0}
-              opacity={0}
-              cursor="inherit"
-              onChange={() => onChange(option.value)}
-            />
-            {option.prefix}
-            {option.label}
-          </chakra.label>
-        );
-      })}
-    </Flex>
-  );
 }

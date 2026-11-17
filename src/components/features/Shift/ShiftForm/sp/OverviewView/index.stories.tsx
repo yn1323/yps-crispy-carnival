@@ -44,6 +44,6 @@ export const StaffTotalsInteractive: Story = {
     await within(totals).findByText("Aさん");
     // Aさんは「8時間−休憩1時間」と「8時間」で、計15時間。
     // 熟練度の印は、「入れるもの」で選んでいるポジション（選ぶ前はホール）での値を出す。
-    await expect(totals).toHaveTextContent("Aさんホール：責任者15hBさん12.5hCさん4hDさん7hEさんホール：入れない-");
+    await expect(totals).toHaveTextContent("Aさんホール：リーダー15hBさん12.5hCさん4hDさん7hEさんホール：担当外-");
   },
 };

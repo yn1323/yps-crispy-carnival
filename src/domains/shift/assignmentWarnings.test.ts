@@ -272,14 +272,14 @@ describe("computeAssignmentWarnings", () => {
   });
 });
 
-describe("computeAssignmentWarnings: 入れないポジション（POSITION_UNAVAILABLE）", () => {
+describe("computeAssignmentWarnings: 担当外のポジション（POSITION_UNAVAILABLE）", () => {
   const positions = [
     { id: "pos1", name: "ホール" },
     { id: "pos2", name: "キッチン" },
     { id: "pos3", name: "レジ" },
   ];
-  // staff1は提出済みでキッチンとレジに入れない。staff2は未提出でキッチンに入れない。
-  // staff3は提出済みで全ポジションに入れる（キッチンでは新人、レジでは責任者）。入れる場合の熟練度は、この確認事項に関係しない。
+  // staff1は提出済みでキッチンとレジが担当外。staff2は未提出でキッチンが担当外。
+  // staff3は提出済みで全ポジションを担当できる（キッチンでは見習い、レジではリーダー）。担当できる場合の熟練度は、この確認事項に関係しない。
   const unavailable = (positionId: string) => ({ positionId, level: "unavailable" as const });
   const profiledStaffs = [
     { id: "staff1", isSubmitted: true, positionSkills: [unavailable("pos2"), unavailable("pos3")] },
@@ -300,22 +300,22 @@ describe("computeAssignmentWarnings: 入れないポジション（POSITION_UNAV
   const runWithProfiles = (shifts: ShiftData[], pattern: AssignmentWarningPattern = timePattern) =>
     computeAssignmentWarnings({ shifts, staffs: profiledStaffs, pattern, positions });
 
-  it("入れないポジションへ割り当てると、ポジション名の入った確認事項を出す", () => {
+  it("担当外のポジションへ割り当てると、ポジション名の入った確認事項を出す", () => {
     expect(runWithProfiles([shift({ ...requested, positions: [kitchen()] })])).toEqual([
       {
         code: "POSITION_UNAVAILABLE",
         date: "2026-01-20",
         staffId: "staff1",
-        message: "入れないポジションの勤務があります（キッチン）",
+        message: "担当外のポジションの勤務があります（キッチン）",
       },
     ]);
   });
 
-  it("入れるポジションへの割当では出さない", () => {
+  it("担当できるポジションへの割当では出さない", () => {
     expect(runWithProfiles([shift({ ...requested, positions: [seg({})] })])).toEqual([]);
   });
 
-  it("新人や責任者として入れるポジションへの割当では出さない", () => {
+  it("見習いやリーダーとして担当するポジションへの割当では出さない", () => {
     const register = seg({
       id: "seg-register",
       positionId: "pos3",
@@ -342,7 +342,7 @@ describe("computeAssignmentWarnings: 入れないポジション（POSITION_UNAV
     ).toEqual([]);
   });
 
-  it("ほかのスタッフが入れないポジションは、そのスタッフにだけ当てる", () => {
+  it("ほかのスタッフが担当外のポジションは、そのスタッフにだけ当てる", () => {
     const warnings = runWithProfiles([
       shift({ id: "shift-1", staffId: "staff1", ...requested, positions: [kitchen()] }),
       shift({ id: "shift-3", staffId: "staff3", ...requested, positions: [kitchen()] }),
@@ -351,7 +351,7 @@ describe("computeAssignmentWarnings: 入れないポジション（POSITION_UNAV
     expect(warnings.map((warning) => [warning.staffId, warning.code])).toEqual([["staff1", "POSITION_UNAVAILABLE"]]);
   });
 
-  it("同じ日に入れないポジションが複数あれば、重複を除いた名前を1件の確認事項にまとめる", () => {
+  it("同じ日に担当外のポジションが複数あれば、重複を除いた名前を1件の確認事項にまとめる", () => {
     const warnings = runWithProfiles([
       shift({
         ...requested,
@@ -369,7 +369,7 @@ describe("computeAssignmentWarnings: 入れないポジション（POSITION_UNAV
         code: "POSITION_UNAVAILABLE",
         date: "2026-01-20",
         staffId: "staff1",
-        message: "入れないポジションの勤務があります（キッチン・レジ）",
+        message: "担当外のポジションの勤務があります（キッチン・レジ）",
       },
     ]);
   });
@@ -414,7 +414,7 @@ describe("computeAssignmentWarnings: 入れないポジション（POSITION_UNAV
         code: "POSITION_UNAVAILABLE",
         date: "2026-01-20",
         staffId: "staff1",
-        message: "入れないポジションの勤務があります（キッチン）",
+        message: "担当外のポジションの勤務があります（キッチン）",
       },
     ]);
   });
@@ -432,16 +432,16 @@ describe("computeAssignmentWarnings: 入れないポジション（POSITION_UNAV
       pattern: timePattern,
     });
 
-    expect(warnings.map((warning) => warning.message)).toEqual(["入れないポジションの勤務があります（厨房）"]);
+    expect(warnings.map((warning) => warning.message)).toEqual(["担当外のポジションの勤務があります（厨房）"]);
   });
 
   it("ポジションの一覧にある名前を、勤務が持つ古い名前より優先する", () => {
     const warnings = runWithProfiles([shift({ ...requested, positions: [kitchen({ positionName: "旧キッチン" })] })]);
 
-    expect(warnings.map((warning) => warning.message)).toEqual(["入れないポジションの勤務があります（キッチン）"]);
+    expect(warnings.map((warning) => warning.message)).toEqual(["担当外のポジションの勤務があります（キッチン）"]);
   });
 
-  it("入れるポジションへの割当では、既存の3種類の確認事項が変わらず出る", () => {
+  it("担当できるポジションへの割当では、既存の3種類の確認事項が変わらず出る", () => {
     const warnings = runWithProfiles([
       shift({ id: "shift-a", staffId: "staff2", date: "2026-01-20", positions: [seg({})] }),
       shift({ id: "shift-b", staffId: "staff1", date: "2026-01-21", requestedTimes: [], positions: [seg({})] }),
@@ -468,7 +468,7 @@ describe("computeAssignmentWarnings: 入れないポジション（POSITION_UNAV
         code: "POSITION_UNAVAILABLE",
         date: "2026-01-23",
         staffId: "staff1",
-        message: "入れないポジションの勤務があります（キッチン）",
+        message: "担当外のポジションの勤務があります（キッチン）",
       },
     ]);
   });

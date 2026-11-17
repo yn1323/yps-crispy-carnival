@@ -167,7 +167,7 @@ export const useShiftFormInit = ({
     setValidationWarnings(validationWarnings ?? []);
   }, [validationWarnings, setValidationWarnings]);
 
-  // 新人だけの時間帯（確認事項）の同期
+  // 見習いだけの時間帯（確認事項）の同期
   useEffect(() => {
     setNewcomerOnlyPeriods(newcomerOnlyPeriods ?? []);
   }, [newcomerOnlyPeriods, setNewcomerOnlyPeriods]);

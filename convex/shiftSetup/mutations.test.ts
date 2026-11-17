@@ -123,9 +123,9 @@ async function seedShops(
         appliesToHolidays: false,
         requirements: buildEmptyDayRequirements("time"),
       });
-    const siblingTemplateId = await insertTemplate(siblingShopId, "別店舗の型");
-    const otherTemplateId = await insertTemplate(other.shopId, "別組織の型");
-    const deletedTemplateId = await insertTemplate(actor.shopId, "削除する型");
+    const siblingTemplateId = await insertTemplate(siblingShopId, "別店舗のテンプレート");
+    const otherTemplateId = await insertTemplate(other.shopId, "別組織のテンプレート");
+    const deletedTemplateId = await insertTemplate(actor.shopId, "削除するテンプレート");
     await ctx.db.delete(deletedTemplateId);
 
     const insertRecruitment = (
@@ -278,7 +278,12 @@ describe("shiftSetup/mutations", () => {
           client.mutation(api.shiftSetup.mutations.saveDayTemplates, {
             ...scope,
             templates: [
-              { name: "書き込んだ型", weekdays: ["mon"], appliesToHolidays: false, requirements: timeRequirements([]) },
+              {
+                name: "書き込んだテンプレート",
+                weekdays: ["mon"],
+                appliesToHolidays: false,
+                requirements: timeRequirements([]),
+              },
             ],
           }),
       },
@@ -362,8 +367,8 @@ describe("shiftSetup/mutations", () => {
           expectedOrganizationId: actor.organizationId,
           // 画面は既定のポジションを知らないため、既定と同じ色で送ることがある。
           positions: [
-            { name: "ホール", color: "#c2410c" },
-            { name: "キッチン", color: "#3b82f6" },
+            { name: "ホール", color: "#fb923c" },
+            { name: "キッチン", color: "#60a5fa" },
           ],
         });
 
@@ -383,10 +388,10 @@ describe("shiftSetup/mutations", () => {
           .map(({ name, color, sortOrder, isDefault, isDeleted }) => ({ name, color, sortOrder, isDefault, isDeleted }))
           .sort((left, right) => left.sortOrder - right.sortOrder),
       ).toEqual([
-        { name: "シフト", color: "#3b82f6", sortOrder: 0, isDefault: true, isDeleted: false },
-        { name: "ホール", color: "#c2410c", sortOrder: 1, isDefault: false, isDeleted: false },
+        { name: "シフト", color: "#60a5fa", sortOrder: 0, isDefault: true, isDeleted: false },
+        { name: "ホール", color: "#fb923c", sortOrder: 1, isDefault: false, isDeleted: false },
         // 既定と重なった色は、まだ使っていない色へ置き換える。
-        { name: "キッチン", color: "#7c3aed", sortOrder: 2, isDefault: false, isDeleted: false },
+        { name: "キッチン", color: "#a78bfa", sortOrder: 2, isDefault: false, isDeleted: false },
       ]);
     });
 
@@ -400,9 +405,10 @@ describe("shiftSetup/mutations", () => {
         .mutation(api.shiftSetup.mutations.savePositions, {
           ...ids.scope,
           positions: [
+            // 以前の色（選択肢には出さない色）も受け付けて、今の色へ読み替えずにそのまま保存する。
             { id: ids.kitchenPositionId, name: "キッチン", color: "#c2410c" },
             { id: ids.defaultPositionId, name: " フロア ", color: "#0f766e" },
-            { name: "レジ", color: "#db2777" },
+            { name: "レジ", color: "#f472b6" },
           ],
         });
 
@@ -420,7 +426,7 @@ describe("shiftSetup/mutations", () => {
       expect(projectPositions(after.positions, ids.shopId, labels)).toEqual([
         { key: "kitchen", name: "キッチン", color: "#c2410c", sortOrder: 0, isDefault: false, isDeleted: false },
         { key: "default", name: "フロア", color: "#0f766e", sortOrder: 1, isDefault: true, isDeleted: false },
-        { key: "new", name: "レジ", color: "#db2777", sortOrder: 2, isDefault: false, isDeleted: false },
+        { key: "new", name: "レジ", color: "#f472b6", sortOrder: 2, isDefault: false, isDeleted: false },
         // 一覧から外したポジションは、行を消さずに論理削除する。
         { key: "hall", name: "ホール", color: "#7c3aed", sortOrder: 1, isDefault: false, isDeleted: true },
         {
@@ -664,7 +670,7 @@ describe("shiftSetup/mutations", () => {
         .withIdentity({ subject: MANAGER_SUBJECT })
         .mutation(api.shiftSetup.mutations.saveDayTemplates, { ...ids.scope, templates });
 
-    it("型を一覧の順に作り、バーを開始、終了、ポジションの順に並べ、隣り合うバーと同じ時間のバーを結合しない", async () => {
+    it("テンプレートを一覧の順に作り、バーを開始、終了、ポジションの順に並べ、隣り合うバーと同じ時間のバーを結合しない", async () => {
       const t = convexTest(schema, modules);
       const ids = await seedShops(t);
       const before = await readSetupState(t);
@@ -703,7 +709,7 @@ describe("shiftSetup/mutations", () => {
         },
         { name: "祝日", weekdays: [], sortOrder: 1, appliesToHolidays: true, requirements: timeRequirements([]) },
       ]);
-      // ほかの店舗の型と、日の型以外の設定は変えない。
+      // ほかの店舗のテンプレートと、テンプレート以外の設定は変えない。
       expect(after.dayTemplates.filter((item) => item.shopId !== ids.shopId)).toEqual(before.dayTemplates);
       expect({ ...after, dayTemplates: [] }).toEqual({ ...before, dayTemplates: [] });
     });
@@ -777,7 +783,7 @@ describe("shiftSetup/mutations", () => {
       ]);
     });
 
-    it("idのある型は同じidのまま更新し、一覧にない型を削除し、idのない型を新しく作る。削除した型を指す指定は残す", async () => {
+    it("idのあるテンプレートは同じidのまま更新し、一覧にないテンプレートを削除し、idのないテンプレートを新しく作る。削除したテンプレートを指す指定は残す", async () => {
       const t = convexTest(schema, modules);
       const ids = await seedShops(t);
       const existing = await t.run(async (ctx) => {
@@ -805,7 +811,7 @@ describe("shiftSetup/mutations", () => {
       const before = await readSetupState(t);
 
       await save(t, ids, [
-        template({ name: "新しい型", weekdays: ["sat", "sun"], appliesToHolidays: true }),
+        template({ name: "新しいテンプレート", weekdays: ["sat", "sun"], appliesToHolidays: true }),
         template({
           id: existing.keptTemplateId,
           name: "平日（改）",
@@ -818,7 +824,7 @@ describe("shiftSetup/mutations", () => {
       const shopTemplates = after.dayTemplates.filter((item) => item.shopId === ids.shopId);
       expect(projectTemplates(shopTemplates, ids.shopId)).toEqual([
         {
-          name: "新しい型",
+          name: "新しいテンプレート",
           weekdays: ["sat", "sun"],
           sortOrder: 0,
           appliesToHolidays: true,
@@ -834,7 +840,7 @@ describe("shiftSetup/mutations", () => {
       ]);
       expect(shopTemplates.find((item) => item.name === "平日（改）")?._id).toBe(existing.keptTemplateId);
       expect(shopTemplates.map((item) => item._id)).not.toContain(existing.removedTemplateId);
-      // その日だけの指定は、削除した型を指すものも含めて変えない。読み取りが無視して下の順位へ落とす。
+      // その日だけの指定は、削除したテンプレートを指すものも含めて変えない。読み取りが無視して下の順位へ落とす。
       expect(after.dayTemplateOverrides).toEqual(before.dayTemplateOverrides);
       expect(after.dayTemplates.filter((item) => item.shopId !== ids.shopId)).toEqual(
         before.dayTemplates.filter((item) => item.shopId !== ids.shopId),
@@ -865,7 +871,7 @@ describe("shiftSetup/mutations", () => {
       expect(await readShopTemplates()).toEqual(saved);
     });
 
-    it("空の一覧を保存すると、その店舗の型だけをすべて削除する", async () => {
+    it("空の一覧を保存すると、その店舗のテンプレートだけをすべて削除する", async () => {
       const t = convexTest(schema, modules);
       const ids = await seedShops(t);
       await save(t, ids, [template()]);
@@ -882,43 +888,34 @@ describe("shiftSetup/mutations", () => {
 
     it.each<{ name: string; build: (ids: SeededIds) => TemplateInput[]; message: string }>([
       {
-        name: "同じ曜日を2つの型に割り当てる",
-        build: () => [template({ weekdays: ["mon", "tue"] }), template({ name: "週末", weekdays: ["sat", "tue"] })],
-        message: "同じ曜日を2つの型に割り当てることはできません",
-      },
-      {
-        name: "祝日に使う型を2つ選ぶ",
-        build: () => [
-          template({ appliesToHolidays: true }),
-          template({ name: "年末年始", weekdays: [], appliesToHolidays: true }),
-        ],
-        message: "祝日に使う型は1つだけ選べます",
-      },
-      {
-        name: "型の名前が重複する",
+        name: "テンプレートの名前が重複する",
         build: () => [template({ weekdays: ["mon"] }), template({ name: " 平日 ", weekdays: ["tue"] })],
-        message: "型の名前が重複しています",
+        message: "テンプレート名が重複しています",
       },
-      { name: "型の名前が空白だけ", build: () => [template({ name: "  " })], message: "型の名前を入力してください" },
       {
-        name: "型の名前が21文字",
+        name: "テンプレートの名前が空白だけ",
+        build: () => [template({ name: "  " })],
+        message: "テンプレート名を入力してください",
+      },
+      {
+        name: "テンプレートの名前が21文字",
         build: () => [template({ name: "あ".repeat(21) })],
-        message: "型の名前は20文字以内で入力してください",
+        message: "テンプレート名は20文字以内で入力してください",
       },
       {
         name: "バーが30分刻みでない",
         build: (ids) => [template({ requirements: timeRequirements([bar(ids.hallPositionId, "09:15", "12:00")]) })],
-        message: "バーの時間は30分単位にしてください",
+        message: "人数を入れる時間は30分単位にしてください",
       },
       {
         name: "バーの終了が開始より前",
         build: (ids) => [template({ requirements: timeRequirements([bar(ids.hallPositionId, "12:00", "09:00")]) })],
-        message: "バーの終了時間は開始時間より後にしてください",
+        message: "人数を入れる時間の終了は、開始より後にしてください",
       },
       {
         name: "バーが受付時間の外に出る",
         build: (ids) => [template({ requirements: timeRequirements([bar(ids.hallPositionId, "08:00", "10:00")]) })],
-        message: "受付時間の外に出ているバーがあります",
+        message: "受付時間の外に人数が入っています",
       },
       {
         name: "同時に重なるバーが1つのポジションで上限を超える",
@@ -931,10 +928,10 @@ describe("shiftSetup/mutations", () => {
             ),
           }),
         ],
-        message: "同じ時間に重ねられるバーは、1つのポジションで10本までです",
+        message: `同じ時間に入れられる人数は、1つのポジションで${SHIFT_DAY_TEMPLATE_CONCURRENT_BAR_LIMIT}人までです`,
       },
       {
-        name: "バーの本数が1つの型の上限を超える",
+        name: "バーの本数が1つのテンプレートの上限を超える",
         build: (ids) => [
           template({
             requirements: timeRequirements(
@@ -944,7 +941,7 @@ describe("shiftSetup/mutations", () => {
             ),
           }),
         ],
-        message: "バーは1つの型に200本まで置けます",
+        message: "人数の変わり目が多すぎて保存できません。同じ人数が続く時間をまとめてください。",
       },
       {
         name: "時間指定の店舗へ、1日分の人数を渡す",
@@ -1108,9 +1105,9 @@ describe("shiftSetup/mutations", () => {
     });
 
     it.each([
-      { name: "同じ組織の別店舗の型", pick: (ids: SeededIds) => ids.siblingTemplateId },
-      { name: "別組織の型", pick: (ids: SeededIds) => ids.otherTemplateId },
-      { name: "削除済みの型", pick: (ids: SeededIds) => ids.deletedTemplateId },
+      { name: "同じ組織の別店舗のテンプレート", pick: (ids: SeededIds) => ids.siblingTemplateId },
+      { name: "別組織のテンプレート", pick: (ids: SeededIds) => ids.otherTemplateId },
+      { name: "削除済みのテンプレート", pick: (ids: SeededIds) => ids.deletedTemplateId },
     ])("$name のidを渡すと Not found で拒否する", async ({ pick }) => {
       const t = convexTest(schema, modules);
       const ids = await seedShops(t);
@@ -1119,14 +1116,14 @@ describe("shiftSetup/mutations", () => {
         t,
         () =>
           save(t, ids, [
-            template({ name: "新しい型", weekdays: ["mon"] }),
-            template({ id: pick(ids), name: "書き換えた型", weekdays: ["tue"] }),
+            template({ name: "新しいテンプレート", weekdays: ["mon"] }),
+            template({ id: pick(ids), name: "書き換えたテンプレート", weekdays: ["tue"] }),
           ]),
         "Not found",
       );
     });
 
-    it("同じ型のidを一覧に2回渡すと Not found で拒否する", async () => {
+    it("同じテンプレートのidを一覧に2回渡すと Not found で拒否する", async () => {
       const t = convexTest(schema, modules);
       const ids = await seedShops(t);
       await save(t, ids, [template()]);
@@ -1144,11 +1141,11 @@ describe("shiftSetup/mutations", () => {
       );
     });
 
-    it("型は上限の件数まで保存でき、1件でも超えると拒否する", async () => {
+    it("テンプレートは上限の件数まで保存でき、1件でも超えると拒否する", async () => {
       const t = convexTest(schema, modules);
       const ids = await seedShops(t);
       const templates = Array.from({ length: SHIFT_DAY_TEMPLATE_LIMIT + 1 }, (_, index) =>
-        template({ name: `型${index + 1}`, weekdays: [] }),
+        template({ name: `テンプレート${index + 1}`, weekdays: [] }),
       );
 
       await save(t, ids, templates.slice(0, SHIFT_DAY_TEMPLATE_LIMIT));
@@ -1156,11 +1153,11 @@ describe("shiftSetup/mutations", () => {
       expect(projectTemplates((await readSetupState(t)).dayTemplates, ids.shopId).map(({ name }) => name)).toEqual(
         templates.slice(0, SHIFT_DAY_TEMPLATE_LIMIT).map(({ name }) => name),
       );
-      expect(SHIFT_DAY_TEMPLATE_LIMIT).toBe(20);
-      await expectRejectedWithoutChange(t, () => save(t, ids, templates), "型は20件まで作れます");
+      expect(SHIFT_DAY_TEMPLATE_LIMIT).toBe(10);
+      await expectRejectedWithoutChange(t, () => save(t, ids, templates), "テンプレートは10件まで作れます");
     });
 
-    it("バーは、1つの型の上限の本数と、1つのポジションで同時に重なる上限の本数まで保存できる", async () => {
+    it("バーは、1つのテンプレートの上限の本数と、1つのポジションで同時に重なる上限の本数まで保存できる", async () => {
       const t = convexTest(schema, modules);
       const ids = await seedShops(t);
       // 13の時間帯に、3つのポジションで合わせて200本を置く。ホールは11:00からの1時間に上限まで重ねる。
@@ -1300,7 +1297,7 @@ describe("shiftSetup/mutations", () => {
             positionSkills: [skill(ids.kitchenPositionId, "unavailable"), skill(ids.defaultPositionId, "lead")],
           },
           {
-            // 入れるポジションが1つ残る保存は受け付ける。
+            // 担当できるポジションが1つ残る保存は受け付ける。
             staffId: ids.secondStaffId,
             positionSkills: [
               skill(ids.defaultPositionId, "unavailable"),
@@ -1392,14 +1389,14 @@ describe("shiftSetup/mutations", () => {
         }),
       },
       {
-        name: "削除済みのポジション（入れない）",
+        name: "削除済みのポジション（担当外）",
         build: (ids: SeededIds) => ({
           staffId: ids.secondStaffId,
           positionSkills: [skill(ids.deletedPositionId, "unavailable")],
         }),
       },
       {
-        name: "削除済みのポジション（責任者）",
+        name: "削除済みのポジション（リーダー）",
         build: (ids: SeededIds) => ({
           staffId: ids.secondStaffId,
           positionSkills: [skill(ids.deletedPositionId, "lead")],
@@ -1434,7 +1431,7 @@ describe("shiftSetup/mutations", () => {
       );
     });
 
-    it("有効なポジションのすべてを入れないにする保存は拒否し、同じ一覧のほかのスタッフも保存しない", async () => {
+    it("有効なポジションのすべてを担当外にする保存は拒否し、同じ一覧のほかのスタッフも保存しない", async () => {
       const t = convexTest(schema, modules);
       const ids = await seedShops(t);
 
@@ -1455,7 +1452,7 @@ describe("shiftSetup/mutations", () => {
               },
             ],
           }),
-        "入れるポジションを1つ以上残してください",
+        "担当できるポジションを1つ以上残してください",
       );
     });
 
@@ -1506,13 +1503,13 @@ describe("shiftSetup/mutations", () => {
       });
     const readOverrides = async (t: Test) => projectOverrides((await readSetupState(t)).dayTemplateOverrides);
 
-    it("選んだ複数の日へ型を当て、同じ日の指定を置き換えて1件だけにし、nullで指定を消す", async () => {
+    it("選んだ複数の日へテンプレートを当て、同じ日の指定を置き換えて1件だけにし、nullで指定を消す", async () => {
       const t = convexTest(schema, modules);
       const ids = await seedShops(t);
       const templates = await seedTemplates(t, ids);
       const customRequirements = timeRequirements([bar(ids.hallPositionId, "10:00", "12:00")]);
       await t.run(async (ctx) => {
-        // その日だけの必要人数がある日、別の型を当てた日、同じ日に指定が2件残っている日を用意する。
+        // その日だけの必要人数がある日、別のテンプレートを当てた日、同じ日に指定が2件残っている日を用意する。
         await ctx.db.insert("shiftDayTemplateOverrides", {
           shopId: ids.shopId,
           date: "2026-01-20",
@@ -1577,7 +1574,7 @@ describe("shiftSetup/mutations", () => {
           siblingOverride,
         ]),
       );
-      // その日だけの指定のほかは、型を含めてどの設定も変えない。
+      // その日だけの指定のほかは、テンプレートを含めてどの設定も変えない。
       expect({ ...(await readSetupState(t)), dayTemplateOverrides: [] }).toEqual({
         ...before,
         dayTemplateOverrides: [],
@@ -1612,9 +1609,9 @@ describe("shiftSetup/mutations", () => {
     });
 
     it.each([
-      { name: "同じ組織の別店舗の型", pick: (ids: SeededIds) => ids.siblingTemplateId },
-      { name: "別組織の型", pick: (ids: SeededIds) => ids.otherTemplateId },
-      { name: "削除済みの型", pick: (ids: SeededIds) => ids.deletedTemplateId },
+      { name: "同じ組織の別店舗のテンプレート", pick: (ids: SeededIds) => ids.siblingTemplateId },
+      { name: "別組織のテンプレート", pick: (ids: SeededIds) => ids.otherTemplateId },
+      { name: "削除済みのテンプレート", pick: (ids: SeededIds) => ids.deletedTemplateId },
     ])("$name を当てようとすると Not found で拒否する", async ({ pick }) => {
       const t = convexTest(schema, modules);
       const ids = await seedShops(t);
@@ -1682,7 +1679,7 @@ describe("shiftSetup/mutations", () => {
       );
     });
 
-    it("確定済みの募集では、型を当てることも、指定を消すこともできない", async () => {
+    it("確定済みの募集では、テンプレートを当てることも、指定を消すこともできない", async () => {
       const t = convexTest(schema, modules);
       const ids = await seedShops(t);
       const templates = await seedTemplates(t, ids);
@@ -1708,7 +1705,7 @@ describe("shiftSetup/mutations", () => {
       );
     });
 
-    it("必要人数の種類が募集の集め方と違う型は当てられない", async () => {
+    it("必要人数の種類が募集の集め方と違うテンプレートは当てられない", async () => {
       const t = convexTest(schema, modules);
       // 募集を作ったあとで、店舗が集め方を時間指定からパターン選択へ変えた状態。
       const ids = await seedShops(t, { submissionPattern: SHIFT_TYPE_PATTERN, recruitmentPattern: TIME_PATTERN });
@@ -1717,7 +1714,7 @@ describe("shiftSetup/mutations", () => {
       await expectRejectedWithoutChange(
         t,
         () => apply(t, ids, { dates: ["2026-01-20"], templateId: shiftTypeTemplates.eventTemplateId }),
-        "この募集の集め方に合わない型は当てられません",
+        "この募集の集め方に合わないテンプレートは当てられません",
       );
     });
   });
@@ -1737,7 +1734,7 @@ describe("shiftSetup/mutations", () => {
     const readShopOverrides = async (t: Test, shopId: Id<"shops">) =>
       projectOverrides((await readSetupState(t)).dayTemplateOverrides).filter((item) => item.shopId === shopId);
 
-    it("その日だけの必要人数を、バーを並べ直して保存し、その日に当てていた型の指定を置き換える。型は変えない", async () => {
+    it("その日だけの必要人数を、バーを並べ直して保存し、その日に当てていたテンプレートの指定を置き換える。テンプレートは変えない", async () => {
       const t = convexTest(schema, modules);
       const ids = await seedShops(t);
       const templateId = await t.run(async (ctx) => {
@@ -1789,7 +1786,7 @@ describe("shiftSetup/mutations", () => {
       });
     });
 
-    it("その日だけの必要人数を保存した日は、型へ戻すと指定が消え、シフト表は曜日の型の必要人数へ戻る", async () => {
+    it("その日だけの必要人数を保存した日は、テンプレートへ戻すと指定が消え、シフト表は曜日のテンプレートの必要人数へ戻る", async () => {
       const t = convexTest(schema, modules);
       const ids = await seedShops(t);
       // 2026-01-20は火曜。
@@ -1899,7 +1896,7 @@ describe("shiftSetup/mutations", () => {
       await expectRejectedWithoutChange(
         t,
         () => saveCustom(t, ids, { requirements: timeRequirements([bar(ids.hallPositionId, "09:00", "12:00")]) }),
-        "受付時間の外に出ているバーがあります",
+        "受付時間の外に人数が入っています",
       );
 
       await saveCustom(t, ids, { requirements: timeRequirements([bar(ids.hallPositionId, "10:00", "20:00")]) });
@@ -1918,7 +1915,7 @@ describe("shiftSetup/mutations", () => {
       {
         name: "30分刻みでないバー",
         build: (ids) => timeRequirements([bar(ids.hallPositionId, "10:00", "10:45")]),
-        message: "バーの時間は30分単位にしてください",
+        message: "人数を入れる時間は30分単位にしてください",
       },
       {
         name: "1つのポジションで同時に上限を超えて重なるバー",
@@ -1928,7 +1925,7 @@ describe("shiftSetup/mutations", () => {
               bar(ids.hallPositionId, "11:00", "14:00"),
             ),
           ),
-        message: "同じ時間に重ねられるバーは、1つのポジションで10本までです",
+        message: `同じ時間に入れられる人数は、1つのポジションで${SHIFT_DAY_TEMPLATE_CONCURRENT_BAR_LIMIT}人までです`,
       },
       {
         name: "同じ組織の別店舗のポジション",

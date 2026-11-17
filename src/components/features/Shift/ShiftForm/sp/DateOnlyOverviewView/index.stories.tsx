@@ -35,7 +35,7 @@ export const StaffTotalsInteractive: Story = {
     await within(totals).findByText("田中 太郎");
     // 熟練度の印は、「入れるもの」で選んでいるポジション（選ぶ前はホール）での値を出す。
     await expect(totals).toHaveTextContent(
-      "田中 太郎ホール：責任者2日佐藤 花子1日吉田 三郎-山田 一郎2日鈴木 次郎ホール：入れない-中村 五郎1日",
+      "田中 太郎ホール：リーダー2日佐藤 花子1日吉田 三郎-山田 一郎2日鈴木 次郎ホール：担当外-中村 五郎1日",
     );
   },
 };

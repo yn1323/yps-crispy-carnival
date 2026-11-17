@@ -77,7 +77,7 @@ type ShiftFormProps = {
   isReadOnly?: boolean;
   currentStaffId?: string;
   allShifts?: ShiftData[];
-  /** 「くわしく」表示で使う店舗の設定（日ごとの必要人数、当てられる型、休憩の決まり）。 */
+  /** 「くわしく」表示で使う店舗の設定（日ごとの必要人数、当てられるテンプレート、休憩の決まり）。 */
   staffing?: ShiftFormStaffing;
   submissionPattern: ShiftSubmissionPattern;
   displayMode?: "request" | "confirmed";
@@ -103,7 +103,7 @@ type ShiftFormProps = {
   onOpenUnsubmittedDetails?: () => void;
   validationIssues?: AssignmentIssue[];
   validationWarnings?: AssignmentWarning[];
-  /** 新人だけの時間帯（確認事項）。くわしく表示のときに、日付の確認事項の件数へ足す。 */
+  /** 見習いだけの時間帯（確認事項）。くわしく表示のときに、日付の確認事項の件数へ足す。 */
   newcomerOnlyPeriods?: NewcomerOnlyPeriod[];
   onDismissValidationIssues?: () => void;
   header?: ShiftFormHeader;

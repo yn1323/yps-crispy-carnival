@@ -12,7 +12,7 @@ import {
 } from "./staffingPresentation";
 import { canEditDayStaffingAtom, dayStaffingDialogAtom, dayStaffingViewByDateAtom, shiftConfigAtom } from "./stores";
 
-// 人数と過不足、その日の型のメニュー。くわしく表示のときだけ出す。
+// 人数と過不足、その日のテンプレートのメニュー。くわしく表示のときだけ出す。
 
 /** その日の人数と過不足を返す。くわしく表示でない場合、定休日、スタッフ向けの確定シフト表示ではnullを返す。 */
 export const useDayStaffingView = (date: string): DayStaffingView | null =>
@@ -28,7 +28,7 @@ export const useDayStaffingEditor = () => {
 // ==========================================
 // 人数の表示
 // ==========================================
-/** 新人だけの時間帯の印。スタッフ名の「新人」バッジと同じ配色にする。 */
+/** 見習いだけの時間帯の印。スタッフ名の「見習い」バッジと同じ配色にする。 */
 export const NewcomerOnlyMark = () => (
   <Box
     as="span"
@@ -40,9 +40,9 @@ export const NewcomerOnlyMark = () => (
     fontWeight={700}
     lineHeight={1.4}
     flexShrink={0}
-    title="新人だけ"
+    title="見習いだけ"
   >
-    新<chakra.span srOnly>人だけ</chakra.span>
+    見<chakra.span srOnly>習いだけ</chakra.span>
   </Box>
 );
 
@@ -126,7 +126,7 @@ const LegendSwatch = ({ tone }: { tone: "shortage" | "excess" }) => {
   );
 };
 
-/** 過不足の色と記号、新人だけの印の凡例。 */
+/** 過不足の色と記号、見習いだけの印の凡例。 */
 export const StaffingLegend = ({
   showsImbalance,
   showsNewcomer,
@@ -161,7 +161,7 @@ export const StaffingLegend = ({
             </Box>
           }
         >
-          新人だけの時間
+          見習いだけの時間
         </LegendItem>
       )}
     </Flex>
@@ -169,11 +169,11 @@ export const StaffingLegend = ({
 };
 
 // ==========================================
-// その日の型のメニュー
+// その日のテンプレートのメニュー
 // ==========================================
 const MENU_ITEM_PROPS = { cursor: "pointer", py: 2.5 } as const;
 
-/** その日の型のメニューの項目。型を当てる、この日だけ変える、まとめて変える、曜日の設定に戻す、設定を開く。 */
+/** その日のテンプレートのメニューの項目。テンプレートを当てる、この日だけ変える、まとめて変える、曜日の設定に戻す、設定を開く。 */
 export const DayTemplateMenuItems = ({ date, view }: { date: string; view: DayStaffingView }) => {
   const config = useAtomValue(shiftConfigAtom);
   const editor = useDayStaffingEditor();
@@ -187,7 +187,7 @@ export const DayTemplateMenuItems = ({ date, view }: { date: string; view: DaySt
       {templates.length > 0 && (
         <>
           <Menu.ItemGroup>
-            <Menu.ItemGroupLabel>この日の型</Menu.ItemGroupLabel>
+            <Menu.ItemGroupLabel>この日のテンプレート</Menu.ItemGroupLabel>
             {templates.map((template) => {
               const checked = view.template.templateId === template.id;
               return (
@@ -240,7 +240,7 @@ export const DayTemplateMenuItems = ({ date, view }: { date: string; view: DaySt
 };
 
 /**
- * その日の型の名前と、型を変えるメニュー。人数の見出しに1つだけ置く。
+ * その日のテンプレートの名前と、テンプレートを変えるメニュー。人数の見出しに1つだけ置く。
  * 閲覧専用と確定済みでは、名前だけを出す。
  */
 export const DayTemplateMenu = ({ date, view }: { date: string; view: DayStaffingView }) => {
@@ -250,7 +250,7 @@ export const DayTemplateMenu = ({ date, view }: { date: string; view: DayStaffin
   if (!editor) {
     return (
       <Text textStyle="xs" color="gray.600" flexShrink={0} truncate maxW="200px">
-        <chakra.span srOnly>この日の型: </chakra.span>
+        <chakra.span srOnly>この日のテンプレート: </chakra.span>
         {label}
       </Text>
     );
@@ -268,7 +268,7 @@ export const DayTemplateMenu = ({ date, view }: { date: string; view: DayStaffin
           gap={1}
           flexShrink={0}
           maxW="200px"
-          aria-label={`この日の型: ${label}`}
+          aria-label={`この日のテンプレート: ${label}`}
         >
           <Box as="span" truncate>
             {label}

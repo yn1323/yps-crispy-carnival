@@ -120,9 +120,9 @@ function listRequirementPositionIds(requirements: DayRequirements<Id<"positions"
 }
 
 /**
- * 店舗の日の型を、渡された一覧で置き換える。
- * 既存の型はidで引き継ぎ、その日だけの指定が指す型を保つ。一覧にない型は削除する。
- * 削除した型を指す指定は残し、読み取りで無視して曜日と祝日の型へ戻す。
+ * 店舗の日のテンプレートを、渡された一覧で置き換える。
+ * 既存のテンプレートはidで引き継ぎ、その日だけの指定が指すテンプレートを保つ。一覧にないテンプレートは削除する。
+ * 削除したテンプレートを指す指定は残し、読み取りで無視して曜日と祝日のテンプレートへ戻す。
  */
 export const saveDayTemplates = managerMutation({
   args: {
@@ -201,8 +201,8 @@ export const saveBreakRule = managerMutation({
 });
 
 /**
- * スタッフごとの、ポジションごとの扱い（入れない、新人、責任者）をまとめて保存する。
- * 渡したスタッフは全置換で、項目のないポジションは「入れる・熟練度が標準」に戻る。渡さなかったスタッフは変えない。
+ * スタッフごとの、ポジションごとの扱い（担当外、見習い、リーダー）をまとめて保存する。
+ * 渡したスタッフは全置換で、項目のないポジションは「担当できる・熟練度が一人前」に戻る。渡さなかったスタッフは変えない。
  */
 export const saveStaffShiftProfiles = managerMutation({
   args: {
@@ -225,7 +225,7 @@ export const saveStaffShiftProfiles = managerMutation({
       if (positionIds.some((positionId) => !activePositionIds.has(positionId))) throw new ConvexError("Not found");
       const unavailableCount = profile.positionSkills.filter((skill) => skill.level === "unavailable").length;
       if (unavailableCount > 0 && unavailableCount >= activePositionIds.size) {
-        throw new ConvexError("入れるポジションを1つ以上残してください");
+        throw new ConvexError("担当できるポジションを1つ以上残してください");
       }
     }
     const staffs = await Promise.all(
@@ -285,8 +285,8 @@ async function deleteDayOverrides(ctx: MutationCtx, shopId: Id<"shops">, date: s
 }
 
 /**
- * シフト表で選んだ複数の日へ、型をまとめて当てる。
- * nullはその日だけの指定を消し、曜日と祝日の型へ戻す。確定済みの募集では受け付けない。
+ * シフト表で選んだ複数の日へ、テンプレートをまとめて当てる。
+ * nullはその日だけの指定を消し、曜日と祝日のテンプレートへ戻す。確定済みの募集では受け付けない。
  */
 export const applyDayTemplateToDates = managerMutation({
   args: {
@@ -302,7 +302,7 @@ export const applyDayTemplateToDates = managerMutation({
       const template = await ctx.db.get(templateId);
       if (!template || template.shopId !== ctx.shop._id) throw new ConvexError("Not found");
       if (template.requirements.kind !== recruitment.submissionPattern.kind) {
-        throw new ConvexError("この募集の集め方に合わない型は当てられません");
+        throw new ConvexError("この募集の集め方に合わないテンプレートは当てられません");
       }
     }
 
@@ -322,9 +322,9 @@ export const applyDayTemplateToDates = managerMutation({
 });
 
 /**
- * その日だけの必要人数を保存する。型は変えない。
+ * その日だけの必要人数を保存する。テンプレートは変えない。
  * 必要人数は募集の集め方に照らして検証する。確定済みの募集では受け付けない。
- * 型へ戻すときは、applyDayTemplateToDatesへnullを渡す。
+ * テンプレートへ戻すときは、applyDayTemplateToDatesへnullを渡す。
  */
 export const saveDayCustomRequirements = managerMutation({
   args: {

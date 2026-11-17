@@ -2,7 +2,7 @@ import { formatDateWithWeekday } from "@/src/domains/shift/date";
 import type { NewcomerOnlyPeriod } from "@/src/domains/shift/staffing";
 import { formatShiftClockTimeRange } from "@/src/domains/shift/time";
 
-// 確定の前の確認事項に出す、新人だけの時間帯の一覧。
+// 確定の前の確認事項に出す、見習いだけの時間帯の一覧。
 
 export type NewcomerOnlyItem = {
   key: string;
@@ -12,7 +12,7 @@ export type NewcomerOnlyItem = {
 };
 
 /**
- * 新人だけの時間帯を、日、ポジション、時間帯の単位の一覧にする。並びは受け取った順（日付、ポジション、時刻）のままにする。
+ * 見習いだけの時間帯を、日、ポジション、時間帯の単位の一覧にする。並びは受け取った順（日付、ポジション、時刻）のままにする。
  * ポジションが1つだけの店舗では、ポジション名を省く。
  */
 export const buildNewcomerOnlyItems = (input: {

@@ -23,7 +23,7 @@ import {
 } from "../constants";
 import { resolveCanonicalStaffScope, resolveStaffLineRecipient } from "../line/service";
 import { type NotificationLineRecipient, toNotificationLineRecipient } from "../notificationOutbox/types";
-import { listActivePositions } from "../shiftSetup/service";
+import { listRecruitmentPositions } from "../shiftSetup/service";
 import { isShiftTargetStaff } from "../staff/service";
 import {
   buildConfirmationSnapshotSignature,
@@ -118,7 +118,8 @@ async function buildConfirmationStaffEntries(
   const projectedAssignments =
     submissionPattern.kind === "time" ? normalizeExactAdjacentTimeAssignments(assignments) : assignments;
   // ポジションが1つだけの店舗では、従来どおり時刻だけを伝える。
-  const positions = await listActivePositions(ctx, recruitment.shopId);
+  // 確定済みの募集の再送と再確定では、確定した時点のポジションの名前で伝える。
+  const positions = await listRecruitmentPositions(ctx, recruitment);
   const positionNameById =
     positions.length >= 2 ? new Map(positions.map((position) => [position._id, position.name])) : null;
   // 削除したポジションの勤務は、シフト表と同じく既定のポジションとして伝える。

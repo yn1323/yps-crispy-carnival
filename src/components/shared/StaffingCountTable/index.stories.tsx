@@ -11,9 +11,9 @@ type Change = { rowId: string; positionId: string; count: number };
 // fixture: 早番・遅番の勤務パターンと、ホール・キッチン・レジ
 // ==========================================
 const positions = [
-  { id: "hall", name: "ホール", color: "#3b82f6" },
-  { id: "kitchen", name: "キッチン", color: "#c2410c" },
-  { id: "register", name: "レジ", color: "#7c3aed" },
+  { id: "hall", name: "ホール", color: "#60a5fa" },
+  { id: "kitchen", name: "キッチン", color: "#fb923c" },
+  { id: "register", name: "レジ", color: "#a78bfa" },
 ];
 
 const shiftTypeRows = [
@@ -104,10 +104,10 @@ export const ManyPositions: Story = {
   args: {
     positions: [
       ...positions,
-      { id: "takeout", name: "レジ・テイクアウト受付カウンター", color: "#db2777" },
-      { id: "delivery", name: "デリバリー", color: "#b45309" },
-      { id: "dish", name: "洗い場", color: "#0f766e" },
-      { id: "prep", name: "仕込み", color: "#475569" },
+      { id: "takeout", name: "レジ・テイクアウト受付カウンター", color: "#f472b6" },
+      { id: "delivery", name: "デリバリー", color: "#eda40a" },
+      { id: "dish", name: "洗い場", color: "#14b8a6" },
+      { id: "prep", name: "仕込み", color: "#94a3b8" },
     ],
     rows: [{ id: "early", label: "早番（開店準備と仕込みを含む）", detail: "09:00〜15:00" }, shiftTypeRows[1]],
     counts: { early: { hall: 12, takeout: 1 }, late: { hall: 3, delivery: 2 } },

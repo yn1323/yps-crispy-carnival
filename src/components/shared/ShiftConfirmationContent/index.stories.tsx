@@ -61,7 +61,7 @@ const newcomerOnlyItems = [
   { key: "2026-01-24-hall-09:00", label: "1/24(土) ホール 09:00〜11:30" },
 ];
 
-// 募集期間の毎日に新人だけの時間帯がある場合。一覧の中でスクロールする。
+// 募集期間の毎日に見習いだけの時間帯がある場合。一覧の中でスクロールする。
 const manyNewcomerOnlyItems = Array.from({ length: 14 }, (_, index) => ({
   key: `2026-01-${21 + (index % 7)}-${index}`,
   label: `1/${21 + (index % 7)} ${index % 2 === 0 ? "ホール 17:00〜22:00" : "キッチン 18:00〜22:00"}`,
@@ -121,7 +121,7 @@ export const WithWarnings: Story = {
   },
 };
 
-/** 新人だけの時間帯は、日、ポジション、時間帯の単位で一覧に出す。 */
+/** 見習いだけの時間帯は、日、ポジション、時間帯の単位で一覧に出す。 */
 export const WithNewcomerOnly: Story = {
   name: "With Newcomer Only",
   args: {
@@ -130,7 +130,7 @@ export const WithNewcomerOnly: Story = {
   },
 };
 
-/** スタッフ別の確認事項と、新人だけの時間帯を、同じ見出しの下に並べる。 */
+/** スタッフ別の確認事項と、見習いだけの時間帯を、同じ見出しの下に並べる。 */
 export const WithWarningsAndNewcomerOnly: Story = {
   name: "With Warnings And Newcomer Only",
   args: {
@@ -222,7 +222,7 @@ export const SPModalWithWarnings: Story = {
   ),
 };
 
-/** 新人だけの時間帯が多くても、確定の操作が画面の外へ出ないよう、一覧の中でスクロールする。 */
+/** 見習いだけの時間帯が多くても、確定の操作が画面の外へ出ないよう、一覧の中でスクロールする。 */
 export const ModalWithManyNewcomerOnly: Story = {
   name: "Modal With Many Newcomer Only",
   args: {

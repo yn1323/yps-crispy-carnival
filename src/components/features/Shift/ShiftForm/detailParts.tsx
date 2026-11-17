@@ -34,9 +34,9 @@ import type { ShiftFormDayRequirements } from "./types";
 // ==========================================
 /** その日の必要人数を変える操作。どちらも、成功したらtrueを返す。失敗は呼び出し先が利用者へ伝える。 */
 export type ShiftFormDayStaffingActions = {
-  /** 選んだ日へ型を当てる。nullは、その日だけの指定を消して曜日の設定へ戻す。 */
+  /** 選んだ日へテンプレートを当てる。nullは、その日だけの指定を消して曜日の設定へ戻す。 */
   onApplyTemplate: (dates: string[], templateId: string | null) => Promise<boolean>;
-  /** その日だけの必要人数を保存する。型は変えない。 */
+  /** その日だけの必要人数を保存する。テンプレートは変えない。 */
   onSaveCustom: (date: string, requirements: ShiftFormDayRequirements) => Promise<boolean>;
   /** どちらかの操作を処理している間はtrue。 */
   isPending: boolean;
@@ -45,7 +45,7 @@ export type ShiftFormDayStaffingActions = {
 export type ShiftFormDetailActions = {
   /** 「シフト作成の設定」を開く。渡さない場合は導線を出さない。 */
   onOpenSetup?: () => void;
-  /** その日の必要人数を変える操作。渡さない場合は、型の名前だけを出す。 */
+  /** その日の必要人数を変える操作。渡さない場合は、テンプレートの名前だけを出す。 */
   dayStaffingActions?: ShiftFormDayStaffingActions;
   /** 未提出者へ前回の勤務を仮で入れる。前回確定した募集がない場合は渡さない。 */
   provisionalAction?: { onInsert: () => void; isLoading: boolean };
@@ -303,7 +303,7 @@ export const PositionMark = ({
   onColor = false,
 }: {
   segment: { positionId: string; positionName: string; color: string } | undefined;
-  /** 勤務しているスタッフ。渡すと、そのポジションでの熟練度の印（新・責）を添える。 */
+  /** 勤務しているスタッフ。渡すと、そのポジションでの熟練度の印（見・リ）を添える。 */
   staff?: StaffType;
   /** 色の付いた面の上に置く場合はtrue。丸を白にして見分けられるようにする。 */
   onColor?: boolean;
@@ -332,7 +332,7 @@ export const PositionMark = ({
 };
 
 /**
- * 勤務の区間に添える、そのポジションでの熟練度の印（新・責）。帯の「新」の印と同じ見た目にする。
+ * 勤務の区間に添える、そのポジションでの熟練度の印（見・リ）。帯の「見」の印と同じ見た目にする。
  * くわしく表示の、担当者の画面だけに出す。スタッフ向けの確定シフト表示には出さない。
  */
 export const SegmentSkillMark = ({
@@ -452,7 +452,7 @@ export const StaffMeta = ({
 
   // 人ごとの合計は担当者が偏りを確かめるためのもので、スタッフ向けの確定シフト表示には出さない。
   const total = config.displayMode === "confirmed" ? undefined : totals.get(staff.id);
-  // 熟練度は「入れるもの」で選んでいるポジションでの値を出す。入れる前に、入れないポジションも分かるようにする。
+  // 熟練度は「入れるもの」で選んでいるポジションでの値を出す。勤務を入れる前に、担当外のポジションも分かるようにする。
   const skillMark = buildNameSkillMark({ staff, position: skillPosition, positionCount: config.positions.length });
   const hasContent = skillMark || shift?.isProvisional || (showTotal && total);
   if (!hasContent) return null;

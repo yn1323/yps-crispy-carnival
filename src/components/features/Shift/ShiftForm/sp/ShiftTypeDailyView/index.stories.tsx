@@ -17,7 +17,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** 複数ポジション、必要人数（足りない人数、新人だけの印）、休憩、熟練度、仮の勤務を1画面で確かめる。 */
+/** 複数ポジション、必要人数（足りない人数、見習いだけの印）、休憩、熟練度、仮の勤務を1画面で確かめる。 */
 export const Detail: Story = {
   args: shiftTypeDetailArgs,
   globals: mobileGlobals,
@@ -81,7 +81,7 @@ export const BreakToolInteractive: Story = {
   },
 };
 
-/** スマートフォンでも、人数のカードの型のメニューから型を当てると、その日と型を送り、必要人数が変わる。 */
+/** スマートフォンでも、人数のカードのテンプレートのメニューからテンプレートを当てると、その日とテンプレートを送り、必要人数が変わる。 */
 export const ApplyTemplateInteractive: Story = {
   name: "Apply Template Interactive",
   args: shiftTypeDetailArgs,
@@ -96,10 +96,12 @@ export const ApplyTemplateInteractive: Story = {
     const staffing = await canvas.findByRole("region", { name: "人数" });
     await expect(within(staffing).getByText("不足 2か所")).toBeInTheDocument();
 
-    await userEvent.click(within(staffing).getByRole("button", { name: "この日の型: 平日" }));
+    await userEvent.click(within(staffing).getByRole("button", { name: "この日のテンプレート: 平日" }));
     await userEvent.click(await body.findByRole("menuitem", { name: "イベント日" }));
 
-    await expect(await within(staffing).findByRole("button", { name: "この日の型: イベント日" })).toBeInTheDocument();
+    await expect(
+      await within(staffing).findByRole("button", { name: "この日のテンプレート: イベント日" }),
+    ).toBeInTheDocument();
     await expect((await readStaffingCalls(canvasElement)).calls).toEqual([
       { mutation: "applyDayTemplateToDates", dates: [mockShiftTypeDates[0]], templateId: "event" },
     ]);

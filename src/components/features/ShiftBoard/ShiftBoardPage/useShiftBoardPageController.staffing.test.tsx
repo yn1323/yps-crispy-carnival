@@ -112,7 +112,7 @@ const emptyStaffing: ShiftBoardStaffingData = {
 };
 
 const template = { _id: templateId, name: "平日" };
-// 曜日の型が当たり、ホールに9:00〜22:00で2人が必要な日。
+// 曜日のテンプレートが当たり、ホールに9:00〜22:00で2人が必要な日。
 const weekdayDay: ShiftBoardStaffingData["days"][number] = {
   date,
   source: "weekday",
@@ -176,7 +176,7 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("店舗の設定をシフト表へ渡す", () => {
-  it("日ごとの必要人数、当てられる型、休憩の決まりをShiftFormの形へ変換して渡す", () => {
+  it("日ごとの必要人数、当てられるテンプレート、休憩の決まりをShiftFormの形へ変換して渡す", () => {
     const { result } = renderController({
       staffing: { ...templateStaffing, breakRule: { minWorkMinutes: 360, breakMinutes: 60 } },
     });
@@ -189,7 +189,7 @@ describe("店舗の設定をシフト表へ渡す", () => {
     });
   });
 
-  it("何も設定していない店舗の設定は、未設定の日と、空の型の一覧と、決まりなしで渡す", () => {
+  it("何も設定していない店舗の設定は、未設定の日と、空のテンプレートの一覧と、決まりなしで渡す", () => {
     const { result } = renderController({ staffing: emptyStaffing });
 
     expect(result.current.viewModel.shiftForm.staffing).toEqual({
@@ -206,7 +206,7 @@ describe("店舗の設定をシフト表へ渡す", () => {
       data: {
         ...data,
         positions: [hall, kitchen],
-        staffs: [...data.staffs, { _id: leadId, name: "責任者", isSubmitted: true, wasSubmittedAtDraft: false }],
+        staffs: [...data.staffs, { _id: leadId, name: "リーダー", isSubmitted: true, wasSubmittedAtDraft: false }],
       },
       staffing: {
         ...emptyStaffing,
@@ -261,7 +261,7 @@ describe("店舗の設定をシフト表へ渡す", () => {
     ]);
   });
 
-  it("入れないポジションへの割当を、ポジション名の入った確認事項として出す", () => {
+  it("担当外のポジションへの割当を、ポジション名の入った確認事項として出す", () => {
     const { result } = renderInitialized({
       data: {
         ...data,
@@ -283,7 +283,7 @@ describe("店舗の設定をシフト表へ渡す", () => {
         code: "POSITION_UNAVAILABLE",
         date,
         staffId: submittedStaffId,
-        message: "入れないポジションの勤務があります（キッチン）",
+        message: "担当外のポジションの勤務があります（キッチン）",
       },
     ]);
   });
@@ -309,7 +309,7 @@ describe("店舗の設定を渡さない利用箇所", () => {
 describe("表示の初期状態", () => {
   const configuredCases: Array<[string, RenderOptions]> = [
     ["ポジションが2つ以上ある", { data: { ...data, positions: [hall, kitchen] }, staffing: emptyStaffing }],
-    ["当てられる型がある", { staffing: templateStaffing }],
+    ["当てられるテンプレートがある", { staffing: templateStaffing }],
     ["休憩の決まりがある", { staffing: { ...emptyStaffing, breakRule: { minWorkMinutes: 360, breakMinutes: 45 } } }],
     [
       "ポジションごとの値を持つスタッフがいる",
@@ -572,7 +572,7 @@ describe("その日の必要人数の変更と設定ページへの導線", () =
     return actions;
   };
 
-  it("選んだ日へ型を当てる操作は、この募集と日付と型を1回で送り、成功を返す", async () => {
+  it("選んだ日へテンプレートを当てる操作は、この募集と日付とテンプレートを1回で送り、成功を返す", async () => {
     const { result } = renderController({ staffing: templateStaffing });
 
     let applied: boolean | undefined;
@@ -596,10 +596,10 @@ describe("その日の必要人数の変更と設定ページへの導線", () =
     expect(mocks.applyDayTemplateToDates.mock.calls).toEqual([
       [{ recruitmentId, dates: ["2099-01-20", "2099-01-21", "2099-01-24"], templateId }],
     ]);
-    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "3日の型を変更しました" });
+    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "3日のテンプレートを変更しました" });
   });
 
-  it("曜日の設定に戻す操作は、型をnullで送る", async () => {
+  it("曜日の設定に戻す操作は、テンプレートをnullで送る", async () => {
     const { result } = renderController({ staffing: templateStaffing });
 
     await act(async () => {
@@ -609,7 +609,7 @@ describe("その日の必要人数の変更と設定ページへの導線", () =
     expect(mocks.applyDayTemplateToDates.mock.calls).toEqual([[{ recruitmentId, dates: [date], templateId: null }]]);
   });
 
-  it("型を当てる操作に失敗した場合は、エラーを知らせて失敗を返す", async () => {
+  it("テンプレートを当てる操作に失敗した場合は、エラーを知らせて失敗を返す", async () => {
     const error = new Error("rejected");
     mocks.applyDayTemplateToDates.mockRejectedValue(error);
     const { result } = renderController({ staffing: templateStaffing });
@@ -683,7 +683,7 @@ describe("その日の必要人数の変更と設定ページへの導線", () =
     expect(mocks.showSuccessToast).not.toHaveBeenCalled();
   });
 
-  it("型を当て直して必要人数が変わっても、編集中の勤務を消さず、そのまま保存する", async () => {
+  it("テンプレートを当て直して必要人数が変わっても、編集中の勤務を消さず、そのまま保存する", async () => {
     const { result, rerender } = renderHook(
       ({ staffing }: { staffing: ShiftBoardStaffingData }) =>
         useShiftBoardPageController(data, recruitmentId, undefined, undefined, staffing),
@@ -714,7 +714,7 @@ describe("その日の必要人数の変更と設定ページへの導線", () =
     await act(async () => {
       await actionsOf(result).onApplyTemplate([date], templateId);
     });
-    // 型を当てたあとの必要人数が、queryの更新で届く。
+    // テンプレートを当てたあとの必要人数が、queryの更新で届く。
     rerender({ staffing: templateStaffing });
 
     expect(mocks.save).not.toHaveBeenCalled();
@@ -808,15 +808,15 @@ describe("その日の必要人数の変更と設定ページへの導線", () =
   });
 });
 
-describe("新人だけの時間帯の確認事項", () => {
+describe("見習いだけの時間帯の確認事項", () => {
   const newcomerId = "staff-newcomer" as Id<"staffs">;
-  // 提出済みの新人が10:00〜18:00にホール、提出済みの標準スタッフが10:00〜14:00にホールへ入る。
+  // 提出済みの見習いが10:00〜18:00にホール、提出済みの一人前スタッフが10:00〜14:00にホールへ入る。
   const newcomerData: ShiftBoardData = {
     ...data,
     positions: [hall, kitchen],
     staffs: [
       { _id: submittedStaffId, name: "提出済み", isSubmitted: true, wasSubmittedAtDraft: false },
-      { _id: newcomerId, name: "新人", isSubmitted: true, wasSubmittedAtDraft: false },
+      { _id: newcomerId, name: "見習い", isSubmitted: true, wasSubmittedAtDraft: false },
     ],
     requestedSlots: [
       { staffId: submittedStaffId, date, startTime: "10:00", endTime: "14:00" },
@@ -829,13 +829,13 @@ describe("新人だけの時間帯の確認事項", () => {
   };
   const newcomerStaffing: ShiftBoardStaffingData = {
     ...emptyStaffing,
-    // ホールでは新人、キッチンでは標準。
+    // ホールでは見習い、キッチンでは一人前。
     staffProfiles: [{ staffId: newcomerId, positionSkills: [{ positionId: hallId, level: "newcomer" }] }],
   };
   const period = { date, positionId: hallId, scope: { kind: "time", start: "14:00", end: "18:00" } };
   const item = { key: `${date}-${hallId}-14:00`, date, label: "1/20(火) ホール 14:00〜18:00" };
 
-  it("新人だけが残る時間帯を、日、ポジション、時間帯の単位で、シフト表と確定の確認へ渡す", () => {
+  it("見習いだけが残る時間帯を、日、ポジション、時間帯の単位で、シフト表と確定の確認へ渡す", () => {
     const { result } = renderInitialized({ data: newcomerData, staffing: newcomerStaffing });
 
     expect(result.current.viewModel.shiftForm.newcomerOnlyPeriods).toEqual([period]);
@@ -844,7 +844,7 @@ describe("新人だけの時間帯の確認事項", () => {
     expect(result.current.viewModel.shiftForm.validationWarnings).toEqual([]);
   });
 
-  it("新人だけの時間帯があっても、確定の確認を開ける", () => {
+  it("見習いだけの時間帯があっても、確定の確認を開ける", () => {
     const { result } = renderInitialized({ data: newcomerData, staffing: newcomerStaffing });
 
     act(() => result.current.intents.onConfirmRequest());
@@ -854,7 +854,7 @@ describe("新人だけの時間帯の確認事項", () => {
     expect(result.current.viewModel.confirmDialog.newcomerOnlyItems).toEqual([item]);
   });
 
-  it("新人だけの時間帯があっても、下書きを保存できる", async () => {
+  it("見習いだけの時間帯があっても、下書きを保存できる", async () => {
     const { result } = renderInitialized({ data: newcomerData, staffing: newcomerStaffing });
 
     await act(async () => {
@@ -865,7 +865,7 @@ describe("新人だけの時間帯の確認事項", () => {
     expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "下書きを保存しました" });
   });
 
-  it("勤務を編集すると、新人だけの時間帯を数え直す", () => {
+  it("勤務を編集すると、見習いだけの時間帯を数え直す", () => {
     const { result } = renderInitialized({ data: newcomerData, staffing: newcomerStaffing });
     const withoutStandard = result.current.viewModel.shiftForm.initialShifts.map((shift) =>
       shift.staffId === submittedStaffId ? { ...shift, positions: [] } : shift,
@@ -878,7 +878,7 @@ describe("新人だけの時間帯の確認事項", () => {
     ]);
   });
 
-  it("ホールで新人のスタッフが、標準のキッチンに1人で入る時間帯は出さない", () => {
+  it("ホールで見習いのスタッフが、一人前のキッチンに1人で入る時間帯は出さない", () => {
     const { result } = renderInitialized({
       data: {
         ...newcomerData,
@@ -894,7 +894,7 @@ describe("新人だけの時間帯の確認事項", () => {
     expect(result.current.viewModel.confirmDialog.newcomerOnlyItems).toEqual([]);
   });
 
-  it("新人の印がないスタッフだけの店舗では、何も出さない", () => {
+  it("見習いの印がないスタッフだけの店舗では、何も出さない", () => {
     const { result } = renderInitialized({ data: newcomerData, staffing: emptyStaffing });
 
     expect(result.current.viewModel.shiftForm.newcomerOnlyPeriods).toEqual([]);

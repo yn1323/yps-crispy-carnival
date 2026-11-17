@@ -11,13 +11,13 @@ type ShiftFormArgs = ComponentProps<typeof ShiftForm>;
 // くわしく表示のfixture（ポジション3つ、1日に2つの勤務パターン、休憩あり、熟練度あり）
 // 期間は 2026-05-21(木)〜05-28(木)。
 // ==========================================
-const hall: PositionType = { id: "hall", name: "ホール", color: "#3b82f6", isDefault: true };
-const kitchen: PositionType = { id: "kitchen", name: "キッチン", color: "#c2410c", isDefault: false };
-const register: PositionType = { id: "register", name: "レジ", color: "#7c3aed", isDefault: false };
+const hall: PositionType = { id: "hall", name: "ホール", color: "#60a5fa", isDefault: true };
+const kitchen: PositionType = { id: "kitchen", name: "キッチン", color: "#fb923c", isDefault: false };
+const register: PositionType = { id: "register", name: "レジ", color: "#a78bfa", isDefault: false };
 
 const shiftTypeOptions = mockShiftTypePattern.kind === "shiftType" ? mockShiftTypePattern.options : [];
 
-// 田中さんは、ホールでは責任者、キッチンでは新人。山田さんは、レジで新人。鈴木さんは、ホールに入れない。
+// 田中さんは、ホールではリーダー、キッチンでは見習い。山田さんは、レジで見習い。鈴木さんは、ホールが担当外。
 const detailStaffs: StaffType[] = withPositionSkills(mockShiftTypeStaffs, {
   staff1: { [hall.id]: "lead", [kitchen.id]: "newcomer" },
   staff4: { [register.id]: "newcomer" },

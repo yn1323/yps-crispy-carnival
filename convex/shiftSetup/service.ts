@@ -25,6 +25,36 @@ export async function listActivePositions(ctx: DbCtx, shopId: Id<"shops">): Prom
   return positions.sort((left, right) => left.sortOrder - right.sortOrder || left._creationTime - right._creationTime);
 }
 
+/** 募集のシフトを表示・検証するときに使うポジション。 */
+export type RecruitmentPosition = { _id: Id<"positions">; name: string; color: string; isDefault: boolean };
+
+/**
+ * 募集で使うポジションを、並び順で返す。
+ * 確定済みの募集は確定した時点の一覧を返し、あとから設定の名前を変えても削除しても変わらない。
+ * 未確定の募集と、確定時の一覧を持たない募集は、いまの設定を返す。
+ */
+export async function listRecruitmentPositions(
+  ctx: DbCtx,
+  recruitment: Pick<Doc<"recruitments">, "shopId" | "status" | "confirmedPositions">,
+): Promise<RecruitmentPosition[]> {
+  const confirmed = recruitment.status === "confirmed" ? recruitment.confirmedPositions : undefined;
+  if (confirmed && confirmed.length > 0) {
+    return confirmed.map((position) => ({
+      _id: position.positionId,
+      name: position.name,
+      color: position.color,
+      isDefault: position.isDefault,
+    }));
+  }
+  const positions = await listActivePositions(ctx, recruitment.shopId);
+  return positions.map((position) => ({
+    _id: position._id,
+    name: position.name,
+    color: position.color,
+    isDefault: position.isDefault,
+  }));
+}
+
 export async function listDayTemplates(ctx: DbCtx, shopId: Id<"shops">): Promise<Doc<"shiftDayTemplates">[]> {
   const templates = await ctx.db
     .query("shiftDayTemplates")
@@ -36,8 +66,8 @@ export async function listDayTemplates(ctx: DbCtx, shopId: Id<"shops">): Promise
 }
 
 /**
- * 設定ページへ返す型を作る。
- * 保存済みの必要人数の種類が店舗のいまの集め方と違う型は、いまの種類の空の必要人数にして、入れ直しが要ることを伝える。
+ * 設定ページへ返すテンプレートを作る。
+ * 保存済みの必要人数の種類が店舗のいまの集め方と違うテンプレートは、いまの種類の空の必要人数にして、入れ直しが要ることを伝える。
  * 時間指定で受付時間の外に出たバーは、消さずにそのまま返す。
  * 削除済みのポジションを指すバーと人数、店舗の勤務パターンにないものは返さない。
  */
@@ -71,7 +101,7 @@ export type RecruitmentStaffingDay = {
 };
 
 /**
- * 募集期間の各日に当たる必要人数を、いまの型、その日だけの指定、祝日の表から決める。
+ * 募集期間の各日に当たる必要人数を、いまのテンプレート、その日だけの指定、祝日の表から決める。
  * 必要人数は募集の集め方へ写し、削除済みのポジションを除く。
  * 未確定の募集のシフト表と、確定時の保存の両方が同じ結果を使う。
  */
@@ -118,8 +148,8 @@ export async function resolveRecruitmentStaffingDays(
 
 /**
  * スタッフのポジションごとの扱いのうち、いまも有効なポジションの項目だけを、ポジションの並び順で返す。
- * ポジションの削除で、残ったポジションのすべてが「入れない」になったスタッフは、「入れない」の項目を返さない。
- * どこにも入れないスタッフを作らないためである。
+ * ポジションの削除で、残ったポジションのすべてが「担当外」になったスタッフは、「担当外」の項目を返さない。
+ * どのポジションも担当できないスタッフを作らないためである。
  */
 export function toPositionSkillsDto(
   staff: Pick<Doc<"staffs">, "positionSkills">,

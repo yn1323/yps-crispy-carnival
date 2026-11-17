@@ -79,10 +79,10 @@ async function seedShiftSetup(t: TestConvex<typeof schema>) {
         ],
       },
     });
-    // 店舗が集め方を変える前に保存した型。必要人数の種類が、いまの集め方（時間指定）と違う。
+    // 店舗が集め方を変える前に保存したテンプレート。必要人数の種類が、いまの集め方（時間指定）と違う。
     const staleTemplateId = await ctx.db.insert("shiftDayTemplates", {
       shopId: actor.shopId,
-      name: "集め方を変える前の型",
+      name: "集め方を変える前のテンプレート",
       weekdays: ["fri"],
       sortOrder: 2,
       appliesToHolidays: false,
@@ -90,7 +90,7 @@ async function seedShiftSetup(t: TestConvex<typeof schema>) {
     });
     await ctx.db.insert("shiftDayTemplates", {
       shopId: other.shopId,
-      name: "別組織の型",
+      name: "別組織のテンプレート",
       weekdays: ["mon"],
       sortOrder: 0,
       appliesToHolidays: false,
@@ -99,7 +99,7 @@ async function seedShiftSetup(t: TestConvex<typeof schema>) {
 
     const leadStaffId = await seedStaff(ctx, {
       shopId: actor.shopId,
-      name: "責任者スタッフ",
+      name: "リーダースタッフ",
       email: "lead@example.com",
     });
     // 保存の順はポジションの並び順とずらし、削除済みと別組織のポジションを指す項目も混ぜる。
@@ -114,7 +114,7 @@ async function seedShiftSetup(t: TestConvex<typeof schema>) {
     });
     const standardStaffId = await seedStaff(ctx, {
       shopId: actor.shopId,
-      name: "標準スタッフ",
+      name: "一人前スタッフ",
       email: "standard@example.com",
     });
     const excludedStaffId = await seedStaff(ctx, {
@@ -263,7 +263,7 @@ describe("shiftSetup/queries", () => {
           },
           {
             _id: ids.staleTemplateId,
-            name: "集め方を変える前の型",
+            name: "集め方を変える前のテンプレート",
             weekdays: ["fri"],
             appliesToHolidays: false,
             // 種類が違う必要人数は返さず、いまの種類の空の必要人数にして、入れ直しが要ることを伝える。
@@ -275,7 +275,7 @@ describe("shiftSetup/queries", () => {
         staffs: [
           {
             _id: ids.leadStaffId,
-            name: "責任者スタッフ",
+            name: "リーダースタッフ",
             // 削除済みと別組織のポジションを指す項目を除き、ポジションの並び順で返す。
             positionSkills: [
               { positionId: ids.defaultPositionId, level: "lead" },
@@ -283,13 +283,13 @@ describe("shiftSetup/queries", () => {
               { positionId: ids.kitchenPositionId, level: "unavailable" },
             ],
           },
-          { _id: ids.standardStaffId, name: "標準スタッフ", positionSkills: [] },
+          { _id: ids.standardStaffId, name: "一人前スタッフ", positionSkills: [] },
         ],
         assistAvailable: false,
       });
     });
 
-    it("ポジションの削除で、残ったポジションのすべてが入れないになったスタッフは、入れないの項目を返さない", async () => {
+    it("ポジションの削除で、残ったポジションのすべてが担当外になったスタッフは、担当外の項目を返さない", async () => {
       const t = convexTest(schema, modules);
       const fixture = await seedShiftSetup(t);
       const getStaffs = async () => {
@@ -302,7 +302,7 @@ describe("shiftSetup/queries", () => {
           staffs: result?.staffs.filter((staff) => staff._id === fixture.leadStaffId),
         };
       };
-      // 既定とホールに入れず、キッチンでは責任者のスタッフにする。
+      // 既定とホールが担当外で、キッチンではリーダーのスタッフにする。
       await t.run(async (ctx) => {
         await ctx.db.patch(fixture.leadStaffId, {
           positionSkills: [
@@ -313,13 +313,13 @@ describe("shiftSetup/queries", () => {
         });
       });
 
-      // 入れるポジションが残っている間は、保存した項目をそのまま返す。
+      // 担当できるポジションが残っている間は、保存した項目をそのまま返す。
       await expect(getStaffs()).resolves.toEqual({
         positionIds: [fixture.defaultPositionId, fixture.hallPositionId, fixture.kitchenPositionId],
         staffs: [
           {
             _id: fixture.leadStaffId,
-            name: "責任者スタッフ",
+            name: "リーダースタッフ",
             positionSkills: [
               { positionId: fixture.defaultPositionId, level: "unavailable" },
               { positionId: fixture.hallPositionId, level: "unavailable" },
@@ -329,14 +329,14 @@ describe("shiftSetup/queries", () => {
         ],
       });
 
-      // 入れる唯一のポジションだったキッチンを削除する。
+      // 担当できる唯一のポジションだったキッチンを削除する。
       await t.run(async (ctx) => {
         await ctx.db.patch(fixture.kitchenPositionId, { isDeleted: true });
       });
 
       await expect(getStaffs()).resolves.toEqual({
         positionIds: [fixture.defaultPositionId, fixture.hallPositionId],
-        staffs: [{ _id: fixture.leadStaffId, name: "責任者スタッフ", positionSkills: [] }],
+        staffs: [{ _id: fixture.leadStaffId, name: "リーダースタッフ", positionSkills: [] }],
       });
     });
 
@@ -355,7 +355,7 @@ describe("shiftSetup/queries", () => {
         });
         return await ctx.db.insert("shiftDayTemplates", {
           shopId: ids.actor.shopId,
-          name: "パターンの型",
+          name: "パターンのテンプレート",
           weekdays: ["thu"],
           sortOrder: 3,
           appliesToHolidays: false,
@@ -383,7 +383,7 @@ describe("shiftSetup/queries", () => {
 
       const emptyReentry = { requirements: { kind: "shiftType", options: [] }, requiresReentry: true };
       expect(result?.dayTemplates).toEqual([
-        // 時間指定のときに保存した型は、入れ直しが要る型として返す。
+        // 時間指定のときに保存したテンプレートは、入れ直しが要るテンプレートとして返す。
         {
           _id: ids.weekdayTemplateId,
           name: "平日",
@@ -400,14 +400,14 @@ describe("shiftSetup/queries", () => {
         },
         {
           _id: ids.staleTemplateId,
-          name: "集め方を変える前の型",
+          name: "集め方を変える前のテンプレート",
           weekdays: ["fri"],
           appliesToHolidays: false,
           ...emptyReentry,
         },
         {
           _id: templateId,
-          name: "パターンの型",
+          name: "パターンのテンプレート",
           weekdays: ["thu"],
           appliesToHolidays: false,
           requirements: {
@@ -420,6 +420,69 @@ describe("shiftSetup/queries", () => {
           requiresReentry: false,
         },
       ]);
+    });
+
+    it("スタッフは、並び順を持つ組織ではその順で、持たない組織では登録した順で返す", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const actor = await seedManagerShop(ctx, { subject: MANAGER_SUBJECT, shopName: "並び順の店舗" });
+        const first = await seedStaff(ctx, { shopId: actor.shopId, name: "先に登録" });
+        const second = await seedStaff(ctx, { shopId: actor.shopId, name: "あとに登録" });
+        const excluded = await seedStaff(ctx, { shopId: actor.shopId, name: "対象外", excludedFromShift: true });
+        // 並び順は組織の全員がそろって初めて有効になるため、管理者本人のスタッフも用意する。
+        await seedStaff(ctx, { shopId: actor.shopId, name: "管理者", userId: actor.userId });
+        return { ...actor, first, second, excluded };
+      });
+      const read = async () =>
+        (
+          await t.withIdentity({ subject: MANAGER_SUBJECT }).query(api.shiftSetup.queries.getShiftSetup, {
+            shopId: ids.shopId,
+            expectedOrganizationId: ids.organizationId,
+          })
+        )?.staffs.map((staff) => staff.name);
+
+      const before = await read();
+      expect(before?.filter((name) => name === "先に登録" || name === "あとに登録")).toEqual([
+        "先に登録",
+        "あとに登録",
+      ]);
+
+      // ダッシュボードで並べ替えたあとの状態。登録した順と逆にする。
+      await t.run(async (ctx) => {
+        await ctx.db.insert("organizationStaffOrderStates", {
+          organizationId: ids.organizationId,
+          revision: 1,
+          activatedAt: 1,
+          updatedAt: 1,
+        });
+        const all = await ctx.db
+          .query("staffs")
+          .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", ids.shopId).eq("isDeleted", false))
+          .collect();
+        const rest = all.filter((staff) => ![ids.first, ids.second, ids.excluded].includes(staff._id));
+        const ordered = [ids.second, ids.excluded, ids.first, ...rest.map((staff) => staff._id)];
+        for (const [displayOrder, staffId] of ordered.entries()) {
+          const staff = all.find((item) => item._id === staffId);
+          if (!staff) throw new Error("missing fixture");
+          await ctx.db.insert("organizationStaffOrderEntries", {
+            organizationId: ids.organizationId,
+            organizationPersonId: staff.organizationPersonId,
+            displayOrder,
+          });
+          await ctx.db.insert("shopStaffOrderEntries", {
+            organizationId: ids.organizationId,
+            organizationPersonId: staff.organizationPersonId,
+            shopId: ids.shopId,
+            staffId,
+            displayOrder,
+          });
+        }
+      });
+
+      const after = await read();
+      // シフト対象外のスタッフは、並び順を持っていても返さない。
+      expect(after?.filter((name) => name !== undefined).slice(0, 2)).toEqual(["あとに登録", "先に登録"]);
+      expect(after).not.toContain("対象外");
     });
 
     it("何も設定していない店舗では、空の一覧と決まりなしを返す", async () => {
