@@ -43,7 +43,7 @@ describe("resolveReminderStatus", () => {
       }),
     ).toEqual({
       kind: "scheduled",
-      label: "提出期限の前日17:00に催促通知を自動で送ります",
+      label: "期限前日17時に再通知します",
     });
   });
 
