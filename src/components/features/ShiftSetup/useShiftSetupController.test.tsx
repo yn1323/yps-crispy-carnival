@@ -367,6 +367,111 @@ describe("必要人数とスタッフの保存", () => {
     ]);
   });
 
+  describe("希望シフトの集め方を変えたあと", () => {
+    const weekendId = "template-weekend" as Id<"shiftDayTemplates">;
+    // 時間指定から日付選択へ変えた直後。保存済みのテンプレートは、空の必要人数と再設定の印で返る。
+    const reentrySetup: ShiftSetupData = {
+      ...setup,
+      submissionPattern: { kind: "dateOnly" },
+      dayTemplates: [
+        { ...setup.dayTemplates[0], requirements: { kind: "dateOnly", counts: [] }, requiresReentry: true },
+        {
+          _id: weekendId,
+          name: "土日",
+          weekdays: ["sat", "sun"],
+          appliesToHolidays: false,
+          requirements: { kind: "dateOnly", counts: [] },
+          requiresReentry: true,
+        },
+      ],
+    };
+
+    it("再設定が済んでいないテンプレートが残る間はテンプレートを保存せず、すべて済むと保存できる", async () => {
+      mocks.saveDayTemplates.mockResolvedValue(null);
+      const { result } = renderController(reentrySetup);
+
+      act(() =>
+        result.current.intents.onChangeRequiredCount(templateId, {
+          rowId: ALL_DAY_ROW_ID,
+          positionId: hall,
+          count: 2,
+        }),
+      );
+      await act(async () => result.current.intents.onSaveChanges());
+
+      // 保存すると、まだ再設定していない「土日」の以前の必要人数が空で置き換わるため、保存しない。
+      expect(mocks.saveDayTemplates).not.toHaveBeenCalled();
+      expect(result.current.dayTemplates.selectedRowKey).toBe(weekendId);
+      expect(mocks.toasterCreate).toHaveBeenCalledExactlyOnceWith({
+        title: "再設定が必要なテンプレートがあります",
+        description: "必要人数を入れるか、テンプレートを削除してから保存してください。",
+        type: "error",
+      });
+      expect(result.current.pendingSections).toEqual(["dayTemplates"]);
+
+      act(() =>
+        result.current.intents.onChangeRequiredCount(weekendId, {
+          rowId: ALL_DAY_ROW_ID,
+          positionId: kitchen,
+          count: 1,
+        }),
+      );
+      await act(async () => result.current.intents.onSaveChanges());
+
+      expect(mocks.saveDayTemplates.mock.calls.map(([args]) => args.templates)).toEqual([
+        [
+          {
+            id: templateId,
+            name: "平日",
+            weekdays: ["mon", "tue"],
+            appliesToHolidays: false,
+            requirements: { kind: "dateOnly", counts: [{ positionId: hall, count: 2 }] },
+          },
+          {
+            id: weekendId,
+            name: "土日",
+            // 保存の引数では、曜日を日曜始まりの順に並べる。
+            weekdays: ["sun", "sat"],
+            appliesToHolidays: false,
+            requirements: { kind: "dateOnly", counts: [{ positionId: kitchen, count: 1 }] },
+          },
+        ],
+      ]);
+    });
+
+    it("再設定が済んでいないテンプレートを削除すると、残りを保存できる", async () => {
+      mocks.saveDayTemplates.mockResolvedValue(null);
+      const { result } = renderController(reentrySetup);
+
+      act(() =>
+        result.current.intents.onChangeRequiredCount(templateId, {
+          rowId: ALL_DAY_ROW_ID,
+          positionId: hall,
+          count: 2,
+        }),
+      );
+      act(() => result.current.intents.onRemoveDayTemplate(weekendId));
+      await act(async () => result.current.intents.onSaveChanges());
+
+      expect(
+        mocks.saveDayTemplates.mock.calls.map(([args]) => args.templates.map(({ id }: { id: string }) => id)),
+      ).toEqual([[templateId]]);
+    });
+
+    it("テンプレートを変えていなければ、スタッフのスキルだけを保存できる", async () => {
+      mocks.saveStaffShiftProfiles.mockResolvedValue(null);
+      const { result } = renderController(reentrySetup);
+
+      act(() => result.current.intents.onChangeStaffPositionLevel(staffA, hall, "newcomer"));
+      await act(async () => result.current.intents.onSaveChanges());
+
+      // テンプレートを送らないため、以前の必要人数は残る。
+      expect(mocks.saveDayTemplates).not.toHaveBeenCalled();
+      expect(mocks.saveStaffShiftProfiles).toHaveBeenCalledOnce();
+      expect(mocks.toasterCreate).not.toHaveBeenCalled();
+    });
+  });
+
   it("短時間の連続保存は最初の一件だけを実行する", async () => {
     let resolveMutation: (() => void) | undefined;
     mocks.saveDayTemplates.mockImplementation(

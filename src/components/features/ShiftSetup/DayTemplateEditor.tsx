@@ -23,11 +23,6 @@ import {
 import { WEEKDAY_OPTIONS } from "./script";
 import type { DayTemplateDraft, ShiftSetupData, ShiftSetupIntents } from "./types";
 
-const COUNT_TABLE_DESCRIPTIONS = {
-  shiftType: "勤務パターンごとに、必要な人数をポジション別に入れます。空欄は未設定です。",
-  dateOnly: "1日に必要な人数をポジション別に入れます。空欄は未設定です。",
-} as const;
-
 /** 名前の右に置く操作。スマートフォンでは名前の欄と1行に収めるため、アイコンだけを出す。 */
 const ACTION_BUTTON_PROPS = {
   type: "button",
@@ -127,7 +122,7 @@ export function DayTemplateEditor({ draft, drafts, setup, canWrite, issueMessage
 
       <Stack gap={2}>
         <Text id={dayLabelId} fontSize="sm" fontWeight="semibold" color="gray.900">
-          このテンプレートを使う日
+          テンプレート利用日（複数選択可）
         </Text>
         <Flex role="group" aria-labelledby={dayLabelId} gap={{ base: 2, md: 3 }} wrap="wrap">
           <Grid templateColumns="repeat(7, minmax(0, 1fr))" gap={{ base: 1, md: 1.5 }} flex="1 1 16rem" maxW="26rem">
@@ -174,7 +169,7 @@ export function DayTemplateEditor({ draft, drafts, setup, canWrite, issueMessage
         <Alert.Root status="warning" borderRadius="lg">
           <Alert.Indicator />
           <Alert.Content>
-            <Alert.Title>希望シフトの集め方を変えたため、必要人数を入れ直してください</Alert.Title>
+            <Alert.Title>希望シフトの集め方を変更したため、再設定が必要です。</Alert.Title>
           </Alert.Content>
         </Alert.Root>
       )}
@@ -255,10 +250,7 @@ function Requirements({ draft, setup, canWrite, intents }: RequirementsProps) {
   if (requirements.kind === "time") return null;
 
   return (
-    <Stack gap={2} pb={{ base: 4, md: 5 }}>
-      <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-        {COUNT_TABLE_DESCRIPTIONS[requirements.kind]}
-      </Text>
+    <Stack pb={{ base: 4, md: 5 }}>
       <StaffingCountTable
         positions={positions}
         rows={getRequiredCountRows(pattern)}

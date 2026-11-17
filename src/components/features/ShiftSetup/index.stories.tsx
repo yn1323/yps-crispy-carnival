@@ -535,7 +535,7 @@ export const OutsideRange: Story = {
 };
 
 export const RequiresReentry: Story = {
-  name: "集め方を変えたあと・入れ直しが必要",
+  name: "集め方を変えたあと・再設定が必要",
   args: { setup: requiresReentrySetup },
 };
 
@@ -576,8 +576,8 @@ function getTemplateList(canvas: Canvas) {
   return within(canvas.getByRole("list", { name: "テンプレートの一覧" }));
 }
 
-/** 編集するテンプレートを切り替える。一覧では、誤りや入れ直しの印も名前に含めて読み上げる。 */
-async function selectTemplate(canvas: Canvas, name: string, usage: string, status?: "要確認" | "入れ直し") {
+/** 編集するテンプレートを切り替える。一覧では、誤りや再設定の印も名前に含めて読み上げる。 */
+async function selectTemplate(canvas: Canvas, name: string, usage: string, status?: "要確認" | "再設定") {
   await userEvent.click(
     getTemplateList(canvas).getByRole("button", { name: [name, usage, ...(status ? [status] : [])].join(" ") }),
   );
@@ -786,7 +786,7 @@ export const MobileOutsideRange: Story = {
 export const MobileRequiresReentry: Story = {
   tags: ["vrt-mobile1"],
   globals: mobile1Globals,
-  name: "モバイル320px・入れ直しが必要",
+  name: "モバイル320px・再設定が必要",
   args: { setup: requiresReentrySetup },
 };
 
@@ -1370,20 +1370,20 @@ export const MobileDateOnlyCountBehavior: Story = {
 };
 
 export const ReentryBehavior: Story = {
-  name: "Behavior: 入れ直しの知らせは、人数を入れると消える",
+  name: "Behavior: 再設定の知らせは、人数を入れると消える",
   args: { setup: requiresReentrySetup },
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const template = within(canvas.getByRole("group", { name: "通常" }));
-    const notice = "希望シフトの集め方を変えたため、必要人数を入れ直してください";
+    const notice = "希望シフトの集め方を変更したため、再設定が必要です。";
     await expect(template.getByText(notice)).toBeVisible();
 
     await userEvent.type(template.getByRole("spinbutton", { name: "1日のホールの必要人数" }), "3");
 
     await waitFor(() => expect(template.queryByText(notice)).not.toBeInTheDocument());
     // まだ入れ直していない別のテンプレートには、知らせが残る。
-    const weekend = await selectTemplate(canvas, "土日", "土・日", "入れ直し");
+    const weekend = await selectTemplate(canvas, "土日", "土・日", "再設定");
     await expect(weekend.getByText(notice)).toBeVisible();
   },
 };

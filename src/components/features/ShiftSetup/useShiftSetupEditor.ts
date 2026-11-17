@@ -19,6 +19,7 @@ import {
   getDayTemplateLabel,
   hasPendingDayTemplateChanges,
   isSameDayTemplateInputs,
+  needsDayTemplateReentry,
   removeDayTemplate,
   renameDayTemplate,
   reorderDayTemplates,
@@ -63,6 +64,10 @@ import type {
 const ASSIST_UNAVAILABLE_MESSAGE = "いまはAIの下書きを使えません。\n「テンプレートを作る」から手で作れます。";
 const ASSIST_RATE_LIMITED_MESSAGE =
   "短い時間に続けて作ったため、いまは下書きを作れません。\n少し時間をおいて、もう一度お試しください。";
+// 集め方を変えたあとのテンプレートは、以前の必要人数を保存したまま、空の必要人数で表示している。
+// そのまま保存すると以前の必要人数が空で置き換わるため、再設定が済むまでテンプレートを保存しない。
+const REENTRY_REQUIRED_TITLE = "再設定が必要なテンプレートがあります";
+const REENTRY_REQUIRED_DESCRIPTION = "必要人数を入れるか、テンプレートを削除してから保存してください。";
 const ASSIST_EMPTY_MESSAGE = "下書きに入れるテンプレートがありませんでした。\n「テンプレートを作る」から手で作れます。";
 
 type Input = {
@@ -200,6 +205,13 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
           // 誤りのあるテンプレートを開き、そのテンプレートの中で誤りを読めるようにする。
           if (invalidDraft) setTemplateSelection({ rowKey: invalidDraft.rowKey, index: invalidIndex });
           toaster.create({ title: DAY_TEMPLATE_ISSUE_MESSAGES[issue], type: "error" });
+          return false;
+        }
+        const reentryIndex = drafts.findIndex(needsDayTemplateReentry);
+        if (reentryIndex !== -1) {
+          // 再設定が済んでいないテンプレートを開き、どれを直せばよいかを見せる。
+          setTemplateSelection({ rowKey: drafts[reentryIndex].rowKey, index: reentryIndex });
+          toaster.create({ title: REENTRY_REQUIRED_TITLE, description: REENTRY_REQUIRED_DESCRIPTION, type: "error" });
           return false;
         }
       }

@@ -200,7 +200,7 @@ describe("保存済みのテンプレートを編集中の形へ直す", () => {
     expect(converted.requirements).toEqual({ kind: "dateOnly", counts: { [hall]: 4, [kitchen]: 2 } });
   });
 
-  it("集め方を変えたあとのテンプレートは、空の必要人数と、入れ直しの印を持つ", () => {
+  it("集め方を変えたあとのテンプレートは、空の必要人数と、再設定の印を持つ", () => {
     const [converted] = toDayTemplateDrafts([
       savedTemplate({ requirements: { kind: "dateOnly", counts: [] }, requiresReentry: true }),
     ]);

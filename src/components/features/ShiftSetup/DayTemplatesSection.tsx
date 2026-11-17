@@ -308,7 +308,7 @@ type TabProps = {
 function DayTemplateTab({ draft, isSelected, hasIssue, onSelect }: TabProps) {
   const label = getDayTemplateLabel(draft);
   const usage = formatDayTemplateUsage(draft);
-  const status = hasIssue ? "要確認" : needsDayTemplateReentry(draft) ? "入れ直し" : undefined;
+  const status = hasIssue ? "要確認" : needsDayTemplateReentry(draft) ? "再設定" : undefined;
 
   return (
     <chakra.button
