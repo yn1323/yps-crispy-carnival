@@ -11,8 +11,9 @@ type ActionsProps = {
 };
 
 /**
- * ページの見出しの行に置く、保存の操作。
+ * 画面の下端に留める、保存の操作。
  * 「保存する」は常に同じ位置に出し、保存していない変更がない間は押せない状態にする。
+ * スマートフォンでは幅いっぱいに広げ、PCでは右に寄せる。
  */
 export function PendingChangesActions({ sections, isSaving, onSave }: ActionsProps) {
   return (
@@ -22,6 +23,8 @@ export function PendingChangesActions({ sections, isSaving, onSave }: ActionsPro
         colorPalette="teal"
         size="sm"
         flexShrink={0}
+        w={{ base: "full", md: "auto" }}
+        minW={{ md: "8rem" }}
         minH={{ base: "44px", md: "36px" }}
         disabled={sections.length === 0}
         loading={isSaving}

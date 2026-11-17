@@ -1,6 +1,6 @@
 import { Box, chakra, Flex, Grid, Stack, Text, useBreakpointValue, VisuallyHidden } from "@chakra-ui/react";
 import { useRef, useState } from "react";
-import { LuCircleHelp, LuUser, LuUsers } from "react-icons/lu";
+import { LuInfo, LuUser, LuUsers } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog, DialogActionArea, useDialog } from "@/src/components/ui/Dialog";
 import { Empty } from "@/src/components/ui/Empty";
@@ -122,15 +122,16 @@ export function StaffProfilesSection({
             size="sm"
             gap={1.5}
             minH={{ base: "44px", md: "36px" }}
-            // 幅320pxでも見出しが折り返さないよう、スマートフォンでは余白を詰め、アイコンを出さない。
+            // 幅320pxでも見出しが折り返さないよう、スマートフォンでは余白を詰める。
             px={{ base: 1.5, md: 3 }}
             mr={{ base: -1.5, md: 0 }}
             fontWeight="semibold"
             flexShrink={0}
             onClick={legendDialog.open}
           >
-            <Box as="span" display={{ base: "none", md: "contents" }}>
-              <LuCircleHelp aria-hidden />
+            {/* 幅360px未満では、アイコンを出すと見出しが2行に折り返すため、文字だけにする。 */}
+            <Box as="span" display="contents" css={{ "@media (max-width: 359px)": { display: "none" } }}>
+              <LuInfo aria-hidden />
             </Box>
             スキルの役割
           </Button>

@@ -1,6 +1,7 @@
 import { Box, Stack, Text } from "@chakra-ui/react";
 import { LuSlidersHorizontal } from "react-icons/lu";
 import { ReadOnlyNotice } from "@/src/components/shared/ReadOnlyNotice";
+import { AUTHENTICATED_APP_BOTTOM_INSET } from "@/src/components/templates/AuthenticatedAppShell";
 import { AUTHENTICATED_APP_PAGE_CONTENT_HEIGHT } from "@/src/components/templates/AuthenticatedPageContent";
 import { AUTHENTICATED_APP_HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { DetailPageHeader } from "@/src/components/ui/DetailPageHeader";
@@ -19,10 +20,8 @@ type Props = ShiftSetupEditorView & {
   onBack: () => void;
 };
 
-/** PCで上端に留める見出しの行の高さ（px）。見出しのボタン44px、上下の余白16px。 */
-const PAGE_HEADER_ROW_HEIGHT_PX = 60;
-/** 上端に留める行の地色。ページと同じ色にして、下を流れる内容が透けないようにする。 */
-const STICKY_SURFACE = { bg: "gray.50" } as const;
+/** 下端に留める保存の行の地色。ページと同じ色にして、下を流れる内容が透けないようにする。 */
+const SAVE_BAR_SURFACE = { bg: "gray.50" } as const;
 
 export function ShiftSetupView({
   setup,
@@ -41,55 +40,16 @@ export function ShiftSetupView({
   // アプリのヘッダーは下へスクロールすると隠れる。隠れている間は、留める位置を画面の上端まで上げる。
   const isAppHeaderHidden = useHideOnScrollDown();
   const stickyTop = isAppHeaderHidden ? "0px" : AUTHENTICATED_APP_HEADER_HEIGHT.base;
-  const stickyTransition = {
-    transition: "top 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-    "@media (prefers-reduced-motion: reduce)": { transition: "none" },
-  };
 
   return (
-    // 最後のセクションの下に余白を取り、ページの終わりが画面の下端に張り付かないようにする。
-    <Stack gap={{ base: 4, md: 6 }} pb={{ base: 10, md: 16 }}>
-      {canWrite ? (
-        // スクロールしても保存できるよう、保存の操作を画面の上端に留める。
-        // PCは見出しの行ごと留める。スマートフォンは見出しと操作が1行に収まらないため、操作の行だけを留める。
-        <Box
-          display={{ base: "contents", md: "flex" }}
-          alignItems="center"
-          gap={3}
-          data-sticky-row=""
-          position={{ md: "sticky" }}
-          top={{ md: stickyTop }}
-          zIndex={{ md: "docked" }}
-          // ページの左右の余白（16px）を打ち消し、端まで地色を敷く。
-          mx={{ md: -4 }}
-          px={{ md: 4 }}
-          py={{ md: 2 }}
-          bg={{ md: STICKY_SURFACE.bg }}
-          css={stickyTransition}
-        >
-          <Box flex={1} minW={0}>
-            <DetailPageHeader title="シフト作成の設定" onBack={onBack} icon={LuSlidersHorizontal} />
-          </Box>
-          <Box
-            flexShrink={0}
-            data-sticky-row=""
-            position={{ base: "sticky", md: "static" }}
-            top={{ base: stickyTop, md: "auto" }}
-            zIndex={{ base: "docked", md: "auto" }}
-            // スマートフォンでは、見出しのすぐ下に続ける。
-            mt={{ base: -3, md: 0 }}
-            mx={{ base: -4, md: 0 }}
-            px={{ base: 4, md: 0 }}
-            py={{ base: 2, md: 0 }}
-            bg={{ base: STICKY_SURFACE.bg, md: "transparent" }}
-            css={stickyTransition}
-          >
-            <PendingChangesActions sections={pendingSections} isSaving={isSaving} onSave={intents.onSaveChanges} />
-          </Box>
-        </Box>
-      ) : (
-        <DetailPageHeader title="シフト作成の設定" onBack={onBack} icon={LuSlidersHorizontal} />
-      )}
+    // 保存の行は、内容が短いページでも画面の下端に置くため、ページの高さを画面いっぱいに取る。
+    // 閲覧専用では保存の行がないため、最後のセクションの下に余白を取り、ページの終わりが画面の下端に張り付かないようにする。
+    <Stack
+      gap={{ base: 4, md: 6 }}
+      minH={canWrite ? AUTHENTICATED_APP_PAGE_CONTENT_HEIGHT : undefined}
+      pb={canWrite ? 0 : { base: 10, md: 16 }}
+    >
+      <DetailPageHeader title="シフト作成の設定" onBack={onBack} icon={LuSlidersHorizontal} />
 
       {!canWrite && (
         <ReadOnlyNotice
@@ -124,10 +84,31 @@ export function ShiftSetupView({
         profiles={staffProfiles}
         canWrite={canWrite}
         isSaving={isSaving}
-        // 表の見出しの行は、ページの見出しの行のすぐ下に留める。閲覧専用ではページの見出しを留めない。
-        headerStickyTop={canWrite ? `calc(${stickyTop} + ${PAGE_HEADER_ROW_HEIGHT_PX}px)` : stickyTop}
+        headerStickyTop={stickyTop}
         intents={intents}
       />
+
+      {canWrite && (
+        // スクロールしても保存できるよう、保存の操作を画面の下端に留める。スマートフォンでは下部メニューのすぐ上に置く。
+        <Box
+          data-sticky-row=""
+          position="sticky"
+          bottom={AUTHENTICATED_APP_BOTTOM_INSET}
+          zIndex="docked"
+          // 内容が短いページでは、余った高さの下へ寄せる。
+          mt="auto"
+          // ページの左右と下の余白（16px）を打ち消し、端まで地色を敷く。
+          mx={-4}
+          mb={-4}
+          px={4}
+          py={3}
+          bg={SAVE_BAR_SURFACE.bg}
+          borderTopWidth="1px"
+          borderColor="gray.200"
+        >
+          <PendingChangesActions sections={pendingSections} isSaving={isSaving} onSave={intents.onSaveChanges} />
+        </Box>
+      )}
 
       <AssistDialog
         dialog={{ ...assistDialog, isOpen: assistDialog.isOpen && canWrite }}

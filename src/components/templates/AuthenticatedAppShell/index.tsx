@@ -16,6 +16,12 @@ export const AUTHENTICATED_APP_CONTENT_HEIGHT = {
   lg: `calc(100dvh - ${AUTHENTICATED_APP_HEADER_HEIGHT.md})`,
 } as const;
 
+/** スマートフォンの下部メニューが覆う、画面の下端からの高さ。下端に留める操作は、この分だけ上へ置く。 */
+export const AUTHENTICATED_APP_BOTTOM_INSET = {
+  base: `calc(${MOBILE_APP_NAVIGATION_HEIGHT} + env(safe-area-inset-bottom))`,
+  lg: "0px",
+} as const;
+
 const UserMenu = lazy(() =>
   import("@/src/components/features/UserMenu").then((module) => ({ default: module.UserMenu })),
 );
@@ -63,11 +69,7 @@ export function AuthenticatedAppShell({
       />
       <Box
         pt={AUTHENTICATED_APP_HEADER_HEIGHT}
-        pb={
-          showPrimaryNavigation
-            ? { base: `calc(${MOBILE_APP_NAVIGATION_HEIGHT} + env(safe-area-inset-bottom))`, lg: 0 }
-            : 0
-        }
+        pb={showPrimaryNavigation ? AUTHENTICATED_APP_BOTTOM_INSET : 0}
         minH="100dvh"
       >
         {children}
