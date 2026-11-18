@@ -1,16 +1,30 @@
 import type { FunctionReference } from "convex/server";
 import { makeFunctionReference } from "convex/server";
+import type { z } from "zod";
+import type { ActionCtx } from "../_generated/server";
 import { httpAction } from "../_generated/server";
 import { getAppUrl, getStaffRegistrationAllowedOrigins, getStaffRegistrationTrustedIpHeader } from "../_lib/config";
 import { readBoundedJsonBody } from "../_lib/httpBody";
-import { sha256Hex } from "../_lib/sha256";
 import { verifyTurnstile } from "../_lib/turnstile";
+import { generateUUID } from "../_lib/uuid";
 import { normalizeEmail } from "../_lib/validation";
 import { STAFF_REGISTRATION_HTTP_BODY_MAX_BYTES } from "../constants";
-import { submitStaffRegistrationSchema } from "./schemas";
+import {
+  confirmStaffRegistrationCodeSchema,
+  resendStaffRegistrationCodeSchema,
+  submitStaffRegistrationSchema,
+} from "./schemas";
+import {
+  digestVerificationCode,
+  digestVerificationHandle,
+  generateVerificationCode,
+  hashStaffRegistrationRateLimitKey,
+  staffRegistrationEmailRateLimitKey,
+} from "./verificationCode";
 
 const TURNSTILE_ACTION = "staff_registration";
 const RESPONSE_ACCEPTED = { status: "accepted" as const };
+const RESPONSE_CODE_SENT = "code_sent" as const;
 
 const checkSubmissionIngressRateLimitRef = makeFunctionReference<"mutation", { ipKey?: string }, { allowed: boolean }>(
   "staffRegistration/mutations:checkSubmissionIngressRateLimit",
@@ -27,15 +41,77 @@ const checkSubmissionRateLimitRef = makeFunctionReference<
   { status: "allowed" | "rate_limited" | "unavailable" }
 >;
 
-const submitRegistrationRequestRef = makeFunctionReference<
+type VerificationDelivery = { to: string; shopName: string; idempotencyKey: string; sendCount: number } | null;
+type CodeSentResult = {
+  status: "sent";
+  resendAvailableAt: number;
+  codeExpiresAt: number;
+  delivery: VerificationDelivery;
+};
+type CooldownResult = { status: "cooldown"; resendAvailableAt: number };
+type StartVerificationResult = CodeSentResult | CooldownResult | { status: "unavailable" };
+type ConfirmVerificationResult = { status: "verified" | "code_mismatch" | "code_unusable" | "unavailable" };
+type ResendVerificationResult =
+  | CodeSentResult
+  | CooldownResult
+  | { status: "unavailable" }
+  | { status: "verification_unusable" }
+  | { status: "send_limit" };
+
+type StartVerificationArgs = {
+  token: string;
+  name: string;
+  email: string;
+  acceptedLegal: boolean;
+  handleDigest: string;
+  codeDigest: string;
+};
+
+const startVerificationRef = makeFunctionReference<"mutation", StartVerificationArgs, StartVerificationResult>(
+  "staffRegistration/emailVerification:start",
+) as unknown as FunctionReference<"mutation", "internal", StartVerificationArgs, StartVerificationResult>;
+
+type ConfirmVerificationArgs = { token: string; handleDigest: string; codeDigest: string };
+
+const confirmVerificationRef = makeFunctionReference<"mutation", ConfirmVerificationArgs, ConfirmVerificationResult>(
+  "staffRegistration/emailVerification:confirm",
+) as unknown as FunctionReference<"mutation", "internal", ConfirmVerificationArgs, ConfirmVerificationResult>;
+
+type ResendVerificationArgs = { token: string; handleDigest: string; codeDigest: string };
+
+const resendVerificationRef = makeFunctionReference<"mutation", ResendVerificationArgs, ResendVerificationResult>(
+  "staffRegistration/emailVerification:resend",
+) as unknown as FunctionReference<"mutation", "internal", ResendVerificationArgs, ResendVerificationResult>;
+
+type ReleaseFailedSendArgs = { handleDigest: string; sendCount: number };
+
+const releaseFailedSendRef = makeFunctionReference<"mutation", ReleaseFailedSendArgs, null>(
+  "staffRegistration/emailVerification:releaseFailedSend",
+) as unknown as FunctionReference<"mutation", "internal", ReleaseFailedSendArgs, null>;
+
+type SendVerificationCodeEmailArgs = { to: string; shopName: string; code: string; idempotencyKey: string };
+type SendVerificationCodeEmailResult = { status: "sent" | "delivery_failed" };
+
+const sendVerificationCodeEmailRef = makeFunctionReference<
+  "action",
+  SendVerificationCodeEmailArgs,
+  SendVerificationCodeEmailResult
+>("staffRegistration/actions:sendVerificationCodeEmail") as unknown as FunctionReference<
+  "action",
+  "internal",
+  SendVerificationCodeEmailArgs,
+  SendVerificationCodeEmailResult
+>;
+
+const checkVerificationIngressRateLimitRef = makeFunctionReference<
   "mutation",
-  { token: string; name: string; email: string; acceptedLegal: boolean },
-  { status: "accepted" | "unavailable" }
->("staffRegistration/mutations:submitRegistrationRequestFromHttp") as unknown as FunctionReference<
+  { ipKey?: string },
+  { allowed: boolean }
+>("staffRegistration/emailVerification:checkIngressRateLimit") as unknown as FunctionReference<
   "mutation",
   "internal",
-  { token: string; name: string; email: string; acceptedLegal: boolean },
-  { status: "accepted" | "unavailable" }
+  { ipKey?: string },
+  { allowed: boolean }
 >;
 
 function isLocalOrigin(origin: string): boolean {
@@ -96,10 +172,6 @@ function forbiddenOriginResponse() {
   });
 }
 
-async function hashRateLimitKey(namespace: "email" | "link" | "ip", value: string): Promise<string> {
-  return await sha256Hex(`${namespace}:${value}`);
-}
-
 function trustedClientIp(request: Request): string | undefined {
   const header = getStaffRegistrationTrustedIpHeader();
   if (!header) return undefined;
@@ -120,53 +192,135 @@ function isIpAddress(value: string): boolean {
   }
 }
 
-export const submit = httpAction(async (ctx, request) => {
+type JsonInput<T> = { ok: true; origin: string; input: T } | { ok: false; response: Response };
+
+/** Origin、content type、body上限、schemaを、状態を読む前に検証する。 */
+async function readJsonInput<T>(request: Request, schema: z.ZodType<T>): Promise<JsonInput<T>> {
   const origin = request.headers.get("origin");
-  if (!isAllowedOrigin(origin)) return forbiddenOriginResponse();
+  if (!isAllowedOrigin(origin)) return { ok: false, response: forbiddenOriginResponse() };
   const body = await readBoundedJsonBody(request, STAFF_REGISTRATION_HTTP_BODY_MAX_BYTES);
   if (!body.ok && body.error === "unsupported_media_type") {
-    return jsonResponse(origin, { error: "JSON形式で送信してください" }, { status: 415 });
+    return { ok: false, response: jsonResponse(origin, { error: "JSON形式で送信してください" }, { status: 415 }) };
   }
   if (!body.ok && body.error === "body_too_large") {
-    return jsonResponse(origin, { error: "送信内容が大きすぎます。" }, { status: 413 });
+    return { ok: false, response: jsonResponse(origin, { error: "送信内容が大きすぎます。" }, { status: 413 }) };
   }
-  if (!body.ok) return jsonResponse(origin, { error: "送信内容を確認してください。" }, { status: 400 });
+  if (!body.ok) {
+    return { ok: false, response: jsonResponse(origin, { error: "送信内容を確認してください。" }, { status: 400 }) };
+  }
 
   let raw: unknown;
   try {
     raw = JSON.parse(body.rawBody) as unknown;
   } catch {
-    return jsonResponse(origin, { error: "送信内容を確認してください。" }, { status: 400 });
+    return { ok: false, response: jsonResponse(origin, { error: "送信内容を確認してください。" }, { status: 400 }) };
   }
 
-  const parsed = submitStaffRegistrationSchema.safeParse(raw);
+  const parsed = schema.safeParse(raw);
   if (!parsed.success) {
-    return jsonResponse(
-      origin,
-      { error: parsed.error.issues[0]?.message ?? "送信内容を確認してください。" },
-      { status: 400 },
-    );
+    return {
+      ok: false,
+      response: jsonResponse(
+        origin,
+        { error: parsed.error.issues[0]?.message ?? "送信内容を確認してください。" },
+        { status: 400 },
+      ),
+    };
   }
-  const input = parsed.data;
-  const origins = allowedOrigins();
+  return { ok: true, origin, input: parsed.data };
+}
+
+async function trustedClientIpKey(request: Request): Promise<{ ipKey?: string }> {
   const ip = trustedClientIp(request);
-  const ingressRateLimit = await ctx.runMutation(checkSubmissionIngressRateLimitRef, {
-    ...(ip ? { ipKey: await hashRateLimitKey("ip", ip) } : {}),
-  });
-  if (!ingressRateLimit.allowed) {
-    return jsonResponse(
-      origin,
-      { error: "申請回数が多くなっています。\n少し時間をおいて、もう一度お試しください。" },
-      { status: 429 },
-    );
+  return ip ? { ipKey: await hashStaffRegistrationRateLimitKey("ip", ip) } : {};
+}
+
+function rateLimitedResponse(origin: string) {
+  return jsonResponse(
+    origin,
+    { error: "申請回数が多くなっています。\n少し時間をおいて、もう一度お試しください。" },
+    { status: 429 },
+  );
+}
+
+function linkUnavailableResponse(origin: string) {
+  return jsonResponse(origin, { error: "登録リンクの有効期限が切れています。" }, { status: 400 });
+}
+
+/** 端末の時計のずれに左右されないよう、絶対時刻ではなく残り時間を返す。 */
+function remainingMs(until: number): number {
+  return Math.max(0, until - Date.now());
+}
+
+function cooldownResponse(origin: string, resendAvailableAt: number) {
+  return jsonResponse(
+    origin,
+    {
+      error: "確認コードは1分に1回まで送れます。\n少し時間をおいて、もう一度お試しください。",
+      code: "cooldown",
+      resendAfterMs: remainingMs(resendAvailableAt),
+    },
+    { status: 429 },
+  );
+}
+
+function sendFailedResponse(origin: string) {
+  return jsonResponse(
+    origin,
+    { error: "確認コードを送れませんでした。\n少し時間をおいて、もう一度お試しください。" },
+    { status: 503 },
+  );
+}
+
+/**
+ * 確認コードのメールを送る。送れなかった場合は、届いていないコードのために次の送信を待たせないよう状態を戻す。
+ * 配信停止の宛先には送らず、公開応答は送れた場合と同じにする。
+ */
+async function deliverVerificationCode(
+  ctx: ActionCtx,
+  input: { delivery: VerificationDelivery; code: string; handleDigest: string },
+): Promise<boolean> {
+  if (!input.delivery) return true;
+  const { sendCount, ...email } = input.delivery;
+  let delivered = false;
+  try {
+    const result = await ctx.runAction(sendVerificationCodeEmailRef, { ...email, code: input.code });
+    delivered = result.status === "sent";
+  } catch {
+    delivered = false;
   }
+  if (delivered) return true;
+  console.error("Staff registration verification email failed", {
+    errorCode: "staff_registration_verification_email_failed",
+  });
+  await ctx.runMutation(releaseFailedSendRef, { handleDigest: input.handleDigest, sendCount });
+  return false;
+}
+
+function codeSentResponse(origin: string, result: CodeSentResult, extra: { verificationToken?: string } = {}) {
+  return jsonResponse(origin, {
+    status: RESPONSE_CODE_SENT,
+    ...extra,
+    resendAfterMs: remainingMs(result.resendAvailableAt),
+    codeTtlMs: remainingMs(result.codeExpiresAt),
+  });
+}
+
+/** 入力を確認待ちとして受け付け、確認コードを送る。申請はコードの照合後に作る。 */
+export const start = httpAction(async (ctx, request) => {
+  const json = await readJsonInput(request, submitStaffRegistrationSchema);
+  if (!json.ok) return json.response;
+  const { origin, input } = json;
+
+  const ingressRateLimit = await ctx.runMutation(checkSubmissionIngressRateLimitRef, await trustedClientIpKey(request));
+  if (!ingressRateLimit.allowed) return rateLimitedResponse(origin);
 
   try {
     const verified = await verifyTurnstile({
       token: input.turnstileToken,
       expectedAction: TURNSTILE_ACTION,
       origin,
-      allowedOrigins: origins,
+      allowedOrigins: allowedOrigins(),
     });
     if (!verified) {
       return jsonResponse(origin, { error: "セキュリティ確認をやり直してください。" }, { status: 400 });
@@ -182,36 +336,133 @@ export const submit = httpAction(async (ctx, request) => {
   const normalizedEmail = normalizeEmail(input.email);
   const rateLimitResult = await ctx.runMutation(checkSubmissionRateLimitRef, {
     token: input.token,
-    emailKey: await hashRateLimitKey("email", `${input.token}:${normalizedEmail}`),
-    linkKey: await hashRateLimitKey("link", input.token),
+    emailKey: await staffRegistrationEmailRateLimitKey(input.token, normalizedEmail),
+    linkKey: await hashStaffRegistrationRateLimitKey("link", input.token),
   });
-  if (rateLimitResult.status === "rate_limited") {
-    return jsonResponse(
-      origin,
-      { error: "申請回数が多くなっています。\n少し時間をおいて、もう一度お試しください。" },
-      { status: 429 },
-    );
-  }
-  if (rateLimitResult.status === "unavailable") {
-    return jsonResponse(origin, { error: "登録リンクの有効期限が切れています。" }, { status: 400 });
-  }
+  if (rateLimitResult.status === "rate_limited") return rateLimitedResponse(origin);
+  if (rateLimitResult.status === "unavailable") return linkUnavailableResponse(origin);
 
+  // 引換tokenは送信したブラウザだけに返し、確認コードは本人のメールだけに送る。DBにはどちらもdigestだけを渡す。
+  const verificationToken = generateUUID();
+  const code = generateVerificationCode();
+  const handleDigest = await digestVerificationHandle(verificationToken);
+  let result: StartVerificationResult;
   try {
-    const result = await ctx.runMutation(submitRegistrationRequestRef, {
+    result = await ctx.runMutation(startVerificationRef, {
       token: input.token,
       name: input.name,
       email: normalizedEmail,
       acceptedLegal: input.acceptedLegal,
+      handleDigest,
+      codeDigest: await digestVerificationCode(handleDigest, code),
     });
-    if (result.status === "unavailable") {
-      return jsonResponse(origin, { error: "登録リンクの有効期限が切れています。" }, { status: 400 });
-    }
   } catch {
-    console.error("Staff registration submission failed", { errorCode: "staff_registration_submit_failed" });
+    console.error("Staff registration verification start failed", {
+      errorCode: "staff_registration_verification_start_failed",
+    });
+    return sendFailedResponse(origin);
+  }
+  if (result.status === "unavailable") return linkUnavailableResponse(origin);
+  if (result.status === "cooldown") return cooldownResponse(origin, result.resendAvailableAt);
+  if (!(await deliverVerificationCode(ctx, { delivery: result.delivery, code, handleDigest }))) {
+    return sendFailedResponse(origin);
+  }
+  return codeSentResponse(origin, result, { verificationToken });
+});
+
+/** 確認コードを照合し、合えば参加申請を受け付ける。 */
+export const confirm = httpAction(async (ctx, request) => {
+  const json = await readJsonInput(request, confirmStaffRegistrationCodeSchema);
+  if (!json.ok) return json.response;
+  const { origin, input } = json;
+
+  const ingressRateLimit = await ctx.runMutation(
+    checkVerificationIngressRateLimitRef,
+    await trustedClientIpKey(request),
+  );
+  if (!ingressRateLimit.allowed) return rateLimitedResponse(origin);
+
+  const handleDigest = await digestVerificationHandle(input.verificationToken);
+  let result: ConfirmVerificationResult;
+  try {
+    result = await ctx.runMutation(confirmVerificationRef, {
+      token: input.token,
+      handleDigest,
+      codeDigest: await digestVerificationCode(handleDigest, input.code),
+    });
+  } catch {
+    console.error("Staff registration verification confirm failed", {
+      errorCode: "staff_registration_verification_confirm_failed",
+    });
     return jsonResponse(origin, { error: "スタッフ登録を申請できませんでした。" }, { status: 503 });
   }
 
+  if (result.status === "unavailable") return linkUnavailableResponse(origin);
+  if (result.status === "code_mismatch") {
+    return jsonResponse(
+      origin,
+      { error: "確認コードが違います。\nメールに届いた6桁の数字を確認してください。", code: "code_mismatch" },
+      { status: 400 },
+    );
+  }
+  if (result.status === "code_unusable") {
+    return jsonResponse(
+      origin,
+      { error: "この確認コードは使えなくなりました。\n確認コードを再送してください。", code: "code_unusable" },
+      { status: 400 },
+    );
+  }
   return jsonResponse(origin, RESPONSE_ACCEPTED);
+});
+
+/** 同じ宛先へ確認コードを送り直す。Turnstileは使わず、引換tokenと送信間隔・送信数の上限で抑える。 */
+export const resend = httpAction(async (ctx, request) => {
+  const json = await readJsonInput(request, resendStaffRegistrationCodeSchema);
+  if (!json.ok) return json.response;
+  const { origin, input } = json;
+
+  const ingressRateLimit = await ctx.runMutation(
+    checkVerificationIngressRateLimitRef,
+    await trustedClientIpKey(request),
+  );
+  if (!ingressRateLimit.allowed) return rateLimitedResponse(origin);
+
+  const code = generateVerificationCode();
+  const handleDigest = await digestVerificationHandle(input.verificationToken);
+  let result: ResendVerificationResult;
+  try {
+    result = await ctx.runMutation(resendVerificationRef, {
+      token: input.token,
+      handleDigest,
+      codeDigest: await digestVerificationCode(handleDigest, code),
+    });
+  } catch {
+    console.error("Staff registration verification resend failed", {
+      errorCode: "staff_registration_verification_resend_failed",
+    });
+    return sendFailedResponse(origin);
+  }
+
+  if (result.status === "unavailable") return linkUnavailableResponse(origin);
+  if (result.status === "cooldown") return cooldownResponse(origin, result.resendAvailableAt);
+  if (result.status === "send_limit") {
+    return jsonResponse(
+      origin,
+      { error: "確認コードを送れる回数の上限に達しました。\n入力からやり直してください。", code: "send_limit" },
+      { status: 429 },
+    );
+  }
+  if (result.status === "verification_unusable") {
+    return jsonResponse(
+      origin,
+      { error: "確認コードを再送できなくなりました。\n入力からやり直してください。", code: "verification_unusable" },
+      { status: 400 },
+    );
+  }
+  if (!(await deliverVerificationCode(ctx, { delivery: result.delivery, code, handleDigest }))) {
+    return sendFailedResponse(origin);
+  }
+  return codeSentResponse(origin, result);
 });
 
 export const options = httpAction(async (_ctx, request) => {

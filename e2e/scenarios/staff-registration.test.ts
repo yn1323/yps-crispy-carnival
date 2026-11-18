@@ -59,7 +59,7 @@ test.describe("スタッフ本人による参加申請", { tag: ["@e2e-core", "@
       });
     });
 
-    await test.step("Turnstile通過後の申請を、HTTP Actionと同じ内部処理で作る", async () => {
+    await test.step("Turnstileと確認コードの照合を済ませた後の申請を、本番と同じ内部処理で作る", async () => {
       const result = convexRunJson<{ status: string }>("testing:submitStaffRegistrationRequestForE2E", {
         managerAuthTokenIdentifier: getE2EManagerAuthTokenIdentifier(),
         token: registrationToken,

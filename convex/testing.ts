@@ -1622,8 +1622,8 @@ export const seedNotificationFailureScenario = internalMutation({
 });
 
 /**
- * E2E専用：Turnstileを通過した後の参加申請だけを、HTTP Actionと同じ内部mutationで作る。
- * Cloudflareのchallengeは自動化せず、tokenの検証と申請作成は本番と同じ処理を通す。
+ * E2E専用：Turnstileと確認コードの照合を済ませた後の参加申請だけを、本番と同じ申請作成処理で作る。
+ * Cloudflareのchallengeとメールの受信は自動化せず、tokenの検証と申請作成は本番と同じ処理を通す。
  */
 export const submitStaffRegistrationRequestForE2E = internalMutation({
   args: {
@@ -1647,8 +1647,8 @@ export const submitStaffRegistrationRequestForE2E = internalMutation({
     }
 
     // 同じapi型を参照するためcircular inferenceを避け、戻り値の型を明示する。
-    const result: { status: "accepted" | "unavailable" } = await ctx.runMutation(
-      internal.staffRegistration.mutations.submitRegistrationRequestFromHttp,
+    const result: { status: "accepted" } = await ctx.runMutation(
+      internal.staffRegistration.mutations.submitRegistrationRequest,
       {
         token: args.token,
         name: args.name,

@@ -278,12 +278,14 @@ import type * as staffAuth_queries from "../staffAuth/queries.js";
 import type * as staffAuth_schemas from "../staffAuth/schemas.js";
 import type * as staffRegistration_actions from "../staffRegistration/actions.js";
 import type * as staffRegistration_capability from "../staffRegistration/capability.js";
+import type * as staffRegistration_emailVerification from "../staffRegistration/emailVerification.js";
 import type * as staffRegistration_httpActions from "../staffRegistration/httpActions.js";
 import type * as staffRegistration_mutations from "../staffRegistration/mutations.js";
 import type * as staffRegistration_notificationQueries from "../staffRegistration/notificationQueries.js";
 import type * as staffRegistration_queries from "../staffRegistration/queries.js";
 import type * as staffRegistration_schemas from "../staffRegistration/schemas.js";
 import type * as staffRegistration_service from "../staffRegistration/service.js";
+import type * as staffRegistration_verificationCode from "../staffRegistration/verificationCode.js";
 import type * as testing from "../testing.js";
 
 import type {
@@ -563,12 +565,14 @@ declare const fullApi: ApiFromModules<{
   "staffAuth/schemas": typeof staffAuth_schemas;
   "staffRegistration/actions": typeof staffRegistration_actions;
   "staffRegistration/capability": typeof staffRegistration_capability;
+  "staffRegistration/emailVerification": typeof staffRegistration_emailVerification;
   "staffRegistration/httpActions": typeof staffRegistration_httpActions;
   "staffRegistration/mutations": typeof staffRegistration_mutations;
   "staffRegistration/notificationQueries": typeof staffRegistration_notificationQueries;
   "staffRegistration/queries": typeof staffRegistration_queries;
   "staffRegistration/schemas": typeof staffRegistration_schemas;
   "staffRegistration/service": typeof staffRegistration_service;
+  "staffRegistration/verificationCode": typeof staffRegistration_verificationCode;
   testing: typeof testing;
 }>;
 

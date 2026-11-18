@@ -1,6 +1,7 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
+import { resetResendEmailQueueForTest } from "../_lib/resend";
 import {
   hasScheduledJob,
   MANAGER_SUBJECT,
@@ -18,7 +19,11 @@ describe("スタッフ参加QRシナリオ", () => {
     vi.useFakeTimers();
     vi.setSystemTime(SCENARIO_NOW);
   });
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
 
   it("店舗QRから参加申請し、シフト担当者承認後にスタッフ一覧・法務同意・通知予約へ反映される", async () => {
     const t = convexTest(schema, modules);
@@ -110,6 +115,120 @@ describe("スタッフ参加QRシナリオ", () => {
         shopId,
       }),
     ).resolves.toBeNull();
+  });
+
+  it("匿名スタッフが届いた確認コードを入力して初めて申請になり、承認後のスタッフへコード確認時の同意が引き継がれる", async () => {
+    const origin = "https://shiftori.app";
+    vi.stubEnv("APP_URL", origin);
+    vi.stubEnv("STAFF_REGISTRATION_ALLOWED_ORIGINS", "");
+    vi.stubEnv("STAFF_REGISTRATION_TRUSTED_IP_HEADER", "");
+    vi.stubEnv("TURNSTILE_SECRET_KEY", "turnstile-secret");
+    vi.stubEnv("DEBUG_MODE", "false");
+    vi.stubEnv("DEBUG_NOTIFICATION_DELIVERY_MODE", "");
+    vi.stubEnv("RESEND_API_KEY", "resend-token");
+    resetResendEmailQueueForTest();
+    const sentSubjects: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const url = input instanceof Request ? input.url : String(input);
+        if (!url.includes("api.resend.com")) {
+          return new Response(
+            JSON.stringify({ success: true, action: "staff_registration", hostname: "shiftori.app" }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          );
+        }
+        sentSubjects.push((JSON.parse(String(init?.body)) as { subject: string }).subject);
+        return new Response(JSON.stringify({ id: "email_verification_code" }), { status: 200 });
+      }),
+    );
+    const t = convexTest(schema, modules);
+    const asManager = t.withIdentity({ subject: MANAGER_SUBJECT });
+    const { shopId } = await t.run(
+      async (ctx) =>
+        await seedManagerShop(ctx, {
+          subject: MANAGER_SUBJECT,
+          email: "code-manager@example.com",
+          shopName: "確認コード店舗",
+        }),
+    );
+    const expectedOrganizationId = await getTestOrganizationId(t, shopId);
+    const link = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      expectedOrganizationId,
+      shopId,
+    });
+    const postJson = async (path: string, body: unknown) =>
+      await t.fetch(path, {
+        method: "POST",
+        headers: { origin, "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+    // Act: 入力を送ると確認コードのメールが届くが、まだ申請にはならない。
+    const started = await postJson("/staff-registration/verification/start", {
+      token: link.token,
+      name: "コード申請スタッフ",
+      email: "code-staff@example.com",
+      acceptedLegal: true,
+      requestId: "00000000-0000-4000-8000-000000000001",
+      turnstileToken: "turnstile-token",
+    });
+    const { verificationToken } = (await started.json()) as { verificationToken: string };
+
+    expect(started.status).toBe(200);
+    expect(sentSubjects).toHaveLength(1);
+    await expect(
+      asManager.query(api.staffRegistration.queries.getPendingRequests, { expectedOrganizationId, shopId }),
+    ).resolves.toEqual([]);
+
+    // Act: 届いたコードを入力すると申請になる。
+    await vi.advanceTimersByTimeAsync(90_000);
+    const confirmedAt = Date.now();
+    const code = /確認コード (\d{6})$/.exec(sentSubjects[0] ?? "")?.[1];
+    const confirmed = await postJson("/staff-registration/verification/confirm", {
+      token: link.token,
+      verificationToken,
+      code,
+    });
+
+    expect(confirmed.status).toBe(200);
+    const pending = await asManager.query(api.staffRegistration.queries.getPendingRequests, {
+      expectedOrganizationId,
+      shopId,
+    });
+    expect(pending.map((request) => ({ name: request.name, email: request.email }))).toEqual([
+      { name: "コード申請スタッフ", email: "code-staff@example.com" },
+    ]);
+
+    // Act: 承認すると、コードを確認した時刻の同意がスタッフへ引き継がれる。
+    const { staffId } = await asManager.mutation(api.staffRegistration.mutations.approveRequest, {
+      requestId: pending[0]._id,
+      expectedOrganizationId,
+      shopId,
+    });
+
+    const state = await t.run(async (ctx) => ({
+      requests: await ctx.db.query("staffRegistrationRequests").collect(),
+      verifications: await ctx.db.query("staffRegistrationEmailVerifications").collect(),
+      consents: await ctx.db
+        .query("legalConsentStates")
+        .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+        .collect(),
+    }));
+    expect(
+      state.requests.map(({ status, approvedStaffId, emailVerifiedAt, consentedAt }) => ({
+        status,
+        approvedStaffId,
+        emailVerifiedAt,
+        consentedAt,
+      })),
+    ).toEqual([
+      { status: "approved", approvedStaffId: staffId, emailVerifiedAt: confirmedAt, consentedAt: confirmedAt },
+    ]);
+    expect(state.verifications).toEqual([]);
+    expect(state.consents.map(({ method, consentedAt }) => ({ method, consentedAt }))).toEqual([
+      { method: "staff_registration", consentedAt: confirmedAt },
+    ]);
   });
 
   it("登録リンクを再発行しても既存の承認待ち申請を承認でき、旧linkだけを無効化する", async () => {

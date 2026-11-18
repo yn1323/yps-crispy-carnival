@@ -18,6 +18,8 @@ import {
   STAFF_REGISTRATION_IP_SHORT_LIMIT,
   STAFF_REGISTRATION_LINK_DAILY_LIMIT,
   STAFF_REGISTRATION_LINK_SHORT_LIMIT,
+  STAFF_REGISTRATION_VERIFICATION_GLOBAL_SHORT_LIMIT,
+  STAFF_REGISTRATION_VERIFICATION_IP_SHORT_LIMIT,
 } from "../constants";
 
 export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
@@ -359,5 +361,20 @@ export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
     rate: STAFF_REGISTRATION_GLOBAL_SHORT_LIMIT,
     period: MINUTE_MS,
     capacity: STAFF_REGISTRATION_GLOBAL_SHORT_LIMIT,
+  },
+
+  // 確認コードの照合と再送の入口。総当たりは確認待ちごとの試行上限で止め、ここでは無効な引換tokenの連打を抑える。
+  staffRegistrationVerificationIpShort: {
+    kind: "token bucket",
+    rate: STAFF_REGISTRATION_VERIFICATION_IP_SHORT_LIMIT,
+    period: MINUTE_MS,
+    capacity: STAFF_REGISTRATION_VERIFICATION_IP_SHORT_LIMIT,
+  },
+
+  staffRegistrationVerificationGlobalShort: {
+    kind: "token bucket",
+    rate: STAFF_REGISTRATION_VERIFICATION_GLOBAL_SHORT_LIMIT,
+    period: MINUTE_MS,
+    capacity: STAFF_REGISTRATION_VERIFICATION_GLOBAL_SHORT_LIMIT,
   },
 });
