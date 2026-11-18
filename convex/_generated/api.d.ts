@@ -14,6 +14,7 @@ import type * as _lib_config from "../_lib/config.js";
 import type * as _lib_dashboardUrl from "../_lib/dashboardUrl.js";
 import type * as _lib_dateFormat from "../_lib/dateFormat.js";
 import type * as _lib_emailFormat from "../_lib/emailFormat.js";
+import type * as _lib_emailSuppression from "../_lib/emailSuppression.js";
 import type * as _lib_errorObservability from "../_lib/errorObservability.js";
 import type * as _lib_functions from "../_lib/functions.js";
 import type * as _lib_httpBody from "../_lib/httpBody.js";
@@ -298,6 +299,7 @@ declare const fullApi: ApiFromModules<{
   "_lib/dashboardUrl": typeof _lib_dashboardUrl;
   "_lib/dateFormat": typeof _lib_dateFormat;
   "_lib/emailFormat": typeof _lib_emailFormat;
+  "_lib/emailSuppression": typeof _lib_emailSuppression;
   "_lib/errorObservability": typeof _lib_errorObservability;
   "_lib/functions": typeof _lib_functions;
   "_lib/httpBody": typeof _lib_httpBody;

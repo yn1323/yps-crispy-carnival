@@ -15,6 +15,7 @@
 | Widen済みの保存形式をNarrowする | [Narrow Migrationの運用](narrow-migrations.md) | forward migration、全ページreadiness、schema Narrowの停止条件 |
 | Analyticsの新generationを構築し旧基盤から切り替える | [Analytics rollout](analytics-rollout.md) | 完全修飾deployment名、bootstrap、invariant、cutover、負荷、旧3テーブルの0件証跡 |
 | LINE設定、Webhook、通知障害を扱う | [LINE通知の運用](line-notification.md) | channel設定、署名、疎通、停止と復旧 |
+| 特定のメールアドレスへの配信を止める | [メールの配信停止](email-suppression.md) | 登録するアドレスの形式、止まる範囲、解除、管理画面のラベル |
 | Convex functionの失敗を調査する | [Convexエラーログの確認](convex-error-observability.md) | PostHog、request ID、安全なcontext、Log Stream設定 |
 | Convex functionのrelease別利用量を比較する | [Convex function利用量の計測](convex-usage-measurement.md) | 完全修飾deployment、commit SHA、期間、total・per-call、best-effortの制約 |
 | 全ページのGTM、GA4、Clarityを確認・公開する | [GA4・GTM・Clarity運用](ga4-gtm.md) | containerのインポート、GA4の保持・拡張計測・カスタム定義・キーイベント、確認、分析、rollback |

@@ -37,6 +37,7 @@ export type Staff = {
   organizationPersonId: Id<"organizationPeople">;
   name: string;
   email: string;
+  isEmailSuppressed: boolean;
   isManager: boolean;
   isLineLinked: boolean;
   isLineFollowing: boolean;

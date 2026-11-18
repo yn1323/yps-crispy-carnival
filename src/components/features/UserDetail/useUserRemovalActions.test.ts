@@ -40,7 +40,14 @@ const removalPreview = {
   fingerprint: "preview-fingerprint",
 };
 const removablePersonData = {
-  person: { id: personId, name: "対象ユーザー", email: "target@example.com", hasLinkedAccount: true },
+  person: {
+    id: personId,
+    name: "対象ユーザー",
+    email: "target@example.com",
+    isEmailSuppressed: false,
+    emailSuppressionReason: null,
+    hasLinkedAccount: true,
+  },
   isSelf: false,
   managerRole: "none",
   hasManagerInvitation: false,

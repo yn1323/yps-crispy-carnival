@@ -1,10 +1,11 @@
-import { Badge, Box, Flex, Stack, Text } from "@chakra-ui/react";
+import { Alert, Badge, Box, Flex, Stack, Text } from "@chakra-ui/react";
 import { LuMessageCircle, LuPencil, LuUserRound } from "react-icons/lu";
 import type { PersonProfileFormData } from "@/src/components/shared/PersonProfileForm";
 import { ReadOnlyNotice } from "@/src/components/shared/ReadOnlyNotice";
 import { Button } from "@/src/components/ui/Button";
 import { DetailPageHeader } from "@/src/components/ui/DetailPageHeader";
 import { DrilldownRow } from "@/src/components/ui/DrilldownRow";
+import { shouldShowEmailSuppression } from "@/src/domains/emailSuppression";
 import type { UserDetailData, UserDetailDialog, UserDetailPanel, UserMembershipChangeInput } from "./types";
 import { UserInformationDialog } from "./UserInformationDialog";
 import { getLineStatusPresentation, UserLineConnectionDialog } from "./UserLineConnectionDialog";
@@ -64,12 +65,18 @@ export function UserDetailView({
   const handleDialogOpenChange = ({ open }: { open: boolean }) => {
     if (!open) actions.onClosePanel();
   };
+  const showEmailSuppression = shouldShowEmailSuppression({
+    isEmailSuppressed: data.person.isEmailSuppressed,
+    canNotifyByLine: data.line.status === "linked_following",
+  });
 
   return (
     <Stack gap={{ base: 4, md: 6 }}>
       <DetailPageHeader title="スタッフ詳細" icon={LuUserRound} onBack={actions.onBack} />
 
-      <UserSummary data={data} />
+      <UserSummary data={data} showEmailSuppression={showEmailSuppression} />
+
+      {showEmailSuppression && <EmailSuppressionNotice reason={data.person.emailSuppressionReason} />}
 
       {!data.canWrite && (
         <ReadOnlyNotice
@@ -215,6 +222,21 @@ function UserLineConnectionRow({
         onClick={onOpen}
       />
     </Box>
+  );
+}
+
+function EmailSuppressionNotice({ reason }: { reason: string | null }) {
+  return (
+    <Alert.Root status="warning" borderRadius="xl" alignItems="flex-start">
+      <Alert.Indicator mt={1} />
+      <Alert.Content minW={0}>
+        <Alert.Title>このメールアドレスへの配信を停止しています</Alert.Title>
+        <Alert.Description whiteSpace="pre-line" overflowWrap="anywhere">
+          {reason ? `理由：${reason}\n` : ""}
+          メールアドレスの変更をお願いします。
+        </Alert.Description>
+      </Alert.Content>
+    </Alert.Root>
   );
 }
 
