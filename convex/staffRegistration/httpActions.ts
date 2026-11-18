@@ -41,7 +41,7 @@ const checkSubmissionRateLimitRef = makeFunctionReference<
   { status: "allowed" | "rate_limited" | "unavailable" }
 >;
 
-type VerificationDelivery = { to: string; shopName: string; idempotencyKey: string } | null;
+type VerificationDelivery = { to: string; shopName: string; idempotencyKey: string; sendCount: number } | null;
 type CodeSentResult = {
   status: "sent";
   resendAvailableAt: number;
@@ -83,9 +83,11 @@ const resendVerificationRef = makeFunctionReference<"mutation", ResendVerificati
   "staffRegistration/emailVerification:resend",
 ) as unknown as FunctionReference<"mutation", "internal", ResendVerificationArgs, ResendVerificationResult>;
 
-const releaseFailedSendRef = makeFunctionReference<"mutation", { handleDigest: string }, null>(
+type ReleaseFailedSendArgs = { handleDigest: string; sendCount: number };
+
+const releaseFailedSendRef = makeFunctionReference<"mutation", ReleaseFailedSendArgs, null>(
   "staffRegistration/emailVerification:releaseFailedSend",
-) as unknown as FunctionReference<"mutation", "internal", { handleDigest: string }, null>;
+) as unknown as FunctionReference<"mutation", "internal", ReleaseFailedSendArgs, null>;
 
 type SendVerificationCodeEmailArgs = { to: string; shopName: string; code: string; idempotencyKey: string };
 type SendVerificationCodeEmailResult = { status: "sent" | "delivery_failed" };
@@ -279,9 +281,10 @@ async function deliverVerificationCode(
   input: { delivery: VerificationDelivery; code: string; handleDigest: string },
 ): Promise<boolean> {
   if (!input.delivery) return true;
+  const { sendCount, ...email } = input.delivery;
   let delivered = false;
   try {
-    const result = await ctx.runAction(sendVerificationCodeEmailRef, { ...input.delivery, code: input.code });
+    const result = await ctx.runAction(sendVerificationCodeEmailRef, { ...email, code: input.code });
     delivered = result.status === "sent";
   } catch {
     delivered = false;
@@ -290,7 +293,7 @@ async function deliverVerificationCode(
   console.error("Staff registration verification email failed", {
     errorCode: "staff_registration_verification_email_failed",
   });
-  await ctx.runMutation(releaseFailedSendRef, { handleDigest: input.handleDigest });
+  await ctx.runMutation(releaseFailedSendRef, { handleDigest: input.handleDigest, sendCount });
   return false;
 }
 

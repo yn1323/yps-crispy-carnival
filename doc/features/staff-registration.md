@@ -46,7 +46,7 @@
 | `internal.staffRegistration.emailVerification.start` | internalMutation | 確認待ちを作り、確認コードの送信先を返す。利用不能なlink・店舗・契約状態と、同じ宛先への60秒以内の送信を結果で区別する |
 | `internal.staffRegistration.emailVerification.confirm` | internalMutation | 確認コードのdigestを照合し、合えばメール確認済みの参加申請を作って確認待ちを削除する。違えば失敗回数を数える |
 | `internal.staffRegistration.emailVerification.resend` | internalMutation | 送信間隔、1回の申請あたりの送信数、メールアドレス別の1日の上限を確認し、確認コードのdigestを差し替える |
-| `internal.staffRegistration.emailVerification.releaseFailedSend` | internalMutation | メールを送れなかったとき、初回の送信なら確認待ちを削除し、再送なら送信間隔の制限を解除する |
+| `internal.staffRegistration.emailVerification.releaseFailedSend` | internalMutation | メールを送れなかったとき、初回の送信なら確認待ちを削除し、再送なら送信間隔の制限を解除する。失敗した送信より後に再送が済んでいれば何も変えない |
 | `internal.staffRegistration.emailVerification.checkIngressRateLimit` | internalMutation | 照合と再送の受付頻度を、globalと設定済みの信頼できるIPのhash単位で制限する |
 | `internal.staffRegistration.emailVerification.pruneExpired` | internalMutation | 確認コードの期限切れから1時間を過ぎた確認待ちを、1時間ごとに削除する |
 | `internal.staffRegistration.actions.sendVerificationCodeEmail` | internalAction | 確認コードのメールをメールproviderへ直接送る |
@@ -78,7 +78,7 @@
 - 確認コードのメールは通知Outboxを通さず、HTTP Actionからメールproviderへ直接送る。  宛先はまだスタッフではなく、届かなければ本人が登録画面から再送するため、通知履歴と要対応Inboxには記録しない。  配信停止に登録されたメールアドレスには送らず、応答は送れた場合と同じにする。  メールを送れなかった場合はエラーを返す。  初回の送信なら確認待ちを削除し、再送なら送信間隔の制限を解除して、60秒を待たずに送り直せるようにする。
 - 確認コードと、ブラウザへ返す引換tokenは、SHA-256のdigestだけを保存する。  引換tokenは確認コードを送ったブラウザだけが持ち、照合と再送の両方で必須にする。  メールアドレスを知っているだけの第三者は、他人の確認待ちの失敗回数や送信回数を消費できない。
 - 確認コードのメールには、店舗名、確認コード、有効期限、心当たりがない場合の案内だけを書く。  申請者が入力した名前は載せず、第三者の宛先へ任意の文面を送る手段にしない。
-- 登録画面は、確認コードの入力待ちを同じタブのsessionStorageに持つ。  メールアプリへ切り替えて戻ったときに再読み込みされても、確認コードの入力から続けられる。  入力画面へ戻って同じ名前とメールアドレスのまま進んだ場合は送り直さず、届いている確認コードの入力へ戻る。
+- 登録画面は、確認コードの入力待ちを同じタブのsessionStorageに持つ。  メールアプリへ切り替えて戻ったときに再読み込みされても、確認コードの入力から続けられる。  入力画面へ戻って同じ名前とメールアドレスのまま進んだ場合は送り直さず、届いている確認コードの入力へ戻る。  再送の上限に達した後は、同じ内容のまま進んでも新しい確認コードを送り直す。
 - 利用規約とプライバシーポリシーへの同意は入力画面のチェックで受け、同意した文書の版を確認待ちへ保存する。  同意の時刻は、確認コードが合って申請になった時刻を記録する。
 - 確認が済まなかった名前とメールアドレスは、確認コードの期限切れから1時間後に削除する。  確認が済んだ場合は、申請を作ると同時に確認待ちを削除する。
 - `staffRegistrationRequests.emailVerifiedAt`は確認コードが合った時刻で、確認コードの導入前に作られた申請は持たない。  導入前の承認待ち申請は、そのまま承認または却下できる。

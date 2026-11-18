@@ -185,8 +185,6 @@ export const sendVerificationCodeEmail = internalAction({
     } catch {
       return { status: "delivery_failed" as const };
     }
-    // メールを実際には送らないDEBUG_MODEのdry-runでだけ、手元で登録を最後まで試せるようコードを出す。
-    if (suppressDelivery) console.log("[notification:dry-run] staff registration verification code", args.code);
     return { status: "sent" as const };
   },
 });

@@ -226,6 +226,32 @@ describe("useStaffRegistrationController", () => {
     expect(mocks.showErrorToast).toHaveBeenCalledTimes(1);
   });
 
+  it("再送の上限に達しても届いているコードは入力でき、入力からやり直すと新しい確認コードを送り直す", async () => {
+    mocks.resendStaffRegistrationCode.mockRejectedValue(
+      new StaffRegistrationApiError("入力からやり直してください", { code: "send_limit" }),
+    );
+    const { result } = renderHook(() => useStaffRegistrationController(TOKEN));
+    await startVerification(result);
+
+    await act(async () => {
+      await result.current.codeStep?.onResend();
+    });
+
+    // 画面は残り、最後に届いたコードを入力できる。
+    expect(result.current.codeStep).toMatchObject({ email: "hanako@example.com" });
+    expect(mocks.showErrorToast).toHaveBeenCalledTimes(1);
+
+    // 同じ内容のまま進んでも使い回さず、新しく送り直す。
+    act(() => result.current.codeStep?.onReviseEmail());
+    act(() => result.current.turnstile.onVerify("turnstile-token-2"));
+    await act(async () => {
+      await result.current.handleSubmit(formData);
+    });
+
+    expect(mocks.startStaffRegistrationVerification).toHaveBeenCalledTimes(2);
+    expect(result.current.codeStep).toMatchObject({ email: "hanako@example.com" });
+  });
+
   it("serverに入力待ちが残っていなければ、入力待ちを消して確認コードを送るところへ戻す", async () => {
     mocks.resendStaffRegistrationCode.mockRejectedValue(
       new StaffRegistrationApiError("入力からやり直してください", { code: "verification_unusable" }),

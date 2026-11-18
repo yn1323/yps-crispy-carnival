@@ -28,7 +28,7 @@ type Verification = Doc<"staffRegistrationEmailVerifications">;
  */
 const deliveryValidator = v.union(
   v.null(),
-  v.object({ to: v.string(), shopName: v.string(), idempotencyKey: v.string() }),
+  v.object({ to: v.string(), shopName: v.string(), idempotencyKey: v.string(), sendCount: v.number() }),
 );
 const sentResultValidator = v.object({
   status: v.literal("sent"),
@@ -82,6 +82,8 @@ async function resolveDelivery(
     shopName: input.shop.name,
     // 同じ送信の再試行でproviderが重複配送しないよう、確認待ちと送信回数から安定したkeyを作る。
     idempotencyKey: `staff-registration-verification-${input.verificationId}-${input.sendCount}`,
+    // 送信に失敗したとき、どの回の送信だったかを後始末へ伝える。
+    sendCount: input.sendCount,
   };
 }
 
@@ -276,9 +278,10 @@ export const resend = internalMutation({
 /**
  * メールproviderへの送信に失敗したとき、届いていないコードのために次の送信を待たせない。
  * 初回の送信なら確認待ちごと消し、再送なら送信間隔だけを解除する。
+ * 失敗した送信より後に再送が済んでいれば、届いている新しいコードを無効にしないよう何も変えない。
  */
 export const releaseFailedSend = internalMutation({
-  args: { handleDigest: v.string() },
+  args: { handleDigest: v.string(), sendCount: v.number() },
   returns: v.null(),
   handler: async (ctx, args) => {
     const verifications = await ctx.db
@@ -287,6 +290,7 @@ export const releaseFailedSend = internalMutation({
       .take(2);
     if (verifications.length !== 1) return null;
     const verification = verifications[0];
+    if (verification.sendCount !== args.sendCount) return null;
     if (verification.sendCount <= 1) {
       await ctx.db.delete(verification._id);
       return null;

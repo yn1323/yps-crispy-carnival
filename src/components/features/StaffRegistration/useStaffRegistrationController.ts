@@ -134,6 +134,9 @@ export function useStaffRegistrationController(token: string | undefined) {
         // serverに入力待ちが残っていないため、確認コードを送るところからやり直す。
         setPending(null);
         setCodeStepOpen(false);
+      } else if (error instanceof StaffRegistrationApiError && error.code === "send_limit") {
+        // 届いているコードは入力できるよう画面は残し、入力からやり直したときは新しく送り直せるようにする。
+        setPending({ ...pending, sendLimitReached: true });
       } else if (error instanceof StaffRegistrationApiError && error.resendAfterMs !== undefined) {
         setPending({ ...pending, resendAvailableAt: Date.now() + error.resendAfterMs });
       }

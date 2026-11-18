@@ -112,6 +112,7 @@ describe("staffRegistration/emailVerification", () => {
 
       await t.mutation(internal.staffRegistration.emailVerification.releaseFailedSend, {
         handleDigest: "handle-failed",
+        sendCount: 1,
       });
 
       expect((await readVerifications(t)).map((verification) => verification._id)).toEqual([other]);
@@ -125,6 +126,7 @@ describe("staffRegistration/emailVerification", () => {
 
       await t.mutation(internal.staffRegistration.emailVerification.releaseFailedSend, {
         handleDigest: "handle-resent",
+        sendCount: 2,
       });
 
       expect(
@@ -142,6 +144,27 @@ describe("staffRegistration/emailVerification", () => {
       ]);
     });
 
+    it("失敗した送信より後に再送が済んでいれば、届いている新しいコードを無効にしない", async () => {
+      const t = convexTest(schema, modules);
+      const shopId = await seedShopId(t, "release_stale");
+      const now = Date.now();
+      // 2通目の送信が遅れている間に、3通目の再送が成功した状態。
+      await seedVerification(t, shopId, "newer", { codeExpiresAt: now + 1_000, sendCount: 3, lastSentAt: now });
+
+      await t.mutation(internal.staffRegistration.emailVerification.releaseFailedSend, {
+        handleDigest: "handle-newer",
+        sendCount: 2,
+      });
+
+      expect(
+        (await readVerifications(t)).map(({ sendCount, lastSentAt, codeExpiresAt }) => ({
+          sendCount,
+          lastSentAt,
+          codeExpiresAt,
+        })),
+      ).toEqual([{ sendCount: 3, lastSentAt: now, codeExpiresAt: now + 1_000 }]);
+    });
+
     it("存在しない引換tokenでは何も変えない", async () => {
       const t = convexTest(schema, modules);
       const shopId = await seedShopId(t, "release_unknown");
@@ -149,6 +172,7 @@ describe("staffRegistration/emailVerification", () => {
 
       await t.mutation(internal.staffRegistration.emailVerification.releaseFailedSend, {
         handleDigest: "handle-unknown",
+        sendCount: 1,
       });
 
       expect((await readVerifications(t)).map((verification) => verification._id)).toEqual([kept]);

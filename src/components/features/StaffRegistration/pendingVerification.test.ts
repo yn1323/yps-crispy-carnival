@@ -48,6 +48,15 @@ describe("確認コードの入力待ちの保存", () => {
     expect(readPendingVerification(storage, "another-registration-token", NOW)).toBeNull();
   });
 
+  it("再送の上限に達したことも、再読み込みをまたいで復元する", () => {
+    const storage = createStorage();
+    const limited = { ...pending, sendLimitReached: true };
+
+    writePendingVerification(storage, REGISTRATION_TOKEN, limited);
+
+    expect(readPendingVerification(storage, REGISTRATION_TOKEN, NOW)).toEqual(limited);
+  });
+
   it("確認コードの期限の直前までは復元し、期限ちょうどからは復元せずに保存値を消す", () => {
     const storage = createStorage();
     writePendingVerification(storage, REGISTRATION_TOKEN, pending);
@@ -93,6 +102,7 @@ describe("canReusePendingVerification", () => {
     ["名前を直した", pending, { name: "田中 華子", email: pending.email }, NOW],
     ["メールアドレスを直した", pending, { name: pending.name, email: "hanako@example.org" }, NOW],
     ["確認コードの期限が切れた", pending, { name: pending.name, email: pending.email }, pending.codeExpiresAt],
+    ["再送の上限に達した", { ...pending, sendLimitReached: true }, { name: pending.name, email: pending.email }, NOW],
   ] as const)("%s場合は使い回さず、確認コードを送り直す", (_label, current, input, now) => {
     expect(canReusePendingVerification(current, input, now)).toBe(false);
   });

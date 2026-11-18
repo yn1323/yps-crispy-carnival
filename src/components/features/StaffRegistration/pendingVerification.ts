@@ -11,6 +11,8 @@ export type PendingStaffRegistrationVerification = {
   verificationToken: string;
   resendAvailableAt: number;
   codeExpiresAt: number;
+  /** これ以上は再送できない。届いているコードは入力できるが、入力からやり直すときは新しく送り直す。 */
+  sendLimitReached?: boolean;
 };
 
 const STORAGE_KEY_PREFIX = "shiftori:staff-registration:pending-verification:v1:";
@@ -37,7 +39,8 @@ function isPendingVerification(value: unknown): value is PendingStaffRegistratio
     typeof candidate.resendAvailableAt === "number" &&
     Number.isFinite(candidate.resendAvailableAt) &&
     typeof candidate.codeExpiresAt === "number" &&
-    Number.isFinite(candidate.codeExpiresAt)
+    Number.isFinite(candidate.codeExpiresAt) &&
+    (candidate.sendLimitReached === undefined || typeof candidate.sendLimitReached === "boolean")
   );
 }
 
@@ -58,6 +61,7 @@ export function readPendingVerification(
         verificationToken: value.verificationToken,
         resendAvailableAt: value.resendAvailableAt,
         codeExpiresAt: value.codeExpiresAt,
+        ...(value.sendLimitReached ? { sendLimitReached: true } : {}),
       };
     }
     storage?.removeItem(storageKey(registrationToken));
@@ -83,6 +87,7 @@ export function writePendingVerification(
 /**
  * 入力画面へ戻って同じ内容のまま進んだ場合は、届いている確認コードをそのまま使える。
  * 送り直すと送信間隔の制限に当たり、手元のコードを入力できる画面も失うため。
+ * 再送の上限に達した入力待ちは使い回さない。使い回すと、新しい確認コードを送れる手段がなくなる。
  */
 export function canReusePendingVerification(
   pending: PendingStaffRegistrationVerification | null,
@@ -91,6 +96,7 @@ export function canReusePendingVerification(
 ): pending is PendingStaffRegistrationVerification {
   return (
     pending !== null &&
+    !pending.sendLimitReached &&
     pending.codeExpiresAt > now &&
     pending.name === input.name &&
     normalizeEmail(pending.email) === normalizeEmail(input.email)
