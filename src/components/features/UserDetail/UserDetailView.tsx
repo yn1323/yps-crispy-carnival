@@ -233,7 +233,7 @@ function EmailSuppressionNotice({ reason }: { reason: string | null }) {
         <Alert.Title>このメールアドレスへの配信を停止しています</Alert.Title>
         <Alert.Description whiteSpace="pre-line" overflowWrap="anywhere">
           {reason ? `理由：${reason}\n` : ""}
-          メールアドレスを変更すると、新しいアドレスへ配信します。
+          メールアドレスの変更をお願いします。
         </Alert.Description>
       </Alert.Content>
     </Alert.Root>
