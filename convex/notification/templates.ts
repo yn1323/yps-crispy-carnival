@@ -966,6 +966,28 @@ export function buildStaffRegistrationOwnerDigestEmailHtml(
   });
 }
 
+// 通知のプレビューだけで読めるよう、件名にも確認コードを入れる。
+export const buildStaffRegistrationVerificationCodeSubject = (code: string) => `確認コード ${code}`;
+
+/**
+ * スタッフ登録のメール確認。申請者が入力した名前は載せず、第三者の宛先へ任意の文面を送る手段にしない。
+ */
+export function buildStaffRegistrationVerificationCodeEmailHtml(params: {
+  shopName: string;
+  code: string;
+  expiresInMinutes: number;
+}): string {
+  const shopName = escapeEmailHtml(params.shopName);
+  const code = escapeEmailHtml(params.code);
+  return renderBrandedEmail({
+    content: `<p style="margin:0 0 16px;font-size:15px;color:#1a202c;">${shopName}のスタッフ登録で使う確認コードです。<br />登録画面に入力すると申請が完了します。</p>
+          <p style="margin:0 0 16px;padding:16px;background-color:#f7fafc;border-radius:8px;text-align:center;font-size:28px;font-weight:700;letter-spacing:6px;color:#1a202c;">${code}</p>
+          <p style="margin:0 0 24px;font-size:13px;color:#718096;">確認コードの有効期限は${params.expiresInMinutes}分です。</p>
+          <p style="margin:0;font-size:13px;color:#718096;">このメールに心当たりがない場合は、何もせずに破棄してください。</p>`,
+    footer: { kind: "staffReplyOnly" },
+  });
+}
+
 export const NOTIFICATION_FAILURE_REMINDER_SUBJECT = "送れなかった通知があります";
 
 const NOTIFICATION_FAILURE_TITLE = "⚠️ 一部通知に失敗";

@@ -1,8 +1,14 @@
 import { Box, Checkbox, Circle, Field, HStack, Stack, Text, VStack } from "@chakra-ui/react";
 import type { FormEventHandler, ReactNode } from "react";
 import type { UseFormRegisterReturn } from "react-hook-form";
-import { LuCheck, LuClock, LuUserPlus } from "react-icons/lu";
-import { EMAIL_MAX_LENGTH, PERSON_NAME_MAX_LENGTH } from "@/convex/constants";
+import { LuCheck, LuClock, LuMail, LuUserPlus } from "react-icons/lu";
+import {
+  EMAIL_MAX_LENGTH,
+  MINUTE_MS,
+  PERSON_NAME_MAX_LENGTH,
+  STAFF_REGISTRATION_VERIFICATION_CODE_LENGTH,
+  STAFF_REGISTRATION_VERIFICATION_CODE_TTL_MS,
+} from "@/convex/constants";
 import { LegalDocumentLink } from "@/src/components/shared/LegalDocumentLink";
 import { StaffGuideContent } from "@/src/components/shared/StaffGuideContent";
 import { TurnstileWidget } from "@/src/components/shared/TurnstileWidget";
@@ -13,10 +19,27 @@ import { Input } from "@/src/components/ui/FormControls";
 const STAFF_REGISTRATION_TROUBLE_GUIDANCE =
   "解決しない場合は、シフトの管理者に名前とメールアドレスを伝え、スタッフ登録を依頼してください。";
 
+const VERIFICATION_CODE_LENGTH_LABEL = `${STAFF_REGISTRATION_VERIFICATION_CODE_LENGTH}桁`;
+// 確認コードのメールの送信元。迷惑メールフォルダや受信設定で探せるよう、画面に出す。
+const VERIFICATION_SENDER_EMAIL = "noreply@shiftori.app";
+const VERIFICATION_CODE_TTL_LABEL = `${STAFF_REGISTRATION_VERIFICATION_CODE_TTL_MS / MINUTE_MS}分`;
+
 type Props = {
   state:
     | { kind: "expired" }
     | { kind: "submitted" }
+    | {
+        kind: "code";
+        email: string;
+        codeRegistration: UseFormRegisterReturn<"code">;
+        codeError?: string;
+        isConfirming: boolean;
+        isResending: boolean;
+        resendRemainingSeconds: number;
+        onConfirmCode: FormEventHandler<HTMLFormElement>;
+        onResend: () => Promise<void> | void;
+        onReviseEmail: () => void;
+      }
     | {
         kind: "confirmation";
         confirmData: { name: string; email: string };
@@ -80,17 +103,111 @@ export function StaffRegistrationView({ state }: Props) {
     );
   }
 
+  if (state.kind === "code") {
+    const isBusy = state.isConfirming || state.isResending;
+    const isResendWaiting = state.resendRemainingSeconds > 0;
+    return (
+      <RegistrationGuideShell>
+        <PanelFrame tone="action" icon={<LuMail />} title="確認コードを入力してください">
+          <VStack align="stretch" gap={5}>
+            <Stack gap={2} bg="white" borderWidth="1px" borderColor="border.default" borderRadius="lg" p={4}>
+              <ConfirmRow label="メールアドレス" value={state.email} />
+              <Button
+                type="button"
+                variant="plain"
+                size="sm"
+                colorPalette="teal"
+                alignSelf="flex-start"
+                h="auto"
+                p={0}
+                textDecoration="underline"
+                disabled={isBusy}
+                onClick={state.onReviseEmail}
+              >
+                メールアドレスを修正する
+              </Button>
+            </Stack>
+
+            <Stack gap={3} fontSize="sm" color="fg.muted" lineHeight="tall">
+              <Text>
+                {VERIFICATION_SENDER_EMAIL} から確認メールを送りました。
+                <br />
+                メールに記載の数字{VERIFICATION_CODE_LENGTH_LABEL}を入力してください。
+              </Text>
+              <Text>確認コードの有効期限は{VERIFICATION_CODE_TTL_LABEL}です。</Text>
+            </Stack>
+
+            <form id="staff-registration-code-form" onSubmit={state.onConfirmCode} noValidate>
+              <Stack gap={5}>
+                <Field.Root invalid={!!state.codeError}>
+                  <Field.Label>確認コード</Field.Label>
+                  <Input
+                    {...state.codeRegistration}
+                    bg="white"
+                    size="lg"
+                    textAlign="center"
+                    letterSpacing="0.3em"
+                    type="number"
+                    // 数値入力は矢印キーとホイールで値が増減する。6桁で自動申請するため、意図しない別のコードを送らない。
+                    onKeyDown={(event) => {
+                      if (event.key === "ArrowUp" || event.key === "ArrowDown") event.preventDefault();
+                    }}
+                    onWheel={(event) => event.currentTarget.blur()}
+                    inputMode="numeric"
+                    autocompletePolicy="auth"
+                    autoComplete="one-time-code"
+                    maxLength={STAFF_REGISTRATION_VERIFICATION_CODE_LENGTH}
+                    placeholder="123456"
+                  />
+                  {state.codeError && <Field.ErrorText whiteSpace="pre-line">{state.codeError}</Field.ErrorText>}
+                </Field.Root>
+
+                <Stack gap={2}>
+                  <Button
+                    type="submit"
+                    form="staff-registration-code-form"
+                    colorPalette="teal"
+                    size="lg"
+                    minH="48px"
+                    borderRadius="lg"
+                    loading={state.isConfirming}
+                    disabled={state.isResending}
+                  >
+                    申請する
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    colorPalette="gray"
+                    size="sm"
+                    loading={state.isResending}
+                    disabled={isResendWaiting || state.isConfirming}
+                    onClick={state.onResend}
+                  >
+                    {isResendWaiting
+                      ? `確認コードを再送する（あと${state.resendRemainingSeconds}秒）`
+                      : "確認コードを再送する"}
+                  </Button>
+                </Stack>
+
+                <Text fontSize="xs" color="fg.muted" lineHeight="tall">
+                  メールが届かない場合は、迷惑メールフォルダを確認してください。
+                  <br />
+                  {STAFF_REGISTRATION_TROUBLE_GUIDANCE}
+                </Text>
+              </Stack>
+            </form>
+          </VStack>
+        </PanelFrame>
+      </RegistrationGuideShell>
+    );
+  }
+
   if (state.kind === "confirmation") {
     return (
       <RegistrationGuideShell>
         <PanelFrame tone="action" icon={<LuUserPlus />} title="申請内容を確認してください">
           <VStack align="stretch" gap={5}>
-            <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-              承認後、LINE未連携の場合はこのメールアドレスへ連携の案内を送ります。
-              <br />
-              募集中のシフトがある場合は、提出案内も送ります。
-            </Text>
-
             <Stack gap={4} bg="white" borderWidth="1px" borderColor="border.default" borderRadius="lg" p={4}>
               <ConfirmRow label="名前" value={state.confirmData.name} />
               <ConfirmRow label="メールアドレス" value={state.confirmData.email} />
@@ -141,7 +258,7 @@ export function StaffRegistrationView({ state }: Props) {
                 loading={state.isSubmitting}
                 onClick={state.onSubmit}
               >
-                申請する
+                確認に進む
               </Button>
             </Stack>
           </VStack>

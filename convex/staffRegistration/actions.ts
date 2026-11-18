@@ -8,16 +8,25 @@ import { RESEND_FROM_EMAIL } from "../_lib/config";
 import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import { observedInternalAction as internalAction } from "../_lib/errorObservability";
 import { selectChannel } from "../_lib/notification";
-import { STAFF_REGISTRATION_DAILY_DIGEST_PENDING_PAGE_SIZE } from "../constants";
+import { getNotificationDeliveryBehavior } from "../_lib/notificationDelivery";
+import { getResendClient, sendResendEmail } from "../_lib/resend";
+import {
+  MINUTE_MS,
+  STAFF_REGISTRATION_DAILY_DIGEST_PENDING_PAGE_SIZE,
+  STAFF_REGISTRATION_VERIFICATION_CODE_TTL_MS,
+} from "../constants";
 import {
   buildStaffRegistrationOwnerDigestEmailHtml,
   buildStaffRegistrationOwnerDigestLineFlexMessage,
   buildStaffRegistrationOwnerDigestLineText,
+  buildStaffRegistrationVerificationCodeEmailHtml,
+  buildStaffRegistrationVerificationCodeSubject,
   STAFF_REGISTRATION_OWNER_DIGEST_SUBJECT,
 } from "../notification/templates";
 import { emailPayload, enqueueEmail, enqueueLine, linePayload } from "../notificationOutbox/enqueue";
 import { STAFF_REGISTRATION_OWNER_DIGEST_CONTEXT } from "../notificationOutbox/shopManagerNotification";
 import { lineRecipientOutboxSnapshot } from "../notificationOutbox/types";
+import { STAFF_REGISTRATION_VERIFICATION_CODE_CONTEXT } from "./verificationCode";
 
 type PendingRequestShopIdsPage = {
   page: Id<"shops">[];
@@ -141,3 +150,41 @@ async function sendOwnerDigestForShop(ctx: ActionCtx, shopId: Id<"shops">) {
     });
   }
 }
+
+/**
+ * 参加申請の確認コードを、入力画面で待っている本人へすぐに送る。
+ * 宛先はまだスタッフではなく、届かなければ本人が画面から再送するため、通知Outboxと要対応Inboxは通さない。
+ * 確認コードはDBへ保存せず、この呼び出しの引数だけで受け渡す。
+ */
+export const sendVerificationCodeEmail = internalAction({
+  args: {
+    to: v.string(),
+    shopName: v.string(),
+    code: v.string(),
+    idempotencyKey: v.string(),
+  },
+  returns: v.object({ status: v.union(v.literal("sent"), v.literal("delivery_failed")) }),
+  handler: async (_ctx, args) => {
+    const suppressDelivery = getNotificationDeliveryBehavior() === "dry-run";
+    try {
+      await sendResendEmail(
+        getResendClient({ suppressDelivery }),
+        {
+          from: formatResendFrom(args.shopName, RESEND_FROM_EMAIL),
+          to: args.to,
+          subject: formatResendSubject(args.shopName, buildStaffRegistrationVerificationCodeSubject(args.code)),
+          html: buildStaffRegistrationVerificationCodeEmailHtml({
+            shopName: args.shopName,
+            code: args.code,
+            expiresInMinutes: STAFF_REGISTRATION_VERIFICATION_CODE_TTL_MS / MINUTE_MS,
+          }),
+        },
+        STAFF_REGISTRATION_VERIFICATION_CODE_CONTEXT,
+        { idempotencyKey: args.idempotencyKey },
+      );
+    } catch {
+      return { status: "delivery_failed" as const };
+    }
+    return { status: "sent" as const };
+  },
+});

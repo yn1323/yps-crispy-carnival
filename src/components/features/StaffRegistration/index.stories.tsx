@@ -7,6 +7,7 @@ import { createDeferred } from "@/src/devtools/createDeferred";
 import { installTurnstileMock, type TurnstileMock } from "@/src/devtools/turnstileMock";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { StaffRegistrationFlow } from "./StaffRegistrationFlow";
+import type { StaffRegistrationCodeStep } from "./types";
 
 const documents = {
   terms: { title: "スタッフ向け利用規約", path: "/terms/staff" },
@@ -70,7 +71,7 @@ export const ConfirmVerifying: Story = {
   beforeEach: withTurnstileMock,
 };
 
-/** セキュリティ確認が終わる前に、申請するを押した状態。 */
+/** セキュリティ確認が終わる前に、確認に進むを押した状態。 */
 export const ConfirmVerificationRequired: Story = {
   tags: ["vrt-mobile1"],
   args: { ...ConfirmVerifying.args, verificationError: VERIFICATION_REQUIRED_MESSAGE },
@@ -86,6 +87,37 @@ export const ConfirmVerificationFailed: Story = {
     await waitFor(() => expect(turnstileMock.renders).toHaveLength(1));
     turnstileMock.latestRender()["error-callback"]("300030");
     await within(canvasElement).findByRole("alert");
+  },
+};
+
+const codeStep: StaffRegistrationCodeStep = {
+  email: "hanako@example.com",
+  // 残り秒数は時刻で変わるため、見た目を撮るStoryでは再送できる状態に固定する。
+  resendAvailableAt: 0,
+  codeError: null,
+  isConfirming: false,
+  isResending: false,
+  onConfirmCode: () => {},
+  onResend: () => {},
+  onReviseEmail: () => {},
+  onCodeChange: () => {},
+};
+
+/** 確認コードのメールを送り、入力を待っている状態。 */
+export const CodeEntry: Story = {
+  tags: ["vrt-mobile1"],
+  args: { ...Form.args, codeStep },
+};
+
+/** 入力した確認コードが違っていた状態。 */
+export const CodeEntryMismatch: Story = {
+  tags: ["vrt-mobile1"],
+  args: {
+    ...Form.args,
+    codeStep: {
+      ...codeStep,
+      codeError: "確認コードが違います。\nメールに届いた6桁の数字を確認してください。",
+    },
   },
 };
 
@@ -141,7 +173,7 @@ export const InteractiveDoubleSubmitGuard: Story = {
   render: () => <GuardedConfirmStory />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const submit = canvas.getByRole("button", { name: "申請する" });
+    const submit = canvas.getByRole("button", { name: "確認に進む" });
     fireEvent.click(submit);
     fireEvent.click(submit);
 
@@ -152,6 +184,65 @@ export const InteractiveDoubleSubmitGuard: Story = {
     await waitFor(() => expect(submit).toBeEnabled());
   },
 };
+
+export const InteractiveCodeEntry: Story = {
+  parameters: { screenshot: { skip: true } },
+  args: Form.args,
+  render: () => <CodeEntryStory />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const codeInput = canvas.getByRole("spinbutton", { name: "確認コード" });
+
+    // 送った直後は、残り秒数を出して再送を止める。
+    await expect(canvas.getByRole("button", { name: /^確認コードを再送する（あと\d+秒）$/ })).toBeDisabled();
+
+    // 桁が足りないうちは照合せず、押した場合は理由を出す。
+    await userEvent.type(codeInput, "12345");
+    await expect(canvas.queryByTestId("registration-confirmed-code")).not.toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: "申請する" }));
+    await expect(await canvas.findByText("6桁の数字を入力してください")).toBeInTheDocument();
+    await expect(canvas.queryByTestId("registration-confirmed-code")).not.toBeInTheDocument();
+
+    // 6桁そろった時点で、申請するを押さなくても照合へ渡す。
+    await userEvent.type(codeInput, "6");
+    await expect(await canvas.findByTestId("registration-confirmed-code")).toHaveTextContent("123456");
+
+    await userEvent.click(canvas.getByRole("button", { name: "メールアドレスを修正する" }));
+    await expect(await canvas.findByRole("textbox", { name: "名前" })).toHaveValue("田中 花子");
+    await expect(canvas.getByRole("textbox", { name: "メールアドレス" })).toHaveValue("hanako@example.com");
+  },
+};
+
+function CodeEntryStory() {
+  const [isCodeStepOpen, setCodeStepOpen] = useState(true);
+  const [confirmedCode, setConfirmedCode] = useState<string | null>(null);
+  const [resendAvailableAt] = useState(() => Date.now() + 60_000);
+
+  return (
+    <>
+      <StaffRegistrationFlow
+        data={{ status: "ok", shopName: "居酒屋たなか", documents }}
+        initialFormValues={{ name: "田中 花子", email: "hanako@example.com" }}
+        codeStep={
+          isCodeStepOpen
+            ? {
+                ...codeStep,
+                resendAvailableAt,
+                onConfirmCode: setConfirmedCode,
+                onReviseEmail: () => setCodeStepOpen(false),
+              }
+            : null
+        }
+        onSubmit={() => {}}
+      />
+      {confirmedCode !== null ? (
+        <output data-testid="registration-confirmed-code" hidden>
+          {confirmedCode}
+        </output>
+      ) : null}
+    </>
+  );
+}
 
 function GuardedConfirmStory() {
   const [submitCount, setSubmitCount] = useState(0);

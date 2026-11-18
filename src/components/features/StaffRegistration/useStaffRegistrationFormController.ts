@@ -6,10 +6,12 @@ import { suggestEmailTypoFix } from "./emailTypo";
 
 type Params = {
   initialConfirmData?: StaffRegistrationFormData;
+  /** 再読み込み後に確認コードの入力から戻るとき、入力済みの名前とメールアドレスを復元する。 */
+  initialFormValues?: Pick<StaffRegistrationFormData, "name" | "email">;
   onSubmit: (data: StaffRegistrationFormData) => Promise<void> | void;
 };
 
-export function useStaffRegistrationFormController({ initialConfirmData, onSubmit }: Params) {
+export function useStaffRegistrationFormController({ initialConfirmData, initialFormValues, onSubmit }: Params) {
   const [confirmData, setConfirmData] = useState<StaffRegistrationFormData | null>(initialConfirmData ?? null);
   const {
     register,
@@ -19,7 +21,7 @@ export function useStaffRegistrationFormController({ initialConfirmData, onSubmi
     formState: { errors },
   } = useForm<StaffRegistrationFormData>({
     resolver: zodResolver(staffRegistrationFormSchema),
-    defaultValues: { name: "", email: "", acceptedLegal: false },
+    defaultValues: { name: initialFormValues?.name ?? "", email: initialFormValues?.email ?? "", acceptedLegal: false },
   });
   const acceptedLegal = watch("acceptedLegal");
   const typoSuggestion = suggestEmailTypoFix(watch("email"));
