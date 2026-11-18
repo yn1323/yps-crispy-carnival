@@ -54,7 +54,12 @@ export const WithExcluded: Story = {
 
 export const WithEmailSuppressed: Story = {
   args: {
-    staffs: [mockStaffs[0], { ...mockStaffs[1], isEmailSuppressed: true }, mockStaffs[2]],
+    // LINE連携済みの1人目は、配信停止でもバッジを出さない。
+    staffs: [
+      { ...mockStaffs[0], isEmailSuppressed: true },
+      { ...mockStaffs[1], isEmailSuppressed: true },
+      mockStaffs[2],
+    ],
   },
 };
 

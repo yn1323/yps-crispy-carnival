@@ -5,6 +5,7 @@ import type { Staff } from "@/src/components/features/Dashboard/types";
 import { StaffListRow, type StaffListRowBadge } from "@/src/components/shared/StaffListRow";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
+import { shouldShowEmailSuppression } from "@/src/domains/emailSuppression";
 import { useScrollToListItem } from "@/src/hooks/useScrollToListItem";
 import { DASHBOARD_TOUR_TARGET } from "../dashboardTourTargets";
 
@@ -114,10 +115,11 @@ export const StaffRoster = ({
             {staffs.map((staff) => {
               const badges: StaffListRowBadge[] = [];
               if (staff.isManager) badges.push({ kind: "role" });
-              if (staff.isLineLinked && staff.isLineFollowing) {
-                badges.push({ kind: "line", status: "linked_following" });
+              const canNotifyByLine = staff.isLineLinked && staff.isLineFollowing;
+              if (canNotifyByLine) badges.push({ kind: "line", status: "linked_following" });
+              if (shouldShowEmailSuppression({ isEmailSuppressed: staff.isEmailSuppressed, canNotifyByLine })) {
+                badges.push({ kind: "emailSuppressed" });
               }
-              if (staff.isEmailSuppressed) badges.push({ kind: "emailSuppressed" });
               if (staff.excludedFromShift) badges.push({ kind: "shiftExcluded" });
 
               return (

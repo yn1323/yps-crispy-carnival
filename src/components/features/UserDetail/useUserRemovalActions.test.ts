@@ -45,6 +45,7 @@ const removablePersonData = {
     name: "対象ユーザー",
     email: "target@example.com",
     isEmailSuppressed: false,
+    emailSuppressionReason: null,
     hasLinkedAccount: true,
   },
   isSelf: false,

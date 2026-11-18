@@ -120,7 +120,7 @@ function StaffBadge({ badge, role }: { badge: StaffListRowBadge; role: StaffList
   }
 
   if (badge.kind === "emailSuppressed") {
-    return <StatusBadge colorPalette="orange">メール配信停止</StatusBadge>;
+    return <StatusBadge colorPalette="orange">メール配信停止中</StatusBadge>;
   }
 
   return <StatusBadge colorPalette="gray">シフト対象外</StatusBadge>;

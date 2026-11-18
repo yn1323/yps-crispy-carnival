@@ -3,9 +3,10 @@ import type { UserDetailData } from "./types";
 
 type Props = {
   data: UserDetailData;
+  showEmailSuppression: boolean;
 };
 
-export function UserSummary({ data }: Props) {
+export function UserSummary({ data, showEmailSuppression }: Props) {
   const initial = data.person.name.trim().charAt(0) || "?";
 
   return (
@@ -45,9 +46,9 @@ export function UserSummary({ data }: Props) {
               <Text fontSize="sm" color="fg.muted" minW={0} truncate>
                 {data.person.email}
               </Text>
-              {data.person.isEmailSuppressed && (
+              {showEmailSuppression && (
                 <Badge colorPalette="orange" variant="subtle" borderRadius="full" px={2.5}>
-                  メール配信停止
+                  メール配信停止中
                 </Badge>
               )}
             </HStack>

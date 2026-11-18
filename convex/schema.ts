@@ -1044,7 +1044,9 @@ const schema = defineSchema({
   // emailNormalizedは前後の空白なし・小文字で登録する。一致する宛先のメールはOutboxで送信前に取り消す。
   emailSuppressions: defineTable({
     emailNormalized: v.string(),
-    // 登録理由などの運用メモ。画面と通知には使わない。
+    // 配信停止の理由。そのアドレスを持つスタッフの詳細画面で、店舗の管理者に表示する。申告者の氏名などの個人情報は書かない。
+    reason: v.optional(v.string()),
+    // 運用者だけが読むメモ。画面と通知には使わない。
     note: v.optional(v.string()),
   }).index("by_emailNormalized", ["emailNormalized"]),
 
