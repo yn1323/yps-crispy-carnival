@@ -9,6 +9,7 @@ export type StaffListRowRole = "manager" | "staff";
 export type StaffListRowBadge =
   | { kind: "role" }
   | { kind: "line"; status: StaffListRowLineStatus }
+  | { kind: "emailSuppressed" }
   | { kind: "shiftExcluded" };
 
 export type StaffListRowDetail = { kind: "shopNames"; names: readonly string[] } | { kind: "email"; value: string };
@@ -30,6 +31,7 @@ export function StaffListRow({ id, name, role, detail, badges = [], onOpen }: Pr
   const hasNoShopMembership = detail?.kind === "shopNames" && detail.names.length === 0;
   const lineBadge = badges.find((badge) => badge.kind === "line");
   const linePresentation = lineBadge?.kind === "line" ? getLinePresentation(lineBadge.status) : null;
+  const isEmailSuppressed = badges.some((badge) => badge.kind === "emailSuppressed");
   const isShiftExcluded = badges.some((badge) => badge.kind === "shiftExcluded");
   const hasBadges = hasNoShopMembership || badges.length > 0;
 
@@ -94,6 +96,7 @@ export function StaffListRow({ id, name, role, detail, badges = [], onOpen }: Pr
         <>
           {roleLabel}です。{linePresentation ? `${linePresentation.description}。` : ""}
           {shopNames ? (shopNames === "なし" ? "所属店舗はありません。" : `所属店舗は${shopNames}です。`) : ""}
+          {isEmailSuppressed ? "メールは配信停止中です。" : ""}
           {isShiftExcluded ? "シフト対象外です。" : ""}
         </>
       }
@@ -114,6 +117,10 @@ function StaffBadge({ badge, role }: { badge: StaffListRowBadge; role: StaffList
   if (badge.kind === "line") {
     const presentation = getLinePresentation(badge.status);
     return <StatusBadge colorPalette={presentation.colorPalette}>{presentation.label}</StatusBadge>;
+  }
+
+  if (badge.kind === "emailSuppressed") {
+    return <StatusBadge colorPalette="orange">メール配信停止</StatusBadge>;
   }
 
   return <StatusBadge colorPalette="gray">シフト対象外</StatusBadge>;

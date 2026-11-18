@@ -36,6 +36,7 @@ const data: UserShopDetailData = {
     id: personId,
     name: "田中 花子",
     email: "hanako.tanaka@example.com",
+    isEmailSuppressed: false,
     hasLinkedAccount: false,
   },
   isSelf: false,

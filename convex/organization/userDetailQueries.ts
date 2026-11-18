@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
 import { dateJST } from "../_lib/dateFormat";
+import { isEmailSuppressed } from "../_lib/emailSuppression";
 import { managerQuery } from "../_lib/functions";
 import { ORGANIZATION_USER_DETAIL_SHOP_SCAN_LIMIT, ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT } from "../constants";
 import { getOrganizationPersonLineState } from "../line/service";
@@ -23,6 +24,7 @@ export const userDetailValidator = v.object({
     id: v.id("organizationPeople"),
     name: v.string(),
     email: v.string(),
+    isEmailSuppressed: v.boolean(),
     hasLinkedAccount: v.boolean(),
   }),
   isSelf: v.boolean(),
@@ -289,6 +291,7 @@ export async function getOrganizationUserDetail(
       id: person._id,
       name: person.name,
       email: person.email,
+      isEmailSuppressed: await isEmailSuppressed(ctx, person.email),
       hasLinkedAccount: person.userId !== undefined,
     },
     isSelf: person._id === organizationMember.personId,

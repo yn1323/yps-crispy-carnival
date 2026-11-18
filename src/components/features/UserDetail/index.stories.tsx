@@ -70,6 +70,7 @@ const baseData: UserDetailData = {
     id: personId,
     name: "田中 花子",
     email: "hanako.tanaka@example.com",
+    isEmailSuppressed: false,
     hasLinkedAccount: true,
   },
   isSelf: false,
@@ -244,6 +245,16 @@ export const NoShopMemberships: Story = {
 };
 
 export const MainViewMobile: Story = {
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+};
+
+export const EmailSuppressed: Story = {
+  args: { data: { ...baseData, person: { ...baseData.person, isEmailSuppressed: true } } },
+};
+
+export const EmailSuppressedMobile: Story = {
+  ...EmailSuppressed,
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
 };

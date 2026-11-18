@@ -3,6 +3,7 @@ import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { getDeadlineCutoff, monthJST } from "../_lib/dateFormat";
+import { isEmailSuppressed } from "../_lib/emailSuppression";
 import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { managerLimitRecoveryMutation, managerMutation } from "../_lib/functions";
 import { isNotificationDeliverySuppressed } from "../_lib/notificationDelivery";
@@ -1297,6 +1298,13 @@ async function getNotificationEligibility(
   }
   if (!notification.shopId && !notification.organizationId) {
     return { cancelReason: "invalid_scope" };
+  }
+  // 配信停止の宛先には、通知の種類や契約状態に関係なくメールを送らない。
+  if (
+    (notification.payload.kind === "email" || notification.payload.kind === "organizationManagerInvitationEmail") &&
+    (await isEmailSuppressed(ctx, notification.payload.to))
+  ) {
+    return { cancelReason: "recipient_suppressed" };
   }
 
   const shop = notification.shopId ? await ctx.db.get(notification.shopId) : null;

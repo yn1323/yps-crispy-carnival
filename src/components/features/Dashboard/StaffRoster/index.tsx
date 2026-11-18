@@ -117,6 +117,7 @@ export const StaffRoster = ({
               if (staff.isLineLinked && staff.isLineFollowing) {
                 badges.push({ kind: "line", status: "linked_following" });
               }
+              if (staff.isEmailSuppressed) badges.push({ kind: "emailSuppressed" });
               if (staff.excludedFromShift) badges.push({ kind: "shiftExcluded" });
 
               return (

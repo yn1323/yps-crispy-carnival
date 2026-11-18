@@ -8,7 +8,7 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 
 ### バックエンド（`convex/`）
 
-- `convex/schema.ts` — `notificationOutbox` / `notificationHistory` / `notificationDeliveryEvents` / `notificationFailureInbox` / `notificationResendDelayedFailureDeadlines` / `notificationUsage` テーブル定義
+- `convex/schema.ts` — `notificationOutbox` / `notificationHistory` / `notificationDeliveryEvents` / `notificationFailureInbox` / `notificationResendDelayedFailureDeadlines` / `notificationUsage` / `emailSuppressions` テーブル定義
 - `convex/notificationOutbox/schemas.ts` — outbox payload / status / channel validator
 - `convex/notificationOutbox/types.ts` — enqueue helper 用の型
 - `convex/notificationOutbox/enqueue.ts` — email / LINE ジョブ作成 helper
@@ -22,6 +22,7 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 - `convex/notificationOutbox/resendWebhook.ts` — Resend provider webhook を署名検証し、配信完了・配送遅延・失敗を履歴と現在状態へ反映
 - `convex/crons.ts` — 1分ごとの outbox / fanout / 配送遅延期限回収、古い配送イベントログ削除、古いFailureInboxの期限切れ化
 - `convex/_lib/resend.ts` — Resend 送信間隔・retry header 対応・idempotency key 指定
+- `convex/_lib/emailSuppression.ts` — 配信停止に登録された宛先かの判定
 - `convex/_lib/resendWebhookSignature.ts` — Resend / Svix webhook 署名検証
 - `convex/_lib/lineClient.ts` — LINE Push message送信、`X-Line-Retry-Key` 付与、エラー分類
 - `convex/_lib/shopManagerRecipients.ts` — 組織人物を正本に店舗の有効管理者とLINE連携を解決する
@@ -116,6 +117,7 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 - 確定通知のview linkは同じoperation × staffでtokenを再利用する。link作成後からOutbox作成前に24時間を超えて中断した場合だけ同じtokenの期限を延長し、Outbox作成後は保存済みpayloadとのURL不一致を避けるため延長しない。
 - `recruitmentId`を持つ通知はprovider呼び出し直前に募集の存在、論理削除、スタッフのshift対象性を再確認し、削除済みなら`recruitment_inactive`、対象外なら`recipient_inactive`でcancelする。
 - worker の高頻度な status 更新と衝突しないよう、`enqueue` は重複排除に必要な `dedupeKey` 範囲だけを読む。
+- `emailSuppressions`に登録された宛先のメールは、`enqueue`でジョブを作らず、登録前に作られたジョブはprovider呼び出し直前に`recipient_suppressed`でcancelする。宛先は前後の空白を除いて小文字にそろえて照合する。LINEジョブは対象外で、LINEからメールへのfallbackは同じ判定を通る。登録は運用者がConvex Dashboardから行う（[メールの配信停止](../manual/email-suppression.md)）。
 
 ## 管理者通知の宛先
 

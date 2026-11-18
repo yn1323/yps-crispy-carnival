@@ -17,8 +17,8 @@ export const DEVELOPMENT_SEED_SCENARIO_KEYS = [
   "trial-daily",
 ] as const;
 
-export const DEVELOPMENT_SEED_CONTRACT_VERSION = "development-seed-v6";
-export const DEVELOPMENT_SEED_EXPECTED_TABLE_COUNT = 58;
+export const DEVELOPMENT_SEED_CONTRACT_VERSION = "development-seed-v7";
+export const DEVELOPMENT_SEED_EXPECTED_TABLE_COUNT = 59;
 
 export type DevelopmentSeedScenarioKey = (typeof DEVELOPMENT_SEED_SCENARIO_KEYS)[number];
 
@@ -356,6 +356,7 @@ export const DEVELOPMENT_SEED_TABLE_COVERAGE = {
   notificationFanoutOperations: empty("active fanoutを作らない"),
   notificationOutbox: seeded(PRO_NOTIFICATIONS),
   notificationResendDelayedFailureDeadlines: empty("delayed recovery jobを作らない"),
+  emailSuppressions: empty("運用者が実際の申告を受けて直接登録する"),
   notificationHistory: seeded(PRO_NOTIFICATIONS),
   notificationDeliveryEvents: seeded(PRO_NOTIFICATIONS),
   notificationFailureInbox: seeded(PRO_NOTIFICATIONS),

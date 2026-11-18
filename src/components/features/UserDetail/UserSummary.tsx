@@ -41,9 +41,16 @@ export function UserSummary({ data }: Props) {
                 </Badge>
               )}
             </HStack>
-            <Text fontSize="sm" color="fg.muted" truncate>
-              {data.person.email}
-            </Text>
+            <HStack gap={2} wrap="wrap" minW={0}>
+              <Text fontSize="sm" color="fg.muted" minW={0} truncate>
+                {data.person.email}
+              </Text>
+              {data.person.isEmailSuppressed && (
+                <Badge colorPalette="orange" variant="subtle" borderRadius="full" px={2.5}>
+                  メール配信停止
+                </Badge>
+              )}
+            </HStack>
           </Stack>
         </HStack>
       </Flex>

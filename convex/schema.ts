@@ -1040,6 +1040,14 @@ const schema = defineSchema({
     .index("by_outboxId", ["outboxId"])
     .index("by_dueAt", ["dueAt"]),
 
+  // 配信を止めるメールアドレス。心当たりがないと申告された宛先などを、運用者がConvex Dashboardから直接追加・削除する。
+  // emailNormalizedは前後の空白なし・小文字で登録する。一致する宛先のメールはOutboxで送信前に取り消す。
+  emailSuppressions: defineTable({
+    emailNormalized: v.string(),
+    // 登録理由などの運用メモ。画面と通知には使わない。
+    note: v.optional(v.string()),
+  }).index("by_emailNormalized", ["emailNormalized"]),
+
   notificationHistory: defineTable({
     outboxId: v.id("notificationOutbox"),
     shopId: v.id("shops"),
