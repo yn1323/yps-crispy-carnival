@@ -256,7 +256,7 @@ export function SubmitFormView({
         onOpenChange={lateSubmitDialog.onOpenChange}
         onClose={lateSubmitDialog.close}
         onSubmit={onLateSubmitConfirm}
-        submitLabel="この内容で提出する"
+        submitLabel="提出する"
         isLoading={isLateSubmitting}
         isSubmitDisabled={isLateSubmitting}
       >

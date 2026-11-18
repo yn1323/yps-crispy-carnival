@@ -617,7 +617,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
   const deleteShopDisabledReason = canDeleteShop
     ? undefined
     : shops.length <= 1
-      ? "組織には少なくとも1店舗が必要です。"
+      ? "組織に紐づく最後の店舗は削除できません。"
       : !isActiveActor
         ? "現在のアカウント状態では、店舗を削除できません。"
         : "現在の契約状態では、店舗を削除できません。";
@@ -885,7 +885,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
         ? usageLimitBlockedReason
         : policy.paidFeatureBlockReason === "paymentResultPending"
           ? "支払い結果が確定してから、管理者を招待できます。"
-          : `管理者と招待中の管理者は、組織全体で${policy.limits.maxActiveManagers}名までです。`;
+          : `管理者は招待中を含めて${policy.limits.maxActiveManagers}名までです`;
   const canAddShop = Boolean(
     isActiveActor && canWriteNormally && policy.canUsePaidFeatures && shopCount < policy.limits.maxShops,
   );
@@ -1170,7 +1170,7 @@ export async function getCanonicalManagerSettingsOverview(
         : !policy.canManageManagers
           ? "現在の契約状態では、管理者を招待できません。"
           : !canFitManager
-            ? `管理者と招待中の管理者は、組織全体で${limits.maxActiveManagers}名までです。`
+            ? `管理者は招待中を含めて${limits.maxActiveManagers}名までです`
             : undefined;
   const canInviteExistingStaff = Boolean(canWrite && policy.canManageManagers && canFitManager);
   const existingStaffDisabledReason = canInviteExistingStaff
@@ -1383,7 +1383,7 @@ export async function getCanonicalManagerCandidates(ctx: CanonicalOrganizationSe
       : !canWrite || !policy.canManageManagers
         ? "現在の契約状態では、管理者を招待できません。"
         : !canFitManager
-          ? `管理者と招待中の管理者は、組織全体で${limits.maxActiveManagers}名までです。`
+          ? `管理者は招待中を含めて${limits.maxActiveManagers}名までです`
           : undefined;
 
   const candidates = [];

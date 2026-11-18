@@ -1938,12 +1938,43 @@ describe("dashboard/queries", () => {
         "_id",
         "email",
         "excludedFromShift",
+        "isEmailSuppressed",
         "isLineFollowing",
         "isLineLinked",
         "isManager",
         "name",
         "organizationPersonId",
       ]);
+    });
+
+    it("配信停止に登録された宛先のスタッフだけisEmailSuppressedがtrueになる", async () => {
+      const t = convexTest(schema, modules);
+      const shopId = await t.run(async (ctx) => {
+        const { shopId } = await seedManagerShop(ctx, {
+          subject: "user_email_suppressed",
+          email: "suppression-manager@example.com",
+          shopName: "店舗",
+        });
+        await seedStaff(ctx, { shopId, name: "配信停止スタッフ", email: "Suppressed-Staff@Example.com" });
+        await seedStaff(ctx, { shopId, name: "通常スタッフ", email: "normal-staff@example.com" });
+        await ctx.db.insert("emailSuppressions", { emailNormalized: "suppressed-staff@example.com" });
+        return shopId;
+      });
+
+      const result = await t
+        .withIdentity({ subject: "user_email_suppressed" })
+        .query(api.dashboard.queries.getDashboardStaffs, await firstPageArgs(t, shopId));
+
+      const seededStaffs = result.page
+        .filter((staff) => staff.name === "配信停止スタッフ" || staff.name === "通常スタッフ")
+        .map(({ name, isEmailSuppressed }) => ({ name, isEmailSuppressed }))
+        .sort((left, right) => left.name.localeCompare(right.name));
+      expect(seededStaffs).toEqual(
+        [
+          { name: "配信停止スタッフ", isEmailSuppressed: true },
+          { name: "通常スタッフ", isEmailSuppressed: false },
+        ].sort((left, right) => left.name.localeCompare(right.name)),
+      );
     });
   });
 

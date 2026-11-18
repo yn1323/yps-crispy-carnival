@@ -67,8 +67,8 @@ description: シフトリのHelpCenter向けFAQ・使い方を、現在の実装
 - 画面上の順序に合わせて手順を並べる。
 - 分岐は、権限、設定、端末、機能状態など、実装に存在するものだけを書く。
 - 操作できない場合は、原因の見分け方と次の連絡先または代替操作を書く。
-- 詳しい背景説明が必要な文章では `$japanese-tech-writing` を使う。
-- 読み物として長い解説に緩急が必要な場合だけ `$cognitive-rhythm-writing` を併用する。
+- 詳しい背景説明が必要な文章では `japanese-tech-writing` を使う。
+- 読み物として長い解説に緩急が必要な場合だけ `cognitive-rhythm-writing` を併用する。
 
 ## FAQを書く
 

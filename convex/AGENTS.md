@@ -14,7 +14,6 @@ Convexコードを扱う前に、次を読む。
 5. テスト層、配置、新しい検証契約を判断する場合は `doc/rules/testing-strategy.md`
 
 局所変更では近い既存実装を優先する。
-複数ユースケース、public API、Capability、永続ワークフロー、データ寿命、運用契約を横断する場合は `convex-design-review` を使う。
 
 ## 配置
 

@@ -1,10 +1,11 @@
 import { Badge, Box, Flex, Grid, Heading, HStack, Icon, Stack, Text } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 import type { IconType } from "react-icons";
-import { LuChevronRight, LuMailPlus, LuShieldCheck, LuUserMinus, LuUserPlus, LuUsers } from "react-icons/lu";
+import { LuChevronRight, LuMailPlus, LuShieldCheck, LuUserPlus, LuUsers } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
 import { DetailPageHeader } from "@/src/components/ui/DetailPageHeader";
 import { Empty } from "@/src/components/ui/Empty";
+import { ManagerRoleRemovalButton } from "./ManagerRoleRemovalButton";
 import { getManagerInvitationExpiryLabel, getManagerInvitationStatusPresentation } from "./presentation";
 import {
   canResendManagerInvitation,
@@ -38,6 +39,16 @@ export function ManagerSettingsView({
   onRequestRevoke,
   onRequestRemoveRole,
 }: Props) {
+  const { actions } = overview;
+  // 2枚とも同じ理由で使えないときは、理由を見出しの下に1回だけ出す。
+  const sharedAdditionDisabledReason =
+    !actions.canInviteExistingStaff &&
+    !actions.canInviteExternal &&
+    actions.existingStaffDisabledReason === actions.externalDisabledReason
+      ? actions.existingStaffDisabledReason
+      : undefined;
+  const sharedAdditionDisabledReasonId = sharedAdditionDisabledReason ? "manager-addition-disabled-reason" : undefined;
+
   return (
     <Stack gap={{ base: 6, md: 8 }}>
       <DetailPageHeader
@@ -54,6 +65,11 @@ export function ManagerSettingsView({
         <SectionHeading id="manager-addition-heading" icon={LuUserPlus}>
           管理者を追加
         </SectionHeading>
+        {sharedAdditionDisabledReason && (
+          <Text id={sharedAdditionDisabledReasonId} fontSize="sm" color="orange.700" lineHeight="tall">
+            {sharedAdditionDisabledReason}
+          </Text>
+        )}
         <Grid templateColumns={{ base: "1fr", md: "repeat(2, minmax(0, 1fr))" }} gap={3}>
           <ManagerActionCard
             title="既存スタッフを管理者として招待"
@@ -62,7 +78,8 @@ export function ManagerSettingsView({
             destination="existingStaff"
             enabled={overview.actions.canInviteExistingStaff}
             onClick={() => onOpenInvitation("existingStaff")}
-            disabledReason={overview.actions.existingStaffDisabledReason}
+            disabledReason={sharedAdditionDisabledReason ? undefined : actions.existingStaffDisabledReason}
+            sharedDisabledReasonId={sharedAdditionDisabledReasonId}
           />
           <ManagerActionCard
             title="新しいユーザーを管理者として招待"
@@ -71,7 +88,8 @@ export function ManagerSettingsView({
             destination="external"
             enabled={overview.actions.canInviteExternal}
             onClick={() => onOpenInvitation("external")}
-            disabledReason={overview.actions.externalDisabledReason}
+            disabledReason={sharedAdditionDisabledReason ? undefined : actions.externalDisabledReason}
+            sharedDisabledReasonId={sharedAdditionDisabledReasonId}
           />
         </Grid>
       </Stack>
@@ -141,6 +159,7 @@ type ActionCardProps = {
   enabled: boolean;
   onClick: () => void;
   disabledReason?: string;
+  sharedDisabledReasonId?: string;
 };
 
 function ManagerActionCard({
@@ -151,6 +170,7 @@ function ManagerActionCard({
   enabled,
   onClick,
   disabledReason,
+  sharedDisabledReasonId,
 }: ActionCardProps) {
   const titleId = `${destination === "existingStaff" ? "existing" : "external"}-manager-action-title`;
   const descriptionId = `${titleId}-description`;
@@ -206,7 +226,15 @@ function ManagerActionCard({
 
   if (!enabled) {
     return (
-      <Box {...cardProps} borderWidth="1px" opacity={0.72} aria-labelledby={titleId} aria-describedby={descriptionId}>
+      <Box
+        {...cardProps}
+        display="flex"
+        alignItems="center"
+        borderWidth="1px"
+        opacity={0.72}
+        aria-labelledby={titleId}
+        aria-describedby={[descriptionId, sharedDisabledReasonId].filter(Boolean).join(" ")}
+      >
         {content}
       </Box>
     );
@@ -279,7 +307,6 @@ function ManagerRow({
   mutationDisabledReason?: string;
   onRequestRemoveRole: (manager: ManagerSettingsManager) => void;
 }) {
-  const reasonId = `manager-role-removal-${manager.personId}-reason`;
   const canRemoveRole = manager.canRemoveRole && !mutationDisabledReason;
   const disabledReason = manager.canRemoveRole ? mutationDisabledReason : manager.removeRoleDisabledReason;
 
@@ -311,31 +338,11 @@ function ManagerRow({
             </Text>
           </Stack>
         </HStack>
-        <Button
-          variant="outline"
-          colorPalette="red"
-          minH={{ base: "44px", md: "36px" }}
-          minW={{ base: "44px", md: "auto" }}
-          px={{ base: 0, md: 3 }}
-          gap={{ base: 0, md: 2 }}
-          size={{ base: "md", md: "sm" }}
-          flexShrink={0}
-          disabled={!canRemoveRole}
-          aria-label="管理者権限を外す"
-          aria-describedby={!canRemoveRole && disabledReason ? reasonId : undefined}
-          onClick={() => onRequestRemoveRole(manager)}
-        >
-          <LuUserMinus aria-hidden />
-          <Text as="span" display={{ base: "none", md: "inline" }}>
-            管理者権限を外す
-          </Text>
-        </Button>
+        <ManagerRoleRemovalButton
+          disabledReason={canRemoveRole ? undefined : (disabledReason ?? "現在、管理者権限を外せません")}
+          onRemoveRole={() => onRequestRemoveRole(manager)}
+        />
       </Flex>
-      {!canRemoveRole && disabledReason && (
-        <Text id={reasonId} fontSize="xs" color="orange.700" textAlign={{ base: "left", md: "right" }}>
-          {disabledReason}
-        </Text>
-      )}
     </Stack>
   );
 }

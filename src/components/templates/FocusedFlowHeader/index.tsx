@@ -2,8 +2,9 @@ import { Box, Container, Grid, Heading, Text } from "@chakra-ui/react";
 import { useRouter } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { LuChevronLeft } from "react-icons/lu";
-import { AUTHENTICATED_APP_HEADER_HEIGHT } from "@/src/components/templates/Header";
+import { AUTHENTICATED_APP_HEADER_HEIGHT, HEADER_SCROLL_HIDE_CSS } from "@/src/components/templates/Header";
 import { Button } from "@/src/components/ui/Button";
+import { useHideOnScrollDown } from "@/src/hooks/useHideOnScrollDown";
 
 const GLASS_BACKDROP_FILTER = "blur(12px) saturate(135%)";
 const AUTHENTICATED_GLASS_BACKGROUND = "rgba(255, 255, 255, 0.08)";
@@ -57,9 +58,12 @@ export function FocusedFlowHeader({
   action,
   compact = false,
 }: Props) {
+  const isScrollHidden = useHideOnScrollDown();
+
   return (
     <Box
       as="header"
+      data-scroll-hidden={isScrollHidden ? "" : undefined}
       position="sticky"
       top={0}
       zIndex="sticky"
@@ -68,7 +72,7 @@ export function FocusedFlowHeader({
       borderBottomWidth="1px"
       borderColor="rgba(15, 23, 42, 0.08)"
       backdropFilter={GLASS_BACKDROP_FILTER}
-      css={{ WebkitBackdropFilter: GLASS_BACKDROP_FILTER }}
+      css={{ WebkitBackdropFilter: GLASS_BACKDROP_FILTER, ...HEADER_SCROLL_HIDE_CSS }}
     >
       <Container
         maxW="1024px"

@@ -1,16 +1,17 @@
 ---
 name: seo-article-writer
-description: シフトリのArticleSite向け日本語SEO記事を、検索意図と現在の実装に基づいて作成または改稿する。ユーザーが`$seo-article-writer`を明示した場合だけ使う。HelpCenterのFAQ・使い方、通常の技術文書、UI文言、機能実装には使わない。
+description: シフトリのArticleSite向け日本語SEO記事を、検索意図と現在の実装に基づいて作成または改稿する。ユーザーが`/seo-article-writer`で起動したときだけ使う。HelpCenterのFAQ・使い方、通常の技術文書、UI文言、機能実装には使わない。
+disable-model-invocation: true
 ---
 
 # SEO Article Writer
 
 ## 呼び出し条件
 
-このスキルは、ユーザーが `$seo-article-writer` を明示したときだけ使う。
+このスキルは、ユーザーが `/seo-article-writer` で起動したときだけ使う。
 通常の「記事を書いて」「SEOを見て」だけでは使わない。
 
-HelpCenterのFAQ・使い方には `$write-help-content` を使う。
+HelpCenterのFAQ・使い方には `write-help-content` を使う。
 
 ## 必ず読むもの
 
@@ -18,7 +19,7 @@ HelpCenterのFAQ・使い方には `$write-help-content` を使う。
 
 - `doc/features/public-pages.md`
 - `src/components/features/ArticleSite/AGENTS.md`
-- `$japanese-tech-writing`
+- `japanese-tech-writing`
 
 frontmatter、画像解決、MDXレンダリングは、現在のschema、読み込み処理、近い既存記事を正本として確認する。
 
@@ -65,7 +66,7 @@ frontmatter、画像解決、MDXレンダリングは、現在のschema、読み
    - 本文やfrontmatterの更新だけを理由に、`lastmod`の運用を新しく定義しない。現在の公開手順またはユーザーの明示指示に従う。
 
 6. 必要な場合だけ画像を作る。
-   - ユーザーが `$generate-image` を明示した場合だけ同Skillを使う。
+   - 画像生成はユーザーが `/generate-image` で起動する。自分からは起動しない。
    - 画像は理解を助けるときだけ入れる。
    - サムネイル専用画像は作らない。記事カード用だけの画像追加やサムネイル管理はしない。
    - 画像は理解に必要な最小限の枚数にする。

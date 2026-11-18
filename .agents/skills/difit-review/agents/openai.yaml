@@ -1,6 +1,0 @@
-interface:
-  display_name: "difit差分レビュー"
-  short_description: "差分レビューの指摘をdifitコメントとして表示する手順"
-  default_prompt: "Use $difit-review to review this diff and open difit with the findings attached as comments."
-policy:
-  allow_implicit_invocation: false

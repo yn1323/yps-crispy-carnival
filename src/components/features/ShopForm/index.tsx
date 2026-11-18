@@ -32,7 +32,7 @@ export const ShopForm = ({
   onSubmit,
   onCancel,
   initialStep = "shopName",
-  submitLabel = "変更を保存",
+  submitLabel = "保存する",
 }: Props) => {
   const [currentStep, setCurrentStep] = useState<ShopFormStep>(() =>
     getInitialStep(initialStep, defaultValues.submissionPattern),

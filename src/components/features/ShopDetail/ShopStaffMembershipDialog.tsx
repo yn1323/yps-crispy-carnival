@@ -379,7 +379,6 @@ export function ShopStaffMembershipDialog({
                     .filter(Boolean)
                     .join(" ")}
                   disabledReason={disabledReason}
-                  tone={isRemoved ? "danger" : "default"}
                   hoverBg="teal.50"
                   onCheckedChange={(checked) => changeSelection(person.personId, checked)}
                   leading={<PersonAvatar name={person.name} isManager={person.isManager} />}
@@ -407,15 +406,11 @@ export function ShopStaffMembershipDialog({
                       <Text fontWeight="medium" color="gray.900" lineHeight="short" overflowWrap="anywhere">
                         {person.name}
                       </Text>
-                      {isRemoved ? (
-                        <Badge colorPalette="red" variant="outline" borderRadius="md" px={2} py={0.5}>
-                          店舗から外す
-                        </Badge>
-                      ) : isAdded ? (
-                        <Badge colorPalette="blue" variant="outline" borderRadius="md" px={2} py={0.5}>
-                          店舗に追加
-                        </Badge>
-                      ) : null}
+                      {(isRemoved || isAdded) && (
+                        <Text as="span" fontSize="xs" color={isRemoved ? "red.700" : "fg.muted"} flexShrink={0}>
+                          {isRemoved ? "外す" : "追加"}
+                        </Text>
+                      )}
                     </Flex>
                     <Text fontSize="xs" color="fg.subtle" overflowWrap="anywhere">
                       {membershipDescription}
@@ -427,23 +422,29 @@ export function ShopStaffMembershipDialog({
           </CheckboxListCard>
         ) : null}
 
-        {removalImpactId && (
-          <Alert.Root status="warning" borderRadius="lg">
-            <Alert.Indicator />
-            <Alert.Content id={removalImpactId}>
-              <Alert.Title>店舗から外れるスタッフがいます</Alert.Title>
-              <Alert.Description>
-                店舗から外れると、今日以降のシフトから削除されます。
-                <br />
-                また、この店舗のシフト通知は届かなくなります。
-              </Alert.Description>
-              {isPreviewLoading && (
-                <Text mt={1} fontSize="xs" color="fg.muted" role="status">
-                  変更内容を確認しています…
-                </Text>
+        {hasDiff && (
+          <Stack as="section" gap={1.5} aria-labelledby="shop-staff-membership-impact-heading">
+            <Text id="shop-staff-membership-impact-heading" fontSize="xs" fontWeight="semibold" color="fg.muted">
+              変更後の影響
+            </Text>
+            <Box as="ul" pl={5} listStyleType="disc" fontSize="sm" lineHeight="tall" color="gray.900">
+              {removalImpactId && (
+                <Box as="li" id={removalImpactId} color="orange.700">
+                  外したスタッフは、今日以降のシフトから削除され、この店舗のシフト通知も届かなくなります。
+                </Box>
               )}
-            </Alert.Content>
-          </Alert.Root>
+              {removesAllEditableStaff && <li>この店舗のスタッフは0名になります。</li>}
+              {removesLastManagerNotificationRecipient && (
+                <li>この店舗の管理者は0名になり、管理者向けの通知が届かなくなります。</li>
+              )}
+              {addedPeople.length > 0 && <li>追加したスタッフに募集中シフトを通知します。</li>}
+            </Box>
+            {isPreviewLoading && (
+              <Text fontSize="xs" color="fg.muted" role="status">
+                変更内容を確認しています…
+              </Text>
+            )}
+          </Stack>
         )}
 
         {previewTooMany && (
@@ -452,39 +453,6 @@ export function ShopStaffMembershipDialog({
             <Alert.Content>
               <Alert.Title>今日以降のシフトが多いため、この画面では変更できません</Alert.Title>
               <Alert.Description>先にシフトを整理してください。</Alert.Description>
-            </Alert.Content>
-          </Alert.Root>
-        )}
-
-        {removesAllEditableStaff && (
-          <Alert.Root status="warning" borderRadius="lg">
-            <Alert.Indicator />
-            <Alert.Content>
-              <Alert.Title>変更後、この店舗のスタッフは0名になります</Alert.Title>
-              <Alert.Description>
-                組織への所属や管理者権限は変更されません。また、利用人数のカウントも残ります。
-              </Alert.Description>
-            </Alert.Content>
-          </Alert.Root>
-        )}
-
-        {removesLastManagerNotificationRecipient && (
-          <Alert.Root status="warning" borderRadius="lg">
-            <Alert.Indicator />
-            <Alert.Content>
-              <Alert.Title>店舗の管理者は0名になります</Alert.Title>
-              <Alert.Description>
-                シフト管理、スタッフ管理は可能ですが、管理者向けの通知が届かなくなります。
-              </Alert.Description>
-            </Alert.Content>
-          </Alert.Root>
-        )}
-
-        {addedPeople.length > 0 && (
-          <Alert.Root status="info" borderRadius="lg">
-            <Alert.Indicator />
-            <Alert.Content>
-              <Alert.Title>新規追加スタッフへ募集中シフトを送信します。</Alert.Title>
             </Alert.Content>
           </Alert.Root>
         )}

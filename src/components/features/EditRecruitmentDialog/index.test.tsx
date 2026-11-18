@@ -34,7 +34,7 @@ vi.mock("@/src/components/features/CreateRecruitmentForm", () => ({
         })
       }
     >
-      変更を保存
+      保存する
     </button>
   ),
 }));
@@ -68,7 +68,7 @@ describe("募集編集dialogの保存", () => {
         onClose={onClose}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "変更を保存" }));
+    fireEvent.click(screen.getByRole("button", { name: "保存する" }));
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
     expect(mocks.update).toHaveBeenCalledExactlyOnceWith({
       recruitmentId: recruitment._id,
@@ -99,7 +99,7 @@ describe("募集編集dialogの保存", () => {
         onClose={vi.fn()}
       />,
     );
-    expect(screen.queryByRole("button", { name: "変更を保存" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "保存する" })).toBeNull();
     expect(screen.getByTestId("reload")).toBeTruthy();
     expect(mocks.update).not.toHaveBeenCalled();
   });
@@ -115,7 +115,7 @@ describe("募集編集dialogの保存", () => {
         onClose={onClose}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "変更を保存" }));
+    fireEvent.click(screen.getByRole("button", { name: "保存する" }));
     await screen.findByTestId("reload");
     expect(onClose).not.toHaveBeenCalled();
   });

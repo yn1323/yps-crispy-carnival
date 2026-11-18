@@ -1,4 +1,0 @@
-interface:
-  display_name: "シフトリ Test Strategy"
-  short_description: "変更契約に合うテスト層とテストケースを適切に設計する"
-  default_prompt: "Use $test-strategy to map this Shiftori change to one primary test layer and define focused regression coverage."

@@ -3,6 +3,7 @@ import { paginationOptsValidator, paginationResultValidator } from "convex/serve
 import { ConvexError, v } from "convex/values";
 import type { DataModel, Doc } from "../_generated/dataModel";
 import { todayJST } from "../_lib/dateFormat";
+import { isEmailSuppressed } from "../_lib/emailSuppression";
 import { authenticatedQuery, managerQuery } from "../_lib/functions";
 import { getRecruitmentEditVersion, isCurrentSubmission } from "../_lib/recruitmentEditing";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
@@ -36,6 +37,7 @@ const dashboardStaffValidator = v.object({
   _id: v.id("staffs"),
   name: v.string(),
   email: v.string(),
+  isEmailSuppressed: v.boolean(),
   isManager: v.boolean(),
   isLineLinked: v.boolean(),
   isLineFollowing: v.boolean(),
@@ -716,6 +718,7 @@ export const getDashboardStaffs = managerQuery({
           _id: s._id,
           name: s.name,
           email: s.email,
+          isEmailSuppressed: await isEmailSuppressed(ctx, person.email),
           isManager,
           isLineLinked: Boolean(lineAccount?.lineUserId),
           isLineFollowing: Boolean(lineAccount?.following),

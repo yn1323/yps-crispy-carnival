@@ -120,6 +120,7 @@ export type NotificationCancelReason =
   | "recruitment_inactive"
   | "notification_superseded"
   | "recipient_inactive"
+  | "recipient_suppressed"
   | "invitation_inactive"
   | "unsupported_channel"
   | "invalid_scope";

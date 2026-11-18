@@ -1,7 +1,8 @@
+import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { queryByRole } from "@testing-library/dom";
 import { createStore, Provider } from "jotai";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { UserMenu } from "@/src/components/features/UserMenu";
 import { Button } from "@/src/components/ui/Button";
 import { userAtom } from "@/src/stores/user";
@@ -157,5 +158,41 @@ export const Mobile: Story = {
   },
   globals: {
     viewport: { value: "mobile2", isRotated: false },
+  },
+};
+
+export const HidesOnScrollDown: Story = {
+  args: {
+    userActions: <UserMenu tone="light" />,
+  },
+  parameters: {
+    screenshot: { skip: true },
+  },
+  render: (args: HeaderProps) => (
+    <Box minH="300dvh">
+      <Header {...args} />
+    </Box>
+  ),
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const header = within(canvasElement).getByRole("banner");
+
+    try {
+      window.scrollTo({ top: 400, behavior: "instant" });
+      await waitFor(() => expect(header.getBoundingClientRect().bottom).toBeLessThanOrEqual(0));
+
+      window.scrollTo({ top: 300, behavior: "instant" });
+      await waitFor(() => expect(header.getBoundingClientRect().top).toBe(0));
+
+      window.scrollTo({ top: 400, behavior: "instant" });
+      await waitFor(() => expect(header.getBoundingClientRect().bottom).toBeLessThanOrEqual(0));
+
+      // キーボードでヘッダー内へfocusした場合は、隠れた状態でも操作対象を画面内へ戻す。
+      await userEvent.tab();
+      await expect(header).toContainElement(document.activeElement as HTMLElement);
+      await waitFor(() => expect(header.getBoundingClientRect().top).toBe(0));
+    } finally {
+      (document.activeElement as HTMLElement | null)?.blur();
+      window.scrollTo({ top: 0, behavior: "instant" });
+    }
   },
 };

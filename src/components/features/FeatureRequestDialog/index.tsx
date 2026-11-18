@@ -112,7 +112,7 @@ export function FeatureRequestDialog({ onSubmit }: FeatureRequestDialogProps) {
         }}
         onClose={close}
         formId="feature-request-form"
-        submitLabel="要望を送る"
+        submitLabel="送信する"
         isLoading={isRunning}
         maxW={{ base: "calc(100vw - 32px)", md: "448px" }}
         keyboardAwareViewport

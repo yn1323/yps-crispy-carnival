@@ -66,18 +66,31 @@ Loading、Empty、Error、Successの部品選定に迷う場合は`references/st
 - placeholderを設計または監査する場合は、`references/ui-writing.md`の「Placeholders」を読み、入力種別、事前値、補足文との役割を区別する。
 - ボタン、ラベル、Toast、表見出しは短くする。
 - ボタンやラベルなどの短いUI文言にも、`../japanese-tech-writing/SKILL.md`の「直接的で自然な文」を適用する。
-- 複数文の説明を構成から推敲する場合は`$japanese-tech-writing`を使う。
-- 読み物としての緩急が必要な長い説明だけに`$cognitive-rhythm-writing`を併用する。
-- HelpCenterのFAQ・使い方は`$write-help-content`、ArticleSiteの記事は`$seo-article-writer`へ分ける。
+- 複数文の説明を構成から推敲する場合は`japanese-tech-writing`を使う。
+- 読み物としての緩急が必要な長い説明だけに`cognitive-rhythm-writing`を併用する。
+- HelpCenterのFAQ・使い方は`write-help-content`、ArticleSiteの記事は`seo-article-writer`へ分ける。
 
-## 5. 実装する
+## 5. 実装の前に案を合意する
+
+画面構造やレイアウトを変える場合と、文言に複数の妥当な書き方がある場合は、実装の前に案を示して選択を待つ。
+依頼が変更内容を具体的に指定している場合は、案を出さずに実装へ進む。
+
+- 案を作る前に`references/preferences.md`を読み、過去に選ばれた形と理由を確認する。
+- 2〜3案を、周囲の見出しや文脈と合わせて示す。
+- 各案に、前提にした条件と、既存のレイアウトで移動または削除する箇所の有無を書く。
+- 対象が1つしかないと決めつけず、複数ある場合をコードで確認する。例は1店舗に管理者が複数いる場合である。
+- 依頼されていないセクションの移動、並び替え、削除は案に含めず、必要なら別の提案として分ける。
+- 調査に基づく案だと述べる場合は、日本語の情報源と競合製品を含めて調べる。
+- ユーザーが案を選んだら、`references/preferences.md`の形式で、条件、選んだ形、理由、基準にする画面を記録する。
+
+## 6. 実装する
 
 - `doc/rules/frontend-architecture.md`の責務と依存方向に従う。
 - 現在のUI部品、theme token、form、date、state管理の使い方は、共通実装と近い既存コードを正本にする。
 - UIだけで認可、入力制約、データ境界、冪等性を保証しない。
 - 依頼と関係しない画面や共通基盤へ変更を広げない。
 
-## 6. 検証する
+## 7. 検証する
 
 - 主タスクが最短の導線で完了するか確認する。
 - Loading、Empty、Error、Successなど変更に関係する代表状態を確認する。
@@ -86,10 +99,10 @@ Loading、Empty、Error、Successの部品選定に迷う場合は`references/st
 - DialogはPCとSPでDOM順と見た目の順、action areaの配置、長い文言、本文scroll、safe areaを確認する。
 - 閲覧専用を含む終了操作、すべてのclose経路、close lockの開始と解除、Dialogを重ねない確認遷移を確認する。
 - キーボード操作、フォーカス、ラベル、コントラストを確認する。
-- テスト層や新しい検証契約を設計する場合は`$test-strategy`を使う。
+- テスト層や新しい検証契約を設計する場合は`test-strategy`を使う。
 - 対象範囲の`AGENTS.md`に従ってlint、型、テストを実行する。
 
-## 7. 結果を報告する
+## 8. 結果を報告する
 
 - 利用者の主タスク
 - 採用した画面構造と状態

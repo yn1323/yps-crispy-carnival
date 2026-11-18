@@ -32,7 +32,7 @@ export function ShopManagementDialog({ dialog, isRunning, onClose, onSubmit }: P
         defaultValues={ADD_SHOP_DEFAULT_VALUES}
         onSubmit={(data) => onSubmit({ kind: "addShop", data })}
         onCancel={onClose}
-        submitLabel="店舗を追加"
+        submitLabel="追加する"
       />
     </StepperDialog>
   );

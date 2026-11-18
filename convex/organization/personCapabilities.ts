@@ -2,7 +2,7 @@ import type { OrganizationBillingPolicy } from "../organizationBilling/policy";
 
 export type ManagerRole = "active" | "none";
 
-export const MANAGER_PERSON_REMOVAL_DISABLED_REASON = "先に管理者権限を外してください。";
+export const MANAGER_PERSON_REMOVAL_DISABLED_REASON = "管理者権限を外してから削除してください";
 
 type OrganizationPersonCapabilityInput = {
   managerRole: ManagerRole;
@@ -29,7 +29,7 @@ export function deriveOrganizationPersonCapabilities(input: OrganizationPersonCa
     input.managerRole === "none" || canRemoveManagerRole
       ? undefined
       : input.activeManagerCount <= 1
-        ? "少なくとも管理者が1名必要です。"
+        ? "管理者が2名以上のときに外せます"
         : !input.isActiveActor
           ? "現在のアカウント状態では、管理者権限を変更できません。"
           : input.policy?.paidFeatureBlockReason === "paymentResultPending"

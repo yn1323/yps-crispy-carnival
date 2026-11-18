@@ -103,10 +103,10 @@ export const RecruitmentWizardActions = ({
         type="submit"
         colorPalette="teal"
         loading={submitLoading}
-        loadingText={isEditing ? "変更を保存" : "募集をつくる"}
+        loadingText={isEditing ? "保存する" : "募集をつくる"}
         disabled={submitLoading || submitDisabled}
       >
-        {isEditing ? "変更を保存" : "募集をつくる"}
+        {isEditing ? "保存する" : "募集をつくる"}
       </Button>
     </>
   );

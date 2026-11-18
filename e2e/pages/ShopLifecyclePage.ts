@@ -36,7 +36,7 @@ export class ShopLifecyclePage {
     await dialog.getByRole("button", { name: /^日付選択 日付選択/ }).click();
     await dialog.getByRole("button", { name: "次へ" }).click();
     await expect(dialog.getByText("毎週休みにする曜日", { exact: true })).toBeVisible();
-    await dialog.getByRole("button", { name: "店舗を追加", exact: true }).click();
+    await dialog.getByRole("button", { name: "追加する", exact: true }).click();
 
     await expect(dialog).toHaveCount(0, { timeout: SHOP_DATA_TIMEOUT });
     await this.expectShopListed(shopName);
@@ -75,7 +75,7 @@ export class ShopLifecyclePage {
       "aria-pressed",
       "true",
     );
-    await dialog.getByRole("button", { name: "変更を保存", exact: true }).click();
+    await dialog.getByRole("button", { name: "保存する", exact: true }).click();
 
     await expect(dialog).toHaveCount(0, { timeout: SHOP_DATA_TIMEOUT });
     await this.expectCurrentShopSettings(updatedShopName);
@@ -132,7 +132,7 @@ export class ShopLifecyclePage {
     await this.page.getByRole("button", { name: "削除する", exact: true }).click();
     const dialog = this.page.getByRole("alertdialog", { name: `${shopName}を削除しますか？` });
     await expect(dialog).toBeVisible();
-    await dialog.getByRole("button", { name: "店舗を削除", exact: true }).click();
+    await dialog.getByRole("button", { name: "削除する", exact: true }).click();
     await expect(dialog).toHaveCount(0, { timeout: SHOP_DATA_TIMEOUT });
   }
 
@@ -147,7 +147,7 @@ export class ShopLifecyclePage {
 
   private async saveRegularClosedDaysStep(dialog: Locator) {
     await expect(dialog.getByText("毎週休みにする曜日", { exact: true })).toBeVisible();
-    await dialog.getByRole("button", { name: "変更を保存", exact: true }).click();
+    await dialog.getByRole("button", { name: "保存する", exact: true }).click();
     await expect(dialog).toHaveCount(0, { timeout: SHOP_DATA_TIMEOUT });
   }
 

@@ -61,10 +61,38 @@
       "TodoWrite",
       "Agent"
     ],
-    "deny": [],
+    "deny": [
+      "WebFetch(domain:proficient-kookabura-834.convex.cloud)",
+      "WebFetch(domain:proficient-kookabura-834.convex.site)",
+      "Edit(./convex/_generated/**)",
+      "Edit(./src/routeTree.gen.ts)",
+      "Edit(./pnpm-lock.yaml)"
+    ],
     "ask": []
   },
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/block-convex-production.py"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/type-check-on-stop.sh",
+            "timeout": 120
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit|MultiEdit|Write",
@@ -72,14 +100,6 @@
           {
             "type": "command",
             "command": "pnpm format"
-          },
-          {
-            "type": "command",
-            "command": "pnpm test"
-          },
-          {
-            "type": "command",
-            "command": "pnpm type-check"
           }
         ]
       }
@@ -90,6 +110,18 @@
     "command": "input=$(cat); model=$(echo \"$input\" | jq -r '.model.display_name // empty'); ctx=$(echo \"$input\" | jq -r '.context_window.used_percentage // empty'); five=$(echo \"$input\" | jq -r '.rate_limits.five_hour.used_percentage // empty'); reset5=$(echo \"$input\" | jq -r '.rate_limits.five_hour.resets_at // empty'); week=$(echo \"$input\" | jq -r '.rate_limits.seven_day.used_percentage // empty'); reset7=$(echo \"$input\" | jq -r '.rate_limits.seven_day.resets_at // empty'); [ -n \"$model\" ] && out=\"$model\" || out=\"model: -\"; [ -n \"$ctx\" ] && out=\"$out | context: $(printf '%.0f' \"$ctx\")%\" || out=\"$out | context: -\"; if [ -n \"$five\" ]; then out=\"$out | 5h: $(printf '%.0f' \"$five\")%\"; if [ -n \"$reset5\" ]; then reset_time=$(date -r \"$(printf '%.0f' \"$reset5\")\" '+%H:%M'); out=\"$out (reset: $reset_time)\"; fi; else out=\"$out | 5h: -\"; fi; if [ -n \"$week\" ]; then out=\"$out | 7d: $(printf '%.0f' \"$week\")%\"; if [ -n \"$reset7\" ]; then reset_date=$(LANG=C date -r \"$(printf '%.0f' \"$reset7\")\" '+%m/%d %a %H:%M'); out=\"$out (reset: $reset_date)\"; fi; else out=\"$out | 7d: -\"; fi; echo \"$out\""
   },
   "enabledPlugins": {
-    "frontend-design@claude-code-plugins": true
+    "frontend-design@claude-code-plugins": false,
+    "frontend-design@claude-plugins-official": false,
+    "code-review@claude-plugins-official": false,
+    "code-simplifier@claude-plugins-official": false,
+    "example-skills@anthropic-agent-skills": false,
+    "posthog@claude-plugins-official": false,
+    "unity@synced": false,
+    "marketing@synced": false,
+    "product-management@synced": false,
+    "engineering@synced": false,
+    "design@synced": false,
+    "enterprise-search@synced": false,
+    "cowork-plugin-management@synced": false
   }
 }

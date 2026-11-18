@@ -161,7 +161,7 @@ export class AppShiftsPage {
 
     await expect(dialog.getByText("内容を確認", { exact: true })).toBeVisible();
     await expect(dialog.getByText("変更後", { exact: true }).first()).toBeVisible();
-    await dialog.getByRole("button", { name: "変更を保存", exact: true }).click();
+    await dialog.getByRole("button", { name: "保存する", exact: true }).click();
     await this.expectToastVisibleThenHidden("シフト募集を変更しました");
     await this.expectRecruitmentVisible({ ...next, shopName: data.shopName });
   }
@@ -173,7 +173,7 @@ export class AppShiftsPage {
       name: `${formatDateShort(data.periodStart)}〜${formatDateShort(data.periodEnd)}のシフト募集を削除`,
     });
     await expect(dialog).toBeVisible();
-    await dialog.getByRole("button", { name: "この募集を削除", exact: true }).click();
+    await dialog.getByRole("button", { name: "削除する", exact: true }).click();
     await this.expectToastVisibleThenHidden("シフト募集を削除しました");
     await this.expectRecruitmentAbsent(data);
   }

@@ -5,7 +5,7 @@ description: LP紹介動画のイラストを、Codex CLIの画像生成で同�
 
 # イラストをCodexで作る
 
-動画内のイラストは、Codex CLI（gpt-6-sol）の画像生成で作る。  
+動画内のイラストは、Codex CLI（gpt-6.1-sol）の画像生成で作る。  
 実写は使わず、1本の動画の中ではすべて同じタッチにそろえる。
 
 ## 手順
@@ -19,7 +19,7 @@ description: LP紹介動画のイラストを、Codex CLIの画像生成で同�
 ## Codexの呼び出し方
 
 ```bash
-codex exec -m gpt-6-sol -C <リポジトリ> -s workspace-write \
+codex exec -m gpt-6.1-sol -C <リポジトリ> -s workspace-write \
   -i <タッチの基準画像> -i <設定画> \
   -o <結果の記録先>.txt - < <指示文>.md
 ```

@@ -128,7 +128,7 @@ export function RecruitmentManagementView({
         onOpenChange={deleteDialog.onOpenChange}
         onClose={deleteDialog.close}
         onSubmit={onDeleteConfirm}
-        submitLabel="この募集を削除"
+        submitLabel="削除する"
         role="alertdialog"
         submitColorPalette="red"
         isLoading={isDeleting}

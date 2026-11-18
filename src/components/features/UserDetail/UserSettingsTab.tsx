@@ -31,7 +31,7 @@ export function UserGroupRemovalSection({
       <DeletionActionSection
         title="スタッフを完全に削除する"
         description={
-          "組織、すべての店舗からこのスタッフを削除します。\n店舗から外す場合、このページの所属店舗を変更することもできます。"
+          "組織、すべての店舗からこのスタッフを削除します。\n店舗から外してスタッフを残す場合、「所属店舗を変更する」を利用してください。"
         }
         descriptionFontSize="xs"
         actionLabel="削除する"

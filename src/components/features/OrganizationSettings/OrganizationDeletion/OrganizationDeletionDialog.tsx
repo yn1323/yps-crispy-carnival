@@ -26,7 +26,7 @@ export function OrganizationDeletionDialog({ dialog, isRunning, onClose, onBackG
       onClose={onClose}
       onBackGuardRemoved={onBackGuardRemoved}
       onSubmit={onSubmit}
-      submitLabel="この組織を削除"
+      submitLabel="削除する"
       submitColorPalette="red"
       isLoading={isRunning}
       role="alertdialog"

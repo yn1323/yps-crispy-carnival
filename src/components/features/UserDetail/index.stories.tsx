@@ -70,6 +70,8 @@ const baseData: UserDetailData = {
     id: personId,
     name: "田中 花子",
     email: "hanako.tanaka@example.com",
+    isEmailSuppressed: false,
+    emailSuppressionReason: null,
     hasLinkedAccount: true,
   },
   isSelf: false,
@@ -244,6 +246,35 @@ export const NoShopMemberships: Story = {
 };
 
 export const MainViewMobile: Story = {
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+};
+
+const emailSuppressedData: UserDetailData = {
+  ...baseData,
+  person: {
+    ...baseData.person,
+    isEmailSuppressed: true,
+    emailSuppressionReason: "受信者から、心当たりのないメールが届いたと連絡がありました。",
+  },
+  line: { ...baseData.line, status: "unlinked", canDisconnect: false },
+};
+
+export const EmailSuppressed: Story = {
+  args: { data: emailSuppressedData },
+};
+
+export const EmailSuppressedWithoutReason: Story = {
+  args: { data: { ...emailSuppressedData, person: { ...emailSuppressedData.person, emailSuppressionReason: null } } },
+};
+
+// LINEで通知できる間は、配信停止のバッジと案内を出さない。
+export const EmailSuppressedWithLineLinked: Story = {
+  args: { data: { ...emailSuppressedData, line: baseData.line } },
+};
+
+export const EmailSuppressedMobile: Story = {
+  ...EmailSuppressed,
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
 };
@@ -426,7 +457,7 @@ export const ReadOnlyInformationDialog: Story = {
   },
   play: async () => {
     const dialog = await screen.findByRole("dialog", { name: "スタッフ情報" });
-    await expect(within(dialog).queryByRole("button", { name: "変更を保存" })).not.toBeInTheDocument();
+    await expect(within(dialog).queryByRole("button", { name: "保存する" })).not.toBeInTheDocument();
     await expect(within(dialog).getAllByRole("button", { name: "閉じる" })).toHaveLength(2);
   },
 };

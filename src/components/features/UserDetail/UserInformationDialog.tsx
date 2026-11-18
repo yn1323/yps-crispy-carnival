@@ -33,7 +33,7 @@ export function UserInformationDialog({
       onBackGuardRemoved={onClose}
       closeLabel={data.canWrite ? "キャンセル" : "閉じる"}
       formId={data.canWrite ? formId : undefined}
-      submitLabel="変更を保存"
+      submitLabel="保存する"
       isLoading={isUpdatingProfile}
       isSubmitDisabled={!data.canWrite || isUpdatingProfile}
       mobileFullScreen

@@ -91,10 +91,10 @@ Work through these in order and record the reason for each exception.
 2. Show the proposed initial state, steps, skip/reset behavior, end state, mobile fallback, and events.
 3. Separate verified facts from design assumptions.
 4. Explain each deviation from the defaults.
-5. For project UI, apply `$ui-architect` and the repository's UI design rule.
+5. For project UI, apply `ui-architect` and the repository's UI design rule.
 
 ## Scope boundaries
 
 - This skill covers try-it-now demos, tours, onboarding, and sandboxes.
-- Use `$ui-architect` for ordinary application UI and microcopy.
-- Use `$write-help-content` for HelpCenter FAQs and guides.
+- Use `ui-architect` for ordinary application UI and microcopy.
+- Use `write-help-content` for HelpCenter FAQs and guides.

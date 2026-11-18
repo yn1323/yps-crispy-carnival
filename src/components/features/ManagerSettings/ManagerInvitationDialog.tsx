@@ -127,7 +127,7 @@ export function ManagerInvitationDialogView({
       onSubmit={isOpen && isExistingStaff ? handleSubmit : undefined}
       formId={isOpen && !isExistingStaff ? externalFormId : undefined}
       closeLabel="キャンセル"
-      submitLabel={getSubmitLabel(resolvedMode)}
+      submitLabel="招待する"
       isLoading={isRunning}
       isSubmitDisabled={isSubmitDisabled}
       preventClose={isRunning}
@@ -231,8 +231,4 @@ function ExistingStaffInvitationContent({
 
 function getDialogTitle(mode: ManagerInvitationDialogMode) {
   return mode === "existingStaff" ? "既存スタッフを管理者として招待" : "新しいユーザーを管理者として招待";
-}
-
-function getSubmitLabel(mode: ManagerInvitationDialogMode) {
-  return mode === "existingStaff" ? "管理者として招待する" : "招待する";
 }

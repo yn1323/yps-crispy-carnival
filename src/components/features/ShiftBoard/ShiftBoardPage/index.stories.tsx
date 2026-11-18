@@ -396,9 +396,7 @@ export const AppConfirmDialogMobile: Story = {
     await userEvent.click(await canvas.findByRole("button", { name: "保存・確定・出力" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "シフトを確定" }));
 
-    await expect(
-      await screen.findByRole("dialog", { name: "このシフトをスタッフに通知しますか？" }),
-    ).toBeInTheDocument();
+    await expect(await screen.findByRole("dialog", { name: "シフトを確定しますか？" })).toBeInTheDocument();
   },
 };
 

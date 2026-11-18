@@ -132,7 +132,7 @@ export function ManagerCandidateListView({
             disabled={!selectedPersonId || isSubmitting || isReadOnly}
             onClick={onSubmit}
           >
-            管理者として招待する
+            招待する
           </Button>
         </Flex>
       )}

@@ -52,7 +52,7 @@ export const MethodNavigationBehavior: Story = {
     await userEvent.click(manualCard);
     const manualHeading = await page.findByRole("heading", { name: "管理者が情報を入力して追加する" });
     await waitFor(() => expect(manualHeading).toHaveFocus());
-    await expect(page.getByRole("button", { name: "スタッフを登録する" })).toHaveAttribute("form", "add-staff-form");
+    await expect(page.getByRole("button", { name: "登録する" })).toHaveAttribute("form", "add-staff-form");
     const manualDialog = page.getByRole("dialog", { name: "スタッフを追加" });
     const manualActionArea = getActionArea(manualDialog);
     await expect(manualActionArea.querySelector('[data-dialog-action="start"]')).toBeInTheDocument();
@@ -60,7 +60,7 @@ export const MethodNavigationBehavior: Story = {
     const manualActions = within(manualActionArea).getAllByRole("button");
     await expect(manualActions).toHaveLength(2);
     await expect(manualActions[0]).toHaveAccessibleName("戻る");
-    await expect(manualActions[1]).toHaveAccessibleName("スタッフを登録する");
+    await expect(manualActions[1]).toHaveAccessibleName("登録する");
     await userEvent.click(await page.findByRole("button", { name: "戻る" }));
     await waitFor(() => expect(page.getByRole("button", { name: "あなたが情報を入力する" })).toHaveFocus());
 

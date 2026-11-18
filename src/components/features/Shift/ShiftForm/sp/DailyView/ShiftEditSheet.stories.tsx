@@ -129,7 +129,7 @@ export const ShortenSingleRange: Story = {
 
     await userEvent.click(sheet.getByRole("combobox", { name: "終了時間" }));
     await userEvent.click(await sheet.findByRole("option", { name: "13:00" }));
-    await userEvent.click(sheet.getByRole("button", { name: "シフトを変更" }));
+    await userEvent.click(sheet.getByRole("button", { name: "変更する" }));
 
     await expect(await within(canvasElement).findByText("更新結果：1件 single-work 12:00〜13:00")).toBeInTheDocument();
   },
@@ -155,7 +155,7 @@ export const DeleteAllMultipleRanges: Story = {
     const dialog = await body.findByRole("dialog", { name: /複数削除テストのシフト/ });
     const sheet = within(dialog);
 
-    await expect(sheet.getByRole("button", { name: "シフトを変更" })).toBeDisabled();
+    await expect(sheet.getByRole("button", { name: "変更する" })).toBeDisabled();
     await userEvent.click(sheet.getByRole("button", { name: "勤務時間を削除" }));
 
     await expect(await within(canvasElement).findByText("削除結果：delete-multiple")).toBeInTheDocument();

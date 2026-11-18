@@ -3,7 +3,7 @@
 ## 目的
 
 この文書は、シフトリのConvex backendで維持する責務、境界、状態設計の原則を定める。
-個別機能の現在仕様はコードと `doc/features/`、実装時の常設制約は `convex/AGENTS.md`、横断レビューの手順は `convex-design-review` が所有する。
+個別機能の現在仕様はコードと `doc/features/`、実装時の常設制約は `convex/AGENTS.md` が所有する。
 
 認証、認可、abuse対策、機密情報は `security-strategy.md`、テスト層は `testing-strategy.md`、schema移行の手順は `convex-migration-helper` を参照する。
 

@@ -159,7 +159,7 @@ yellow → ほぼ未使用
 - 通常border → `border.default`、強いborder → `border.emphasized`
 - border、outline、focus ring、divider、progress connector、shadow、文字・iconのforegroundへtealを明示する場合 → `500`以上
 - tealの主要文字 on white → `700`以上を基本にする
-- 低階調tealの許可・禁止用途は、ルート`AGENTS.md`を正本とする
+- 低階調tealの許可・禁止用途は、`.claude/rules/ui-colors.md`を正本とする
 
 ## スペーシングトークン
 
@@ -229,7 +229,7 @@ const dialog = useDialog();
   onOpenChange={dialog.onOpenChange}
   onClose={dialog.close}
   formId="staff-form"
-  submitLabel="変更を保存"
+  submitLabel="保存する"
   isLoading={isSaving}
 >
   <form id="staff-form" onSubmit={handleSubmit(onSubmit)}>
@@ -259,7 +259,7 @@ custom footerが必要な場合も、配置用の`Flex`をfeatureで組まず`Di
           戻る
         </Button>
       }
-      endAction={<Button onClick={onSave}>変更を保存</Button>}
+      endAction={<Button onClick={onSave}>保存する</Button>}
     />
   }
 >

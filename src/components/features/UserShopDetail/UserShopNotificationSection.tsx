@@ -50,9 +50,6 @@ export function UserShopNotificationSection({
             <Box borderWidth="1px" borderColor="blackAlpha.100" bg="blackAlpha.50" borderRadius="md" p={3}>
               <Stack gap={1}>
                 <Text fontWeight="semibold">シフトに参加しない設定のため、シフトの通知は届きません</Text>
-                <Text fontSize="xs" color="fg.muted">
-                  「参加する」に変えると再送できます。
-                </Text>
               </Stack>
             </Box>
           )}

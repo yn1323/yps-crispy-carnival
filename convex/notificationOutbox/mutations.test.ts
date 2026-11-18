@@ -189,6 +189,113 @@ describe("notificationOutbox", () => {
     expect(jobs[0].purpose).toBe("business");
   });
 
+  it("配信停止に登録された宛先へのメールはenqueueせず、通知履歴も作らない", async () => {
+    const { t, shopId, staffId } = await setupShop();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("emailSuppressions", { emailNormalized: "staff@example.com" });
+    });
+
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.enqueue, {
+        channel: "email",
+        shopId,
+        staffId,
+        history: { notificationKind: "test.email", displayTitle: emailPayload.subject },
+        dedupeKey: "email:test:suppressed-enqueue",
+        // 宛先の大文字と前後の空白は、登録済みの小文字アドレスと同じ宛先として扱う。
+        payload: { ...emailPayload, to: " Staff@Example.com ", suppressDelivery: false },
+      }),
+    ).resolves.toBeNull();
+
+    await expect(t.run((ctx) => ctx.db.query("notificationOutbox").collect())).resolves.toEqual([]);
+    await expect(t.run((ctx) => ctx.db.query("notificationHistory").collect())).resolves.toEqual([]);
+  });
+
+  it("enqueue後に配信停止へ登録された宛先のメールはprovider直前にcancelする", async () => {
+    const { t, shopId, staffId } = await setupShop();
+    const enqueued = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "email",
+      shopId,
+      staffId,
+      history: { notificationKind: "test.email", displayTitle: emailPayload.subject },
+      dedupeKey: "email:test:suppressed-prepare",
+      payload: { ...emailPayload, suppressDelivery: false },
+    });
+    if (!enqueued) throw new Error("notification was not enqueued");
+
+    vi.advanceTimersByTime(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
+    const claimed = await t.mutation(internal.notificationOutbox.mutations.claimDue, { now: Date.now() });
+    expect(claimed.map(({ _id, status }) => ({ _id, status }))).toEqual([
+      { _id: enqueued.outboxId, status: "processing" },
+    ]);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("emailSuppressions", { emailNormalized: "staff@example.com" });
+    });
+
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.prepareForDelivery, {
+        outboxId: enqueued.outboxId,
+        leaseToken: claimed[0]?.leaseToken,
+        now: Date.now(),
+      }),
+    ).resolves.toBeNull();
+
+    await expect(t.run((ctx) => ctx.db.get(enqueued.outboxId))).resolves.toMatchObject({
+      status: "cancelled",
+      cancelReason: "recipient_suppressed",
+    });
+    const histories = await t.run((ctx) => ctx.db.query("notificationHistory").collect());
+    expect(histories.map(({ outboxId, sendStatus }) => ({ outboxId, sendStatus }))).toEqual([
+      { outboxId: enqueued.outboxId, sendStatus: "cancelled" },
+    ]);
+  });
+
+  it("メールアドレスが配信停止に登録されていてもLINE通知はenqueueする", async () => {
+    const { t, shopId, staffId } = await setupShop();
+    const recipient = await t.run(async (ctx) => {
+      await ctx.db.insert("emailSuppressions", { emailNormalized: "staff@example.com" });
+      return await seedCanonicalStaffLineRecipient(ctx, { staffId, lineUserId: "U_email_suppressed" });
+    });
+
+    const enqueued = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "line",
+      shopId,
+      staffId,
+      organizationPersonLineLinkId: recipient.organizationPersonLineLinkId,
+      organizationPersonLineGenerationAtEnqueue: recipient.generation,
+      purpose: "business",
+      history: { notificationKind: "test.line", displayTitle: "LINE通知" },
+      dedupeKey: "line:test:email-suppressed",
+      payload: { kind: "line", toUserId: "U_email_suppressed", text: "LINE通知", suppressDelivery: true },
+    });
+
+    if (!enqueued) throw new Error("LINE notification was not enqueued");
+    const jobs = await t.run((ctx) => ctx.db.query("notificationOutbox").collect());
+    expect(jobs.map(({ _id, channel, status }) => ({ _id, channel, status }))).toEqual([
+      { _id: enqueued.outboxId, channel: "line", status: "pending" },
+    ]);
+  });
+
+  it("配信停止に登録されていない宛先へのメールはenqueueする", async () => {
+    const { t, shopId, staffId } = await setupShop();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("emailSuppressions", { emailNormalized: "other-staff@example.com" });
+    });
+
+    const enqueued = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "email",
+      shopId,
+      staffId,
+      history: { notificationKind: "test.email", displayTitle: emailPayload.subject },
+      dedupeKey: "email:test:not-suppressed",
+      payload: emailPayload,
+    });
+
+    if (!enqueued) throw new Error("notification was not enqueued");
+    const jobs = await t.run((ctx) => ctx.db.query("notificationOutbox").collect());
+    expect(jobs.map(({ _id, status }) => ({ _id, status }))).toEqual([{ _id: enqueued.outboxId, status: "pending" }]);
+  });
+
   it("canonical再連携後の同じdedupeKeyは旧generationをcancelし、現在generationで新規作成する", async () => {
     const t = createConvexTestWithMigrations();
     const ids = await t.run(async (ctx) => {

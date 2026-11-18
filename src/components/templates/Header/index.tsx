@@ -4,6 +4,7 @@ import { Link as RouterLink } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { MeasurementLink } from "@/src/components/shared/MeasurementLink";
 import { Button } from "@/src/components/ui/Button";
+import { useHideOnScrollDown } from "@/src/hooks/useHideOnScrollDown";
 
 export const HEADER_HEIGHT = { base: "64px", md: "68px" } as const;
 export const AUTHENTICATED_APP_HEADER_HEIGHT = { base: "52px", md: "52px" } as const;
@@ -12,6 +13,17 @@ export const STAFF_PAGE_PX = { base: 4, lg: 6 } as const;
 
 const GLASS_BACKDROP_FILTER = "blur(12px) saturate(135%)";
 const AUTHENTICATED_GLASS_BACKGROUND = "rgba(255, 255, 255, 0.08)";
+/** `data-scroll-hidden`が付いたヘッダーを、影の広がりごと画面上端の外へ滑らせて隠す。 */
+export const HEADER_SCROLL_HIDE_CSS = {
+  transition: "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+  // キーボードで操作中、またはメニューを開いている間は、操作対象を画面内に残す。
+  "&[data-scroll-hidden]:not(:has(:focus-visible, [aria-expanded='true']))": {
+    transform: "translateY(calc(-100% - 32px))",
+  },
+  "@media (prefers-reduced-motion: reduce)": {
+    transition: "none",
+  },
+} as const;
 
 const publicNavItems = [
   { label: "機能", href: "/features" },
@@ -158,29 +170,34 @@ const HeaderShell = ({
   borderBottomWidth = "1px",
   borderColor = "rgba(15, 23, 42, 0.08)",
   boxShadow,
-}: HeaderShellProps) => (
-  <Box
-    as="header"
-    position={position === "static" ? undefined : position}
-    insetX={position === "fixed" ? 0 : undefined}
-    top={position === "static" ? undefined : 0}
-    zIndex="sticky"
-    bg={bg}
-    bgImage={bgImage}
-    backdropFilter={GLASS_BACKDROP_FILTER}
-    css={{ WebkitBackdropFilter: GLASS_BACKDROP_FILTER }}
-    borderBottomWidth={borderBottomWidth}
-    borderColor={borderColor}
-    boxShadow={boxShadow}
-    w="full"
-  >
-    <Container maxW={maxW} minH={minH} px={px} py={py} display="flex" alignItems="center">
-      <Flex align="center" justify={justify} gap={{ base: 4, md: 5 }} w="full">
-        {children}
-      </Flex>
-    </Container>
-  </Box>
-);
+}: HeaderShellProps) => {
+  const isScrollHidden = useHideOnScrollDown({ enabled: position !== "static" });
+
+  return (
+    <Box
+      as="header"
+      data-scroll-hidden={isScrollHidden ? "" : undefined}
+      position={position === "static" ? undefined : position}
+      insetX={position === "fixed" ? 0 : undefined}
+      top={position === "static" ? undefined : 0}
+      zIndex="sticky"
+      bg={bg}
+      bgImage={bgImage}
+      backdropFilter={GLASS_BACKDROP_FILTER}
+      css={{ WebkitBackdropFilter: GLASS_BACKDROP_FILTER, ...HEADER_SCROLL_HIDE_CSS }}
+      borderBottomWidth={borderBottomWidth}
+      borderColor={borderColor}
+      boxShadow={boxShadow}
+      w="full"
+    >
+      <Container maxW={maxW} minH={minH} px={px} py={py} display="flex" alignItems="center">
+        <Flex align="center" justify={justify} gap={{ base: 4, md: 5 }} w="full">
+          {children}
+        </Flex>
+      </Container>
+    </Box>
+  );
+};
 
 type HeaderBrandProps = {
   to: string;

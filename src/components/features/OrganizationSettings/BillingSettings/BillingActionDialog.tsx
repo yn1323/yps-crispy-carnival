@@ -255,7 +255,7 @@ function dialogContent(dialog: BillingActionDialogState): {
     case "changePaidPlanNow":
       return {
         title: "Proプランへ変更しますか？",
-        submitLabel: "Proへ変更",
+        submitLabel: "変更する",
         submitColorPalette: "teal",
         note: "",
       };
@@ -269,7 +269,7 @@ function dialogContent(dialog: BillingActionDialogState): {
     case "schedulePlanChange":
       return {
         title: `${planLabel(dialog.targetPlan)}プランへの変更を予約しますか？`,
-        submitLabel: "プラン変更を予約",
+        submitLabel: "予約する",
         submitColorPalette: "orange",
         note: "プラン変更予定日までProが継続されます。",
       };
@@ -285,13 +285,13 @@ function dialogContent(dialog: BillingActionDialogState): {
         ? {
             title: "解約予約を取り消しますか？",
             description: "予約を取り消し、次回更新後も現在のプランを継続します。",
-            submitLabel: "解約予約を取り消す",
+            submitLabel: "取り消す",
             submitColorPalette: "teal",
           }
         : {
             title: "プラン変更の予約を取り消しますか？",
             description: `予約を取り消し、次回更新後も${planLabel(dialog.currentPlan)}を継続します。`,
-            submitLabel: "変更予約を取り消す",
+            submitLabel: "取り消す",
             submitColorPalette: "teal",
           };
   }
