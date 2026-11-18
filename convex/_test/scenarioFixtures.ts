@@ -2,7 +2,6 @@ import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { todayJST } from "../_lib/dateFormat";
 import { generateUUID } from "../_lib/uuid";
-import { runInvitationAcceptance } from "../organizationInvitation/acceptanceActions";
 import type { ScenarioTest } from "./scenarioBuilders";
 
 type ManagerIdentity =
@@ -225,24 +224,8 @@ export function createScenario(t: ScenarioTest) {
             requestId: generateUUID(),
           });
         },
-        acceptManagerInvitation(token: string, verifiedEmails: ReadonlySet<string>) {
-          return asManager.action(
-            async (ctx) =>
-              await runInvitationAcceptance(
-                ctx,
-                {
-                  assertReady: async () => undefined,
-                  getVerifiedEmails: async () => verifiedEmails,
-                },
-                {
-                  appOrigin: "https://app.example.test",
-                  secretKey: "sk_test_scenario",
-                  publishableKey: "pk_test_scenario",
-                  expectedIssuer: "https://convex.test",
-                },
-                token,
-              ),
-          );
+        acceptManagerInvitation(token: string) {
+          return asManager.action(api.organizationInvitation.acceptanceActions.accept, { token });
         },
         async removeManagerRole(personId: Id<"organizationPeople">) {
           return asManager.mutation(api.organization.mutations.removeManagerRoleForOrganization, {

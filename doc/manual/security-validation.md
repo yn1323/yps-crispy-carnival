@@ -161,7 +161,7 @@ GoogleログインとGoogle新規登録は、`/sso-callback`を認証継続先�
 ### 分離契約とPIIの確認
 
 Primaryメールアドレスやログイン方法を変更しても、`users.email`、`organizationPeople.email`、`staffs.email`、`organizations.billingEmail`は変更されないことを確認する。
-管理者招待では、接続済みpersonを内部user IDで、未接続・外部招待をClerk Backend APIの確認済みEmailAddress所有で検証する既存契約を維持する。
+管理者招待では、接続済みpersonを内部user IDで検証する。  未接続・外部招待は、招待先メールアドレスへだけ送った招待URLの所持とログインを根拠とし、ログイン用メールアドレスとの一致は確認しない。  ログイン済みでも「参加する」を押すまで受諾されないことと、ログイン中のすべての状態でログアウトできることを確認する。
 
 メールアドレス、確認コード、Clerk User payload、user ID、resource ID、tokenがURL、browser console、Convex log、audit、analyticsへ新規記録されていないことを確認する。
 スクリーンショットを保存する場合はPIIを除き、アクセス制限された保管先だけを使う。

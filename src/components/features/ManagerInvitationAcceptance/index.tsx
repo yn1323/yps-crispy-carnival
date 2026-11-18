@@ -1,18 +1,14 @@
-import { useAuth, useClerk, useReverification, useUser } from "@clerk/react";
-import { isReverificationCancelledError } from "@clerk/react/errors";
-import type { EmailAddressResource } from "@clerk/shared/types";
+import { useAuth, useClerk, useUser } from "@clerk/react";
 import { useNavigate } from "@tanstack/react-router";
 import { useAction, useConvexAuth, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "@/convex/_generated/api";
-import { normalizeEmail, requiredEmailSchema } from "@/convex/_lib/validation";
-import { getClerkErrorMessage } from "@/src/components/features/AuthPage/errorPresentation";
-import { maskEmailAddress } from "@/src/components/features/AuthPage/loginVerification";
 import { normalizeShopContextOptions } from "@/src/domains/shop/context";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { trackProductEvent } from "@/src/lib/webMeasurement";
 import {
+  type ManagerInvitationAcceptanceAccount,
   ManagerInvitationAcceptanceView,
   type ManagerInvitationAcceptanceViewState,
 } from "./ManagerInvitationAcceptanceView";
@@ -24,8 +20,6 @@ type LinkedResult = Extract<AcceptanceResult, { status: "linked" }>;
 type LinkedTarget = Omit<LinkedResult, "status"> & {
   organizationName: string | null;
 };
-
-type VerificationStep = "input" | "code";
 
 type Props = {
   token: string | undefined;
@@ -43,12 +37,7 @@ export function ManagerInvitationAcceptance({ token }: Props) {
   const [acceptanceResult, setAcceptanceResult] = useState<AcceptanceResult | null>(null);
   const [linkedTarget, setLinkedTarget] = useState<LinkedTarget | null>(null);
   const [failedAcceptanceToken, setFailedAcceptanceToken] = useState<string | null>(null);
-  const [verificationStep, setVerificationStep] = useState<VerificationStep>("input");
-  const [verificationError, setVerificationError] = useState<string | null>(null);
-  const [verificationInfo, setVerificationInfo] = useState<string | null>(null);
-  const [verificationRequiresLogout, setVerificationRequiresLogout] = useState(false);
-  const [maskedVerificationEmail, setMaskedVerificationEmail] = useState("");
-  const verificationEmailRef = useRef<EmailAddressResource | null>(null);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
   const invitationRedirect = useMemo(() => buildManagerInvitationRedirect(token), [token]);
   const shops = useMemo(() => normalizeShopContextOptions(rawShops ?? []), [rawShops]);
   const destinationShop = linkedTarget?.shopId
@@ -67,12 +56,8 @@ export function ManagerInvitationAcceptance({ token }: Props) {
     });
   }, [destinationShop, linkedTarget, navigate]);
 
-  const createEmailAddress = useReverification(async (email: string) => {
-    if (!user) throw new Error("Clerk user is not available");
-    return await user.createEmailAddress({ email });
-  });
-
-  const { run: acceptOnce, isRunning: isAccepting } = useSingleFlight(async (afterVerification = false) => {
+  // ログイン済みでも自動では参加させない。どのアカウントで参加するかを見せ、利用者の操作で始める。
+  const { run: acceptOnce, isRunning: isAccepting } = useSingleFlight(async () => {
     if (!token || !isAuthenticated) return;
 
     setFailedAcceptanceToken(null);
@@ -86,16 +71,6 @@ export function ManagerInvitationAcceptance({ token }: Props) {
           organizationName: preview?.status === "ready" ? preview.organizationName : null,
         });
       }
-      if (result.status === "verificationRequired") {
-        setVerificationStep("input");
-        setVerificationInfo(null);
-        setVerificationRequiresLogout(false);
-        setVerificationError(
-          afterVerification
-            ? "入力したメールアドレスを招待先として確認できませんでした。招待メールの宛先を確認してください。"
-            : null,
-        );
-      }
       setAcceptanceResult(result);
     } catch {
       setAcceptanceResult(null);
@@ -103,126 +78,26 @@ export function ManagerInvitationAcceptance({ token }: Props) {
     }
   });
 
-  useEffect(() => {
-    if (
-      !token ||
-      !isAuthenticated ||
-      preview?.status !== "ready" ||
-      acceptanceResult !== null ||
-      failedAcceptanceToken === token ||
-      isAccepting
-    ) {
-      return;
-    }
-    void acceptOnce();
-  }, [acceptOnce, acceptanceResult, failedAcceptanceToken, isAuthenticated, isAccepting, preview?.status, token]);
-
-  const { run: startVerification, isRunning: isStartingVerification } = useSingleFlight(async (email: string) => {
-    setVerificationError(null);
-    setVerificationInfo(null);
-    setVerificationRequiresLogout(false);
-
-    const parsed = requiredEmailSchema.safeParse(email);
-    if (!parsed.success) {
-      setVerificationError(parsed.error.issues[0]?.message ?? "メールアドレスを確認してください。");
-      return;
-    }
-    if (!user || !isUserLoaded) {
-      setVerificationError("アカウント情報を確認できませんでした。画面を更新して、もう一度お試しください。");
-      return;
-    }
-
-    const normalizedEmail = normalizeEmail(parsed.data);
+  const { run: logout, isRunning: isLoggingOut } = useSingleFlight(async () => {
+    setLogoutError(null);
     try {
-      const reloadedUser = await user.reload();
-      let emailAddress = reloadedUser.emailAddresses.find(
-        (candidate) => normalizeEmail(candidate.emailAddress) === normalizedEmail,
-      );
+      // 同じ招待URLへ戻し、別のアカウントでの登録またはログインからやり直せるようにする。
+      await signOut({ redirectUrl: invitationRedirect });
+      setAcceptanceResult(null);
+      setFailedAcceptanceToken(null);
+    } catch {
+      setLogoutError("ログアウトできませんでした。もう一度お試しください。");
+    }
+  });
 
-      if (!emailAddress) {
-        const createdEmailAddress = await createEmailAddress(normalizedEmail);
-        if (createdEmailAddress == null) {
-          setVerificationError("メールアドレスの追加を中止しました。もう一度お試しください。");
-          return;
+  const account: ManagerInvitationAcceptanceAccount | null =
+    isSignedIn === true && isUserLoaded && user
+      ? {
+          email: user.primaryEmailAddress?.emailAddress ?? "",
+          errorMessage: logoutError,
+          isLoggingOut,
         }
-        emailAddress = createdEmailAddress;
-      }
-
-      verificationEmailRef.current = emailAddress;
-      setMaskedVerificationEmail(maskEmailAddress(emailAddress.emailAddress));
-
-      if (emailAddress.verification.status === "verified") {
-        await user.reload();
-        await acceptOnce(true);
-        return;
-      }
-
-      const preparedEmailAddress = await emailAddress.prepareVerification({ strategy: "email_code" });
-      verificationEmailRef.current = preparedEmailAddress;
-      setVerificationStep("code");
-    } catch (error) {
-      if (isReverificationCancelledError(error)) return;
-      setVerificationRequiresLogout(hasClerkErrorCode(error, "form_identifier_exists"));
-      setVerificationError(getClerkErrorMessage(error));
-    }
-  });
-
-  const { run: verifyCode, isRunning: isVerifyingCode } = useSingleFlight(async (code: string) => {
-    setVerificationError(null);
-    setVerificationInfo(null);
-    setVerificationRequiresLogout(false);
-
-    const emailAddress = verificationEmailRef.current;
-    if (!emailAddress || !user) {
-      setVerificationStep("input");
-      setVerificationError("確認するメールアドレスをもう一度入力してください。");
-      return;
-    }
-
-    try {
-      const verifiedEmailAddress = await emailAddress.attemptVerification({ code });
-      verificationEmailRef.current = verifiedEmailAddress;
-      if (verifiedEmailAddress.verification.status !== "verified") {
-        setVerificationError("メールアドレスを確認できませんでした。確認コードをもう一度お確かめください。");
-        return;
-      }
-
-      await user.reload();
-      await acceptOnce(true);
-    } catch (error) {
-      setVerificationError(getClerkErrorMessage(error));
-    }
-  });
-
-  const { run: resendCode, isRunning: isResendingCode } = useSingleFlight(async () => {
-    setVerificationError(null);
-    setVerificationInfo(null);
-    setVerificationRequiresLogout(false);
-
-    const emailAddress = verificationEmailRef.current;
-    if (!emailAddress) {
-      setVerificationStep("input");
-      setVerificationError("確認するメールアドレスをもう一度入力してください。");
-      return;
-    }
-
-    try {
-      const preparedEmailAddress = await emailAddress.prepareVerification({ strategy: "email_code" });
-      verificationEmailRef.current = preparedEmailAddress;
-      setVerificationInfo("確認コードを再送しました。");
-    } catch (error) {
-      setVerificationError(getClerkErrorMessage(error));
-    }
-  });
-
-  const backToEmailInput = () => {
-    verificationEmailRef.current = null;
-    setMaskedVerificationEmail("");
-    setVerificationStep("input");
-    setVerificationError(null);
-    setVerificationInfo(null);
-    setVerificationRequiresLogout(false);
-  };
+      : null;
 
   const state = resolveViewState({
     token,
@@ -237,30 +112,17 @@ export function ManagerInvitationAcceptance({ token }: Props) {
     isDestinationLoading: rawShops === undefined,
     isAccepting,
     didAcceptanceRequestFail: failedAcceptanceToken === token,
-    verificationStep,
-    verificationError,
-    verificationInfo,
-    verificationRequiresLogout,
-    maskedVerificationEmail,
-    isVerifyingEmail: isStartingVerification || isVerifyingCode || isResendingCode || isAccepting,
   });
 
   return (
     <ManagerInvitationAcceptanceView
       state={state}
+      account={account}
       actions={{
         onAccept: () => void acceptOnce(),
         onLogin: () => void navigate({ to: "/login", search: { redirect: invitationRedirect } }),
         onSignup: () => void navigate({ to: "/signup", search: { redirect: invitationRedirect } }),
-        onStartVerification: (email) => void startVerification(email),
-        onVerifyCode: ({ code }) => void verifyCode(code),
-        onResendCode: () => void resendCode(),
-        onBackToVerificationInput: backToEmailInput,
-        onLogout: () => {
-          void signOut().catch(() => {
-            setVerificationError("ログアウトできませんでした。もう一度お試しください。");
-          });
-        },
+        onLogout: () => void logout(),
         onGoToDashboard: () =>
           void navigate({
             to: "/dashboard",
@@ -291,12 +153,6 @@ function resolveViewState({
   isDestinationLoading,
   isAccepting,
   didAcceptanceRequestFail,
-  verificationStep,
-  verificationError,
-  verificationInfo,
-  verificationRequiresLogout,
-  maskedVerificationEmail,
-  isVerifyingEmail,
 }: {
   token: string | undefined;
   preview: InvitationPreview;
@@ -310,12 +166,6 @@ function resolveViewState({
   isDestinationLoading: boolean;
   isAccepting: boolean;
   didAcceptanceRequestFail: boolean;
-  verificationStep: VerificationStep;
-  verificationError: string | null;
-  verificationInfo: string | null;
-  verificationRequiresLogout: boolean;
-  maskedVerificationEmail: string;
-  isVerifyingEmail: boolean;
 }): ManagerInvitationAcceptanceViewState {
   if (!token) return { kind: "invalid" };
 
@@ -328,27 +178,13 @@ function resolveViewState({
       hasDestination: destinationShopFound,
     };
   }
-  if (acceptanceResult?.status === "verificationRequired") {
-    return verificationStep === "code"
+  if (acceptanceResult?.status === "conflict") {
+    return acceptanceResult.accountAlreadyRegistered
       ? {
-          kind: "verificationRequired",
-          step: "code",
-          maskedEmail: maskedVerificationEmail,
-          errorMessage: verificationError,
-          infoMessage: verificationInfo,
-          isBusy: isVerifyingEmail,
+          kind: "accountAlreadyRegistered",
+          organizationName: preview?.status === "ready" ? preview.organizationName : null,
         }
-      : {
-          kind: "verificationRequired",
-          step: "input",
-          errorMessage: verificationError,
-          requiresLogout: verificationRequiresLogout,
-          isBusy: isVerifyingEmail,
-        };
-  }
-  if (acceptanceResult?.status === "conflict") return { kind: "conflict", isAccepting };
-  if (acceptanceResult?.status === "unavailable") {
-    return acceptanceResult.retryable ? { kind: "retryableError", isRetrying: isAccepting } : { kind: "unavailable" };
+      : { kind: "conflict" };
   }
   if (acceptanceResult) return { kind: acceptanceResult.status };
   if (didAcceptanceRequestFail) return { kind: "retryableError", isRetrying: isAccepting };
@@ -368,14 +204,8 @@ function resolveViewState({
   };
 }
 
-function hasClerkErrorCode(error: unknown, expectedCode: string): boolean {
-  if (!error || typeof error !== "object") return false;
-
-  const candidate = "errors" in error && Array.isArray(error.errors) ? error.errors[0] : error;
-  return Boolean(candidate && typeof candidate === "object" && "code" in candidate && candidate.code === expectedCode);
-}
-
 export type {
+  ManagerInvitationAcceptanceAccount,
   ManagerInvitationAcceptanceViewProps,
   ManagerInvitationAcceptanceViewState,
 } from "./ManagerInvitationAcceptanceView";

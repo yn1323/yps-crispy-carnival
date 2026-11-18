@@ -1,36 +1,19 @@
-import {
-  Alert,
-  Box,
-  Card,
-  Circle,
-  Container,
-  Field,
-  Heading,
-  HStack,
-  Icon,
-  Spinner,
-  Stack,
-  Text,
-  VStack,
-} from "@chakra-ui/react";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { Box, Card, Circle, Container, Heading, HStack, Icon, Stack, Text, VStack } from "@chakra-ui/react";
 import type { IconType } from "react-icons";
-import { LuBuilding2, LuCheck, LuCircleAlert, LuClock, LuLink, LuLogIn, LuRefreshCw, LuUserPlus } from "react-icons/lu";
-import { z } from "zod";
-import { requiredEmailSchema } from "@/convex/_lib/validation";
-import { EMAIL_MAX_LENGTH } from "@/convex/constants";
 import {
-  EmailCodeVerificationForm,
-  type EmailVerificationValues,
-} from "@/src/components/features/AuthPage/EmailCodeVerificationForm";
+  LuBuilding2,
+  LuCheck,
+  LuCircleAlert,
+  LuClock,
+  LuLink,
+  LuLogIn,
+  LuRefreshCw,
+  LuUserPlus,
+  LuUserX,
+} from "react-icons/lu";
 import { HEADER_HEIGHT, Header } from "@/src/components/templates/Header";
 import { Button } from "@/src/components/ui/Button";
-import { Input } from "@/src/components/ui/FormControls";
 import { ShiftoriLoading } from "@/src/components/ui/ShiftoriLoading";
-
-const invitationEmailSchema = z.object({ email: requiredEmailSchema });
-type InvitationEmailValues = z.infer<typeof invitationEmailSchema>;
 
 export type ManagerInvitationAcceptanceViewState =
   | { kind: "loading" }
@@ -46,22 +29,8 @@ export type ManagerInvitationAcceptanceViewState =
   | { kind: "used" }
   | { kind: "unavailable" }
   | { kind: "invalid" }
-  | {
-      kind: "verificationRequired";
-      step: "input";
-      errorMessage: string | null;
-      requiresLogout: boolean;
-      isBusy: boolean;
-    }
-  | {
-      kind: "verificationRequired";
-      step: "code";
-      maskedEmail: string;
-      errorMessage: string | null;
-      infoMessage: string | null;
-      isBusy: boolean;
-    }
-  | { kind: "conflict"; isAccepting: boolean }
+  | { kind: "conflict" }
+  | { kind: "accountAlreadyRegistered"; organizationName: string | null }
   | { kind: "retryableError"; isRetrying: boolean }
   | {
       kind: "accepted";
@@ -70,22 +39,26 @@ export type ManagerInvitationAcceptanceViewState =
       hasDestination: boolean;
     };
 
+/** ログイン中のアカウント。ログインしていない場合はnullで、共通の行を表示しない。 */
+export type ManagerInvitationAcceptanceAccount = {
+  email: string;
+  errorMessage: string | null;
+  isLoggingOut: boolean;
+};
+
 export type ManagerInvitationAcceptanceViewProps = {
   state: ManagerInvitationAcceptanceViewState;
+  account: ManagerInvitationAcceptanceAccount | null;
   actions: {
     onAccept: () => void;
     onLogin: () => void;
     onSignup: () => void;
-    onStartVerification: (email: string) => void | Promise<void>;
-    onVerifyCode: (values: EmailVerificationValues) => void | Promise<void>;
-    onResendCode: () => void | Promise<void>;
-    onBackToVerificationInput: () => void;
     onLogout: () => void;
     onGoToDashboard: () => void;
   };
 };
 
-export function ManagerInvitationAcceptanceView({ state, actions }: ManagerInvitationAcceptanceViewProps) {
+export function ManagerInvitationAcceptanceView({ state, account, actions }: ManagerInvitationAcceptanceViewProps) {
   return (
     <Box minH="100dvh" bgGradient="to-b" gradientFrom="teal.50" gradientVia="gray.50" gradientTo="white">
       <Header variant="public" showLogin={false} showSignup={false} />
@@ -102,6 +75,9 @@ export function ManagerInvitationAcceptanceView({ state, actions }: ManagerInvit
         <Card.Root w="full" borderWidth="1px" borderColor="blackAlpha.100" borderRadius="2xl" shadow="xl">
           <Card.Body p={{ base: 6, md: 9 }} aria-live="polite">
             <InvitationContent state={state} actions={actions} />
+            {account && state.kind !== "accepted" && (
+              <SignedInAccountRow account={account} onLogout={actions.onLogout} />
+            )}
           </Card.Body>
         </Card.Root>
       </Container>
@@ -109,17 +85,15 @@ export function ManagerInvitationAcceptanceView({ state, actions }: ManagerInvit
   );
 }
 
-function InvitationContent({ state, actions }: ManagerInvitationAcceptanceViewProps) {
+type ContentProps = Pick<ManagerInvitationAcceptanceViewProps, "state" | "actions">;
+
+function InvitationContent({ state, actions }: ContentProps) {
   if (state.kind === "loading") {
     return <ShiftoriLoading variant="section" aria-label="招待情報を確認中" />;
   }
 
   if (state.kind === "ready") {
     return <ReadyInvitation state={state} actions={actions} />;
-  }
-
-  if (state.kind === "verificationRequired") {
-    return <VerificationRequired state={state} actions={actions} />;
   }
 
   const content = getStatusContent(state);
@@ -139,9 +113,9 @@ function InvitationContent({ state, actions }: ManagerInvitationAcceptanceViewPr
         </Stack>
       </VStack>
 
-      {state.kind === "conflict" && (
-        <Button colorPalette="teal" size="lg" minH="48px" loading={state.isAccepting} onClick={actions.onAccept}>
-          もう一度確認する
+      {(state.kind === "conflict" || state.kind === "accountAlreadyRegistered") && (
+        <Button colorPalette="teal" size="lg" minH="48px" onClick={actions.onLogout}>
+          別のアカウントでログインする
         </Button>
       )}
 
@@ -166,119 +140,33 @@ function InvitationContent({ state, actions }: ManagerInvitationAcceptanceViewPr
   );
 }
 
-function VerificationRequired({
-  state,
-  actions,
+/**
+ * ログイン中のアカウントと、別のアカウントへ切り替えるためのログアウト。
+ * 想定していない状態でも行き止まりにしないため、ログイン中のすべての状態に出す。
+ */
+function SignedInAccountRow({
+  account,
+  onLogout,
 }: {
-  state: Extract<ManagerInvitationAcceptanceViewState, { kind: "verificationRequired" }>;
-  actions: ManagerInvitationAcceptanceViewProps["actions"];
+  account: ManagerInvitationAcceptanceAccount;
+  onLogout: () => void;
 }) {
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<InvitationEmailValues>({ resolver: zodResolver(invitationEmailSchema) });
-
   return (
-    <VStack align="stretch" gap={6}>
-      <VStack gap={4} textAlign="center">
-        <Circle size="64px" bg="teal.50" color="teal.700">
-          <LuLink size={28} aria-hidden />
-        </Circle>
-        <Stack gap={2}>
-          <Heading as="h1" size={{ base: "lg", md: "xl" }} color="gray.950">
-            本人確認が必要
-          </Heading>
-          <Text color="gray.700" fontSize="sm" lineHeight="tall">
-            管理者招待メール送信先と、シフトリのアカウントのメールアドレスが異なります。
-            <br />
-            確認コードから本人確認を行います。
-          </Text>
-        </Stack>
-      </VStack>
-
-      {state.step === "input" && state.requiresLogout ? (
-        <Stack gap={5}>
-          {state.errorMessage && (
-            <Alert.Root status="error" borderRadius="lg">
-              <Alert.Indicator />
-              <Alert.Description whiteSpace="pre-line">{state.errorMessage}</Alert.Description>
-            </Alert.Root>
-          )}
-          <Button type="button" colorPalette="teal" size="lg" minH="48px" onClick={actions.onLogout}>
-            ログアウトする
-          </Button>
-        </Stack>
-      ) : state.step === "input" ? (
-        <Stack as="form" gap={5} onSubmit={handleSubmit(({ email }) => actions.onStartVerification(email))}>
-          <Alert.Root status="info" borderRadius="lg">
-            <Alert.Indicator />
-            <Alert.Description>
-              管理者招待メールを受け取ったメールアドレスを入力してください。
-              <br />
-              確認コードをその宛先へ送信します。
-            </Alert.Description>
-          </Alert.Root>
-          {state.errorMessage && (
-            <Alert.Root status="error" borderRadius="lg">
-              <Alert.Indicator />
-              <Alert.Description whiteSpace="pre-line">{state.errorMessage}</Alert.Description>
-            </Alert.Root>
-          )}
-          <Field.Root invalid={!!errors.email}>
-            <Field.Label>メールアドレス</Field.Label>
-            <Input
-              type="email"
-              autocompletePolicy="auth"
-              autoComplete="email"
-              maxLength={EMAIL_MAX_LENGTH}
-              placeholder="manager@example.com"
-              {...register("email")}
-            />
-            <Field.ErrorText>{errors.email?.message}</Field.ErrorText>
-          </Field.Root>
-          <Button
-            type="submit"
-            colorPalette="teal"
-            size="lg"
-            minH="48px"
-            loading={state.isBusy}
-            loadingText="送信しています"
-          >
-            確認コードを送信
-          </Button>
-        </Stack>
-      ) : (
-        <EmailCodeVerificationForm
-          description={`${state.maskedEmail}宛てに送信した確認コードを入力してください。`}
-          errorMessage={state.errorMessage ?? undefined}
-          infoMessage={state.infoMessage ?? undefined}
-          isSubmitting={state.isBusy}
-          submitLabel="確認して参加する"
-          submittingLabel="確認しています"
-          onSubmit={actions.onVerifyCode}
-          codeInputAction={
-            <Button
-              type="button"
-              variant="ghost"
-              colorPalette="teal"
-              size="sm"
-              fontWeight="semibold"
-              alignSelf="flex-end"
-              disabled={state.isBusy}
-              onClick={actions.onResendCode}
-            >
-              コードを再送する
-            </Button>
-          }
-          secondaryActions={
-            <Button type="button" variant="outline" disabled={state.isBusy} onClick={actions.onBackToVerificationInput}>
-              戻る
-            </Button>
-          }
-        />
+    <Stack gap={2} mt={6} pt={4} borderTopWidth="1px" borderColor="gray.200">
+      <HStack justify="space-between" gap={3}>
+        <Text color="gray.700" fontSize="xs" lineHeight="tall" minW={0} wordBreak="break-all">
+          {account.email ? `${account.email}でログイン中` : "ログイン中"}
+        </Text>
+        <Button variant="outline" size="sm" flexShrink={0} loading={account.isLoggingOut} onClick={onLogout}>
+          ログアウト
+        </Button>
+      </HStack>
+      {account.errorMessage && (
+        <Text role="alert" color="red.600" fontSize="xs" lineHeight="tall">
+          {account.errorMessage}
+        </Text>
       )}
-    </VStack>
+    </Stack>
   );
 }
 
@@ -322,12 +210,9 @@ function ReadyInvitation({
       </Stack>
 
       {state.isSignedIn ? (
-        <VStack role="status" gap={3} py={2}>
-          <Spinner size="md" color="teal.600" borderWidth="2px" />
-          <Text color="gray.700" fontSize="sm" lineHeight="tall" textAlign="center">
-            招待内容を確認し、管理者として参加する処理を進めています。
-          </Text>
-        </VStack>
+        <Button colorPalette="teal" size="lg" minH="48px" loading={state.isAccepting} onClick={actions.onAccept}>
+          参加する
+        </Button>
       ) : (
         <Stack gap={3}>
           <HStack gap={2} color="gray.700">
@@ -369,10 +254,7 @@ type StatusContent = {
 };
 
 function getStatusContent(
-  state: Exclude<
-    ManagerInvitationAcceptanceViewState,
-    { kind: "loading" } | { kind: "ready" } | { kind: "verificationRequired" }
-  >,
+  state: Exclude<ManagerInvitationAcceptanceViewState, { kind: "loading" } | { kind: "ready" }>,
 ): StatusContent {
   switch (state.kind) {
     case "expired":
@@ -409,7 +291,7 @@ function getStatusContent(
       };
     case "invalid":
       return {
-        title: "招待URL無効です",
+        title: "招待URLが無効です",
         description: "招待URLが誤っています。\n担当者に確認してください。",
         icon: LuLink,
         iconBg: "gray.100",
@@ -417,9 +299,18 @@ function getStatusContent(
       };
     case "conflict":
       return {
-        title: "本人確認ができませんでした",
-        description: "担当者に登録内容の確認を依頼してください。",
-        icon: LuRefreshCw,
+        title: "このアカウントでは参加できません",
+        description:
+          "招待された方とは別のアカウントでログインしている可能性があります。\nログインし直しても参加できない場合は、担当者に確認してください。",
+        icon: LuUserX,
+        iconBg: "orange.50",
+        iconColor: "orange.700",
+      };
+    case "accountAlreadyRegistered":
+      return {
+        title: "このアカウントでは参加できません",
+        description: `このアカウントは、すでに${state.organizationName ?? "この組織"}に登録されています。\n別の方が招待を受ける場合は、その方のアカウントでログインしてください。`,
+        icon: LuUserX,
         iconBg: "orange.50",
         iconColor: "orange.700",
       };

@@ -9,7 +9,6 @@
  */
 
 import type * as _lib_auditCorrelation from "../_lib/auditCorrelation.js";
-import type * as _lib_clerkVerifiedEmailProvider from "../_lib/clerkVerifiedEmailProvider.js";
 import type * as _lib_config from "../_lib/config.js";
 import type * as _lib_dashboardUrl from "../_lib/dashboardUrl.js";
 import type * as _lib_dateFormat from "../_lib/dateFormat.js";
@@ -306,7 +305,6 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   "_lib/auditCorrelation": typeof _lib_auditCorrelation;
-  "_lib/clerkVerifiedEmailProvider": typeof _lib_clerkVerifiedEmailProvider;
   "_lib/config": typeof _lib_config;
   "_lib/dashboardUrl": typeof _lib_dashboardUrl;
   "_lib/dateFormat": typeof _lib_dateFormat;
