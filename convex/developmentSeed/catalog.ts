@@ -18,7 +18,7 @@ export const DEVELOPMENT_SEED_SCENARIO_KEYS = [
 ] as const;
 
 export const DEVELOPMENT_SEED_CONTRACT_VERSION = "development-seed-v7";
-export const DEVELOPMENT_SEED_EXPECTED_TABLE_COUNT = 59;
+export const DEVELOPMENT_SEED_EXPECTED_TABLE_COUNT = 60;
 
 export type DevelopmentSeedScenarioKey = (typeof DEVELOPMENT_SEED_SCENARIO_KEYS)[number];
 
@@ -365,6 +365,7 @@ export const DEVELOPMENT_SEED_TABLE_COVERAGE = {
   analyticsShopDays: empty("seed操作を利用実績として扱わない"),
   analyticsCycleEvidence: empty("seed操作を募集の観測実績として扱わない"),
   analyticsDailyResults: empty("日次集計が所有する"),
+  staffRegistrationEmailVerifications: empty("確認コードの照合前だけ存在する短命な確認待ちを作らない"),
   legalConsentTokens: empty("実credentialとなる同意tokenを作らない"),
   legalConsentEvents: seeded(OPERATIONS),
 } satisfies Record<TableNames, CoverageDisposition>;

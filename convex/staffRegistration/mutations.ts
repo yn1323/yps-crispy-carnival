@@ -27,9 +27,6 @@ import { staffRegistrationFormSchema } from "./schemas";
 import { resolveStaffRegistrationApprovalAvailability, STAFF_REGISTRATION_APPROVAL_DISABLED_REASON } from "./service";
 
 const registrationRequestResultValidator = v.object({ status: v.literal("accepted") });
-const registrationRequestHttpResultValidator = v.object({
-  status: v.union(v.literal("accepted"), v.literal("unavailable")),
-});
 const registrationLinkResultValidator = v.object({
   linkId: v.id("shopRegistrationLinks"),
   token: v.string(),
@@ -42,6 +39,11 @@ const rotateRegistrationLinkResultValidator = v.object({
 });
 const REGISTRATION_LINK_UNAVAILABLE_MESSAGE = "登録リンクの有効期限が切れています";
 const REGISTRATION_LINK_INCONSISTENT_MESSAGE = "登録リンクの状態を確認できません";
+
+type RegistrationConsentVersions = Pick<
+  Doc<"staffRegistrationRequests">,
+  "termsConsentVersion" | "privacyConsentVersion" | "termsDocumentVersion" | "privacyDocumentVersion"
+>;
 
 type SubmitRegistrationRequestArgs = {
   token: string;
@@ -83,54 +85,62 @@ async function submitRegistrationRequestImpl(
   const shop = await resolveStaffRegistrationCapability(ctx, args.token);
   if (!shop) throw registrationLinkUnavailableError();
 
-  const name = parsed.data.name;
-  const email = normalizeEmail(parsed.data.email);
+  await createVerifiedRegistrationRequest(ctx, {
+    shopId: shop._id,
+    name: parsed.data.name,
+    emailNormalized: normalizeEmail(parsed.data.email),
+    consentVersions: getLegalConsentVersions("staff"),
+    now: Date.now(),
+  });
+  return { status: "accepted" as const };
+}
 
-  // 公開入口では、登録済み・申請済み・上限到達を同じ応答にしてメールアドレスの存在を秘匿する。
-  const acceptedResult = { status: "accepted" as const };
-
-  const existingStaff = await findActiveStaffByEmail(ctx, shop._id, email);
-  if (existingStaff) {
-    return acceptedResult;
-  }
+/**
+ * メールアドレスの確認が済んだ参加申請を作る。
+ * 登録済み・申請済み・承認待ちの上限到達では何も保存せず、呼び出し側は同じ受付結果を返して
+ * メールアドレスの存在を秘匿する。
+ */
+export async function createVerifiedRegistrationRequest(
+  ctx: MutationCtx,
+  input: {
+    shopId: Id<"shops">;
+    name: string;
+    emailNormalized: string;
+    consentVersions: RegistrationConsentVersions;
+    now: number;
+  },
+): Promise<void> {
+  const existingStaff = await findActiveStaffByEmail(ctx, input.shopId, input.emailNormalized);
+  if (existingStaff) return;
 
   const pendingRequest = await ctx.db
     .query("staffRegistrationRequests")
     .withIndex("by_shopId_emailNormalized_status", (q) =>
-      q.eq("shopId", shop._id).eq("emailNormalized", email).eq("status", "pending"),
+      q.eq("shopId", input.shopId).eq("emailNormalized", input.emailNormalized).eq("status", "pending"),
     )
     .first();
-  if (pendingRequest) {
-    return acceptedResult;
-  }
+  if (pendingRequest) return;
 
   const pendingRequests = await ctx.db
     .query("staffRegistrationRequests")
-    .withIndex("by_shopId_status", (q) => q.eq("shopId", shop._id).eq("status", "pending"))
+    .withIndex("by_shopId_status", (q) => q.eq("shopId", input.shopId).eq("status", "pending"))
     .take(STAFF_REGISTRATION_PENDING_LIMIT);
-  if (pendingRequests.length >= STAFF_REGISTRATION_PENDING_LIMIT) {
-    return acceptedResult;
-  }
+  if (pendingRequests.length >= STAFF_REGISTRATION_PENDING_LIMIT) return;
 
-  // HTTP Actionの事前確認後に課金状態や利用数が変わっていても、PIIを書き込む直前の正本で閉じる。
-  const writableShop = await resolveStaffRegistrationCapability(ctx, args.token);
-  if (!writableShop || writableShop._id !== shop._id) {
-    throw registrationLinkUnavailableError();
-  }
-
-  const versions = getLegalConsentVersions("staff");
-  const now = Date.now();
   await ctx.db.insert("staffRegistrationRequests", {
-    shopId: shop._id,
-    name,
-    email,
-    emailNormalized: email,
+    shopId: input.shopId,
+    name: input.name,
+    email: input.emailNormalized,
+    emailNormalized: input.emailNormalized,
     status: "pending",
-    ...versions,
-    consentedAt: now,
-    createdAt: now,
+    termsConsentVersion: input.consentVersions.termsConsentVersion,
+    privacyConsentVersion: input.consentVersions.privacyConsentVersion,
+    termsDocumentVersion: input.consentVersions.termsDocumentVersion,
+    privacyDocumentVersion: input.consentVersions.privacyDocumentVersion,
+    consentedAt: input.now,
+    emailVerifiedAt: input.now,
+    createdAt: input.now,
   });
-  return acceptedResult;
 }
 
 export const ensureShopRegistrationLink = managerMutation({
@@ -269,7 +279,8 @@ export const checkSubmissionRateLimit = internalMutation({
   },
 });
 
-// 匿名クライアントからは直接呼ばせず、HTTP ActionでOrigin、body、Turnstile、rate limitを通した後だけ実行する。
+// 確認コードの照合を済ませた申請と同じ状態を作る内部入口。本番の匿名導線はemailVerification.tsのconfirmを通り、
+// ここはE2Eの代替とテストの前提作成だけが呼ぶ。
 export const submitRegistrationRequest = internalMutation({
   args: {
     token: v.string(),
@@ -279,26 +290,6 @@ export const submitRegistrationRequest = internalMutation({
   },
   returns: registrationRequestResultValidator,
   handler: submitRegistrationRequestImpl,
-});
-
-export const submitRegistrationRequestFromHttp = internalMutation({
-  args: {
-    token: v.string(),
-    name: v.string(),
-    email: v.string(),
-    acceptedLegal: v.boolean(),
-  },
-  returns: registrationRequestHttpResultValidator,
-  handler: async (ctx, args) => {
-    try {
-      return await submitRegistrationRequestImpl(ctx, args);
-    } catch (error) {
-      if (error instanceof ConvexError && error.data === REGISTRATION_LINK_UNAVAILABLE_MESSAGE) {
-        return { status: "unavailable" as const };
-      }
-      throw error;
-    }
-  },
 });
 
 export const approveRequest = managerMutation({

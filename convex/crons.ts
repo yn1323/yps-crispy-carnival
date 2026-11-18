@@ -112,6 +112,14 @@ crons.cron(
   {},
 );
 
+// 確認コードの照合が済まなかった参加申請の入力を、期限切れの1時間後に削除する。
+crons.interval(
+  "staff-registration-email-verification-prune",
+  { hours: 1 },
+  internal.staffRegistration.emailVerification.pruneExpired,
+  {},
+);
+
 // 通知失敗の再通知リマインダー（JST 17:00 = UTC 08:00）
 crons.cron(
   "notification-failure-reminder-digest",
