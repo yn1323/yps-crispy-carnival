@@ -18,7 +18,7 @@ export const DEVELOPMENT_SEED_SCENARIO_KEYS = [
 ] as const;
 
 export const DEVELOPMENT_SEED_CONTRACT_VERSION = "development-seed-v8";
-export const DEVELOPMENT_SEED_EXPECTED_TABLE_COUNT = 62;
+export const DEVELOPMENT_SEED_EXPECTED_TABLE_COUNT = 64;
 
 export type DevelopmentSeedScenarioKey = (typeof DEVELOPMENT_SEED_SCENARIO_KEYS)[number];
 
@@ -360,6 +360,7 @@ export const DEVELOPMENT_SEED_TABLE_COVERAGE = {
   notificationFanoutOperations: empty("active fanoutを作らない"),
   notificationOutbox: seeded(PRO_NOTIFICATIONS),
   notificationResendDelayedFailureDeadlines: empty("delayed recovery jobを作らない"),
+  emailSuppressions: empty("運用者が実際の申告を受けて直接登録する"),
   notificationHistory: seeded(PRO_NOTIFICATIONS),
   notificationDeliveryEvents: seeded(PRO_NOTIFICATIONS),
   notificationFailureInbox: seeded(PRO_NOTIFICATIONS),
@@ -368,6 +369,7 @@ export const DEVELOPMENT_SEED_TABLE_COVERAGE = {
   analyticsShopDays: empty("seed操作を利用実績として扱わない"),
   analyticsCycleEvidence: empty("seed操作を募集の観測実績として扱わない"),
   analyticsDailyResults: empty("日次集計が所有する"),
+  staffRegistrationEmailVerifications: empty("確認コードの照合前だけ存在する短命な確認待ちを作らない"),
   legalConsentTokens: empty("実credentialとなる同意tokenを作らない"),
   legalConsentEvents: seeded(OPERATIONS),
 } satisfies Record<TableNames, CoverageDisposition>;

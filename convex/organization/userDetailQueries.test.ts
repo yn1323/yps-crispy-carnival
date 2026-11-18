@@ -239,6 +239,8 @@ describe("organization/userDetailQueries.getUserDetail", () => {
         id: ids.personId,
         name: "詳細対象ユーザー",
         email: "detail-person@example.com",
+        isEmailSuppressed: false,
+        emailSuppressionReason: null,
         hasLinkedAccount: false,
       },
       isSelf: false,
@@ -358,6 +360,84 @@ describe("organization/userDetailQueries.getUserDetail", () => {
       hasManagerInvitation: true,
     });
     expect(JSON.stringify(pending)).not.toContain("never-return-invitation-token");
+  });
+
+  it("配信停止に登録された宛先の人物はisEmailSuppressedをtrueで返す", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "user_detail_email_suppressed",
+        shopName: "青山店",
+        plan: "standard",
+      });
+      const personId = await seedPerson(ctx, {
+        organizationId: base.organizationId,
+        email: "suppressed-person@example.com",
+      });
+      await seedStaff(ctx, { organizationId: base.organizationId, personId, shopId: base.shopId });
+      await ctx.db.insert("emailSuppressions", {
+        emailNormalized: "suppressed-person@example.com",
+        reason: " 受信者から誤登録の連絡がありました。 ",
+        note: "never-return-internal-note",
+      });
+      return { ...base, personId };
+    });
+
+    const result = await t
+      .withIdentity({ subject: "user_detail_email_suppressed" })
+      .query(api.organization.userDetailQueries.getUserDetail, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+        personId: ids.personId,
+        now: NOW,
+      });
+
+    if (!result) throw new Error("user detail was not returned");
+    expect(result.person).toEqual({
+      id: ids.personId,
+      name: "詳細対象ユーザー",
+      email: "suppressed-person@example.com",
+      isEmailSuppressed: true,
+      emailSuppressionReason: "受信者から誤登録の連絡がありました。",
+      hasLinkedAccount: false,
+    });
+  });
+
+  it("配信停止の理由が未入力または空白だけの場合はemailSuppressionReasonをnullで返す", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "user_detail_email_suppressed_no_reason",
+        shopName: "青山店",
+        plan: "standard",
+      });
+      const personId = await seedPerson(ctx, {
+        organizationId: base.organizationId,
+        email: "suppressed-no-reason@example.com",
+      });
+      await seedStaff(ctx, { organizationId: base.organizationId, personId, shopId: base.shopId });
+      await ctx.db.insert("emailSuppressions", { emailNormalized: "suppressed-no-reason@example.com", reason: "  " });
+      return { ...base, personId };
+    });
+
+    const result = await t
+      .withIdentity({ subject: "user_detail_email_suppressed_no_reason" })
+      .query(api.organization.userDetailQueries.getUserDetail, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+        personId: ids.personId,
+        now: NOW,
+      });
+
+    if (!result) throw new Error("user detail was not returned");
+    expect(result.person).toEqual({
+      id: ids.personId,
+      name: "詳細対象ユーザー",
+      email: "suppressed-no-reason@example.com",
+      isEmailSuppressed: true,
+      emailSuppressionReason: null,
+      hasLinkedAccount: false,
+    });
   });
 
   it("組織人物のcanonical LINE状態を全店舗で共通の最小DTOへ射影する", async () => {

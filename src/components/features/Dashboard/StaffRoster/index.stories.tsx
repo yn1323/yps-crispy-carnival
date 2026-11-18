@@ -52,6 +52,23 @@ export const WithExcluded: Story = {
   },
 };
 
+export const WithEmailSuppressed: Story = {
+  args: {
+    // LINE連携済みの1人目は、配信停止でもバッジを出さない。
+    staffs: [
+      { ...mockStaffs[0], isEmailSuppressed: true },
+      { ...mockStaffs[1], isEmailSuppressed: true },
+      mockStaffs[2],
+    ],
+  },
+};
+
+export const WithEmailSuppressedMobile: Story = {
+  ...WithEmailSuppressed,
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+};
+
 export const InputOrderBehavior: Story = {
   parameters: { screenshot: { skip: true } },
   args: {

@@ -695,6 +695,8 @@ const schema = defineSchema({
     termsDocumentVersion: v.string(),
     privacyDocumentVersion: v.string(),
     consentedAt: v.number(),
+    // 確認コードでメールアドレスの到達を確かめた時刻。確認コードの導入前に作られた申請は持たない。
+    emailVerifiedAt: v.optional(v.number()),
     approvedStaffId: v.optional(v.id("staffs")),
     reviewedAt: v.optional(v.number()),
     reviewedByUserId: v.optional(v.id("users")),
@@ -705,6 +707,30 @@ const schema = defineSchema({
     .index("by_status_and_createdAt", ["status", "createdAt"])
     // 分析KPI: 日次窓（JST）での承認/却下のレンジスキャン用
     .index("by_status_and_reviewedAt", ["status", "reviewedAt"]),
+
+  // 参加申請のメール確認待ち。確認コードが合うまで申請として扱わず、成功時と期限切れ後に削除する。
+  staffRegistrationEmailVerifications: defineTable({
+    shopId: v.id("shops"),
+    name: v.string(),
+    email: v.string(),
+    emailNormalized: v.string(),
+    // 申請者が入力画面で同意した文書の版。申請を作る時点でそのまま引き継ぐ。
+    termsConsentVersion: v.string(),
+    privacyConsentVersion: v.string(),
+    termsDocumentVersion: v.string(),
+    privacyDocumentVersion: v.string(),
+    // 送信したブラウザだけが持つ引換tokenと確認コードは、SHA-256 digestだけを保存する。
+    handleDigest: v.string(),
+    codeDigest: v.string(),
+    codeExpiresAt: v.number(),
+    failedAttemptCount: v.number(),
+    sendCount: v.number(),
+    lastSentAt: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_handleDigest", ["handleDigest"])
+    .index("by_shopId_and_emailNormalized_and_lastSentAt", ["shopId", "emailNormalized", "lastSentAt"])
+    .index("by_codeExpiresAt", ["codeExpiresAt"]),
 
   legalConsentStates: defineTable({
     subjectType: v.union(v.literal("user"), v.literal("staff")),
@@ -1114,6 +1140,16 @@ const schema = defineSchema({
   })
     .index("by_outboxId", ["outboxId"])
     .index("by_dueAt", ["dueAt"]),
+
+  // 配信を止めるメールアドレス。心当たりがないと申告された宛先などを、運用者がConvex Dashboardから直接追加・削除する。
+  // emailNormalizedは前後の空白なし・小文字で登録する。一致する宛先のメールはOutboxで送信前に取り消す。
+  emailSuppressions: defineTable({
+    emailNormalized: v.string(),
+    // 配信停止の理由。そのアドレスを持つスタッフの詳細画面で、店舗の管理者に表示する。申告者の氏名などの個人情報は書かない。
+    reason: v.optional(v.string()),
+    // 運用者だけが読むメモ。画面と通知には使わない。
+    note: v.optional(v.string()),
+  }).index("by_emailNormalized", ["emailNormalized"]),
 
   notificationHistory: defineTable({
     outboxId: v.id("notificationOutbox"),

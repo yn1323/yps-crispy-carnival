@@ -29,6 +29,7 @@ export const notificationCancelReasonValidator = v.union(
   v.literal("recruitment_inactive"),
   v.literal("notification_superseded"),
   v.literal("recipient_inactive"),
+  v.literal("recipient_suppressed"),
   v.literal("invitation_inactive"),
   v.literal("unsupported_channel"),
   v.literal("invalid_scope"),

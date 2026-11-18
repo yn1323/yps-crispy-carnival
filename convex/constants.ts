@@ -159,6 +159,22 @@ export const STAFF_REGISTRATION_LINK_DAILY_LIMIT = 40;
 export const STAFF_REGISTRATION_IP_SHORT_LIMIT = 10;
 export const STAFF_REGISTRATION_IP_DAILY_LIMIT = 100;
 export const STAFF_REGISTRATION_GLOBAL_SHORT_LIMIT = 100;
+// 参加申請のメール確認。コードは短命にし、総当たりは桁数ではなく試行回数の上限で止める。
+export const STAFF_REGISTRATION_VERIFICATION_CODE_LENGTH = 6;
+export const STAFF_REGISTRATION_VERIFICATION_CODE_TTL_MS = 10 * MINUTE_MS;
+export const STAFF_REGISTRATION_VERIFICATION_MAX_FAILED_ATTEMPTS = 5;
+// 1回の申請で送れる確認コードの総数（初回を含む）。超えたら入力からやり直す。
+export const STAFF_REGISTRATION_VERIFICATION_MAX_SENDS = 5;
+// 同じ店舗の同じメールアドレスへ確認コードを送る最短間隔。初回は待たない。
+export const STAFF_REGISTRATION_VERIFICATION_RESEND_INTERVAL_MS = MINUTE_MS;
+// 確認が済まなかった名前とメールアドレスを、コードの期限切れからこの時間で削除する。
+export const STAFF_REGISTRATION_VERIFICATION_RETENTION_AFTER_EXPIRY_MS = HOUR_MS;
+export const STAFF_REGISTRATION_VERIFICATION_PRUNE_BATCH_SIZE = 100;
+// 全角や空白まじりの入力を受けるため、正規化前の文字数だけを緩く制限する。
+export const STAFF_REGISTRATION_VERIFICATION_CODE_INPUT_MAX_LENGTH = 32;
+// コード確認と再送は申請1件につき複数回呼ばれるため、受付用とは別のbudgetで入口を制限する。
+export const STAFF_REGISTRATION_VERIFICATION_IP_SHORT_LIMIT = 30;
+export const STAFF_REGISTRATION_VERIFICATION_GLOBAL_SHORT_LIMIT = 300;
 // 承認依頼digestの通知期間。最新依頼からこの期間を過ぎたら通知しない（日次cronでは通常1回）
 export const STAFF_REGISTRATION_DIGEST_WINDOW_MS = DAY_MS;
 

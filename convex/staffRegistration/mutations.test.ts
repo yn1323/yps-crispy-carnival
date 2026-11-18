@@ -523,16 +523,19 @@ describe("staffRegistration/mutations", () => {
         }),
       ).resolves.toEqual({ status: "unavailable" });
       await expect(
-        t.mutation(internal.staffRegistration.mutations.submitRegistrationRequestFromHttp, {
+        t.mutation(internal.staffRegistration.emailVerification.start, {
           token: link.token,
           name: "上限超過後の申請者",
           email: `${usageState}-blocked-request@example.com`,
           acceptedLegal: true,
+          handleDigest: `${usageState}-handle-digest`,
+          codeDigest: `${usageState}-code-digest`,
         }),
       ).resolves.toEqual({ status: "unavailable" });
 
       const state = await t.run(async (ctx) => ({
         requests: await ctx.db.query("staffRegistrationRequests").collect(),
+        verifications: await ctx.db.query("staffRegistrationEmailVerifications").collect(),
         audits: await ctx.db.query("organizationAuditEvents").collect(),
         outbox: await ctx.db.query("notificationOutbox").collect(),
         scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
@@ -543,6 +546,7 @@ describe("staffRegistration/mutations", () => {
           .unique(),
       }));
       expect(state.requests).toEqual([]);
+      expect(state.verifications).toEqual([]);
       expect(state.audits).toEqual([]);
       expect(state.outbox).toEqual([]);
       expect(state.scheduled).toEqual([]);
@@ -590,22 +594,32 @@ describe("staffRegistration/mutations", () => {
       }),
     ).resolves.toEqual({ status: "unavailable" });
     await expect(
-      t.mutation(internal.staffRegistration.mutations.submitRegistrationRequestFromHttp, {
+      t.mutation(internal.staffRegistration.emailVerification.start, {
         token: link.token,
         name: "契約情報欠損後の申請者",
         email: "missing-billing-request@example.com",
         acceptedLegal: true,
+        handleDigest: "missing-billing-handle-digest",
+        codeDigest: "missing-billing-code-digest",
       }),
     ).resolves.toEqual({ status: "unavailable" });
 
     const state = await t.run(async (ctx) => ({
       requests: await ctx.db.query("staffRegistrationRequests").collect(),
+      verifications: await ctx.db.query("staffRegistrationEmailVerifications").collect(),
       audits: await ctx.db.query("organizationAuditEvents").collect(),
       outbox: await ctx.db.query("notificationOutbox").collect(),
       scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
       rateLimitRows: await ctx.db.query("rateLimits").collect(),
     }));
-    expect(state).toEqual({ requests: [], audits: [], outbox: [], scheduled: [], rateLimitRows: [] });
+    expect(state).toEqual({
+      requests: [],
+      verifications: [],
+      audits: [],
+      outbox: [],
+      scheduled: [],
+      rateLimitRows: [],
+    });
   });
 
   it("新規・申請済み・登録済みの公開応答を統一し、重複時は副作用を作らない", async () => {

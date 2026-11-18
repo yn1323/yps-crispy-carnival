@@ -10,7 +10,9 @@ import { webhookHandler as resendWebhookHandler } from "./notificationOutbox/res
 import { webhookHandler as stripeWebhookHandler } from "./organizationStripe/webhook";
 import {
   options as staffRegistrationOptions,
-  submit as staffRegistrationSubmit,
+  confirm as staffRegistrationVerificationConfirm,
+  resend as staffRegistrationVerificationResend,
+  start as staffRegistrationVerificationStart,
 } from "./staffRegistration/httpActions";
 
 const http = httpRouter();
@@ -39,16 +41,41 @@ http.route({
   handler: contactOptions,
 });
 
+// スタッフ参加申請は、確認コードの送信、照合、再送の3つの入口で受け付ける。
 http.route({
-  path: "/staff-registration/submit",
+  path: "/staff-registration/verification/start",
   method: "OPTIONS",
   handler: staffRegistrationOptions,
 });
 
 http.route({
-  path: "/staff-registration/submit",
+  path: "/staff-registration/verification/start",
   method: "POST",
-  handler: staffRegistrationSubmit,
+  handler: staffRegistrationVerificationStart,
+});
+
+http.route({
+  path: "/staff-registration/verification/confirm",
+  method: "OPTIONS",
+  handler: staffRegistrationOptions,
+});
+
+http.route({
+  path: "/staff-registration/verification/confirm",
+  method: "POST",
+  handler: staffRegistrationVerificationConfirm,
+});
+
+http.route({
+  path: "/staff-registration/verification/resend",
+  method: "OPTIONS",
+  handler: staffRegistrationOptions,
+});
+
+http.route({
+  path: "/staff-registration/verification/resend",
+  method: "POST",
+  handler: staffRegistrationVerificationResend,
 });
 
 http.route({
