@@ -17,7 +17,7 @@ export const DEVELOPMENT_SEED_SCENARIO_KEYS = [
   "trial-daily",
 ] as const;
 
-export const DEVELOPMENT_SEED_CONTRACT_VERSION = "development-seed-v7";
+export const DEVELOPMENT_SEED_CONTRACT_VERSION = "development-seed-v8";
 export const DEVELOPMENT_SEED_EXPECTED_TABLE_COUNT = 60;
 
 export type DevelopmentSeedScenarioKey = (typeof DEVELOPMENT_SEED_SCENARIO_KEYS)[number];
