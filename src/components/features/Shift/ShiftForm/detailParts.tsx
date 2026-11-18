@@ -4,7 +4,7 @@ import { createContext, type ReactNode, useContext, useMemo } from "react";
 import { LuCoffee, LuSettings2 } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
 import { getEffectiveBreaks } from "@/src/domains/shift/breaks";
-import { resolveDefaultPosition } from "@/src/domains/shift/operations";
+import { isPositionsUnsplit, resolveDefaultPosition } from "@/src/domains/shift/operations";
 import { formatShiftClockTimeRange } from "@/src/domains/shift/time";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { formatStaffWorkTotal } from "@/src/domains/shift/workTotals";
@@ -94,7 +94,7 @@ export const DetailModeToggle = () => {
             px={3}
             textStyle="xs"
             fontWeight={checked ? 700 : 500}
-            bg={checked ? "gray.800" : "white"}
+            bg={checked ? "teal.600" : "white"}
             color={checked ? "white" : "gray.600"}
             cursor="pointer"
             whiteSpace="nowrap"
@@ -153,12 +153,14 @@ export const ToolPalette = ({ variant = "row" }: { variant?: "row" | "inline" })
 
   const defaultPosition = resolveDefaultPosition(config.positions);
   const activePositionId = selectedPositionId ?? defaultPosition.id;
+  // ポジションを分けていない店舗では、仮の名前「シフト」を出さず、休憩だけを出す。休憩は押すたびに入り切りする。
+  const isUnsplit = isPositionsUnsplit(config.positions);
   // ポジションが1つだけの店舗では、勤務と休憩の2つだけを選ばせる。
-  const positions = isPositionSelectable ? config.positions : [defaultPosition];
+  const positions = isUnsplit ? [] : isPositionSelectable ? config.positions : [defaultPosition];
 
   const choices = (
     <Flex
-      role="radiogroup"
+      role={isUnsplit ? "group" : "radiogroup"}
       aria-label="入れるもの"
       gap={2}
       overflowX="auto"
@@ -192,13 +194,14 @@ export const ToolPalette = ({ variant = "row" }: { variant?: "row" | "inline" })
       })}
       <chakra.button
         type="button"
-        role="radio"
-        aria-checked={isBreakTool}
-        onClick={() => setBreakTool(true)}
+        role={isUnsplit ? undefined : "radio"}
+        aria-checked={isUnsplit ? undefined : isBreakTool}
+        aria-pressed={isUnsplit ? isBreakTool : undefined}
+        onClick={() => setBreakTool(isUnsplit ? !isBreakTool : true)}
         css={toolChipBaseStyle}
-        bg={isBreakTool ? "gray.700" : "white"}
+        bg={isBreakTool ? "teal.600" : "white"}
         color={isBreakTool ? "white" : "gray.700"}
-        borderColor={isBreakTool ? "gray.700" : "gray.300"}
+        borderColor={isBreakTool ? "teal.600" : "gray.300"}
         borderStyle={isBreakTool ? "solid" : "dashed"}
         _active={isBreakTool ? undefined : { bg: "gray.100", transitionDuration: "0ms" }}
       >

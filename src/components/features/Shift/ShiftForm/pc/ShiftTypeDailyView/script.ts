@@ -1,5 +1,5 @@
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
-import { getBreaksForSegment } from "@/src/domains/shift/breaks";
+import { getBreaksForSegment, getEffectiveBreaks } from "@/src/domains/shift/breaks";
 import { indexShiftsByStaffId } from "@/src/domains/shift/shiftLookup";
 import type { ShiftTypeOptionLike } from "@/src/domains/shift/shiftTypeAssignments";
 import type { PositionSegment, ShiftData, StaffType } from "@/src/domains/shift/types";
@@ -138,10 +138,10 @@ export const buildShiftTypeDailyViewModel = ({
         requestBadges: staffPresentation.requestBadges,
         cells: staffPresentation.assignments.map(({ key, option, assigned, color }) => {
           const segment = shift?.positions.find((position) => position.shiftTypeOptionId === option.id);
-          const breakShift =
-            shift && segment && getBreaksForSegment(segment, shift.breaks ?? []).length > 0
-              ? { ...shift, positions: [segment] }
-              : undefined;
+          // その勤務パターンにかかる休憩。ひと続きの勤務の端は、その日の勤務全体で確かめる。
+          const segmentBreaks =
+            shift && segment ? getBreaksForSegment(segment, getEffectiveBreaks(shift, { clipToWork: true })) : [];
+          const breakShift = shift && segmentBreaks.length > 0 ? { ...shift, breaks: segmentBreaks } : undefined;
           const detailLabels =
             detailMode && assigned
               ? [...(usesPositionColors && segment ? [segment.positionName] : []), ...(breakShift ? ["休憩あり"] : [])]

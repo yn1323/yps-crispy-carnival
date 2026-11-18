@@ -102,12 +102,12 @@ describe("buildOverviewWeeks", () => {
       expect(row.totalLabel).toBe("14.25h");
     });
 
-    it("勤務の外にはみ出した休憩は、勤務時間内の分だけ引く", () => {
+    it("勤務のお尻からはみ出した休憩は、勤務ではないため引かない", () => {
       const row = buildRow([
         shiftOn("2026-06-01", [segment("a", "hall", "09:00", "12:00")], [{ start: "11:30", end: "12:30" }]),
       ]);
 
-      expect(row.totalLabel).toBe("2.5h");
+      expect(row.totalLabel).toBe("3h");
     });
 
     it("定休日の勤務は数えず、勤務のない週は「—」にする", () => {

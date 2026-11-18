@@ -5,7 +5,7 @@ import { findBreakEditorError, getBreakEditorRange } from "./BreakEditorDialog";
 
 const INVALID_TIME_ERROR = "休憩の終了時間は開始時間より後にしてください";
 const OVERLAP_ERROR = "休憩の時間帯が重なっています";
-const OUT_OF_WORK_ERROR = "休憩は勤務時間内にしてください";
+const OUT_OF_WORK_ERROR = "休憩は勤務の開始より後、終了より前にしてください";
 const WHOLE_WORK_ERROR = "休憩は勤務時間の一部にしてください";
 
 const segment = (start: string, end: string, overrides: Partial<PositionSegment> = {}): PositionSegment => ({
@@ -24,14 +24,35 @@ const singleWork = { positions: [segment("10:00", "18:00")] };
 const splitWork = { positions: [segment("10:00", "13:00"), segment("15:00", "18:00")] };
 
 describe("getBreakEditorRange", () => {
-  it("時刻を持つ勤務は、勤務の開始から終了までを範囲にする", () => {
-    expect(getBreakEditorRange(singleWork, false)).toEqual({ startMinutes: 600, endMinutes: 1080 });
+  it("時刻を持つ勤務は、勤務の開始の15分後から、終了の15分前までを範囲にする", () => {
+    expect(getBreakEditorRange(singleWork, false)).toEqual({ startMinutes: 615, endMinutes: 1065 });
   });
 
-  it("勤務が複数ある日は、最初の開始から最後の終了までを範囲にする", () => {
+  it("勤務が複数ある日は、最初の開始の15分後から、最後の終了の15分前までを範囲にする", () => {
     expect(getBreakEditorRange({ positions: [segment("15:00", "18:00"), segment("09:30", "13:00")] }, false)).toEqual({
-      startMinutes: 570,
-      endMinutes: 1080,
+      startMinutes: 585,
+      endMinutes: 1065,
+    });
+  });
+
+  it("15分単位にそろっていない勤務は、開始より後と終了より前の、最も近い15分単位を範囲にする", () => {
+    expect(getBreakEditorRange({ positions: [segment("10:05", "17:50")] }, false)).toEqual({
+      startMinutes: 615,
+      endMinutes: 1065,
+    });
+  });
+
+  it("休憩を1件だけ入れられる45分の勤務は、その15分を範囲にする", () => {
+    expect(getBreakEditorRange({ positions: [segment("10:00", "10:45")] }, false)).toEqual({
+      startMinutes: 615,
+      endMinutes: 630,
+    });
+  });
+
+  it("内側に15分も残らない短い勤務は、勤務の開始から終了までを範囲にする", () => {
+    expect(getBreakEditorRange({ positions: [segment("10:00", "10:30")] }, false)).toEqual({
+      startMinutes: 600,
+      endMinutes: 630,
     });
   });
 
@@ -41,7 +62,7 @@ describe("getBreakEditorRange", () => {
         { positions: [segment("08:00", "10:00", { positionId: BREAK_POSITION.id }), segment("10:00", "18:00")] },
         false,
       ),
-    ).toEqual({ startMinutes: 600, endMinutes: 1080 });
+    ).toEqual({ startMinutes: 615, endMinutes: 1065 });
   });
 
   it("日付選択は、勤務の時刻にかかわらず1日のどこでも入れられる", () => {
@@ -69,8 +90,18 @@ describe("findBreakEditorError", () => {
       expect(findBreakEditorError([], singleWork, false)).toBeNull();
     });
 
-    it("勤務の端に接する休憩は通す", () => {
-      expect(findBreakEditorError([row("10:00", "10:30"), row("17:30", "18:00")], singleWork, false)).toBeNull();
+    it("勤務の開始の直後から、終了の直前までの休憩は通す", () => {
+      expect(findBreakEditorError([row("10:15", "17:45")], singleWork, false)).toBeNull();
+    });
+
+    it("勤務の開始に接する休憩と、終了に接する休憩を止める", () => {
+      expect(findBreakEditorError([row("10:00", "10:30")], singleWork, false)).toBe(OUT_OF_WORK_ERROR);
+      expect(findBreakEditorError([row("17:30", "18:00")], singleWork, false)).toBe(OUT_OF_WORK_ERROR);
+    });
+
+    it("勤務が複数ある日は、それぞれの勤務の開始と終了に接する休憩を止める", () => {
+      expect(findBreakEditorError([row("12:30", "13:00")], splitWork, false)).toBe(OUT_OF_WORK_ERROR);
+      expect(findBreakEditorError([row("15:00", "15:30")], splitWork, false)).toBe(OUT_OF_WORK_ERROR);
     });
 
     it("隣り合う休憩は重なりにしない", () => {

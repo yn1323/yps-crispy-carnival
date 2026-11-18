@@ -1,4 +1,4 @@
-import { getBreaksForSegment, mergeBreaks } from "./breaks";
+import { getBreaksForSegment, getEffectiveBreaks, mergeBreaks } from "./breaks";
 import { DEFAULT_POSITION } from "./constants";
 import { isValidIsoDateString } from "./date";
 import { isCanonicalWorkPosition } from "./positions";
@@ -143,16 +143,13 @@ export const buildAssignments = <StaffId extends string = string, PositionId ext
 ): ShiftAssignmentDraft<StaffId, PositionId>[] => {
   const assignments = shifts.flatMap((s) => {
     if (closedDateSet.has(s.date)) return [];
-    const dayBreaks = s.breaks ?? [];
+    const isDateOnly = options.submissionPatternKind === "dateOnly";
+    // 時刻を持つ勤務は、ひと続きの勤務の開始より後、終了より前にある休憩だけを保存する。
+    const dayBreaks = isDateOnly ? mergeBreaks(s.breaks ?? []) : getEffectiveBreaks(s, { clipToWork: true });
     return s.positions.filter(isCanonicalWorkPosition).map((position, index) => {
       // 時刻を持つ勤務は、その勤務区間の内側に収まる休憩だけを持たせる。
       // 日付選択の勤務は時刻を持たないため、入力された休憩を最初の勤務へそのまま持たせる。
-      const breaks =
-        options.submissionPatternKind === "dateOnly"
-          ? index === 0
-            ? mergeBreaks(dayBreaks)
-            : []
-          : getBreaksForSegment(position, dayBreaks);
+      const breaks = isDateOnly ? (index === 0 ? dayBreaks : []) : getBreaksForSegment(position, dayBreaks);
       return {
         staffId: s.staffId as StaffId,
         date: s.date,

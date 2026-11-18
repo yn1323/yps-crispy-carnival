@@ -201,14 +201,17 @@ describe("getSPShiftEditBreakLabels", () => {
     expect(getSPShiftEditBreakLabels([], undefined)).toBeNull();
   });
 
-  it("入力中の勤務時間の内側に収まる休憩だけを返す", () => {
+  it("入力中の勤務の開始より後、終了より前にある休憩だけを返す", () => {
     const breaks = [
       { start: "12:00", end: "13:00" },
       { start: "17:30", end: "18:30" },
     ];
 
-    expect(getSPShiftEditBreakLabels([row("a", "10:00", "18:00")], breaks)).toEqual(["12:00〜13:00", "17:30〜18:00"]);
-    expect(getSPShiftEditBreakLabels([row("a", "10:00", "12:30")], breaks)).toEqual(["12:00〜12:30"]);
+    // 17:30〜18:30は、勤務のお尻からはみ出すため返さない。
+    expect(getSPShiftEditBreakLabels([row("a", "10:00", "18:00")], breaks)).toEqual(["12:00〜13:00"]);
+    expect(getSPShiftEditBreakLabels([row("a", "10:00", "19:00")], breaks)).toEqual(["12:00〜13:00", "17:30〜18:30"]);
+    // 勤務を12:30までに縮めると、12:00〜13:00は勤務のお尻に接するため返さない。
+    expect(getSPShiftEditBreakLabels([row("a", "10:00", "12:30")], breaks)).toEqual([]);
   });
 
   it("休憩がない日は空で返す", () => {
@@ -416,7 +419,7 @@ describe("buildSPDailyCardViewModel", () => {
     expect(viewModel.explicitBreakBars).toEqual([]);
   });
 
-  it("勤務のバーにポジションの色と名前を持たせ、時刻で入れた休憩を勤務の内側だけ返す", () => {
+  it("勤務のバーにポジションの色と名前を持たせ、時刻で入れた休憩のうち、勤務の開始より後、終了より前のものを返す", () => {
     const shift: ShiftData = {
       id: "shift-1",
       staffId: "staff-1",
@@ -462,9 +465,9 @@ describe("buildSPDailyCardViewModel", () => {
         timeLabel: "13:00〜17:00",
       },
     ]);
+    // 16:30〜17:30は、勤務のお尻からはみ出すため返さない。
     expect(viewModel.explicitBreakBars).toEqual([
       { key: "explicit-break-11:00-12:00", leftPercentage: 25, widthPercentage: 12.5 },
-      { key: "explicit-break-16:30-17:00", leftPercentage: 93.75, widthPercentage: 6.25 },
     ]);
   });
 

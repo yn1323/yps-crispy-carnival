@@ -5,6 +5,8 @@ import type { PositionSegment, ShiftBreakRule, ShiftData, ShiftTimeRange } from 
 // 勤務中の休憩の純粋処理。
 // 画面は休憩を1日単位で持ち（ShiftData.breaks）、保存と集計のときに勤務時間の内側へ切り詰める。
 // 勤務を縮めたり消したりしても休憩の編集状態を作り直さずに済ませるためである。
+// 時刻を持つ勤務の休憩は、ひと続きの勤務の開始より後、終了より前にあるものだけを休憩として扱う。
+// 勤務の頭かお尻にある休憩は勤務ではないため、休憩として残さない。
 
 export const BREAK_TIME_UNIT_MINUTES = 15;
 
@@ -22,13 +24,10 @@ const toTimeRange = (range: MinuteRange): ShiftTimeRange => ({
 
 const compareRanges = (a: MinuteRange, b: MinuteRange): number => a.start - b.start || a.end - b.end;
 
-/** 重なる休憩と隣り合う休憩を1件にまとめ、開始順に並べる。 */
-export const mergeBreaks = (breaks: readonly ShiftTimeRange[]): ShiftTimeRange[] => {
+/** 重なる範囲と隣り合う範囲を1件にまとめ、開始順に並べる。開始が終了以降の範囲は捨てる。 */
+const mergeRanges = (ranges: readonly MinuteRange[]): MinuteRange[] => {
   const merged: MinuteRange[] = [];
-  for (const current of breaks
-    .map(toMinuteRange)
-    .filter((range) => range.start < range.end)
-    .sort(compareRanges)) {
+  for (const current of ranges.filter((range) => range.start < range.end).sort(compareRanges)) {
     const previous = merged.at(-1);
     if (previous && current.start <= previous.end) {
       previous.end = Math.max(previous.end, current.end);
@@ -36,11 +35,26 @@ export const mergeBreaks = (breaks: readonly ShiftTimeRange[]): ShiftTimeRange[]
     }
     merged.push({ ...current });
   }
-  return merged.map(toTimeRange);
+  return merged;
 };
+
+/** 重なる休憩と隣り合う休憩を1件にまとめ、開始順に並べる。 */
+export const mergeBreaks = (breaks: readonly ShiftTimeRange[]): ShiftTimeRange[] =>
+  mergeRanges(breaks.map(toMinuteRange)).map(toTimeRange);
 
 const workSegments = (shift: Pick<ShiftData, "positions">): PositionSegment[] =>
   shift.positions.filter(isCanonicalWorkPosition);
+
+/** ひと続きの勤務。隣り合う勤務区間と重なる勤務区間を1つにまとめる。 */
+const workBlocks = (shift: Pick<ShiftData, "positions">): MinuteRange[] =>
+  mergeRanges(workSegments(shift).map(toMinuteRange));
+
+/** ひと続きの勤務の、開始か終了に接しているか。 */
+const touchesBlockEdge = (range: MinuteRange, blocks: readonly MinuteRange[]): boolean =>
+  blocks.some(
+    (block) =>
+      range.start >= block.start && range.end <= block.end && (range.start === block.start || range.end === block.end),
+  );
 
 /**
  * 勤務区間の内側に収まる休憩を、区間ごとに返す。
@@ -65,6 +79,7 @@ export const getBreaksForSegment = (
 /**
  * その日の休憩のうち、実際に効く部分を返す。
  * 時刻を持つ勤務（時間指定、パターン選択）は勤務時間の内側だけ、日付選択は入力されたままを返す。
+ * 勤務時間の内側へ切り詰めた結果、ひと続きの勤務の開始か終了に接する休憩は除く。
  */
 export const getEffectiveBreaks = (
   shift: Pick<ShiftData, "positions" | "breaks">,
@@ -75,7 +90,10 @@ export const getEffectiveBreaks = (
   const segments = workSegments(shift);
   if (segments.length === 0) return [];
   if (!options.clipToWork) return mergeBreaks(breaks);
-  return mergeBreaks(segments.flatMap((segment) => getBreaksForSegment(segment, breaks)));
+  const blocks = workBlocks(shift);
+  return mergeBreaks(segments.flatMap((segment) => getBreaksForSegment(segment, breaks))).filter(
+    (range) => !touchesBlockEdge(toMinuteRange(range), blocks),
+  );
 };
 
 const isSameRanges = (a: readonly ShiftTimeRange[], b: readonly ShiftTimeRange[]): boolean =>
@@ -83,16 +101,53 @@ const isSameRanges = (a: readonly ShiftTimeRange[], b: readonly ShiftTimeRange[]
 
 /**
  * 選んだ範囲を、その日の休憩へ足した結果を返す。時刻を持つ勤務で、勤務のバーの上をなぞって休憩を入れるときに使う。
- * 勤務時間の内側だけを残し、重なる休憩と隣り合う休憩は1件にまとめる。勤務区間をまるごと覆う部分は入れない。
- * 何も変わらない場合（範囲が勤務の外にある場合など）はnullを返す。
+ * 勤務時間の内側だけを残し、重なる休憩と隣り合う休憩は1件にまとめる。
+ * 休憩がひと続きの勤務の開始か終了に接する場合は、その休憩は勤務ではないため、休憩として残さず勤務を短くする。
+ * ひと続きの勤務をまるごと覆う範囲は入れない。何も変わらない場合（範囲が勤務の外にある場合など）はnullを返す。
  */
-export const addBreakRange = (
+export const applyBreakRange = (
   shift: Pick<ShiftData, "positions" | "breaks">,
   range: ShiftTimeRange,
-): ShiftTimeRange[] | null => {
+): { positions: PositionSegment[]; breaks: ShiftTimeRange[] } | null => {
+  const target = toMinuteRange(range);
+  const blocks = workBlocks(shift);
   const current = getEffectiveBreaks(shift, { clipToWork: true });
-  const next = getEffectiveBreaks({ positions: shift.positions, breaks: [...current, range] }, { clipToWork: true });
-  return isSameRanges(current, next) ? null : next;
+  const added = blocks.flatMap((block) => {
+    const clipped = { start: Math.max(target.start, block.start), end: Math.min(target.end, block.end) };
+    const coversWholeBlock = clipped.start === block.start && clipped.end === block.end;
+    return clipped.start < clipped.end && !coversWholeBlock ? [clipped] : [];
+  });
+  const candidates = mergeRanges([...current.map(toMinuteRange), ...added]);
+
+  // 頭とお尻の休憩を除いた、ひと続きの勤務。まとめた休憩は互いに離れているため、端に接するのは先頭と末尾の1件ずつである。
+  const trimmedBlocks: MinuteRange[] = [];
+  for (const block of blocks) {
+    const inside = candidates.filter((item) => item.start >= block.start && item.end <= block.end);
+    const head = inside.find((item) => item.start === block.start);
+    const tail = inside.find((item) => item.end === block.end);
+    const trimmed = { start: head ? head.end : block.start, end: tail ? tail.start : block.end };
+    // 休憩だけが残る勤務は作らない。
+    if (trimmed.start >= trimmed.end) return null;
+    trimmedBlocks.push(trimmed);
+  }
+
+  const positions = shift.positions.flatMap((position) => {
+    if (!isCanonicalWorkPosition(position)) return [position];
+    const segment = toMinuteRange(position);
+    const block = trimmedBlocks.find((item) => segment.start < item.end && segment.end > item.start);
+    if (!block) return [];
+    const start = Math.max(segment.start, block.start);
+    const end = Math.min(segment.end, block.end);
+    return start === segment.start && end === segment.end
+      ? [position]
+      : [{ ...position, start: minutesToTime(start), end: minutesToTime(end) }];
+  });
+  const breaks = getEffectiveBreaks({ positions, breaks: candidates.map(toTimeRange) }, { clipToWork: true });
+
+  const isSamePositions =
+    positions.length === shift.positions.length &&
+    positions.every((position, index) => position === shift.positions[index]);
+  return isSamePositions && isSameRanges(current, breaks) ? null : { positions, breaks };
 };
 
 /** その時刻（分）を含む休憩を外した結果を返す。その時刻に休憩がなければnullを返す。 */
@@ -110,19 +165,7 @@ export const removeBreakAt = (
 
 /** 休憩を引いた勤務時間（分）。重なる勤務区間は二重に数えない。 */
 export const getWorkedMinutes = (shift: Pick<ShiftData, "positions" | "breaks">): number => {
-  const merged: MinuteRange[] = [];
-  for (const current of workSegments(shift)
-    .map(toMinuteRange)
-    .filter((range) => range.start < range.end)
-    .sort(compareRanges)) {
-    const previous = merged.at(-1);
-    if (previous && current.start <= previous.end) {
-      previous.end = Math.max(previous.end, current.end);
-      continue;
-    }
-    merged.push({ ...current });
-  }
-  const workMinutes = merged.reduce((total, range) => total + (range.end - range.start), 0);
+  const workMinutes = workBlocks(shift).reduce((total, range) => total + (range.end - range.start), 0);
   const breakMinutes = getEffectiveBreaks(shift, { clipToWork: true })
     .map(toMinuteRange)
     .reduce((total, range) => total + (range.end - range.start), 0);
@@ -131,7 +174,7 @@ export const getWorkedMinutes = (shift: Pick<ShiftData, "positions" | "breaks">)
 
 /**
  * 店舗の休憩の決まりから、新しく作った勤務へ入れる休憩の初期値を返す。
- * 決まりがない、勤務が決まりの長さに届かない、という場合はnullを返す。
+ * 決まりがない、勤務が決まりの長さに届かない、休憩を勤務の開始より後、終了より前に置けない、という場合はnullを返す。
  * 休憩は勤務の中央へ、15分単位にそろえて置く。
  */
 export const buildInitialBreak = (
@@ -141,11 +184,12 @@ export const buildInitialBreak = (
   if (!rule) return null;
   const { start, end } = toMinuteRange(segment);
   const duration = end - start;
-  if (duration < rule.minWorkMinutes || rule.breakMinutes >= duration) return null;
+  if (duration < rule.minWorkMinutes) return null;
 
+  // 中央に最も近い15分単位の位置が端に接する勤務には、ほかに置ける位置もない。
   const centeredStart = start + (duration - rule.breakMinutes) / 2;
-  const snappedStart = Math.round(centeredStart / BREAK_TIME_UNIT_MINUTES) * BREAK_TIME_UNIT_MINUTES;
-  const breakStart = Math.min(Math.max(snappedStart, start), end - rule.breakMinutes);
+  const breakStart = Math.round(centeredStart / BREAK_TIME_UNIT_MINUTES) * BREAK_TIME_UNIT_MINUTES;
+  if (breakStart <= start || breakStart + rule.breakMinutes >= end) return null;
   return toTimeRange({ start: breakStart, end: breakStart + rule.breakMinutes });
 };
 

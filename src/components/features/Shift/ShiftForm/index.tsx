@@ -256,7 +256,8 @@ const ShiftFormInner = ({
           onOpenUnsubmittedDetails={onOpenUnsubmittedDetails}
           hideViewTabs={isDateOnlyPattern}
           // PCの日別表示（時間指定、パターン選択）は、日付の見出しの行に入れるものの選択を置く。
-          hideToolPaletteRow={!isDateOnlyPattern && viewMode === "daily"}
+          // 一覧は勤務を入れる画面ではないため、入れるものの選択を出さない。日付選択のPCは表で勤務を入れるため出す。
+          hideToolPaletteRow={!isDateOnlyPattern}
           showDetailToggle={Boolean(onDetailModeChange)}
           validationIssues={displayIssues}
           onSelectIssue={handleSelectIssue}
@@ -295,6 +296,8 @@ const ShiftFormInner = ({
         unsubmittedNames={unsubmittedNames}
         reminderStatus={reminderStatus}
         onOpenUnsubmittedDetails={onOpenUnsubmittedDetails}
+        // 一覧は勤務を入れる画面ではないため、入れるものの選択を出さない。
+        hideToolPaletteRow={viewMode === "overview"}
         showDetailToggle={Boolean(onDetailModeChange)}
         validationIssues={displayIssues}
         onSelectIssue={handleSelectIssue}

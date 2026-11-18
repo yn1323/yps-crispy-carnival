@@ -197,17 +197,30 @@ export const deleteShiftPositionAtom = atom(
   },
 );
 
-/** その日の休憩を置き換える。勤務のない日には入れない。 */
+/**
+ * その日の休憩を置き換える。勤務のない日には入れない。
+ * `positions`を渡した場合は、勤務も置き換える。休憩が勤務の頭かお尻にかかり、勤務を短くするときに使う。
+ */
 export const setShiftBreaksAtom = atom(
   null,
-  (get, set, { staffId, date, breaks }: { staffId: string; date: string; breaks: ShiftData["breaks"] }) => {
+  (
+    get,
+    set,
+    {
+      staffId,
+      date,
+      breaks,
+      positions,
+    }: { staffId: string; date: string; breaks: ShiftData["breaks"]; positions?: ShiftData["positions"] },
+  ) => {
     if (get(shiftConfigAtom).isReadOnly) return;
     set(
       shiftDraftsAtom,
       get(shiftDraftsAtom).map((shift) => {
         if (shift.staffId !== staffId || shift.date !== date || !hasWork(shift)) return shift;
         const { breaks: _breaks, ...rest } = shift;
-        return breaks && breaks.length > 0 ? { ...rest, breaks } : rest;
+        const next = positions ? { ...rest, positions } : rest;
+        return breaks && breaks.length > 0 ? { ...next, breaks } : next;
       }),
     );
   },

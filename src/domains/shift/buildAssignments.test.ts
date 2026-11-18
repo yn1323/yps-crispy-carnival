@@ -199,7 +199,7 @@ describe("buildAssignments", () => {
 
 describe("buildAssignments: 休憩", () => {
   it.each(["time", "shiftType", undefined] as const)(
-    "時刻を持つ勤務（%s）では、勤務区間の内側に収まる休憩だけを区間ごとに持たせる",
+    "時刻を持つ勤務（%s）では、ひと続きの勤務の開始より後、終了より前にある休憩だけを区間ごとに持たせる",
     (kind) => {
       const shifts = [
         makeShift({
@@ -208,7 +208,10 @@ describe("buildAssignments: 休憩", () => {
             segment({ id: "seg-2", positionId: "pos2", start: "14:00", end: "18:00", shiftTypeOptionId: "late" }),
           ],
           breaks: [
+            // 勤務の頭に接する休憩と、お尻からはみ出す休憩は保存しない。
+            { start: "10:00", end: "10:30" },
             { start: "11:00", end: "11:15" },
+            // 隣り合う勤務の境目をまたぐ休憩は、勤務の途中として境目で分けて保存する。
             { start: "13:30", end: "14:30" },
             { start: "17:30", end: "19:00" },
             { start: "20:00", end: "21:00" },
@@ -236,10 +239,7 @@ describe("buildAssignments: 休憩", () => {
           endTime: "18:00",
           optionId: "late",
           positionId: "pos2",
-          breaks: [
-            { startTime: "14:00", endTime: "14:30" },
-            { startTime: "17:30", endTime: "18:00" },
-          ],
+          breaks: [{ startTime: "14:00", endTime: "14:30" }],
         },
       ]);
     },

@@ -6,7 +6,7 @@ import { SHIFT_ASSIGNMENT_BREAK_LIMIT } from "@/convex/constants";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
 import { Select, type SelectItemType } from "@/src/components/ui/Select";
-import { BREAK_TIME_UNIT_MINUTES } from "@/src/domains/shift/breaks";
+import { BREAK_TIME_UNIT_MINUTES, getEffectiveBreaks } from "@/src/domains/shift/breaks";
 import { formatDateWithWeekday } from "@/src/domains/shift/date";
 import { isCanonicalWorkPosition } from "@/src/domains/shift/positions";
 import {
@@ -24,7 +24,11 @@ const DEFAULT_BREAK_MINUTES = 60;
 
 type BreakRow = { key: number; start: string; end: string };
 
-/** 休憩を入れられる時刻の範囲。時刻を持つ勤務は勤務時間の内側、日付選択は1日のどこでも入れられる。 */
+/**
+ * 休憩を入れられる時刻の範囲。日付選択は1日のどこでも入れられる。
+ * 時刻を持つ勤務は、勤務の開始より後、終了より前に入れるため、最初の開始と最後の終了の1刻み内側を範囲にする。
+ * 勤務が短く、内側に1刻みも残らない場合は、勤務の開始から終了までを返す（入力は検証で止める）。
+ */
 export const getBreakEditorRange = (
   shift: Pick<ShiftData, "positions">,
   isDateOnly: boolean,
@@ -32,10 +36,13 @@ export const getBreakEditorRange = (
   const work = shift.positions.filter(isCanonicalWorkPosition);
   if (work.length === 0) return null;
   if (isDateOnly) return { startMinutes: DAY_START_MINUTES, endMinutes: DAY_END_MINUTES };
-  return {
-    startMinutes: Math.min(...work.map((position) => timeToMinutes(position.start))),
-    endMinutes: Math.max(...work.map((position) => timeToMinutes(position.end))),
-  };
+  const workStart = Math.min(...work.map((position) => timeToMinutes(position.start)));
+  const workEnd = Math.max(...work.map((position) => timeToMinutes(position.end)));
+  const innerStart = (Math.floor(workStart / BREAK_TIME_UNIT_MINUTES) + 1) * BREAK_TIME_UNIT_MINUTES;
+  const innerEnd = (Math.ceil(workEnd / BREAK_TIME_UNIT_MINUTES) - 1) * BREAK_TIME_UNIT_MINUTES;
+  return innerEnd - innerStart >= BREAK_TIME_UNIT_MINUTES
+    ? { startMinutes: innerStart, endMinutes: innerEnd }
+    : { startMinutes: workStart, endMinutes: workEnd };
 };
 
 /** 休憩の入力を検証し、最初に見つけた違反の文言を返す。違反がなければnullを返す。 */
@@ -74,10 +81,11 @@ export const findBreakEditorError = (
     }
     work.push({ ...segment });
   }
+  // 勤務の頭かお尻にある休憩は勤務ではないため、ひと続きの勤務の開始より後、終了より前だけを受け付ける。
   const isInsideWork = ranges.every((range) =>
-    work.some((segment) => range.start >= segment.start && range.end <= segment.end),
+    work.some((segment) => range.start > segment.start && range.end < segment.end),
   );
-  return isInsideWork ? null : "休憩は勤務時間内にしてください";
+  return isInsideWork ? null : "休憩は勤務の開始より後、終了より前にしてください";
 };
 
 const buildNewBreak = (range: { startMinutes: number; endMinutes: number }): ShiftTimeRange => {
@@ -107,10 +115,11 @@ export const BreakEditorDialog = () => {
   const isDateOnly = config.submissionPattern.kind === "dateOnly";
   const range = useMemo(() => (shift ? getBreakEditorRange(shift, isDateOnly) : null), [shift, isDateOnly]);
 
-  // 開くたびに、その日の休憩から入力を作り直す。
+  // 開くたびに、その日の休憩から入力を作り直す。勤務の長さを変えて勤務の頭かお尻にかかった休憩は、休憩として扱わないため出さない。
   // biome-ignore lint/correctness/useExhaustiveDependencies: 編集中に勤務が再描画されても入力を保つため、対象の日が変わったときだけ初期化する。
   useEffect(() => {
-    setRows((shift?.breaks ?? []).map((item, index) => ({ key: index, start: item.start, end: item.end })));
+    const breaks = shift ? getEffectiveBreaks(shift, { clipToWork: !isDateOnly }) : [];
+    setRows(breaks.map((item, index) => ({ key: index, start: item.start, end: item.end })));
     setError(null);
   }, [target]);
 

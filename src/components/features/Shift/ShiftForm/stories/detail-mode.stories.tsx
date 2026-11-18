@@ -108,6 +108,33 @@ export const ToggleOnDesktopNotifies: Story = {
   },
 };
 
+const expectToolPaletteOnlyOnDaily = async (canvasElement: HTMLElement) => {
+  const canvas = within(canvasElement);
+  await expect(await canvas.findByRole("radiogroup", { name: "入れるもの" })).toBeInTheDocument();
+
+  await userEvent.click(canvas.getByRole("tab", { name: "一覧" }));
+  await waitFor(() => expect(canvas.queryByRole("radiogroup", { name: "入れるもの" })).not.toBeInTheDocument());
+
+  await userEvent.click(canvas.getByRole("tab", { name: "日別" }));
+  await expect(await canvas.findByRole("radiogroup", { name: "入れるもの" })).toBeInTheDocument();
+};
+
+/** 一覧は勤務を入れる画面ではないため、くわしく表示でも「入れるもの」を出さない。日別へ戻すと出る。 */
+export const ToolPaletteHiddenOnOverviewDesktop: Story = {
+  name: "Tool Palette Hidden On Overview Desktop",
+  args: { ...toggleArgs, initialDetailMode: true },
+  globals: desktopGlobals,
+  play: async ({ canvasElement }) => expectToolPaletteOnlyOnDaily(canvasElement),
+};
+
+/** スマートフォンでも、一覧では「入れるもの」を出さない。 */
+export const ToolPaletteHiddenOnOverviewMobile: Story = {
+  name: "Tool Palette Hidden On Overview Mobile",
+  args: { ...toggleArgs, initialDetailMode: true },
+  globals: mobileGlobals,
+  play: async ({ canvasElement }) => expectToolPaletteOnlyOnDaily(canvasElement),
+};
+
 /** スマートフォンでは「表示設定」の「くわしく表示」で切り替え、切り替えるたびに通知する。 */
 export const ToggleOnMobileNotifies: Story = {
   name: "Toggle On Mobile Notifies",

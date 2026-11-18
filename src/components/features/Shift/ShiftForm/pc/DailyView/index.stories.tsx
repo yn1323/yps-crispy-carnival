@@ -341,6 +341,7 @@ export const DetailEditBreaksInteractive: Story = {
 /**
  * 休憩を選んでいる間は、勤務のバーの上をなぞった範囲が、15分単位で休憩になる。入れた休憩は、押すと消える。
  * 勤務は増えない。勤務のない行と、勤務の外の時間をなぞっても、何も入らない。
+ * 勤務の頭とお尻をなぞった場合は、休憩を残さず勤務を短くする。
  */
 export const DetailBreakToolInteractive: Story = {
   name: "Detail Break Tool Interactive",
@@ -387,6 +388,13 @@ export const DetailBreakToolInteractive: Story = {
     await user.pointer({ keys: "[MouseLeft]", target: timeline, coords: pointAt(row, "14:20") });
     await waitFor(() => expect(getBreakBars(row)).toHaveLength(0));
     await expect(body.queryByRole("dialog")).not.toBeInTheDocument();
+
+    // 勤務の頭とお尻をなぞると、休憩は入らず、なぞった分だけ勤務が短くなる。
+    await drag(timeline, pointAt(row, "12:00"), pointAt(row, "12:45"));
+    await waitFor(() => expect(row).toHaveTextContent("12:45–20:00"));
+    await drag(timeline, pointAt(row, "19:00"), pointAt(row, "20:00"));
+    await waitFor(() => expect(row).toHaveTextContent("12:45–19:00"));
+    await expect(getBreakBars(row)).toHaveLength(0);
   },
 };
 

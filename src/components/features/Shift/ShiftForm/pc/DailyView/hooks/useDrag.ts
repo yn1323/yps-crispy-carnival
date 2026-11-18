@@ -7,7 +7,7 @@ import {
   pixelToRawMinutes,
 } from "@/src/components/shared/ShiftTimeline/timelineGeometry";
 import { toaster } from "@/src/components/ui/toaster";
-import { addBreakRange, BREAK_TIME_UNIT_MINUTES, removeBreakAt } from "@/src/domains/shift/breaks";
+import { applyBreakRange, BREAK_TIME_UNIT_MINUTES, removeBreakAt } from "@/src/domains/shift/breaks";
 import {
   mergeAdjacentPositions,
   paintPosition,
@@ -276,14 +276,15 @@ export const useDrag = (): UseDragReturn => {
           if (remaining) setShiftBreaks({ staffId, date: selectedDate, breaks: remaining });
           else setBreakEditorTarget({ staffId, date: selectedDate });
         } else {
-          const added = addBreakRange(shift, {
+          // 勤務の頭かお尻をなぞった場合は、休憩を残さず勤務が短くなる。
+          const applied = applyBreakRange(shift, {
             start: minutesToTime(Math.min(startMinutes, currentMinutes)),
             end: minutesToTime(Math.max(startMinutes, currentMinutes)),
           });
-          if (added && added.length > SHIFT_ASSIGNMENT_BREAK_LIMIT) {
+          if (applied && applied.breaks.length > SHIFT_ASSIGNMENT_BREAK_LIMIT) {
             toaster.create({ title: BREAK_LIMIT_MESSAGE, type: "info" });
-          } else if (added) {
-            setShiftBreaks({ staffId, date: selectedDate, breaks: added });
+          } else if (applied) {
+            setShiftBreaks({ staffId, date: selectedDate, ...applied });
           }
         }
       }

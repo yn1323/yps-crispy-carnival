@@ -170,7 +170,7 @@ describe("buildShiftTypeDailyViewModel", () => {
       warningMessagesByStaffId: new Map<string, string[]>(),
     };
 
-    it("勤務パターンごとの勤務と、その時間内の休憩をセルへ持たせる", () => {
+    it("勤務パターンごとの勤務と、その時間内の休憩をセルへ持たせる。休憩の端は、その日の勤務全体で確かめる", () => {
       const [row] = buildShiftTypeDailyViewModel({ ...base, detailMode: true, usesPositionColors: true }).rows;
 
       expect(row.shift).toBe(detailShift);
@@ -178,12 +178,19 @@ describe("buildShiftTypeDailyViewModel", () => {
         row.cells.map(({ key, segment, breakShift, isProvisional }) => ({
           key,
           position: segment?.positionName,
-          breakPositions: breakShift?.positions.map((position) => position.id),
+          breaks: breakShift?.breaks,
+          breakPositions: breakShift?.positions,
           isProvisional,
         })),
       ).toEqual([
-        { key: "early", position: "ホール", breakPositions: ["position-early"], isProvisional: true },
-        { key: "late", position: "キッチン", breakPositions: undefined, isProvisional: true },
+        {
+          key: "early",
+          position: "ホール",
+          breaks: [{ start: "11:00", end: "11:30" }],
+          breakPositions: detailShift.positions,
+          isProvisional: true,
+        },
+        { key: "late", position: "キッチン", breaks: undefined, breakPositions: undefined, isProvisional: true },
       ]);
     });
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  addBreakRange,
+  applyBreakRange,
   buildInitialBreak,
   getBreaksForSegment,
   getEffectiveBreaks,
@@ -103,13 +103,22 @@ describe("getEffectiveBreaks", () => {
   describe("勤務時間の内側へ切り詰める場合（時間指定・パターン選択）", () => {
     const options = { clipToWork: true };
 
-    it("勤務の外にはみ出した部分を除く", () => {
+    it("勤務の開始より後、終了より前にある休憩を返し、勤務の外にある休憩を除く", () => {
       expect(
         getEffectiveBreaks(
-          day([segment("10:00", "14:00")], [range("13:00", "15:00"), range("16:00", "17:00")]),
+          day([segment("10:00", "14:00")], [range("10:15", "10:30"), range("13:30", "13:45"), range("16:00", "17:00")]),
           options,
         ),
-      ).toEqual([range("13:00", "14:00")]);
+      ).toEqual([range("10:15", "10:30"), range("13:30", "13:45")]);
+    });
+
+    it.each([
+      { name: "勤務の開始に接する休憩", breaks: [range("10:00", "10:45")] },
+      { name: "勤務の終了に接する休憩", breaks: [range("13:00", "14:00")] },
+      { name: "勤務の開始より前からはみ出す休憩", breaks: [range("09:30", "10:30")] },
+      { name: "勤務の終了より後へはみ出す休憩", breaks: [range("13:00", "15:00")] },
+    ])("$name は、勤務ではないため休憩として残さない", ({ breaks }) => {
+      expect(getEffectiveBreaks(day([segment("10:00", "14:00")], breaks), options)).toEqual([]);
     });
 
     it("隣り合う区間をまたぐ休憩は、境目で分かれたあと1件にまとまる", () => {
@@ -124,13 +133,25 @@ describe("getEffectiveBreaks", () => {
       ).toEqual([range("13:30", "14:30")]);
     });
 
-    it("勤務の隙間をまたぐ休憩は、隙間の部分を除いて区間ごとに分かれる", () => {
+    it("勤務の隙間をまたぐ休憩は、それぞれの勤務の頭かお尻に接するため残さない", () => {
       expect(
         getEffectiveBreaks(
           day([segment("10:00", "13:00"), segment("15:00", "18:00")], [range("12:00", "16:00")]),
           options,
         ),
-      ).toEqual([range("12:00", "13:00"), range("15:00", "16:00")]);
+      ).toEqual([]);
+    });
+
+    it("勤務が複数ある日は、それぞれの勤務の途中にある休憩を残す", () => {
+      expect(
+        getEffectiveBreaks(
+          day(
+            [segment("10:00", "13:00"), segment("15:00", "18:00")],
+            [range("11:00", "11:30"), range("16:00", "16:30")],
+          ),
+          options,
+        ),
+      ).toEqual([range("11:00", "11:30"), range("16:00", "16:30")]);
     });
 
     it("休憩のポジションだけの日は勤務のない日として扱う", () => {
@@ -172,37 +193,113 @@ describe("getEffectiveBreaks", () => {
   });
 });
 
-describe("addBreakRange", () => {
-  it("勤務の内側の範囲を、休憩として足す", () => {
-    expect(addBreakRange(day([segment("09:00", "18:00")]), range("12:00", "12:45"))).toEqual([range("12:00", "12:45")]);
+describe("applyBreakRange", () => {
+  const hall = segment("09:00", "18:00");
+
+  it("勤務の途中の範囲を休憩として足し、勤務は変えない", () => {
+    expect(applyBreakRange(day([hall]), range("12:00", "12:45"))).toEqual({
+      positions: [hall],
+      breaks: [range("12:00", "12:45")],
+    });
   });
 
   it("すでにある休憩と重なる範囲、隣り合う範囲は、1件にまとめる", () => {
-    const shift = day([segment("09:00", "18:00")], [range("12:00", "13:00"), range("15:00", "15:15")]);
+    const shift = day([hall], [range("12:00", "13:00"), range("15:00", "15:15")]);
 
-    expect(addBreakRange(shift, range("12:30", "13:30"))).toEqual([range("12:00", "13:30"), range("15:00", "15:15")]);
-    expect(addBreakRange(shift, range("13:00", "13:15"))).toEqual([range("12:00", "13:15"), range("15:00", "15:15")]);
+    expect(applyBreakRange(shift, range("12:30", "13:30"))?.breaks).toEqual([
+      range("12:00", "13:30"),
+      range("15:00", "15:15"),
+    ]);
+    expect(applyBreakRange(shift, range("13:00", "13:15"))?.breaks).toEqual([
+      range("12:00", "13:15"),
+      range("15:00", "15:15"),
+    ]);
   });
 
-  it("勤務の外へはみ出した部分は入れない", () => {
-    expect(addBreakRange(day([segment("09:00", "13:00")]), range("12:30", "14:00"))).toEqual([range("12:30", "13:00")]);
+  it("勤務の頭をなぞると、休憩を残さず、勤務の開始をなぞった終わりまで遅らせる", () => {
+    expect(applyBreakRange(day([segment("11:00", "15:30")]), range("11:00", "11:45"))).toEqual({
+      positions: [segment("11:00", "15:30", { start: "11:45" })],
+      breaks: [],
+    });
   });
 
-  it("ポジションの違う隣り合う勤務は、境目をまたいで入れられる", () => {
-    const shift = day([segment("09:00", "12:00"), segment("12:00", "18:00", { positionId: "pos2" })]);
+  it("勤務のお尻をなぞると、休憩を残さず、勤務の終了をなぞった始まりまで早める", () => {
+    expect(applyBreakRange(day([segment("11:00", "15:30")]), range("14:30", "15:30"))).toEqual({
+      positions: [segment("11:00", "15:30", { end: "14:30" })],
+      breaks: [],
+    });
+  });
 
-    expect(addBreakRange(shift, range("11:30", "12:30"))).toEqual([range("11:30", "12:30")]);
+  it("勤務の外からはみ出してなぞった場合も、勤務にかかる部分だけ勤務を短くする", () => {
+    expect(applyBreakRange(day([segment("09:00", "13:00")]), range("12:30", "14:00"))).toEqual({
+      positions: [segment("09:00", "13:00", { end: "12:30" })],
+      breaks: [],
+    });
+  });
+
+  it("頭をなぞった範囲がすでにある休憩につながる場合は、その休憩の終わりまで勤務を短くする", () => {
+    const shift = day([segment("11:00", "15:30")], [range("11:30", "12:00"), range("13:00", "13:30")]);
+
+    expect(applyBreakRange(shift, range("11:00", "11:30"))).toEqual({
+      positions: [segment("11:00", "15:30", { start: "12:00" })],
+      breaks: [range("13:00", "13:30")],
+    });
+  });
+
+  it("ポジションの違う隣り合う勤務は、境目をまたいで休憩を入れられ、勤務は変えない", () => {
+    const positions = [segment("09:00", "12:00"), segment("12:00", "18:00", { positionId: "pos2" })];
+
+    expect(applyBreakRange(day(positions), range("11:30", "12:30"))).toEqual({
+      positions,
+      breaks: [range("11:30", "12:30")],
+    });
+  });
+
+  it("ポジションの違う隣り合う勤務の頭を、最初の勤務を越えてなぞると、最初の勤務を外して次の勤務を短くする", () => {
+    const kitchen = segment("12:00", "18:00", { positionId: "pos2" });
+
+    expect(applyBreakRange(day([segment("09:00", "12:00"), kitchen]), range("09:00", "12:30"))).toEqual({
+      positions: [{ ...kitchen, start: "12:30" }],
+      breaks: [],
+    });
+  });
+
+  it("勤務が複数ある日は、なぞった勤務だけを短くする", () => {
+    const morning = segment("09:00", "12:00");
+    const evening = segment("15:00", "20:00");
+
+    expect(applyBreakRange(day([morning, evening]), range("11:30", "12:00"))).toEqual({
+      positions: [{ ...morning, end: "11:30" }, evening],
+      breaks: [],
+    });
+  });
+
+  it("休憩のポジションの区間は変えずに残す", () => {
+    const legacyBreak = segment("12:00", "13:00", { positionId: BREAK_POSITION.id });
+    const afternoon = segment("13:00", "18:00");
+
+    expect(applyBreakRange(day([legacyBreak, afternoon]), range("13:00", "13:30"))).toEqual({
+      positions: [legacyBreak, { ...afternoon, start: "13:30" }],
+      breaks: [],
+    });
   });
 
   it("勤務の外だけの範囲と、すでに休憩の時間だけの範囲は、何も変えない（null）", () => {
     const shift = day([segment("09:00", "13:00")], [range("11:00", "12:00")]);
 
-    expect(addBreakRange(shift, range("14:00", "15:00"))).toBeNull();
-    expect(addBreakRange(shift, range("11:15", "11:45"))).toBeNull();
+    expect(applyBreakRange(shift, range("14:00", "15:00"))).toBeNull();
+    expect(applyBreakRange(shift, range("11:15", "11:45"))).toBeNull();
   });
 
-  it("勤務区間をまるごと覆う範囲は入れない（null）", () => {
-    expect(addBreakRange(day([segment("09:00", "13:00")]), range("09:00", "13:00"))).toBeNull();
+  it("ひと続きの勤務をまるごと覆う範囲と、勤務が残らなくなる範囲は、何も変えない（null）", () => {
+    expect(applyBreakRange(day([segment("09:00", "13:00")]), range("09:00", "13:00"))).toBeNull();
+    expect(applyBreakRange(day([segment("09:00", "13:00")]), range("08:00", "14:00"))).toBeNull();
+    // 09:15〜12:45が休憩の勤務で、残りの頭をなぞると、頭からお尻の手前までが休憩になり、お尻もなぞると勤務が残らない。
+    const mostlyBreak = day([segment("09:00", "13:00")], [range("09:15", "12:45")]);
+    expect(applyBreakRange(mostlyBreak, range("09:00", "09:15"))).toEqual({
+      positions: [segment("09:00", "13:00", { start: "12:45" })],
+      breaks: [],
+    });
   });
 });
 
@@ -237,8 +334,9 @@ describe("getWorkedMinutes", () => {
     expect(getWorkedMinutes(day([segment("10:00", "18:00")], [range("19:00", "20:00")]))).toBe(480);
   });
 
-  it("勤務からはみ出した休憩は、勤務の中の部分だけを引く", () => {
-    expect(getWorkedMinutes(day([segment("10:00", "18:00")], [range("17:30", "19:00")]))).toBe(450);
+  it("勤務の頭かお尻に接する休憩と、勤務からはみ出した休憩は引かない", () => {
+    expect(getWorkedMinutes(day([segment("10:00", "18:00")], [range("10:00", "10:30")]))).toBe(480);
+    expect(getWorkedMinutes(day([segment("10:00", "18:00")], [range("17:30", "19:00")]))).toBe(480);
   });
 
   it("重なる休憩を二重に引かない", () => {
@@ -265,10 +363,10 @@ describe("getWorkedMinutes", () => {
     expect(getWorkedMinutes(day([segment("10:00", "13:00"), segment("15:00", "18:00")]))).toBe(360);
   });
 
-  it("隙間をまたぐ休憩は、勤務の中の部分だけを引く", () => {
+  it("隙間をまたぐ休憩は、それぞれの勤務の頭かお尻に接するため引かない", () => {
     expect(
       getWorkedMinutes(day([segment("10:00", "13:00"), segment("15:00", "18:00")], [range("12:00", "16:00")])),
-    ).toBe(240);
+    ).toBe(360);
   });
 
   it("休憩のポジションの区間は勤務として数えない", () => {
@@ -317,15 +415,23 @@ describe("buildInitialBreak", () => {
     expect(buildInitialBreak(segment("10:00", "11:00"), { minWorkMinutes: 30, breakMinutes: 90 })).toBeNull();
   });
 
-  it("15分単位へそろえると勤務の終了を超える場合は、勤務の終了に合わせる", () => {
-    expect(buildInitialBreak(segment("10:05", "11:00"), { minWorkMinutes: 30, breakMinutes: 50 })).toEqual(
-      range("10:10", "11:00"),
+  it("休憩の前後に勤務が残る最も短い勤務には、開始の15分後から入れる", () => {
+    // 60分の休憩の前後に15分ずつ勤務が残る、90分の勤務。
+    expect(buildInitialBreak(segment("10:00", "11:30"), { minWorkMinutes: 60, breakMinutes: 60 })).toEqual(
+      range("10:15", "11:15"),
     );
   });
 
-  it("15分単位へそろえると勤務の開始より前になる場合は、勤務の開始に合わせる", () => {
-    expect(buildInitialBreak(segment("10:05", "11:05"), { minWorkMinutes: 60, breakMinutes: 58 })).toEqual(
-      range("10:05", "11:03"),
+  it("休憩を勤務の開始より後、終了より前に置けない勤務には入れない", () => {
+    // 60分の休憩を15分単位で置くと、開始か終了のどちらかに接する。
+    expect(buildInitialBreak(segment("10:00", "11:15"), { minWorkMinutes: 60, breakMinutes: 60 })).toBeNull();
+    expect(buildInitialBreak(segment("10:05", "11:00"), { minWorkMinutes: 30, breakMinutes: 50 })).toBeNull();
+  });
+
+  it("15分単位にそろっていない勤務でも、開始より後、終了より前に入れる", () => {
+    // 10:05〜11:40の中央に60分を置くと10:22開始になる。15分単位で最も近い10:30〜11:30は、前後に勤務が残る。
+    expect(buildInitialBreak(segment("10:05", "11:40"), { minWorkMinutes: 60, breakMinutes: 60 })).toEqual(
+      range("10:30", "11:30"),
     );
   });
 

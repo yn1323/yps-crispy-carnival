@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import type { PositionType, ShiftData, StaffType } from "@/src/domains/shift/types";
 import { ShiftForm } from "../..";
 import { mockDateOnlyDates, mockDateOnlyStaffs, withPositionSkills } from "../../stories/fixtures";
@@ -161,15 +161,17 @@ export const DetailWithDateNotes: Story = {
   globals: desktopGlobals,
 };
 
-const toHall = (item: ShiftData): ShiftData => ({
-  ...item,
-  positions: item.positions.map((position) => ({
-    ...position,
-    positionId: hall.id,
-    positionName: hall.name,
-    color: hall.color,
-  })),
-});
+const toPosition =
+  (target: PositionType) =>
+  (item: ShiftData): ShiftData => ({
+    ...item,
+    positions: item.positions.map((position) => ({
+      ...position,
+      positionId: target.id,
+      positionName: target.name,
+      color: target.color,
+    })),
+  });
 
 /** ポジションが1つの店舗では、勤務のある日は今までの色と「○」のまま、人数と休憩だけを足す。 */
 export const DetailSinglePosition: Story = {
@@ -177,7 +179,7 @@ export const DetailSinglePosition: Story = {
   args: {
     ...detailArgs,
     positions: [hall],
-    initialShifts: detailShifts.map(toHall),
+    initialShifts: detailShifts.map(toPosition(hall)),
     staffing: buildStaffing({
       templates,
       days: detailDays.map((day) => ({
@@ -186,6 +188,29 @@ export const DetailSinglePosition: Story = {
       })),
     }),
   },
+  globals: desktopGlobals,
+};
+
+// 店舗を作ったときにできる、名前を付けていない最初のポジション。
+const unsplit: PositionType = { id: "default", name: "シフト", color: "#60a5fa", isDefault: true };
+
+const unsplitArgs = {
+  ...detailArgs,
+  positions: [unsplit],
+  initialShifts: detailShifts.map(toPosition(unsplit)),
+  staffing: buildStaffing({
+    templates,
+    days: detailDays.map((day) => ({
+      ...day,
+      requirements: { kind: "dateOnly" as const, counts: staffingCounts([[unsplit, 3]]) },
+    })),
+  }),
+} satisfies ShiftFormArgs;
+
+/** ポジションを分けていない店舗では、仮の名前「シフト」を出さず、入れるものに休憩だけを出す。 */
+export const DetailUnsplitPosition: Story = {
+  name: "Detail Unsplit Position",
+  args: unsplitArgs,
   globals: desktopGlobals,
 };
 
@@ -307,5 +332,29 @@ export const DetailBreakToolInteractive: Story = {
 
     await expect(await within(document.body).findByRole("dialog")).toBeInTheDocument();
     await expect(await findVisibleByLabelText(canvas, "山田 一郎 6/2(火) 勤務あり、ホール")).toBeInTheDocument();
+  },
+};
+
+/** ポジションを分けていない店舗では、休憩を押すたびに入り切りする。切ると、勤務のある日を押して勤務を外せる。 */
+export const DetailUnsplitBreakToolInteractive: Story = {
+  name: "Detail Unsplit Break Tool Interactive",
+  args: unsplitArgs,
+  globals: desktopGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(document.body);
+    const breakTool = await canvas.findByRole("button", { name: "休憩" });
+
+    await userEvent.click(breakTool);
+    await expect(breakTool).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(await findVisibleByLabelText(canvas, "山田 一郎 6/2(火) 勤務あり"));
+    await userEvent.click(within(await body.findByRole("dialog")).getByRole("button", { name: "キャンセル" }));
+    await waitFor(() => expect(body.queryByRole("dialog")).not.toBeInTheDocument());
+
+    await userEvent.click(breakTool);
+    await expect(breakTool).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(await findVisibleByLabelText(canvas, "山田 一郎 6/2(火) 勤務あり"));
+    await expect(await findVisibleByLabelText(canvas, "山田 一郎 6/2(火) 勤務なし")).toBeInTheDocument();
   },
 };

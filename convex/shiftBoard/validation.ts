@@ -52,7 +52,7 @@ const ISSUE_MESSAGES: Record<AssignmentIssueCode, string> = {
   OVERLAP: "同じスタッフの同じ日で、シフトの時間帯が重なっています。",
   BREAK_LIMIT: `休憩は1つの勤務に${SHIFT_ASSIGNMENT_BREAK_LIMIT}件まで入れられます`,
   BREAK_INVALID_TIME: "休憩の終了時間は開始時間より後にしてください",
-  BREAK_OUT_OF_SHIFT: "休憩は勤務時間内にしてください",
+  BREAK_OUT_OF_SHIFT: "休憩は勤務の開始より後、終了より前にしてください",
   BREAK_OVERLAP: "休憩の時間帯が重なっています",
 };
 
@@ -92,6 +92,7 @@ export function validateShiftAssignments(input: ShiftAssignmentValidationInput):
 
   const issues: AssignmentIssue[] = [];
   const rangesByStaffDate = new Map<string, Array<{ start: number; end: number; optionId?: string }>>();
+  const workBlocksByStaffDate = buildWorkBlocksByStaffDate(input.assignments);
 
   for (const a of input.assignments) {
     const pushIssue = (code: AssignmentIssueCode) => issues.push(buildAssignmentIssue(code, a.date, a.staffId));
@@ -146,7 +147,7 @@ export function validateShiftAssignments(input: ShiftAssignmentValidationInput):
       continue;
     }
 
-    const key = `${a.staffId}-${a.date}`;
+    const key = staffDateKey(a);
     const ranges = rangesByStaffDate.get(key) ?? [];
     const overlapsExisting = ranges.some(
       (range) =>
@@ -161,9 +162,13 @@ export function validateShiftAssignments(input: ShiftAssignmentValidationInput):
     ranges.push({ start: startMinutes, end: endMinutes, ...(a.optionId ? { optionId: a.optionId } : {}) });
     rangesByStaffDate.set(key, ranges);
 
+    const workBlock = (workBlocksByStaffDate.get(key) ?? []).find(
+      (block) => block.start <= startMinutes && endMinutes <= block.end,
+    ) ?? { start: startMinutes, end: endMinutes };
     const breakIssue = findBreakIssue(a.breaks ?? [], {
       startMinutes,
       endMinutes,
+      workBlock,
       // 日付選択の勤務は時刻を持たないため、休憩を勤務時間の内側に限らない。
       requireInsideShift: input.pattern.kind !== "dateOnly",
     });
@@ -173,10 +178,48 @@ export function validateShiftAssignments(input: ShiftAssignmentValidationInput):
   return issues;
 }
 
+const staffDateKey = (assignment: { staffId: string; date: string }): string =>
+  `${assignment.staffId}-${assignment.date}`;
+
+// 同じスタッフの同じ日で、隣り合う勤務と重なる勤務をまとめた、ひと続きの勤務。
+// ポジションの違う勤務が隣り合う日は、境目に接する休憩を勤務の途中として受け付けるために使う。
+function buildWorkBlocksByStaffDate(
+  assignments: ShiftAssignmentValidationInput["assignments"],
+): Map<string, Array<{ start: number; end: number }>> {
+  const rangesByStaffDate = new Map<string, Array<{ start: number; end: number }>>();
+  for (const a of assignments) {
+    if (!isSupportedShiftTime(a.startTime) || !isSupportedShiftTime(a.endTime)) continue;
+    const range = { start: timeToMinutes(a.startTime), end: timeToMinutes(a.endTime) };
+    if (range.start >= range.end) continue;
+    const key = staffDateKey(a);
+    rangesByStaffDate.set(key, [...(rangesByStaffDate.get(key) ?? []), range]);
+  }
+
+  const blocksByStaffDate = new Map<string, Array<{ start: number; end: number }>>();
+  for (const [key, ranges] of rangesByStaffDate) {
+    const blocks: Array<{ start: number; end: number }> = [];
+    for (const current of ranges.sort((a, b) => a.start - b.start || a.end - b.end)) {
+      const previous = blocks.at(-1);
+      if (previous && current.start <= previous.end) {
+        previous.end = Math.max(previous.end, current.end);
+        continue;
+      }
+      blocks.push({ ...current });
+    }
+    blocksByStaffDate.set(key, blocks);
+  }
+  return blocksByStaffDate;
+}
+
 // 休憩の違反を、件数、時刻、勤務時間の内側、重なりの順に確かめ、最初の1件を返す。
 function findBreakIssue(
   breaks: ReadonlyArray<ShiftAssignmentBreakInput>,
-  shift: { startMinutes: number; endMinutes: number; requireInsideShift: boolean },
+  shift: {
+    startMinutes: number;
+    endMinutes: number;
+    workBlock: { start: number; end: number };
+    requireInsideShift: boolean;
+  },
 ): AssignmentIssueCode | null {
   if (breaks.length > SHIFT_ASSIGNMENT_BREAK_LIMIT) return "BREAK_LIMIT";
 
@@ -189,6 +232,8 @@ function findBreakIssue(
     if (shift.requireInsideShift) {
       const coversWholeShift = start === shift.startMinutes && end === shift.endMinutes;
       if (start < shift.startMinutes || end > shift.endMinutes || coversWholeShift) return "BREAK_OUT_OF_SHIFT";
+      // 勤務の頭かお尻にある休憩は勤務ではないため、ひと続きの勤務の開始より後、終了より前だけを受け付ける。
+      if (start <= shift.workBlock.start || end >= shift.workBlock.end) return "BREAK_OUT_OF_SHIFT";
     }
     if (ranges.some((range) => start < range.end && end > range.start)) return "BREAK_OVERLAP";
     ranges.push({ start, end });
