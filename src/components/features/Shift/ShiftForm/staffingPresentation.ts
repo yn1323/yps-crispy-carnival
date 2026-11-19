@@ -37,10 +37,8 @@ export type StaffingCountView = {
   label: string;
   /** 狭い場所に出す。過不足は差だけの「▲1」「＋1」、ちょうどと未設定は人数だけ。 */
   compactLabel: string;
-  /** 時間指定のPCの帯に出す、過不足だけの文字。「あと1人」「1人多い」。ちょうどは出さず（空文字）、未設定は人数だけ。 */
+  /** 時間指定のPCの帯に出す、過不足だけの文字。「−1」「+2」。ちょうどは出さず（空文字）、未設定は人数だけ。 */
   diffLabel: string;
-  /** 帯の狭い区間に出す。「−1」「+1」。ちょうどは出さず（空文字）、未設定は人数だけ。 */
-  compactDiffLabel: string;
 };
 
 export const buildStaffingCountView = (input: {
@@ -59,7 +57,6 @@ export const buildStaffingCountView = (input: {
       label,
       compactLabel: label,
       diffLabel: label,
-      compactDiffLabel: label,
     };
   }
   const base = `${count}/${required}`;
@@ -72,8 +69,7 @@ export const buildStaffingCountView = (input: {
       isNewcomerOnly,
       label: `${base} ▲${diff}`,
       compactLabel: `▲${diff}`,
-      diffLabel: `あと${diff}人`,
-      compactDiffLabel: `−${diff}`,
+      diffLabel: `−${diff}`,
     };
   }
   if (count > required) {
@@ -85,8 +81,7 @@ export const buildStaffingCountView = (input: {
       isNewcomerOnly,
       label: `${base} ＋${diff}`,
       compactLabel: `＋${diff}`,
-      diffLabel: `${diff}人多い`,
-      compactDiffLabel: `+${diff}`,
+      diffLabel: `+${diff}`,
     };
   }
   return {
@@ -97,7 +92,6 @@ export const buildStaffingCountView = (input: {
     label: base,
     compactLabel: `${count}`,
     diffLabel: "",
-    compactDiffLabel: "",
   };
 };
 
@@ -425,12 +419,11 @@ export type BandSegmentContent = {
 
 /**
  * 区間の幅に入る文字を決める。帯には過不足だけを出し、人数と必要人数は押したときの欄で出す。
- * 「あと1人」「1人多い」が入らない幅では「−1」「+1」にし、それも入らない幅では文字を出さない。
- * 見習いだけの区間は、印を出せる形を先に選ぶ。文字と印が並ばない幅では、短い文字にして印を残す。
- * 印が入らない幅では、印を省いて文字だけを出す。
+ * 過不足は「−1」「+2」で示し、入らない幅では文字を出さない。
+ * 見習いだけの区間は、文字と印が並ぶ幅なら両方を出し、並ばない幅では印を省いて文字だけを出す。
  */
 export const resolveBandSegmentContent = (
-  segment: Pick<StaffingCountView, "diffLabel" | "compactDiffLabel" | "isNewcomerOnly">,
+  segment: Pick<StaffingCountView, "diffLabel" | "isNewcomerOnly">,
   widthPx: number,
 ): BandSegmentContent => {
   const markWidth = (withMark: boolean) => (withMark ? BAND_NEWCOMER_MARK_WIDTH_PX : 0);
@@ -439,12 +432,9 @@ export const resolveBandSegmentContent = (
   if (segment.diffLabel === "") {
     return { text: null, showsNewcomerMark: segment.isNewcomerOnly && fits("", true) };
   }
-  if (segment.isNewcomerOnly) {
-    if (fits(segment.diffLabel, true)) return { text: segment.diffLabel, showsNewcomerMark: true };
-    if (fits(segment.compactDiffLabel, true)) return { text: segment.compactDiffLabel, showsNewcomerMark: true };
-  }
+  if (segment.isNewcomerOnly && fits(segment.diffLabel, true))
+    return { text: segment.diffLabel, showsNewcomerMark: true };
   if (fits(segment.diffLabel, false)) return { text: segment.diffLabel, showsNewcomerMark: false };
-  if (fits(segment.compactDiffLabel, false)) return { text: segment.compactDiffLabel, showsNewcomerMark: false };
   return { text: null, showsNewcomerMark: false };
 };
 

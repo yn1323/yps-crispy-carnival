@@ -1,7 +1,7 @@
-import { Box, chakra, Flex, Icon, Popover, Portal, Text } from "@chakra-ui/react";
+import { Box, chakra, Flex, Popover, Portal, Text } from "@chakra-ui/react";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
-import { LuChevronDown, LuChevronUp, LuTriangleAlert } from "react-icons/lu";
+import { LuChevronDown, LuChevronUp } from "react-icons/lu";
 import { minutesToPixel } from "@/src/components/shared/ShiftTimeline/timelineGeometry";
 import { Button } from "@/src/components/ui/Button";
 import type { TimeRange } from "@/src/domains/shift/types";
@@ -112,10 +112,6 @@ export const StaffingBand = ({ leftWidth }: { leftWidth: number }) => {
   if (!view) return null;
 
   const summary = summarizeStaffingBands(view, isExpanded);
-  const newcomerOnlyCount = view.bands.reduce(
-    (count, band) => count + band.segments.filter((segment) => segment.isNewcomerOnly).length,
-    0,
-  );
 
   return (
     <Box
@@ -135,25 +131,8 @@ export const StaffingBand = ({ leftWidth }: { leftWidth: number }) => {
         <Text textStyle="xs" fontWeight={700} color="gray.700" whiteSpace="nowrap">
           人数
         </Text>
-        {!view.hasRequirements ? (
-          <StaffingUnsetNote />
-        ) : view.hasShortage ? (
-          <Text textStyle="xs" fontWeight={700} color="red.700" whiteSpace="nowrap">
-            不足 {view.shortageCount}か所
-          </Text>
-        ) : (
-          <Text textStyle="xs" color="gray.600" whiteSpace="nowrap">
-            不足なし
-          </Text>
-        )}
-        {newcomerOnlyCount > 0 && (
-          <Flex align="center" gap={1} textStyle="xs" fontWeight={700} color="orange.700" whiteSpace="nowrap">
-            <Icon boxSize={3.5} aria-hidden>
-              <LuTriangleAlert />
-            </Icon>
-            見習いだけ {newcomerOnlyCount}か所
-          </Flex>
-        )}
+        {/* 足りない時間と見習いだけの時間は、帯の区間で示す。見出しには、必要人数が未設定の日だけ理由を出す。 */}
+        {!view.hasRequirements && <StaffingUnsetNote />}
       </Flex>
       <Box maxH={`${BAND_ROW_HEIGHT_PX * BAND_MAX_VISIBLE_ROWS}px`} overflowY="auto">
         {summary.visibleBands.map((band) => (

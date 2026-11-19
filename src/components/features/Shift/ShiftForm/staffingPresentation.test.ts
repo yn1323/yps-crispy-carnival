@@ -136,7 +136,7 @@ describe("selectStaffingShifts", () => {
 });
 
 describe("buildStaffingCountView", () => {
-  it("足りない場合は「人数/必要 ▲差」にし、狭い場所には差だけを出す。帯には「あと◯人」を出す", () => {
+  it("足りない場合は「人数/必要 ▲差」にし、狭い場所には差だけを出す。帯には「−差」を出す", () => {
     expect(buildStaffingCountView({ count: 2, required: 3, isNewcomerOnly: false })).toEqual({
       count: 2,
       required: 3,
@@ -144,12 +144,11 @@ describe("buildStaffingCountView", () => {
       isNewcomerOnly: false,
       label: "2/3 ▲1",
       compactLabel: "▲1",
-      diffLabel: "あと1人",
-      compactDiffLabel: "−1",
+      diffLabel: "−1",
     });
   });
 
-  it("多い場合は「人数/必要 ＋差」にし、狭い場所には差だけを出す。帯には「◯人多い」を出す", () => {
+  it("多い場合は「人数/必要 ＋差」にし、狭い場所には差だけを出す。帯には「+差」を出す", () => {
     expect(buildStaffingCountView({ count: 3, required: 1, isNewcomerOnly: true })).toEqual({
       count: 3,
       required: 1,
@@ -157,8 +156,7 @@ describe("buildStaffingCountView", () => {
       isNewcomerOnly: true,
       label: "3/1 ＋2",
       compactLabel: "＋2",
-      diffLabel: "2人多い",
-      compactDiffLabel: "+2",
+      diffLabel: "+2",
     });
   });
 
@@ -168,7 +166,6 @@ describe("buildStaffingCountView", () => {
       label: "3/3",
       compactLabel: "3",
       diffLabel: "",
-      compactDiffLabel: "",
     });
     expect(buildStaffingCountView({ count: 0, required: 0, isNewcomerOnly: false })).toMatchObject({
       tone: "even",
@@ -185,7 +182,6 @@ describe("buildStaffingCountView", () => {
       label: "2",
       compactLabel: "2",
       diffLabel: "2",
-      compactDiffLabel: "2",
     });
   });
 });
@@ -399,8 +395,7 @@ describe("buildDayStaffingView", () => {
           isNewcomerOnly: true,
           label: "1/2 ▲1",
           compactLabel: "▲1",
-          diffLabel: "あと1人",
-          compactDiffLabel: "−1",
+          diffLabel: "−1",
         },
       ]);
     });
@@ -669,22 +664,14 @@ describe("resolveBandSegmentContent", () => {
   const unset = buildStaffingCountView({ count: 2, required: null, isNewcomerOnly: false });
   const unsetNewcomer = buildStaffingCountView({ count: 2, required: null, isNewcomerOnly: true });
 
-  it("足りない区間は、入る幅なら「あと◯人」を出す（51px以上）", () => {
-    expect(resolveBandSegmentContent(shortage, 51)).toEqual({ text: "あと1人", showsNewcomerMark: false });
-  });
-
-  it("「あと◯人」が入らない幅では「−◯」にする（22px以上）", () => {
-    expect(resolveBandSegmentContent(shortage, 50)).toEqual({ text: "−1", showsNewcomerMark: false });
+  it("足りない区間は「−◯」、多い区間は「+◯」を出す（22px以上）", () => {
     expect(resolveBandSegmentContent(shortage, 22)).toEqual({ text: "−1", showsNewcomerMark: false });
+    expect(resolveBandSegmentContent(excess, 22)).toEqual({ text: "+1", showsNewcomerMark: false });
   });
 
-  it("「−◯」も入らない幅では文字を出さない", () => {
+  it("「−◯」「+◯」も入らない幅では文字を出さない", () => {
     expect(resolveBandSegmentContent(shortage, 21)).toEqual({ text: null, showsNewcomerMark: false });
-  });
-
-  it("多い区間は「◯人多い」を出し、入らない幅では「+◯」にする", () => {
-    expect(resolveBandSegmentContent(excess, 51)).toEqual({ text: "1人多い", showsNewcomerMark: false });
-    expect(resolveBandSegmentContent(excess, 50)).toEqual({ text: "+1", showsNewcomerMark: false });
+    expect(resolveBandSegmentContent(excess, 21)).toEqual({ text: null, showsNewcomerMark: false });
   });
 
   it("ちょうどの区間は、幅があっても文字を出さない", () => {
@@ -702,12 +689,6 @@ describe("resolveBandSegmentContent", () => {
   });
 
   it("見習いだけの区間は、文字と印が並ぶ幅（文字の幅＋16px）で両方を出す", () => {
-    expect(resolveBandSegmentContent(shortageNewcomer, 67)).toEqual({ text: "あと1人", showsNewcomerMark: true });
-  });
-
-  it("見習いだけの区間は、文字と印が並ばない幅では、短い文字にして印を残す", () => {
-    // 「あと1人」だけなら入る幅でも、印を優先する。
-    expect(resolveBandSegmentContent(shortageNewcomer, 66)).toEqual({ text: "−1", showsNewcomerMark: true });
     expect(resolveBandSegmentContent(shortageNewcomer, 38)).toEqual({ text: "−1", showsNewcomerMark: true });
   });
 
