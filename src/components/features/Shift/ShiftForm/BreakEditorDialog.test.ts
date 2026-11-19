@@ -4,7 +4,6 @@ import type { PositionSegment, ShiftData } from "@/src/domains/shift/types";
 import { findBreakEditorError, getBreakEditorRange } from "./BreakEditorDialog";
 
 const INVALID_TIME_ERROR = "休憩の終了時間は開始時間より後にしてください";
-const OVERLAP_ERROR = "休憩の時間帯が重なっています";
 const OUT_OF_WORK_ERROR = "休憩は勤務の開始より後、終了より前にしてください";
 const WHOLE_WORK_ERROR = "休憩は勤務時間の一部にしてください";
 
@@ -118,9 +117,14 @@ describe("findBreakEditorError", () => {
       expect(findBreakEditorError([row("12:00", "")], singleWork, false)).toBe(INVALID_TIME_ERROR);
     });
 
-    it("重なる休憩を、入力の順番にかかわらず止める", () => {
-      expect(findBreakEditorError([row("12:30", "13:30"), row("12:00", "13:00")], singleWork, false)).toBe(
-        OVERLAP_ERROR,
+    it("重なる休憩は1つにまとめるため、入力の順番にかかわらず止めない", () => {
+      expect(findBreakEditorError([row("12:30", "13:30"), row("12:00", "13:00")], singleWork, false)).toBeNull();
+    });
+
+    it("重なる休憩をまとめた結果が、勤務の開始か終了に接する場合は止める", () => {
+      // 10:00〜18:00の勤務で、16:00〜17:30と17:00〜18:00をまとめると、16:00〜18:00になり、勤務の終了に接する。
+      expect(findBreakEditorError([row("16:00", "17:30"), row("17:00", "18:00")], singleWork, false)).toBe(
+        OUT_OF_WORK_ERROR,
       );
     });
 
@@ -192,10 +196,8 @@ describe("findBreakEditorError", () => {
       expect(findBreakEditorError([row("13:00", "12:00")], dateOnlyWork, true)).toBe(INVALID_TIME_ERROR);
     });
 
-    it("重なる休憩を止める", () => {
-      expect(findBreakEditorError([row("12:00", "13:00"), row("12:45", "13:15")], dateOnlyWork, true)).toBe(
-        OVERLAP_ERROR,
-      );
+    it("重なる休憩は1つにまとめるため、止めない", () => {
+      expect(findBreakEditorError([row("12:00", "13:00"), row("12:45", "13:15")], dateOnlyWork, true)).toBeNull();
     });
   });
 });

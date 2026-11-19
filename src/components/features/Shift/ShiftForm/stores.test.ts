@@ -1,22 +1,27 @@
 import type { ExtractAtomValue } from "jotai";
 import { createStore } from "jotai/vanilla";
 import { describe, expect, it } from "vitest";
+import { timeToMinutes } from "@/src/domains/shift/time";
 import type { PositionSegment, PositionType, ShiftData, StaffType } from "@/src/domains/shift/types";
 import { DEFAULT_TIME_PATTERN } from "@/src/domains/shop/submissionPattern";
 import {
   applyShiftDraftsAtom,
+  assignShiftRangeAtom,
   breakEditorTargetAtom,
   breakToolActiveAtom,
   canEditDayStaffingAtom,
-  changeShiftPositionAtom,
   clearShiftDraftPositionsAtom,
   dayStaffingViewByDateAtom,
   deleteShiftPositionAtom,
   detailModeAtom,
+  isRangeAssignHintDismissedAtom,
   nameSkillPositionAtom,
   newcomerOnlyPeriodsAtom,
+  nextWorkPositionAtom,
   openBreakEditorForToolAtom,
+  rememberWorkPositionAtom,
   replaceShiftDraftsAtom,
+  restoreRememberedWorkPositionAtom,
   type ShiftFormStaffing,
   selectedPositionIdAtom,
   setShiftBreaksAtom,
@@ -692,60 +697,151 @@ describe("休憩の置き換え（setShiftBreaksAtom）", () => {
   });
 });
 
-describe("勤務区間のポジションの変更（changeShiftPositionAtom）", () => {
-  const twoSegments = () =>
-    draft({
-      positions: [
-        workSegment(position, "09:00", "12:00", { id: "segment-1" }),
-        workSegment(position, "13:00", "18:00", { id: "segment-2" }),
-      ],
-      breaks: [{ start: "15:00", end: "16:00" }],
-    });
+describe("勤務の範囲へのポジションと休憩の割当（assignShiftRangeAtom）", () => {
+  const minutes = (start: string, end: string) => ({ start: timeToMinutes(start), end: timeToMinutes(end) });
+  const worked = (overrides: Partial<ShiftData> = {}) =>
+    draft({ positions: [workSegment(position, "09:00", "18:00", { id: "segment-1" })], ...overrides });
+  const workOf = (shifts: ShiftData[]) =>
+    shifts.map((shift) => shift.positions.map((item) => [item.positionName, item.start, item.end]));
+  const assign = (
+    store: ReturnType<typeof createDetailStore>,
+    start: string,
+    end: string,
+    assignment: { kind: "position"; positionId: string } | { kind: "break" } | { kind: "removeBreak" },
+    shiftId = draft().id,
+  ) => store.set(assignShiftRangeAtom, { shiftId, range: minutes(start, end), assignment, segmentId: "new" });
 
-  it("選んだ区間だけを、指定したポジションの名前と色へ変える", () => {
+  it("選んだ範囲だけを指定したポジションにし、ほかの値は変えない", () => {
     const store = createDetailStore();
-    const shift = twoSegments();
-    store.set(replaceShiftDraftsAtom, [shift]);
+    const shift = worked({ breaks: [{ start: "15:00", end: "16:00" }], isProvisional: true });
+    const other = draft({ id: "shift-other", staffId: secondStaff.id });
+    store.set(replaceShiftDraftsAtom, [shift, other]);
 
-    store.set(changeShiftPositionAtom, { shiftId: shift.id, segmentId: "segment-2", positionId: kitchen.id });
+    const result = assign(store, "12:00", "14:00", { kind: "position", positionId: kitchen.id }, shift.id);
 
-    expect(store.get(shiftsAtom)).toStrictEqual([
-      {
-        ...shift,
-        positions: [
-          shift.positions[0],
-          { ...shift.positions[1], positionId: kitchen.id, positionName: kitchen.name, color: kitchen.color },
-        ],
-      },
+    expect(result).toBe("changed");
+    const [updated, untouched] = store.get(shiftsAtom);
+    expect(untouched).toBe(other);
+    expect(workOf([updated])).toEqual([
+      [
+        ["ホール", "09:00", "12:00"],
+        ["キッチン", "12:00", "14:00"],
+        ["ホール", "14:00", "18:00"],
+      ],
     ]);
+    expect({ ...updated, positions: [] }).toStrictEqual({ ...shift, positions: [] });
   });
 
-  it("変えた結果、同じポジションの区間が隣り合えば1つにまとめる", () => {
+  it("休憩だけを選んでポジションを入れると、その休憩を外す", () => {
     const store = createDetailStore();
-    const shift = draft({
-      positions: [
-        workSegment(position, "09:00", "13:00", { id: "segment-1" }),
-        workSegment(kitchen, "13:00", "18:00", { id: "segment-2" }),
+    const shift = worked({ breaks: [{ start: "12:00", end: "13:00" }] });
+    store.set(replaceShiftDraftsAtom, [shift]);
+
+    expect(assign(store, "12:00", "13:00", { kind: "position", positionId: position.id }, shift.id)).toBe("changed");
+
+    expect(store.get(shiftsAtom)[0]).not.toHaveProperty("breaks");
+    expect(workOf(store.get(shiftsAtom))).toEqual([[["ホール", "09:00", "18:00"]]]);
+  });
+
+  it("選んだ範囲を休憩にする。勤務の頭を選んだ場合は、休憩を残さず勤務を短くする", () => {
+    const store = createDetailStore();
+    const shift = worked();
+    store.set(replaceShiftDraftsAtom, [shift]);
+
+    expect(assign(store, "12:00", "13:00", { kind: "break" }, shift.id)).toBe("changed");
+    expect(store.get(shiftsAtom)[0]?.breaks).toEqual([{ start: "12:00", end: "13:00" }]);
+
+    expect(assign(store, "09:00", "10:00", { kind: "break" }, shift.id)).toBe("changed");
+    expect(workOf(store.get(shiftsAtom))).toEqual([[["ホール", "10:00", "18:00"]]]);
+    expect(store.get(shiftsAtom)[0]?.breaks).toEqual([{ start: "12:00", end: "13:00" }]);
+  });
+
+  it("休憩だけを選んだ範囲から休憩を外す。勤務は変えない。休憩でない範囲では何も変えない", () => {
+    const store = createDetailStore();
+    const shift = worked({
+      breaks: [
+        { start: "12:00", end: "13:00" },
+        { start: "15:00", end: "15:30" },
       ],
     });
     store.set(replaceShiftDraftsAtom, [shift]);
 
-    store.set(changeShiftPositionAtom, { shiftId: shift.id, segmentId: "segment-2", positionId: position.id });
+    expect(assign(store, "10:00", "11:00", { kind: "removeBreak" }, shift.id)).toBe("unchanged");
+    expect(assign(store, "12:00", "13:00", { kind: "removeBreak" }, shift.id)).toBe("changed");
 
-    expect(store.get(shiftsAtom)[0]?.positions).toEqual([{ ...shift.positions[0], end: "18:00" }]);
+    expect(store.get(shiftsAtom)).toStrictEqual([{ ...shift, breaks: [{ start: "15:00", end: "15:30" }] }]);
   });
 
-  it("店舗にないポジションと、存在しない勤務・区間の指定では何も変えない", () => {
+  it("すでに休憩の範囲へ休憩を入れても、休憩は外れない", () => {
     const store = createDetailStore();
-    const shifts = [twoSegments()];
+    const shifts = [worked({ breaks: [{ start: "12:00", end: "13:00" }] })];
     store.set(replaceShiftDraftsAtom, shifts);
 
-    store.set(changeShiftPositionAtom, { shiftId: shifts[0].id, segmentId: "segment-1", positionId: "removed" });
+    expect(assign(store, "12:00", "13:00", { kind: "break" })).toBe("unchanged");
     expect(store.get(shiftsAtom)).toBe(shifts);
+  });
 
-    store.set(changeShiftPositionAtom, { shiftId: "missing-shift", segmentId: "segment-1", positionId: kitchen.id });
-    store.set(changeShiftPositionAtom, { shiftId: shifts[0].id, segmentId: "missing", positionId: kitchen.id });
-    expect(store.get(shiftsAtom)).toStrictEqual(shifts);
+  it("すでに同じポジションの範囲、ひと続きの勤務の全体への休憩、店舗にないポジション、存在しない勤務では、何も変えない", () => {
+    const store = createDetailStore();
+    const shifts = [worked()];
+    store.set(replaceShiftDraftsAtom, shifts);
+
+    expect(assign(store, "10:00", "12:00", { kind: "position", positionId: position.id })).toBe("unchanged");
+    expect(assign(store, "09:00", "18:00", { kind: "break" })).toBe("unchanged");
+    expect(assign(store, "10:00", "12:00", { kind: "position", positionId: "removed" })).toBe("unchanged");
+    expect(assign(store, "10:00", "12:00", { kind: "position", positionId: kitchen.id }, "missing-shift")).toBe(
+      "unchanged",
+    );
+    expect(store.get(shiftsAtom)).toBe(shifts);
+  });
+
+  it("閲覧専用では何も変えない", () => {
+    const store = createDetailStore({ isReadOnly: true });
+    const shifts = [worked()];
+    store.set(replaceShiftDraftsAtom, shifts);
+
+    expect(assign(store, "10:00", "12:00", { kind: "position", positionId: kitchen.id })).toBe("unchanged");
+    expect(store.get(shiftsAtom)).toBe(shifts);
+  });
+
+  it("メニューで選んだポジションを、次に入れるポジションとして覚える。休憩を選んだときは覚えない", () => {
+    const store = createDetailStore();
+    store.set(replaceShiftDraftsAtom, [worked()]);
+    expect(store.get(selectedPositionIdAtom)).toBeNull();
+
+    assign(store, "10:00", "12:00", { kind: "position", positionId: kitchen.id });
+    expect(store.get(nextWorkPositionAtom)).toEqual(kitchen);
+
+    assign(store, "14:00", "15:00", { kind: "break" });
+    expect(store.get(nextWorkPositionAtom)).toEqual(kitchen);
+    expect(store.get(breakToolActiveAtom)).toBe(false);
+
+    // すでに同じポジションの範囲で選び直した場合も、選んだポジションを覚える。
+    assign(store, "13:00", "14:00", { kind: "position", positionId: position.id });
+    expect(store.get(nextWorkPositionAtom)).toEqual(position);
+  });
+
+  it("休憩を選んでいる間にメニューでポジションを選ぶと、休憩の選択を外して、そのポジションを覚える", () => {
+    const store = createDetailStore();
+    store.set(replaceShiftDraftsAtom, [worked()]);
+    store.set(breakToolActiveAtom, true);
+
+    assign(store, "10:00", "12:00", { kind: "position", positionId: kitchen.id });
+
+    expect(store.get(breakToolActiveAtom)).toBe(false);
+    expect(store.get(nextWorkPositionAtom)).toEqual(kitchen);
+  });
+
+  it("ポジションか休憩を一度入れると、案内を出さなくなる。何も変わらない操作では出したままにする", () => {
+    const store = createDetailStore();
+    store.set(replaceShiftDraftsAtom, [worked()]);
+    expect(store.get(isRangeAssignHintDismissedAtom)).toBe(false);
+
+    assign(store, "10:00", "12:00", { kind: "position", positionId: position.id });
+    expect(store.get(isRangeAssignHintDismissedAtom)).toBe(false);
+
+    assign(store, "10:00", "12:00", { kind: "position", positionId: kitchen.id });
+    expect(store.get(isRangeAssignHintDismissedAtom)).toBe(true);
   });
 });
 
@@ -822,7 +918,12 @@ describe("閲覧専用のくわしく表示", () => {
     store.set(selectedPositionIdAtom, kitchen.id);
 
     store.set(setShiftBreaksAtom, { staffId: staff.id, date, breaks: [] });
-    store.set(changeShiftPositionAtom, { shiftId: shift.id, segmentId: "segment-1", positionId: kitchen.id });
+    store.set(assignShiftRangeAtom, {
+      shiftId: shift.id,
+      range: { start: timeToMinutes("09:00"), end: timeToMinutes("12:00") },
+      assignment: { kind: "position", positionId: kitchen.id },
+      segmentId: "new",
+    });
     store.set(applyShiftDraftsAtom, () => []);
     store.set(upsertShiftDraftAtom, { ...shift, positions: [] });
     store.set(clearShiftDraftPositionsAtom, { staffId: staff.id, date });
@@ -1064,5 +1165,110 @@ describe("日付ごとの確認事項の件数（warningCountByDateAtom）", () 
     setWarnings(store);
 
     expect([...store.get(warningCountByDateAtom)]).toEqual([[date, 1]]);
+  });
+});
+
+describe("勤務の間の空きを、休憩として持つ", () => {
+  const threeSegments = () =>
+    draft({
+      positions: [
+        workSegment(position, "09:00", "12:00", { id: "segment-1" }),
+        workSegment(kitchen, "12:00", "14:00", { id: "segment-2" }),
+        workSegment(position, "14:00", "18:00", { id: "segment-3" }),
+      ],
+    });
+  const workOf = (shift: ShiftData | undefined) =>
+    shift?.positions.map((item) => [item.positionName, item.start, item.end]);
+
+  it("時間指定で間の区間を削除すると、空きを前の勤務のポジションで埋め、その時間を休憩にする", () => {
+    const store = createDetailStore();
+    const shift = threeSegments();
+    store.set(replaceShiftDraftsAtom, [shift]);
+
+    store.set(deleteShiftPositionAtom, { shiftId: shift.id, positionIds: ["segment-2"] });
+
+    const [updated] = store.get(shiftsAtom);
+    expect(workOf(updated)).toEqual([["ホール", "09:00", "18:00"]]);
+    expect(updated?.breaks).toEqual([{ start: "12:00", end: "14:00" }]);
+  });
+
+  it("端の区間を削除した場合は、空きができないため、休憩を足さない", () => {
+    const store = createDetailStore();
+    const shift = threeSegments();
+    store.set(replaceShiftDraftsAtom, [shift]);
+
+    store.set(deleteShiftPositionAtom, { shiftId: shift.id, positionIds: ["segment-3"] });
+
+    const [updated] = store.get(shiftsAtom);
+    expect(workOf(updated)).toEqual([
+      ["ホール", "09:00", "12:00"],
+      ["キッチン", "12:00", "14:00"],
+    ]);
+    expect(updated).not.toHaveProperty("breaks");
+  });
+
+  it("前からあった空きは、その勤務の範囲へポジションを入れた時点で、休憩として持つ形にそろえる", () => {
+    const store = createDetailStore();
+    const shift = draft({
+      positions: [
+        workSegment(position, "09:00", "12:00", { id: "segment-1" }),
+        workSegment(position, "14:00", "18:00", { id: "segment-2" }),
+      ],
+    });
+    store.set(replaceShiftDraftsAtom, [shift]);
+
+    store.set(assignShiftRangeAtom, {
+      shiftId: shift.id,
+      range: { start: timeToMinutes("09:00"), end: timeToMinutes("10:00") },
+      assignment: { kind: "position", positionId: kitchen.id },
+      segmentId: "new",
+    });
+
+    const [updated] = store.get(shiftsAtom);
+    expect(workOf(updated)).toEqual([
+      ["キッチン", "09:00", "10:00"],
+      ["ホール", "10:00", "18:00"],
+    ]);
+    expect(updated?.breaks).toEqual([{ start: "12:00", end: "14:00" }]);
+  });
+});
+
+describe("次に入れるポジション（nextWorkPositionAtom / restoreRememberedWorkPositionAtom）", () => {
+  // 既定のポジション（ホール）が、一覧の先頭ではない店舗。
+  const kitchenFirst = { positions: [kitchen, position] };
+
+  it("まだ選んでいなければ、既定のポジションではなく、一覧の先頭を使う", () => {
+    const store = createDetailStore(kitchenFirst);
+
+    expect(store.get(nextWorkPositionAtom)).toEqual(kitchen);
+  });
+
+  it("日付の見出しで押したポジションを覚え、休憩の選択を外す", () => {
+    const store = createDetailStore(kitchenFirst);
+    store.set(breakToolActiveAtom, true);
+
+    store.set(rememberWorkPositionAtom, position.id);
+
+    expect(store.get(nextWorkPositionAtom)).toEqual(position);
+    expect(store.get(breakToolActiveAtom)).toBe(false);
+  });
+
+  it("シンプル表示とポジションが1つの店舗では、既定のポジションを使う", () => {
+    const simple = createDetailStore(kitchenFirst, { detailMode: false });
+    const single = createDetailStore({ positions: [position] });
+
+    expect(simple.get(nextWorkPositionAtom)).toEqual(position);
+    expect(single.get(nextWorkPositionAtom)).toEqual(position);
+  });
+
+  it("端末に覚えたポジションがなければ、開いた時点で一覧の先頭を選ぶ。すでに選んでいれば変えない", () => {
+    const store = createDetailStore(kitchenFirst);
+
+    store.set(restoreRememberedWorkPositionAtom);
+    expect(store.get(selectedPositionIdAtom)).toBe(kitchen.id);
+
+    store.set(selectedPositionIdAtom, position.id);
+    store.set(restoreRememberedWorkPositionAtom);
+    expect(store.get(selectedPositionIdAtom)).toBe(position.id);
   });
 });

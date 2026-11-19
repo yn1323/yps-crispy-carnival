@@ -1,4 +1,5 @@
 import { minutesToPixel } from "@/src/components/shared/ShiftTimeline/timelineGeometry";
+import { getEffectiveBreaks } from "@/src/domains/shift/breaks";
 import { timeToMinutes } from "@/src/domains/shift/time";
 import type { LinkedResizeTarget, ShiftData, TimeRange } from "@/src/domains/shift/types";
 
@@ -52,5 +53,28 @@ export const detectLinkedResizeEdge = (params: {
     }
   }
 
+  return null;
+};
+
+/**
+ * 休憩の開始か終了の近くを指しているかを返す。休憩の端をつまんで動かすために使う。
+ * 短い休憩でも中央を押して選べるよう、当たり判定は休憩の幅の3分の1までに抑える。
+ */
+export const detectBreakResizeEdge = (params: {
+  shift: Pick<ShiftData, "positions" | "breaks">;
+  x: number;
+  timeRange: TimeRange;
+  threshold: number;
+  hourWidth?: number;
+}): { range: { start: number; end: number }; edge: "start" | "end" } | null => {
+  const { shift, x, timeRange, threshold, hourWidth } = params;
+  for (const item of getEffectiveBreaks(shift, { clipToWork: true })) {
+    const range = { start: timeToMinutes(item.start), end: timeToMinutes(item.end) };
+    const startX = minutesToPixel(range.start, timeRange, hourWidth);
+    const endX = minutesToPixel(range.end, timeRange, hourWidth);
+    const reach = Math.min(threshold, (endX - startX) / 3);
+    if (Math.abs(x - startX) <= reach) return { range, edge: "start" };
+    if (Math.abs(x - endX) <= reach) return { range, edge: "end" };
+  }
   return null;
 };

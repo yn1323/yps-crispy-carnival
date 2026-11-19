@@ -232,7 +232,8 @@ export const SHIFT_DAY_TEMPLATE_CONCURRENT_BAR_LIMIT = 50;
 // 祝日の表の更新で、1年分として受け付ける件数。
 export const NATIONAL_HOLIDAY_YEAR_LIMIT = 50;
 export const NATIONAL_HOLIDAY_NAME_MAX_LENGTH = 30;
-export const SHIFT_ASSIGNMENT_BREAK_LIMIT = 3;
+// 1つの勤務に入れられる休憩の件数。画面では件数を気にせず入れられるよう、負荷を防ぐための大きめの値にする。
+export const SHIFT_ASSIGNMENT_BREAK_LIMIT = 20;
 export const SHIFT_BREAK_RULE_MAX_MINUTES = 24 * 60;
 // AIサポートへ渡す店の状況。保存もログ出力もしないが、外部へ渡す将来の入力として上限を持つ。
 export const SHIFT_SETUP_ASSIST_SITUATION_MAX_LENGTH = 500;

@@ -19,8 +19,11 @@ import {
   detailModeAtom,
   isBreakToolActiveAtom,
   isPositionSelectableAtom,
+  isRangeAssignHintDismissedAtom,
   isToolPaletteActiveAtom,
   nameSkillPositionAtom,
+  nextWorkPositionAtom,
+  rememberWorkPositionAtom,
   selectedPositionIdAtom,
   shiftConfigAtom,
   showsSegmentSkillMarksAtom,
@@ -137,7 +140,8 @@ const toolChipBaseStyle = {
 
 /**
  * くわしく表示の編集中に、これから入れるポジションまたは休憩を選ぶ。
- * `inline`は、PCの日別表示の日付の見出しへ置く形で、選択肢だけを出す。行を1つ減らすためである。
+ * `inline`は、パターン選択のPCの日別表示の日付の見出しへ置く形で、選択肢だけを出す。行を1つ減らすためである。
+ * 時間指定のPCの日別表示は、勤務のバーの範囲を選んでから入れるため、代わりに`RangeAssignPalette`を置く。
  * `row`は、それ以外の表示で使う、ヘッダーの下の1行である。
  */
 export const ToolPalette = ({ variant = "row" }: { variant?: "row" | "inline" }) => {
@@ -257,6 +261,126 @@ export const ToolPalette = ({ variant = "row" }: { variant?: "row" | "inline" })
   );
 };
 
+const PositionLegendItem = ({ position }: { position: { name: string; color: string } }) => (
+  <Flex as="li" align="center" gap="6px" textStyle="xs" color="gray.700" fontWeight={600} whiteSpace="nowrap">
+    <Box boxSize="10px" borderRadius="full" flexShrink={0} style={{ background: position.color }} aria-hidden />
+    {position.name}
+  </Flex>
+);
+
+// 休憩の見本。勤務のバーの内側に出す休憩と同じ、灰色の斜線にする。
+const BREAK_SWATCH_STYLE = {
+  backgroundColor: "#f9fafb",
+  backgroundImage:
+    "repeating-linear-gradient(45deg, rgba(107,114,128,0.7), rgba(107,114,128,0.7) 2px, transparent 2px, transparent 5px)",
+};
+
+// 凡例に近い見た目の選択肢。選んでいるものは薄い塗りで示し、枠は付けない。
+const rangeChipStyle = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "6px",
+  h: "28px",
+  px: "10px",
+  borderRadius: "full",
+  textStyle: "xs",
+  fontWeight: 600,
+  color: "gray.700",
+  whiteSpace: "nowrap",
+  flexShrink: 0,
+  cursor: "pointer",
+  position: "relative",
+  transitionProperty: "colors",
+  transitionDuration: "faster",
+  // 見た目は小さく保ち、押せる範囲だけを高さ44pxまで広げる。
+  _after: { content: '""', position: "absolute", insetX: 0, insetY: "-8px" },
+  _focusVisible: { outline: "2px solid", outlineColor: "teal.600", outlineOffset: "2px" },
+} as const;
+const rangeChipIdleStyle = {
+  _hover: { bg: "gray.100" },
+  _active: { bg: "gray.200", transitionDuration: "0ms" },
+} as const;
+
+/**
+ * 時間指定のPCの日別表示で、日付の見出しに置く、次に入れるものの選択と案内。
+ * ポジションを押すと、次に新しく入れる勤務のポジションが変わる。勤務のバーのメニューでポジションを選んだときも、同じ選択が変わる。
+ * 「休憩」を押すと、勤務のバーの上をなぞった範囲が休憩になる。メニューで休憩を選んでも、この選択は変わらない。
+ * 選んだポジションは店舗ごとに端末へ覚える。休憩の選択は覚えず、開き直すとポジションの選択に戻る。
+ * 案内は、一度でも範囲を選んで入れた端末では出さない。
+ */
+export const RangeAssignPalette = () => {
+  const isActive = useAtomValue(isToolPaletteActiveAtom);
+  const isPositionSelectable = useAtomValue(isPositionSelectableAtom);
+  const isBreakTool = useAtomValue(isBreakToolActiveAtom);
+  const nextWorkPosition = useAtomValue(nextWorkPositionAtom);
+  const { positions } = useAtomValue(shiftConfigAtom);
+  const isHintDismissed = useAtomValue(isRangeAssignHintDismissedAtom);
+  const rememberWorkPosition = useSetAtom(rememberWorkPositionAtom);
+  const setBreakTool = useSetAtom(breakToolActiveAtom);
+  if (!isActive) return null;
+
+  // ポジションを分けていない店舗では、仮の名前「シフト」を出さず、休憩だけを出す。休憩は押すたびに入り切りする。
+  const isUnsplit = isPositionsUnsplit(positions);
+  // ポジションが1つだけの店舗では、勤務と休憩の2つだけを選ばせる。
+  const choices = isUnsplit ? [] : isPositionSelectable ? positions : [nextWorkPosition];
+  return (
+    <Flex align="center" gap={4} minW={0}>
+      {!isHintDismissed && (
+        <Text textStyle="xs" color="gray.600" whiteSpace="nowrap">
+          {isUnsplit ? "バーをなぞると 休憩を入れられます" : "バーをなぞると ポジションを変えられます"}
+        </Text>
+      )}
+      <Flex
+        role={isUnsplit ? "group" : "radiogroup"}
+        aria-label="入れるもの"
+        align="center"
+        gap={1}
+        minW={0}
+        overflowX="auto"
+        py="8px"
+        my="-8px"
+      >
+        {choices.map((position) => {
+          const checked = !isBreakTool && position.id === nextWorkPosition.id;
+          return (
+            <chakra.button
+              key={position.id}
+              type="button"
+              role="radio"
+              aria-checked={checked}
+              onClick={() => rememberWorkPosition(position.id)}
+              css={rangeChipStyle}
+              {...(checked ? {} : rangeChipIdleStyle)}
+              style={checked ? { background: `color-mix(in srgb, ${position.color} 22%, white)` } : undefined}
+            >
+              <Box
+                boxSize="10px"
+                borderRadius="full"
+                flexShrink={0}
+                style={{ background: position.color }}
+                aria-hidden
+              />
+              {position.name}
+            </chakra.button>
+          );
+        })}
+        <chakra.button
+          type="button"
+          role={isUnsplit ? undefined : "radio"}
+          aria-checked={isUnsplit ? undefined : isBreakTool}
+          aria-pressed={isUnsplit ? isBreakTool : undefined}
+          onClick={() => setBreakTool(isUnsplit ? !isBreakTool : true)}
+          css={rangeChipStyle}
+          {...(isBreakTool ? { bg: "gray.200" } : rangeChipIdleStyle)}
+        >
+          <Box w="14px" h="10px" borderRadius="2px" flexShrink={0} style={BREAK_SWATCH_STYLE} aria-hidden />
+          休憩
+        </chakra.button>
+      </Flex>
+    </Flex>
+  );
+};
+
 /**
  * ポジションの色の凡例。閲覧専用の表示で、色がどのポジションを表すかを示す。
  * 編集できる表示では「入れるもの」が凡例を兼ねるため出さない。
@@ -284,10 +408,7 @@ export const PositionLegend = () => {
       flexShrink={0}
     >
       {positions.map((position) => (
-        <Flex as="li" key={position.id} align="center" gap="6px" textStyle="xs" color="gray.700" fontWeight={600}>
-          <Box boxSize="10px" borderRadius="full" flexShrink={0} style={{ background: position.color }} aria-hidden />
-          {position.name}
-        </Flex>
+        <PositionLegendItem key={position.id} position={position} />
       ))}
     </Flex>
   );

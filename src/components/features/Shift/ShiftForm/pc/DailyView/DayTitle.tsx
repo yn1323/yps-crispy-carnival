@@ -2,16 +2,21 @@ import { Box, Flex, Text } from "@chakra-ui/react";
 import dayjs from "dayjs";
 import { getWeekdayLabel } from "@/src/domains/shift/date";
 import { DisplaySettingsMenu } from "../../DisplaySettingsMenu";
-import { ToolPalette } from "../../detailParts";
+import { RangeAssignPalette, ToolPalette } from "../../detailParts";
 import { DayTemplateMenu, useDayStaffingView } from "../../staffingParts";
 import { getShiftWeekdayColor } from "../../weekdayPresentation";
 
 type Props = {
   date: string;
   holidays?: string[];
+  /**
+   * ポジションと休憩の入れ方。`palette`は先に入れるものを選んでからセルを押す形である。
+   * `rangeAssign`は勤務のバーの範囲を選んでから入れる形で、見出しでは次に新しく入れるものを選ぶ。
+   */
+  positionControl?: "palette" | "rangeAssign";
 };
 
-export const DayTitle = ({ date, holidays = [] }: Props) => {
+export const DayTitle = ({ date, holidays = [], positionControl = "palette" }: Props) => {
   // くわしく表示のときだけ、その日のテンプレートを日付の横に出す。人数を見る前に、何と比べるかを選べるようにする。
   const staffingView = useDayStaffingView(date);
   if (!date) return null;
@@ -54,7 +59,7 @@ export const DayTitle = ({ date, holidays = [] }: Props) => {
       </Flex>
       {/* 定休日は勤務を入れられないため、入れるものの選択を出さない。 */}
       <Flex align="center" gap={4} minW={0} flexShrink={1}>
-        {!isClosed && <ToolPalette variant="inline" />}
+        {!isClosed && (positionControl === "rangeAssign" ? <RangeAssignPalette /> : <ToolPalette variant="inline" />)}
         <DisplaySettingsMenu />
       </Flex>
     </Flex>

@@ -4,18 +4,28 @@ import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import { getAssignmentWarningSettingText } from "@/src/components/shared/ShiftAssignmentWarning";
 import { issueCountByDate } from "@/src/domains/shift/assignmentIssues";
 import type { AssignmentWarning } from "@/src/domains/shift/assignmentWarnings";
-import { withInitialBreak } from "@/src/domains/shift/breaks";
+import { applyBreakRange, type MinuteRange, withInitialBreak } from "@/src/domains/shift/breaks";
 import { toggleDateOnlyAssignment } from "@/src/domains/shift/dateOnlyAssignments";
 import { mergeAdjacentPositions, resolveDefaultPosition } from "@/src/domains/shift/operations";
 import { collectNewcomerStaffIdsByPositionId } from "@/src/domains/shift/positionSkills";
 import { isCanonicalWorkPosition } from "@/src/domains/shift/positions";
+import {
+  assignPositionToRange,
+  closeGapsWithBreaks,
+  type RangeAssignment,
+  resolveRangeAssignment,
+  restoreWorkInRange,
+} from "@/src/domains/shift/rangeAssignment";
 import { indexShiftsByStaffId } from "@/src/domains/shift/shiftLookup";
 import { type ShiftTypeOptionLike, toggleShiftTypeAssignment } from "@/src/domains/shift/shiftTypeAssignments";
 import { compareDefaultStaffOrder, sortDailyStaffs, sortStaffs } from "@/src/domains/shift/sortStaffs";
 import type { NewcomerOnlyPeriod } from "@/src/domains/shift/staffing";
+import { minutesToTime } from "@/src/domains/shift/time";
 import type { PositionType, ShiftData, SortMode, StaffType, TimeRange, ViewMode } from "@/src/domains/shift/types";
 import { sumStaffWorkTotals } from "@/src/domains/shift/workTotals";
 import { DEFAULT_TIME_PATTERN } from "@/src/domains/shop/submissionPattern";
+import { readLastPositionId, storeLastPositionId } from "./lastPositionStorage";
+import { readRangeAssignHintDismissed, storeRangeAssignHintDismissed } from "./rangeAssignHintStorage";
 import { resolveNameSkillPosition } from "./skillPresentation";
 import { buildDayStaffingView, type DayStaffingView } from "./staffingPresentation";
 import type { ShiftFormStaffing } from "./types";
@@ -184,10 +194,15 @@ export const deleteShiftPositionAtom = atom(
     const target = current.find((shift) => shift.id === shiftId);
     if (!target) return null;
 
-    const updatedShift = {
+    const remaining = {
       ...target,
       positions: mergeAdjacentPositions(target.positions.filter((position) => !positionIds.includes(position.id))),
     };
+    // 時刻を持つ勤務では、間の区間を消してできた空きを、バーの見た目に合わせて休憩として持つ。
+    const updatedShift =
+      get(shiftConfigAtom).submissionPattern.kind === "time"
+        ? closeGapsWithBreaks(remaining, `${shiftId}-gap-${Date.now()}`)
+        : remaining;
     commitShiftDrafts(
       get,
       set,
@@ -197,60 +212,80 @@ export const deleteShiftPositionAtom = atom(
   },
 );
 
-/**
- * その日の休憩を置き換える。勤務のない日には入れない。
- * `positions`を渡した場合は、勤務も置き換える。休憩が勤務の頭かお尻にかかり、勤務を短くするときに使う。
- */
+/** その日の休憩を置き換える。勤務のない日には入れない。 */
 export const setShiftBreaksAtom = atom(
   null,
-  (
-    get,
-    set,
-    {
-      staffId,
-      date,
-      breaks,
-      positions,
-    }: { staffId: string; date: string; breaks: ShiftData["breaks"]; positions?: ShiftData["positions"] },
-  ) => {
+  (get, set, { staffId, date, breaks }: { staffId: string; date: string; breaks: ShiftData["breaks"] }) => {
     if (get(shiftConfigAtom).isReadOnly) return;
     set(
       shiftDraftsAtom,
       get(shiftDraftsAtom).map((shift) => {
         if (shift.staffId !== staffId || shift.date !== date || !hasWork(shift)) return shift;
         const { breaks: _breaks, ...rest } = shift;
-        const next = positions ? { ...rest, positions } : rest;
-        return breaks && breaks.length > 0 ? { ...next, breaks } : next;
+        return breaks && breaks.length > 0 ? { ...rest, breaks } : rest;
       }),
     );
   },
 );
 
-/** 勤務区間のポジションを変える。 */
-export const changeShiftPositionAtom = atom(
+/**
+ * 勤務の選んだ範囲（分）へ、ポジションまたは休憩を入れる。`removeBreak`は、休憩だけを選んだ範囲を勤務へ戻す。
+ * 勤務の間の空きも休憩として扱い、勤務へ戻すときは直前の勤務と同じポジションで埋める。
+ * 何も変わらない場合は`unchanged`を返す。
+ */
+export const assignShiftRangeAtom = atom(
   null,
-  (get, set, { shiftId, segmentId, positionId }: { shiftId: string; segmentId: string; positionId: string }) => {
+  (
+    get,
+    set,
+    {
+      shiftId,
+      range,
+      assignment,
+      segmentId,
+    }: {
+      shiftId: string;
+      range: MinuteRange;
+      assignment: RangeAssignment | { kind: "removeBreak" };
+      segmentId: string;
+    },
+  ): "changed" | "unchanged" => {
     const config = get(shiftConfigAtom);
-    if (config.isReadOnly) return;
-    const position = config.positions.find((item) => item.id === positionId);
-    if (!position) return;
+    if (config.isReadOnly) return "unchanged";
+    const drafts = get(shiftDraftsAtom);
+    const shift = drafts.find((item) => item.id === shiftId);
+    if (!shift) return "unchanged";
+
+    let next: Pick<ShiftData, "positions" | "breaks"> | null;
+    if (assignment.kind === "removeBreak") {
+      next =
+        resolveRangeAssignment(shift, range)?.kind === "break" ? restoreWorkInRange({ shift, range, segmentId }) : null;
+    } else if (assignment.kind === "break") {
+      next = applyBreakRange(shift, { start: minutesToTime(range.start), end: minutesToTime(range.end) });
+    } else {
+      const position = config.positions.find((item) => item.id === assignment.positionId) ?? null;
+      // メニューで選んだポジションを覚え、次に新しく入れる勤務にも使う。メニューで休憩を選んだときは覚えない。
+      if (position) set(rememberWorkPositionAtom, position.id);
+      next = position ? assignPositionToRange({ shift, range, position, segmentId }) : null;
+    }
+    if (!next) return "unchanged";
+
+    const { breaks: _breaks, ...rest } = shift;
+    // 前からあった勤務の間の空きも、この勤務を変えた時点で、休憩として持つ形にそろえる。
+    const updated: ShiftData = closeGapsWithBreaks(
+      {
+        ...rest,
+        positions: next.positions,
+        ...(next.breaks && next.breaks.length > 0 ? { breaks: next.breaks } : {}),
+      },
+      `${segmentId}-gap`,
+    );
     set(
       shiftDraftsAtom,
-      get(shiftDraftsAtom).map((shift) =>
-        shift.id === shiftId
-          ? {
-              ...shift,
-              positions: mergeAdjacentPositions(
-                shift.positions.map((segment) =>
-                  segment.id === segmentId
-                    ? { ...segment, positionId: position.id, positionName: position.name, color: position.color }
-                    : segment,
-                ),
-              ),
-            }
-          : shift,
-      ),
+      drafts.map((item) => (item.id === shiftId ? updated : item)),
     );
+    set(dismissRangeAssignHintAtom);
+    return "changed";
   },
 );
 
@@ -276,11 +311,27 @@ export const detailToggleEnabledAtom = atom<boolean>(false);
 // ==========================================
 // 入れるものの選択（ポジションまたは休憩）
 // ==========================================
+// 時間指定のPCの日別表示には選ぶ場所がなく、勤務のバーのメニューで最後に選んだポジションが入る。
 export const selectedPositionIdAtom = atom<string | null>(null);
 // 休憩を選んでいる間は、勤務を押すと休憩の編集を開く。
 export const breakToolActiveAtom = atom<boolean>(false);
 // 休憩を編集中の日。nullのときは休憩の編集を閉じている。
 export const breakEditorTargetAtom = atom<{ staffId: string; date: string } | null>(null);
+
+// ==========================================
+// バーの範囲を選んで入れる操作の案内
+// ==========================================
+// この画面で案内を消したあとはtrue。nullの間は、端末に覚えた値を使う。
+const rangeAssignHintDismissedOverrideAtom = atom<boolean | null>(null);
+// 一度でもバーの範囲を選んでポジションか休憩を入れた端末では、案内を出さない。
+export const isRangeAssignHintDismissedAtom = atom(
+  (get) => get(rangeAssignHintDismissedOverrideAtom) ?? readRangeAssignHintDismissed(),
+);
+const dismissRangeAssignHintAtom = atom(null, (get, set) => {
+  if (get(isRangeAssignHintDismissedAtom)) return;
+  storeRangeAssignHintDismissed();
+  set(rangeAssignHintDismissedOverrideAtom, true);
+});
 
 // ==========================================
 // 派生atom
@@ -301,6 +352,40 @@ export const selectedPositionAtom = atom((get) => {
   const config = get(shiftConfigAtom);
   const id = get(selectedPositionIdAtom);
   return id ? (config.positions.find((p) => p.id === id) ?? null) : null;
+});
+
+/**
+ * 選んだポジションを、次に新しく入れる勤務のポジションとして覚える。店舗ごとに端末にも覚える。
+ * 時間指定のPCの日別表示で、日付の見出しのポジションを押したときと、勤務のバーのメニューでポジションを選んだときに使う。
+ * 休憩を選んでいた場合は、休憩の選択を外す。
+ */
+export const rememberWorkPositionAtom = atom(null, (get, set, positionId: string) => {
+  set(selectedPositionIdAtom, positionId);
+  set(breakToolActiveAtom, false);
+  storeLastPositionId(get(shiftConfigAtom).shopId, positionId);
+});
+
+/**
+ * 時間指定のPCの日別表示で、次に入れるポジションを決める。この画面でまだ選んでいない場合だけ決める。
+ * 端末に覚えたポジションがあればそれを使い、覚えていない場合と削除済みの場合は、ポジションの一覧の先頭を使う。
+ * 既定のポジションは画面から分からないため、ここでは使わない。
+ */
+export const restoreRememberedWorkPositionAtom = atom(null, (get, set) => {
+  if (get(selectedPositionIdAtom) !== null) return;
+  const { shopId, positions } = get(shiftConfigAtom);
+  const rememberedId = readLastPositionId(shopId);
+  const position = positions.find((item) => item.id === rememberedId) ?? positions[0];
+  if (position) set(selectedPositionIdAtom, position.id);
+});
+
+/**
+ * 時間指定のPCの日別表示で、次に新しく入れる勤務のポジション。
+ * メニューで最後に選んだポジションで、選んでいなければ一覧の先頭。ポジションを選び分けない表示では既定のポジション。
+ */
+export const nextWorkPositionAtom = atom((get) => {
+  const { positions } = get(shiftConfigAtom);
+  if (!get(isPositionSelectableAtom)) return resolveDefaultPosition(positions);
+  return get(selectedPositionAtom) ?? positions[0];
 });
 
 // 新しい勤務に使うポジション。選んでいなければ既定のポジション。

@@ -86,7 +86,17 @@ export type TimeRange = {
 export type ViewMode = "daily" | "overview";
 
 // ドラッグモード（希望シフトバーは編集不可のため、ポジション関連のみ）
-export type DragMode = "position-resize-start" | "position-resize-end" | "paint" | "break" | null;
+// select は、勤務のバーの上で範囲を選ぶ操作。break は、休憩を選んでいる間に、なぞった範囲を休憩にする操作。
+// break-resize-* は、休憩の開始か終了をつまんで動かす操作。
+export type DragMode =
+  | "position-resize-start"
+  | "position-resize-end"
+  | "paint"
+  | "select"
+  | "break"
+  | "break-resize-start"
+  | "break-resize-end"
+  | null;
 
 // スタッフソートモード
 export type SortMode = "default" | "request" | "startTime";

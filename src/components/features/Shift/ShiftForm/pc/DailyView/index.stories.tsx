@@ -6,6 +6,8 @@ import type { PositionType, ShiftData, StaffType } from "@/src/domains/shift/typ
 import { DEFAULT_TIME_PATTERN } from "@/src/domains/shop/submissionPattern";
 import { ShiftForm } from "../..";
 import { TIME_AXIS_PADDING_PX } from "../../constants";
+import { lastPositionStorageKey } from "../../lastPositionStorage";
+import { RANGE_ASSIGN_HINT_STORAGE_KEY } from "../../rangeAssignHintStorage";
 import { mockStaffs, mockTimeRange, withPositionSkills } from "../../stories/fixtures";
 import { desktopGlobals, fullscreenParameters, shiftFormDecorators } from "../../stories/shared";
 import {
@@ -30,6 +32,7 @@ const kitchen: PositionType = { id: "kitchen", name: "キッチン", color: "#fb
 const register: PositionType = { id: "register", name: "レジ", color: "#a78bfa", isDefault: false };
 const HALL_RGB = "rgb(96, 165, 250)";
 const KITCHEN_RGB = "rgb(251, 146, 60)";
+const REGISTER_RGB = "rgb(167, 139, 250)";
 
 const WEEKDAY = "2026-01-21";
 const THURSDAY = "2026-01-22";
@@ -144,11 +147,22 @@ const detailArgs = {
   ],
 } satisfies ShiftFormArgs;
 
+const LAST_POSITION_KEY = lastPositionStorageKey(detailArgs.shopId);
+const clearRememberedState = () => {
+  localStorage.removeItem(RANGE_ASSIGN_HINT_STORAGE_KEY);
+  localStorage.removeItem(LAST_POSITION_KEY);
+};
+
 const meta = {
   title: "Features/Shift/ShiftForm/Time/PC/Daily Detail",
   component: ShiftForm,
   parameters: fullscreenParameters,
   decorators: shiftFormDecorators,
+  // 案内を出すかどうかと、最後に選んだポジションは、端末に覚える。前のStoryの操作を引き継がない。
+  beforeEach: () => {
+    clearRememberedState();
+    return clearRememberedState;
+  },
 } satisfies Meta<typeof ShiftForm>;
 
 export default meta;
@@ -257,6 +271,11 @@ const getWorkBars = (row: HTMLElement) =>
 const getBreakBars = (row: HTMLElement) =>
   Array.from(row.querySelectorAll<HTMLElement>('div[style^="background-color"]'));
 const getWorkBarColors = (row: HTMLElement) => getWorkBars(row).map((bar) => getComputedStyle(bar).backgroundColor);
+// ドラッグ中の仮のバーは、押した操作を受け取らない面として描く。
+const getDragPreviewColors = (row: HTMLElement) =>
+  Array.from((row.lastElementChild as HTMLElement).children)
+    .filter((element) => getComputedStyle(element).pointerEvents === "none" && getComputedStyle(element).zIndex === "5")
+    .map((element) => getComputedStyle(element).backgroundColor);
 
 /** 行の時間軸の上で、その時刻にあたる位置を返す。 */
 const pointAt = (row: HTMLElement, time: string) => {
@@ -272,35 +291,421 @@ const pointAt = (row: HTMLElement, time: string) => {
 const findStaffingSection = (canvasElement: HTMLElement) =>
   within(canvasElement).findByRole("region", { name: "人数" });
 
-/** 勤務のバーを押すと開く欄で、勤務区間のポジションを変えると、バーの色と人数の帯が変わる。 */
-export const DetailChangePositionInteractive: Story = {
-  name: "Detail Change Position Interactive",
+// ドラッグの開始、移動、終了を分けて送り、移動を受け取る準備ができてから次へ進む。
+// ボタンを押している状態を引き継ぐため、同じ操作者で送る。
+const dragOnRow = async (row: HTMLElement, from: string, to: string) => {
+  const user = userEvent.setup();
+  const target = row.lastElementChild as HTMLElement;
+  await user.pointer({ keys: "[MouseLeft>]", target, coords: pointAt(row, from) });
+  await user.pointer({ target, coords: pointAt(row, to) });
+  await user.pointer({ keys: "[/MouseLeft]", target, coords: pointAt(row, to) });
+};
+
+const clickOnRow = async (row: HTMLElement, time: string) => {
+  const user = userEvent.setup();
+  await user.pointer({ keys: "[MouseLeft]", target: row.lastElementChild as HTMLElement, coords: pointAt(row, time) });
+};
+
+/** 勤務のバーの範囲を選ぶと開くメニュー。名前に、選んだ時間が入る。 */
+const findRangeMenu = async (timeLabel: string, subject: "ポジション" | "勤務" = "ポジション") =>
+  within(await within(document.body).findByRole("menu", { name: `${timeLabel}の${subject}と休憩` }));
+const expectNoRangeMenu = () =>
+  waitFor(() => expect(within(document.body).queryByRole("menu")).not.toBeInTheDocument());
+const getSelections = (row: HTMLElement) => Array.from(row.querySelectorAll("[data-range-selection]"));
+
+const HINT_TEXT = "バーをなぞると ポジションを変えられます";
+
+/** 日付の見出しの「入れるもの」。次に新しく入れるポジション、または休憩を選ぶ。 */
+const findPalette = async (canvasElement: HTMLElement) =>
+  within(await within(canvasElement).findByRole("radiogroup", { name: "入れるもの" }));
+/** 「入れるもの」で、いま選んでいる項目。 */
+const findNextPositionChip = async (canvasElement: HTMLElement) =>
+  (await findPalette(canvasElement)).findByRole("radio", { checked: true });
+
+/**
+ * 勤務のバーの一部をなぞると、その範囲を選び、メニューでキッチンを選ぶと区間が分かれる。
+ * 入れてあった休憩は残る。一度入れると、日付の見出しの案内が消える。
+ */
+export const DetailRangeAssignInteractive: Story = {
+  name: "Detail Range Assign Interactive",
   args: detailArgs,
   globals: desktopGlobals,
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
-    const body = within(document.body);
+    const canvas = within(canvasElement);
     const row = await findRow(canvasElement, "staff1");
     const staffing = within(await findStaffingSection(canvasElement));
     await expect(getWorkBarColors(row)).toEqual([HALL_RGB]);
+    await expect(await canvas.findByText(HINT_TEXT)).toBeInTheDocument();
+    // まだ選んでいない端末では、一覧の先頭のホールが、次に入れるポジションになる。
+    await expect(await findNextPositionChip(canvasElement)).toHaveTextContent("ホール");
     // Aさんが抜ける前は、14:00〜18:00のホールはちょうど1人。
     await expect(await staffing.findByRole("button", { name: "ホール 14:00〜18:00 1/1" })).toBeInTheDocument();
 
-    await userEvent.click(getWorkBars(row)[0]);
-    const positionGroup = await body.findByRole("radiogroup", { name: "10:00〜18:00のポジション" });
-    await expect(within(positionGroup).getByRole("radio", { name: "ホール" })).toBeChecked();
-    await userEvent.click(within(positionGroup).getByRole("radio", { name: "キッチン" }));
+    // Aさんはホールの10:00〜18:00で、13:00〜14:00が休憩。
+    await dragOnRow(row, "15:00", "17:00");
+    const menu = await findRangeMenu("15:00〜17:00");
+    await expect(getSelections(row)).toHaveLength(1);
+    await expect(menu.getByRole("menuitemradio", { name: "ホール" })).toBeChecked();
+    await expect(menu.getByRole("menuitemradio", { name: "キッチン" })).not.toBeChecked();
+    await userEvent.click(menu.getByRole("menuitemradio", { name: "キッチン" }));
 
-    await waitFor(() => expect(getWorkBarColors(row)).toEqual([KITCHEN_RGB]));
-    // ホールはAさんが抜けて14:00以降が不足になり、キッチンは増える。
-    await expect(await staffing.findByRole("button", { name: "ホール 14:00〜22:00 0/1 ▲1" })).toBeInTheDocument();
-    await expect(await staffing.findByRole("button", { name: "キッチン 14:00〜17:00 3/1 ＋2" })).toBeInTheDocument();
+    await waitFor(() => expect(getWorkBarColors(row)).toEqual([HALL_RGB, KITCHEN_RGB, HALL_RGB]));
+    await expectNoRangeMenu();
+    await expect(getSelections(row)).toHaveLength(0);
+    await expect(row).toHaveTextContent("10:00–18:00");
+    // ホールは15:00〜17:00にAさんが抜けて不足になり、キッチンは増える。
+    await expect(await staffing.findByRole("button", { name: "ホール 15:00〜17:00 0/1 ▲1" })).toBeInTheDocument();
+    await expect(await staffing.findByRole("button", { name: "キッチン 15:00〜17:00 3/1 ＋2" })).toBeInTheDocument();
     // ポジションを変えても、入れてあった休憩は残る。
+    await expect(getBreakBars(row)).toHaveLength(1);
+    await waitFor(() => expect(canvas.queryByText(HINT_TEXT)).not.toBeInTheDocument());
+
+    // 選んだキッチンを覚え、次に新しく入れる勤務にも使う。日付の見出しの選択もキッチンに変わる。
+    await expect(await findNextPositionChip(canvasElement)).toHaveTextContent("キッチン");
+    const emptyRow = await findRow(canvasElement, "staff5");
+    await dragOnRow(emptyRow, "18:00", "21:00");
+    await waitFor(() => expect(getWorkBarColors(emptyRow)).toEqual([KITCHEN_RGB]));
+    await expect(localStorage.getItem(LAST_POSITION_KEY)).toBe(kitchen.id);
+
+    // メニューで休憩を選んでも、覚えたポジションは変わらない。
+    await dragOnRow(emptyRow, "19:00", "20:00");
+    await userEvent.click((await findRangeMenu("19:00〜20:00")).getByRole("menuitemradio", { name: "休憩" }));
+    await waitFor(() => expect(getBreakBars(emptyRow)).toHaveLength(1));
+    await expect(await findNextPositionChip(canvasElement)).toHaveTextContent("キッチン");
+  },
+};
+
+/**
+ * 日付の見出しのポジションを押すと、次に新しく入れる勤務のポジションが変わり、端末にも覚える。
+ * 「休憩」を押している間は、勤務のバーの上をなぞった範囲が、メニューを開かずに15分単位で休憩になる。
+ * 勤務の外をなぞっても、何も入らない。休憩の選択は端末に覚えない。
+ */
+export const DetailPaletteInteractive: Story = {
+  name: "Detail Palette Interactive",
+  args: detailArgs,
+  globals: desktopGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const palette = await findPalette(canvasElement);
+    const emptyRow = await findRow(canvasElement, "staff5");
+    await expect(await findNextPositionChip(canvasElement)).toHaveTextContent("ホール");
+
+    // ポジションを押すと、次に入れる勤務がそのポジションになる。
+    await userEvent.click(palette.getByRole("radio", { name: "キッチン" }));
+    await expect(palette.getByRole("radio", { name: "キッチン" })).toBeChecked();
+    await expect(localStorage.getItem(LAST_POSITION_KEY)).toBe(kitchen.id);
+    await dragOnRow(emptyRow, "17:00", "20:00");
+    await waitFor(() => expect(getWorkBarColors(emptyRow)).toEqual([KITCHEN_RGB]));
+
+    // 休憩を押している間は、勤務の外をなぞっても何も入らない。休憩の選択は端末に覚えない。
+    await userEvent.click(palette.getByRole("radio", { name: "休憩" }));
+    await expect(palette.getByRole("radio", { name: "休憩" })).toBeChecked();
+    await expect(localStorage.getItem(LAST_POSITION_KEY)).toBe(kitchen.id);
+    await dragOnRow(emptyRow, "10:00", "12:00");
+    await expect(getWorkBarColors(emptyRow)).toEqual([KITCHEN_RGB]);
+    await expect(emptyRow).toHaveTextContent("17:00–20:00");
+
+    // 勤務のバーの上をなぞると、メニューを開かずに、15分単位で休憩が入る。Bさんはキッチンの12:00〜20:00。
+    const row = await findRow(canvasElement, "staff2");
+    await dragOnRow(row, "14:00", "14:45");
+    await waitFor(() => expect(getBreakBars(row)).toHaveLength(1));
+    await expect(within(document.body).queryByRole("menu")).not.toBeInTheDocument();
+    await expect(getWorkBarColors(row)).toEqual([KITCHEN_RGB]);
+
+    // なぞらずに押した場合は、休憩を選んでいる間も、押した区間のメニューが開く。
+    await clickOnRow(row, "14:20");
+    const menu = await findRangeMenu("14:00〜14:45");
+    await expect(menu.getByRole("menuitemradio", { name: "休憩" })).toBeChecked();
+
+    // メニューでポジションを選ぶと、休憩の選択が外れ、そのポジションが次に入れるものになる。
+    await userEvent.click(menu.getByRole("menuitemradio", { name: "ホール" }));
+    await waitFor(() => expect(getBreakBars(row)).toHaveLength(0));
+    await expect(await findNextPositionChip(canvasElement)).toHaveTextContent("ホール");
+  },
+};
+
+/**
+ * 前にこの店舗で最後に選んだポジションを端末から読み、日付の見出しで選んだ状態にする。
+ * 空いている時間をドラッグすると、そのポジションで勤務が入る。
+ */
+export const DetailRememberedPosition: Story = {
+  name: "Detail Remembered Position",
+  args: detailArgs,
+  globals: desktopGlobals,
+  beforeEach: () => {
+    localStorage.setItem(LAST_POSITION_KEY, kitchen.id);
+  },
+  play: async ({ canvasElement }) => {
+    await waitFor(async () => expect(await findNextPositionChip(canvasElement)).toHaveTextContent("キッチン"));
+
+    const row = await findRow(canvasElement, "staff5");
+    await dragOnRow(row, "17:00", "22:00");
+    await waitFor(() => expect(getWorkBarColors(row)).toEqual([KITCHEN_RGB]));
+  },
+};
+
+/** 覚えたポジションが削除済みの店舗では、一覧の先頭のポジションを次に入れるポジションにする。 */
+export const DetailRememberedPositionDeleted: Story = {
+  name: "Detail Remembered Position Deleted",
+  args: detailArgs,
+  globals: desktopGlobals,
+  parameters: { screenshot: { skip: true } },
+  beforeEach: () => {
+    localStorage.setItem(LAST_POSITION_KEY, "deleted-position");
+  },
+  play: async ({ canvasElement }) => {
+    const row = await findRow(canvasElement, "staff5");
+    await dragOnRow(row, "17:00", "22:00");
+
+    await waitFor(() => expect(getWorkBarColors(row)).toEqual([HALL_RGB]));
+    await expect(await findNextPositionChip(canvasElement)).toHaveTextContent("ホール");
+  },
+};
+
+/** なぞらずに区間を押すと、その区間の全体を選ぶ。ホールへ変えると、隣のホールの区間とまとまる。 */
+export const DetailRangeAssignByClickInteractive: Story = {
+  name: "Detail Range Assign By Click Interactive",
+  args: detailArgs,
+  globals: desktopGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    // Dさんはホールの9:00〜13:00と、キッチンの13:00〜17:00。
+    const row = await findRow(canvasElement, "staff4");
+    await expect(getWorkBarColors(row)).toEqual([HALL_RGB, KITCHEN_RGB]);
+
+    await clickOnRow(row, "15:00");
+    const menu = await findRangeMenu("13:00〜17:00");
+    await expect(menu.getByRole("menuitemradio", { name: "キッチン" })).toBeChecked();
+    await userEvent.click(menu.getByRole("menuitemradio", { name: "ホール" }));
+
+    await waitFor(() => expect(getWorkBarColors(row)).toEqual([HALL_RGB]));
+    await expect(row).toHaveTextContent("09:00–17:00");
+  },
+};
+
+/** Esc、メニューの外を押す、のどちらでも、何も変えずにメニューを閉じる。 */
+export const DetailRangeAssignCancelInteractive: Story = {
+  name: "Detail Range Assign Cancel Interactive",
+  args: detailArgs,
+  globals: desktopGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    // Bさんはキッチンの12:00〜20:00。
+    const row = await findRow(canvasElement, "staff2");
+
+    await dragOnRow(row, "14:00", "16:00");
+    await findRangeMenu("14:00〜16:00");
+    await userEvent.keyboard("{Escape}");
+    await expectNoRangeMenu();
+    await expect(getSelections(row)).toHaveLength(0);
+
+    await dragOnRow(row, "14:00", "16:00");
+    await findRangeMenu("14:00〜16:00");
+    await userEvent.click(await canvas.findByRole("button", { name: "表示設定" }));
+    await waitFor(() =>
+      expect(within(document.body).queryByRole("menu", { name: /のポジションと休憩$/ })).not.toBeInTheDocument(),
+    );
+    await expect(getSelections(row)).toHaveLength(0);
+
+    await expect(getWorkBarColors(row)).toEqual([KITCHEN_RGB]);
+    await expect(getBreakBars(row)).toHaveLength(0);
+    await expect(row).toHaveTextContent("12:00–20:00");
+    // 何も入れていないため、案内は出たままにする。
+    await expect(canvas.getByText(HINT_TEXT)).toBeInTheDocument();
+  },
+};
+
+/** メニューを開いている間は、数字のキーで、表示順のポジションを選べる。 */
+export const DetailRangeAssignByKeyInteractive: Story = {
+  name: "Detail Range Assign By Key Interactive",
+  args: detailArgs,
+  globals: desktopGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    // Bさんはキッチンの12:00〜20:00。ポジションは、ホール、キッチン、レジの順。
+    const row = await findRow(canvasElement, "staff2");
+
+    // バーの端は時間の変更になるため、端から少し内側を押す。選ぶ範囲は30分単位にそろう。
+    await dragOnRow(row, "12:14", "14:00");
+    await findRangeMenu("12:00〜14:00");
+    await userEvent.keyboard("3");
+
+    await waitFor(() => expect(getWorkBarColors(row)).toEqual([REGISTER_RGB, KITCHEN_RGB]));
+    await expectNoRangeMenu();
+  },
+};
+
+/** バーの端のドラッグは、くわしく表示でも、今までどおり時間の変更になる。範囲選択のメニューは開かない。 */
+export const DetailResizeInteractive: Story = {
+  name: "Detail Resize Interactive",
+  args: detailArgs,
+  globals: desktopGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    // Bさんはキッチンの12:00〜20:00。
+    const row = await findRow(canvasElement, "staff2");
+    await expect(row).toHaveTextContent("12:00–20:00");
+
+    await dragOnRow(row, "20:00", "21:00");
+
+    await waitFor(() => expect(row).toHaveTextContent("12:00–21:00"));
+    await expect(getWorkBarColors(row)).toEqual([KITCHEN_RGB]);
+    await expect(within(document.body).queryByRole("menu")).not.toBeInTheDocument();
+  },
+};
+
+/**
+ * 休憩の開始と終了の近くをつまむと、15分単位で休憩の時間を動かせる。動かしている間も、休憩はバーに出たままにする。
+ * 勤務の長さを変えている間も、休憩は消えない。
+ */
+export const DetailBreakResizeInteractive: Story = {
+  name: "Detail Break Resize Interactive",
+  args: detailArgs,
+  globals: desktopGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    // Aさんはホールの10:00〜18:00で、13:00〜14:00が休憩。
+    const row = await findRow(canvasElement, "staff1");
+    const timeline = row.lastElementChild as HTMLElement;
+    await waitFor(() => expect(getBreakBars(row)).toHaveLength(1));
+    const user = userEvent.setup();
+
+    // 休憩の終了をつまんで、14:45まで伸ばす。動かしている間も休憩が出ている。
+    await user.pointer({ keys: "[MouseLeft>]", target: timeline, coords: pointAt(row, "14:00") });
+    await user.pointer({ target: timeline, coords: pointAt(row, "14:45") });
+    await expect(getBreakBars(row)).toHaveLength(1);
+    await user.pointer({ keys: "[/MouseLeft]", target: timeline, coords: pointAt(row, "14:45") });
+    await clickOnRow(row, "13:30");
+    await findRangeMenu("13:00〜14:45");
+    await userEvent.keyboard("{Escape}");
+    await expectNoRangeMenu();
+
+    // 休憩の開始をつまんで、12:30まで早める。
+    await dragOnRow(row, "13:00", "12:30");
+    await clickOnRow(row, "13:30");
+    await findRangeMenu("12:30〜14:45");
+    await userEvent.keyboard("{Escape}");
+    await expectNoRangeMenu();
+    await expect(row).toHaveTextContent("10:00–18:00");
+
+    // 勤務の終了を縮めている間も、休憩は消えない。
+    await user.pointer({ keys: "[MouseLeft>]", target: timeline, coords: pointAt(row, "18:00") });
+    await user.pointer({ target: timeline, coords: pointAt(row, "17:00") });
+    await expect(getBreakBars(row)).toHaveLength(1);
+    await user.pointer({ keys: "[/MouseLeft]", target: timeline, coords: pointAt(row, "17:00") });
+    await waitFor(() => expect(row).toHaveTextContent("10:00–17:00"));
     await expect(getBreakBars(row)).toHaveLength(1);
   },
 };
 
-/** 勤務のバーを押すと開く欄の「休憩を変更」から、休憩を足し、消せる。 */
+/** 休憩の端を、反対の端まで（15分より短く）動かすと、その休憩を削除する。 */
+export const DetailBreakResizeDeleteInteractive: Story = {
+  name: "Detail Break Resize Delete Interactive",
+  args: detailArgs,
+  globals: desktopGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    // Aさんはホールの10:00〜18:00で、13:00〜14:00が休憩。
+    const row = await findRow(canvasElement, "staff1");
+    await waitFor(() => expect(getBreakBars(row)).toHaveLength(1));
+
+    // 15分までは縮められる。
+    await dragOnRow(row, "14:00", "13:15");
+    await clickOnRow(row, "13:07");
+    await findRangeMenu("13:00〜13:15");
+    await userEvent.keyboard("{Escape}");
+    await expectNoRangeMenu();
+
+    // 終了を開始まで動かすと、休憩がなくなる。勤務は変わらない。
+    await dragOnRow(row, "13:15", "13:00");
+    await waitFor(() => expect(getBreakBars(row)).toHaveLength(0));
+    await expect(getWorkBarColors(row)).toEqual([HALL_RGB]);
+    await expect(row).toHaveTextContent("10:00–18:00");
+  },
+};
+
+/** 勤務を縮めて休憩が勤務の外に出たあとで、勤務を伸ばし直しても、消えた休憩は戻らない。 */
+export const DetailShrinkThenExtendInteractive: Story = {
+  name: "Detail Shrink Then Extend Interactive",
+  args: detailArgs,
+  globals: desktopGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    // Aさんはホールの10:00〜18:00で、13:00〜14:00が休憩。
+    const row = await findRow(canvasElement, "staff1");
+    await waitFor(() => expect(getBreakBars(row)).toHaveLength(1));
+
+    await dragOnRow(row, "10:00", "14:30");
+    await waitFor(() => expect(row).toHaveTextContent("14:30–18:00"));
+    await expect(getBreakBars(row)).toHaveLength(0);
+
+    await dragOnRow(row, "14:30", "10:00");
+    await waitFor(() => expect(row).toHaveTextContent("10:00–18:00"));
+    await expect(getBreakBars(row)).toHaveLength(0);
+  },
+};
+
+/**
+ * 選んだ範囲を休憩にできる。入れた休憩を押して選び、ポジションを選ぶと、休憩が外れる。
+ * 勤務の頭を選んで休憩にした場合は、休憩を残さず勤務を短くする。ひと続きの勤務の全体は、休憩にできない。
+ */
+export const DetailRangeBreakInteractive: Story = {
+  name: "Detail Range Break Interactive",
+  args: detailArgs,
+  globals: desktopGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    // Bさんはキッチンの12:00〜20:00で、休憩はない。
+    const row = await findRow(canvasElement, "staff2");
+    await expect(getBreakBars(row)).toHaveLength(0);
+
+    // 押して全体を選んだ場合は、休憩を選べない。
+    await clickOnRow(row, "17:00");
+    const wholeMenu = await findRangeMenu("12:00〜20:00");
+    await expect(wholeMenu.getByRole("menuitemradio", { name: /^休憩/ })).toHaveAttribute("aria-disabled", "true");
+    await expect(wholeMenu.getByText("まるごと休憩にはできません")).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
+    await expectNoRangeMenu();
+
+    // 勤務の途中を選ぶと、休憩が入る。勤務は増えない。
+    await dragOnRow(row, "14:00", "15:00");
+    await userEvent.click((await findRangeMenu("14:00〜15:00")).getByRole("menuitemradio", { name: "休憩" }));
+    await waitFor(() => expect(getBreakBars(row)).toHaveLength(1));
+    await expect(getWorkBarColors(row)).toEqual([KITCHEN_RGB]);
+    await expect(row).toHaveTextContent("12:00–20:00");
+
+    // 入れた休憩を押すと、その休憩を選ぶ。チェックの出ている「休憩」をもう一度選ぶと、休憩が外れる。
+    await clickOnRow(row, "14:20");
+    const breakMenu = await findRangeMenu("14:00〜15:00");
+    await expect(breakMenu.getByRole("menuitemradio", { name: "休憩" })).toBeChecked();
+    await userEvent.click(breakMenu.getByRole("menuitemradio", { name: "休憩" }));
+    await waitFor(() => expect(getBreakBars(row)).toHaveLength(0));
+    await expect(getWorkBarColors(row)).toEqual([KITCHEN_RGB]);
+
+    // 休憩を選んでポジションを選んだ場合も、休憩が外れる。
+    await dragOnRow(row, "14:00", "15:00");
+    await userEvent.click((await findRangeMenu("14:00〜15:00")).getByRole("menuitemradio", { name: "休憩" }));
+    await waitFor(() => expect(getBreakBars(row)).toHaveLength(1));
+    await clickOnRow(row, "14:20");
+    await userEvent.click((await findRangeMenu("14:00〜15:00")).getByRole("menuitemradio", { name: "キッチン" }));
+    await waitFor(() => expect(getBreakBars(row)).toHaveLength(0));
+    await expect(getWorkBarColors(row)).toEqual([KITCHEN_RGB]);
+
+    // 勤務の頭を選んで休憩にすると、休憩は入らず、選んだ分だけ勤務が短くなる。
+    // バーの端は時間の変更になるため、端から少し内側を押す。
+    await dragOnRow(row, "12:14", "13:00");
+    await userEvent.click((await findRangeMenu("12:00〜13:00")).getByRole("menuitemradio", { name: "休憩" }));
+    await waitFor(() => expect(row).toHaveTextContent("13:00–20:00"));
+    await expect(getBreakBars(row)).toHaveLength(0);
+  },
+};
+
+/**
+ * メニューから休憩の編集を開き、休憩を足し、消せる。
+ * 項目の名前は、勤務を選んでいる間は「休憩を時刻で追加」、休憩を選んでいる間は「休憩を時刻で変更」になる。
+ */
 export const DetailEditBreaksInteractive: Story = {
   name: "Detail Edit Breaks Interactive",
   args: detailArgs,
@@ -312,9 +717,8 @@ export const DetailEditBreaksInteractive: Story = {
     await expect(getBreakBars(row)).toHaveLength(0);
 
     // 足す: 勤務の中央に1時間の休憩が入る。
-    await userEvent.click(getWorkBars(row)[0]);
-    await expect(await body.findByText("休憩：なし")).toBeInTheDocument();
-    await userEvent.click(await body.findByRole("button", { name: "休憩を変更" }));
+    await clickOnRow(row, "17:00");
+    await userEvent.click((await findRangeMenu("12:00〜20:00")).getByRole("menuitem", { name: "休憩を時刻で追加" }));
     const addDialog = within(await body.findByRole("dialog"));
     await userEvent.click(await addDialog.findByRole("button", { name: "休憩を追加" }));
     await expect(await addDialog.findByRole("group", { name: "休憩1" })).toBeInTheDocument();
@@ -322,135 +726,211 @@ export const DetailEditBreaksInteractive: Story = {
     await waitFor(() => expect(body.queryByRole("dialog")).not.toBeInTheDocument());
     await waitFor(() => expect(getBreakBars(row)).toHaveLength(1));
 
-    await userEvent.click(getWorkBars(row)[0]);
-    await expect(await body.findByText("休憩：15:30〜16:30")).toBeInTheDocument();
-
-    // 消す。
-    await userEvent.click(await body.findByRole("button", { name: "休憩を変更" }));
+    // 消す。入った休憩（15:30〜16:30）を押して選ぶと、項目の名前が「変更」になり、同じ編集が開く。
+    await clickOnRow(row, "16:00");
+    await userEvent.click((await findRangeMenu("15:30〜16:30")).getByRole("menuitem", { name: "休憩を時刻で変更" }));
     const removeDialog = within(await body.findByRole("dialog"));
     await userEvent.click(await removeDialog.findByRole("button", { name: "休憩1を削除" }));
     await userEvent.click(removeDialog.getByRole("button", { name: "変更する" }));
     await waitFor(() => expect(body.queryByRole("dialog")).not.toBeInTheDocument());
     await waitFor(() => expect(getBreakBars(row)).toHaveLength(0));
-
-    await userEvent.click(getWorkBars(row)[0]);
-    await expect(await body.findByText("休憩：なし")).toBeInTheDocument();
   },
 };
 
 /**
- * 休憩を選んでいる間は、勤務のバーの上をなぞった範囲が、15分単位で休憩になる。入れた休憩は、押すと消える。
- * 勤務は増えない。勤務のない行と、勤務の外の時間をなぞっても、何も入らない。
- * 勤務の頭とお尻をなぞった場合は、休憩を残さず勤務を短くする。
+ * 勤務のある行で、離れた時間に勤務を入れると、間の空きを休憩として持つ。
+ * バーは最初の開始から最後の終了までの1つの勤務になり、休憩の編集にも、その空きが休憩として出る。
  */
-export const DetailBreakToolInteractive: Story = {
-  name: "Detail Break Tool Interactive",
+export const DetailSeparateWorkBecomesBreakInteractive: Story = {
+  name: "Detail Separate Work Becomes Break Interactive",
   args: detailArgs,
   globals: desktopGlobals,
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
     const body = within(document.body);
-    await userEvent.click(await canvas.findByRole("radio", { name: "休憩" }));
-    // ドラッグの開始、移動、終了を分けて送る。ボタンを押している状態を引き継ぐため、同じ操作者で送る。
-    const user = userEvent.setup();
-    const drag = async (target: HTMLElement, from: { clientX: number; clientY: number }, to: typeof from) => {
-      await user.pointer({ keys: "[MouseLeft>]", target, coords: from });
-      await user.pointer({ target, coords: to });
-      await user.pointer({ keys: "[/MouseLeft]", target, coords: to });
-    };
-
-    // 勤務のない行をなぞっても、勤務も休憩も入らない。
-    const emptyRow = await findRow(canvasElement, "staff5");
-    await drag(emptyRow.lastElementChild as HTMLElement, pointAt(emptyRow, "18:00"), pointAt(emptyRow, "21:00"));
-    await expect(getWorkBars(emptyRow)).toHaveLength(0);
-
-    // 勤務のある行でも、勤務の外の時間をなぞった場合は何も入らない。Bさんの勤務は12:00〜20:00。
-    const row = await findRow(canvasElement, "staff2");
-    const timeline = row.lastElementChild as HTMLElement;
-    await drag(timeline, pointAt(row, "09:30"), pointAt(row, "11:30"));
+    // Cさんはホールの10:00〜14:00。15:00〜17:00に、離して勤務を入れる。
+    const row = await findRow(canvasElement, "staff3");
     await expect(getBreakBars(row)).toHaveLength(0);
-    await expect(body.queryByRole("dialog")).not.toBeInTheDocument();
 
-    // 勤務の上をなぞると、15分単位で休憩が入る。勤務は増えない。
-    await drag(timeline, pointAt(row, "14:00"), pointAt(row, "14:45"));
+    await dragOnRow(row, "15:00", "17:00");
+
+    await waitFor(() => expect(row).toHaveTextContent("10:00–17:00"));
     await waitFor(() => expect(getBreakBars(row)).toHaveLength(1));
-    await expect(getWorkBarColors(row)).toEqual([KITCHEN_RGB]);
-    await expect(row).toHaveTextContent("12:00–20:00");
-    // 入った時刻は、勤務の欄で確かめる。
-    await userEvent.click(await canvas.findByRole("radio", { name: "キッチン" }));
-    await user.pointer({ keys: "[MouseLeft]", target: timeline, coords: pointAt(row, "17:00") });
-    await expect(await body.findByText("休憩：14:00〜14:45")).toBeInTheDocument();
-    await userEvent.click(body.getByRole("button", { name: "閉じる" }));
 
-    // 入れた休憩を押すと消える。
-    await userEvent.click(await canvas.findByRole("radio", { name: "休憩" }));
-    await user.pointer({ keys: "[MouseLeft]", target: timeline, coords: pointAt(row, "14:20") });
-    await waitFor(() => expect(getBreakBars(row)).toHaveLength(0));
-    await expect(body.queryByRole("dialog")).not.toBeInTheDocument();
-
-    // 勤務の頭とお尻をなぞると、休憩は入らず、なぞった分だけ勤務が短くなる。
-    await drag(timeline, pointAt(row, "12:00"), pointAt(row, "12:45"));
-    await waitFor(() => expect(row).toHaveTextContent("12:45–20:00"));
-    await drag(timeline, pointAt(row, "19:00"), pointAt(row, "20:00"));
-    await waitFor(() => expect(row).toHaveTextContent("12:45–19:00"));
-    await expect(getBreakBars(row)).toHaveLength(0);
+    // 休憩の編集には、勤務が1つにつながって出て、空きが休憩として入っている。
+    await clickOnRow(row, "14:30");
+    await userEvent.click((await findRangeMenu("14:00〜15:00")).getByRole("menuitem", { name: "休憩を時刻で変更" }));
+    const dialog = within(await body.findByRole("dialog"));
+    await expect(dialog.getByText("勤務：10:00〜17:00")).toBeInTheDocument();
+    await expect(await dialog.findByRole("group", { name: "休憩1" })).toBeInTheDocument();
+    await expect(dialog.queryByRole("group", { name: "休憩2" })).not.toBeInTheDocument();
   },
 };
 
-/** 休憩を選んでいる間に、休憩のない勤務を押すと、休憩の編集だけが開き、勤務の欄を重ねて開かない。 */
-export const DetailBreakToolOnBarInteractive: Story = {
-  name: "Detail Break Tool On Bar Interactive",
+// 勤務を離して入れた日。Bさんはキッチンの12:00〜15:00と16:00〜20:00で、間の15:00〜16:00は休憩として見せる。
+const gapArgs = {
+  ...detailArgs,
+  initialShifts: [
+    ...buildShifts(WEEKDAY).filter((item) => item.staffId !== "staff2"),
+    shift("staff2", WEEKDAY, [
+      [kitchen, "12:00", "15:00"],
+      [kitchen, "16:00", "20:00"],
+    ]),
+  ],
+} satisfies ShiftFormArgs;
+
+/**
+ * 勤務を離して入れてできた休憩も、押して選べる。「休憩」にチェックが出て、もう一度選ぶと、前の勤務と同じポジションで埋まる。
+ * ポジションを選ぶと、そのポジションの勤務で埋まる。
+ */
+export const DetailGapBreakInteractive: Story = {
+  name: "Detail Gap Break Interactive",
+  args: gapArgs,
+  globals: desktopGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const row = await findRow(canvasElement, "staff2");
+    await expect(getWorkBarColors(row)).toEqual([KITCHEN_RGB, KITCHEN_RGB]);
+
+    // 空きを押すと、空きの全体を選ぶ。ポジションを選ぶと、そのポジションの勤務で埋まる。
+    await clickOnRow(row, "15:30");
+    const menu = await findRangeMenu("15:00〜16:00");
+    await expect(menu.getByRole("menuitemradio", { name: "休憩" })).toBeChecked();
+    await userEvent.click(menu.getByRole("menuitemradio", { name: "ホール" }));
+    await waitFor(() => expect(getWorkBarColors(row)).toEqual([KITCHEN_RGB, HALL_RGB, KITCHEN_RGB]));
+    await expect(row).toHaveTextContent("12:00–20:00");
+  },
+};
+
+/** 勤務を離して入れてできた休憩で、チェックの出ている「休憩」をもう一度選ぶと、前の勤務と同じポジションで埋まり、1つの勤務になる。 */
+export const DetailGapBreakRemoveInteractive: Story = {
+  name: "Detail Gap Break Remove Interactive",
+  args: gapArgs,
+  globals: desktopGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const row = await findRow(canvasElement, "staff2");
+    await expect(getWorkBarColors(row)).toEqual([KITCHEN_RGB, KITCHEN_RGB]);
+
+    await clickOnRow(row, "15:30");
+    await userEvent.click((await findRangeMenu("15:00〜16:00")).getByRole("menuitemradio", { name: "休憩" }));
+
+    await waitFor(() => expect(getWorkBarColors(row)).toEqual([KITCHEN_RGB]));
+    await expect(row).toHaveTextContent("12:00–20:00");
+  },
+};
+
+/** メニューの削除は、選んだ範囲にかかる勤務の区間を、区間ごと削除する。項目には削除する時間を書く。 */
+export const DetailRangeDeleteInteractive: Story = {
+  name: "Detail Range Delete Interactive",
   args: detailArgs,
   globals: desktopGlobals,
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const body = within(document.body);
-    await userEvent.click(await canvas.findByRole("radio", { name: "休憩" }));
+    // Dさんはホールの9:00〜13:00と、キッチンの13:00〜17:00。
+    const row = await findRow(canvasElement, "staff4");
 
-    const row = await findRow(canvasElement, "staff2");
-    const user = userEvent.setup();
-    await user.pointer({
-      keys: "[MouseLeft]",
-      target: row.lastElementChild as HTMLElement,
-      coords: pointAt(row, "13:00"),
-    });
+    await dragOnRow(row, "14:00", "15:00");
+    await userEvent.click(
+      (await findRangeMenu("14:00〜15:00")).getByRole("menuitem", { name: "勤務 13:00〜17:00を削除" }),
+    );
 
-    await expect(await body.findByRole("dialog")).toHaveTextContent("Bさんの休憩");
-    // 勤務の欄は「休憩：…」と「休憩を変更」を持つ。休憩の編集と同時には開かない。
-    await expect(body.queryByText(/^休憩：/)).not.toBeInTheDocument();
-    await expect(body.queryByRole("button", { name: "休憩を変更" })).not.toBeInTheDocument();
+    await waitFor(() => expect(getWorkBarColors(row)).toEqual([HALL_RGB]));
+    await expect(row).toHaveTextContent("09:00–13:00");
   },
 };
 
-/** 「入れるもの」で選んだポジションで、ドラッグした時間に勤務が入り、人数の帯が変わる。 */
+/** メニューを開いた状態の見た目。選んだ範囲は、白の半透明の面と枠線で示す。 */
+export const DetailRangeMenuOpen: Story = {
+  name: "Detail Range Menu Open",
+  args: detailArgs,
+  globals: desktopGlobals,
+  play: async ({ canvasElement }) => {
+    const row = await findRow(canvasElement, "staff4");
+    await dragOnRow(row, "11:00", "15:00");
+    await findRangeMenu("11:00〜15:00");
+  },
+};
+
+// シンプル表示。ポジションの色分けと「入れるもの」は出さず、休憩は出す。
+const simpleArgs = { ...detailArgs, initialDetailMode: false } satisfies ShiftFormArgs;
+
+/** シンプル表示でも、時刻で入れた休憩を勤務のバーに出す。 */
+export const Simple: Story = {
+  args: simpleArgs,
+  globals: desktopGlobals,
+};
+
+/**
+ * シンプル表示でも、勤務のバーの範囲を選ぶと同じメニューが開き、休憩を入れられる。
+ * ポジションは出さず、代わりに「勤務」を出す。休憩を選んで「勤務」を選ぶと、休憩が外れる。
+ * 削除は、ポジションの違う区間もまとめて、ひと続きの勤務を対象にする。
+ */
+export const SimpleRangeBreakInteractive: Story = {
+  name: "Simple Range Break Interactive",
+  args: simpleArgs,
+  globals: desktopGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    // Aさんは10:00〜18:00で、13:00〜14:00が休憩。シンプル表示でも休憩が出る。
+    const rowA = await findRow(canvasElement, "staff1");
+    await waitFor(() => expect(getBreakBars(rowA)).toHaveLength(1));
+    await expect(within(canvasElement).queryByRole("radiogroup", { name: "入れるもの" })).not.toBeInTheDocument();
+
+    // Bさんは12:00〜20:00で、休憩はない。範囲を選ぶと、ポジションの代わりに「勤務」が出る。
+    const row = await findRow(canvasElement, "staff2");
+    await dragOnRow(row, "14:00", "15:00");
+    const menu = await findRangeMenu("14:00〜15:00", "勤務");
+    await expect(menu.getByRole("menuitemradio", { name: "勤務" })).toBeChecked();
+    await expect(menu.queryByRole("menuitemradio", { name: "キッチン" })).not.toBeInTheDocument();
+    await userEvent.click(menu.getByRole("menuitemradio", { name: "休憩" }));
+    await waitFor(() => expect(getBreakBars(row)).toHaveLength(1));
+    await expect(row).toHaveTextContent("12:00–20:00");
+
+    // 入れた休憩を押して「勤務」を選ぶと、休憩が外れる。
+    await clickOnRow(row, "14:20");
+    const breakMenu = await findRangeMenu("14:00〜15:00", "勤務");
+    await expect(breakMenu.getByRole("menuitemradio", { name: "休憩" })).toBeChecked();
+    await userEvent.click(breakMenu.getByRole("menuitemradio", { name: "勤務" }));
+    await waitFor(() => expect(getBreakBars(row)).toHaveLength(0));
+
+    // Dさんはホールの9:00〜13:00と、キッチンの13:00〜17:00。シンプル表示では、続いた1つの勤務としてまとめて削除する。
+    const rowD = await findRow(canvasElement, "staff4");
+    // 押すと、ポジションの境目で区切らず、9:00〜17:00の全体を選ぶ。
+    await clickOnRow(rowD, "15:00");
+    await userEvent.click(
+      (await findRangeMenu("09:00〜17:00", "勤務")).getByRole("menuitem", { name: "勤務 09:00〜17:00を削除" }),
+    );
+    await waitFor(() => expect(getWorkBars(rowD)).toHaveLength(0));
+  },
+};
+
+/** まだポジションを選んでいない端末では、空いている時間をドラッグすると、一覧の先頭のポジションで勤務が入り、人数の帯が変わる。 */
 export const DetailPaintInteractive: Story = {
   name: "Detail Paint Interactive",
   args: detailArgs,
   globals: desktopGlobals,
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
     const row = await findRow(canvasElement, "staff5");
     const timeline = row.lastElementChild as HTMLElement;
     const staffing = within(await findStaffingSection(canvasElement));
-    await expect(await staffing.findByRole("button", { name: "キッチン 20:00〜21:00 0/1 ▲1" })).toBeInTheDocument();
+    await expect(await staffing.findByRole("button", { name: "ホール 18:00〜22:00 0/1 ▲1" })).toBeInTheDocument();
 
-    await userEvent.click(await canvas.findByRole("radio", { name: "キッチン" }));
-    // ドラッグの開始、移動、終了を分けて送り、移動を受け取る準備ができてから次へ進む。
-    // ボタンを押している状態を引き継ぐため、同じ操作者で送る。
     const user = userEvent.setup();
     await user.pointer({ keys: "[MouseLeft>]", target: timeline, coords: pointAt(row, "17:00") });
     await user.pointer({ target: timeline, coords: pointAt(row, "22:00") });
+    // ドラッグ中の仮のバーも、入れるポジション（一覧の先頭のホール）の色で描く。
+    await waitFor(() => expect(getDragPreviewColors(row)).toEqual([HALL_RGB]));
     await user.pointer({ keys: "[/MouseLeft]", target: timeline, coords: pointAt(row, "22:00") });
 
-    await waitFor(() => expect(getWorkBarColors(row)).toEqual([KITCHEN_RGB]));
+    await waitFor(() => expect(getWorkBarColors(row)).toEqual([HALL_RGB]));
+    await expect(getDragPreviewColors(row)).toEqual([]);
     await expect(row).toHaveTextContent("17:00–22:00");
-    // 入れた勤務の分だけ、足りなかった時間がちょうどになり、必要人数のない21:00以降は多くなる。
-    await expect(await staffing.findByRole("button", { name: "キッチン 20:00〜21:00 1/1" })).toBeInTheDocument();
-    await expect(await staffing.findByRole("button", { name: "キッチン 21:00〜22:00 1/0 ＋1" })).toBeInTheDocument();
-    await expect(staffing.queryByRole("button", { name: "キッチン 20:00〜21:00 0/1 ▲1" })).not.toBeInTheDocument();
+    // 入れた勤務の分だけ、足りなかった時間がちょうどになる。新しく入れただけでは、メニューを開かない。
+    await expect(await staffing.findByRole("button", { name: "ホール 18:00〜22:00 1/1" })).toBeInTheDocument();
+    await expect(staffing.queryByRole("button", { name: "ホール 18:00〜22:00 0/1 ▲1" })).not.toBeInTheDocument();
+    await expect(within(document.body).queryByRole("menu")).not.toBeInTheDocument();
   },
 };
 
@@ -531,18 +1011,12 @@ export const DetailApplyTemplateInteractive: Story = {
   globals: desktopGlobals,
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
     const staffing = within(await findStaffingSection(canvasElement));
 
-    // 保存していない勤務を入れる（Eさんに、キッチンの17:00〜22:00）。
+    // 保存していない勤務を入れる（Eさんに、既定のホールの17:00〜22:00）。
     const row = await findRow(canvasElement, "staff5");
-    const timeline = row.lastElementChild as HTMLElement;
-    await userEvent.click(await canvas.findByRole("radio", { name: "キッチン" }));
-    const user = userEvent.setup();
-    await user.pointer({ keys: "[MouseLeft>]", target: timeline, coords: pointAt(row, "17:00") });
-    await user.pointer({ target: timeline, coords: pointAt(row, "22:00") });
-    await user.pointer({ keys: "[/MouseLeft]", target: timeline, coords: pointAt(row, "22:00") });
-    await waitFor(() => expect(getWorkBarColors(row)).toEqual([KITCHEN_RGB]));
+    await dragOnRow(row, "17:00", "22:00");
+    await waitFor(() => expect(getWorkBarColors(row)).toEqual([HALL_RGB]));
 
     // 繁忙日を当てる。いま当たっている平日には、選択中の印が付いている。
     const menu = await openTemplateMenu(canvasElement, "平日");
@@ -558,7 +1032,7 @@ export const DetailApplyTemplateInteractive: Story = {
     // 必要人数が1日を通して2人になり、9:00〜10:00のホールが不足になる。
     await expect(await staffing.findByRole("button", { name: "ホール 09:00〜10:00 1/2 ▲1" })).toBeInTheDocument();
     // 入れた勤務は残る。
-    await expect(getWorkBarColors(row)).toEqual([KITCHEN_RGB]);
+    await expect(getWorkBarColors(row)).toEqual([HALL_RGB]);
     await expect(row).toHaveTextContent("17:00–22:00");
 
     // 平日を選び直す。必要人数が元に戻り、9:00〜10:00のホールはちょうどになる。
@@ -571,7 +1045,7 @@ export const DetailApplyTemplateInteractive: Story = {
       { mutation: "applyDayTemplateToDates", dates: [WEEKDAY], templateId: "weekday" },
     ]);
     await expect(await staffing.findByRole("button", { name: "ホール 09:00〜10:00 1/1" })).toBeInTheDocument();
-    await expect(getWorkBarColors(row)).toEqual([KITCHEN_RGB]);
+    await expect(getWorkBarColors(row)).toEqual([HALL_RGB]);
   },
 };
 

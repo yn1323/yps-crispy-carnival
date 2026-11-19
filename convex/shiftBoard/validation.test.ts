@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
+import { SHIFT_ASSIGNMENT_BREAK_LIMIT } from "../constants";
 import {
   type AssignmentIssue,
   buildAssignmentIssue,
@@ -244,11 +245,19 @@ describe("validateShiftAssignments（休憩）", () => {
   const rest = (startTime: string, endTime: string): BreakInput => ({ startTime, endTime });
   /** 10:00-18:00の勤務へ休憩を付けた、時間指定の割当。 */
   const withBreaks = (breaks: BreakInput[]) => ({ ...assignment({}), breaks });
+  /** 10:15から15分ずつ、隣り合って重ならない休憩を、指定した件数だけ作る。 */
+  const consecutiveBreaks = (count: number): BreakInput[] =>
+    Array.from({ length: count }, (_, index) => {
+      const toTime = (minutes: number) =>
+        `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+      const start = 10 * 60 + 15 + index * 15;
+      return rest(toTime(start), toTime(start + 15));
+    });
   const codesOf = (input: Parameters<typeof validateShiftAssignments>[0]) =>
     validateShiftAssignments(input).map(({ code, date, staffId }) => ({ code, date, staffId }));
   const issueOf = (code: AssignmentIssue["code"]) => [{ code, date: "2026-01-20", staffId: "staff1" }];
 
-  it("勤務の内側で重ならない休憩は、上限の3件まで違反にしない", () => {
+  it("勤務の内側で重ならない休憩は、違反にしない", () => {
     expect(
       validateShiftAssignments({
         ...baseInput,
@@ -265,20 +274,24 @@ describe("validateShiftAssignments（休憩）", () => {
     ).toEqual([]);
   });
 
-  it("休憩が4件あるとBREAK_LIMIT", () => {
+  it("休憩は上限の件数まで違反にせず、上限を1件超えるとBREAK_LIMIT", () => {
     expect(
       validateShiftAssignments({
         ...baseInput,
-        assignments: [
-          withBreaks([rest("11:00", "11:30"), rest("12:00", "12:30"), rest("13:00", "13:30"), rest("14:00", "14:30")]),
-        ],
+        assignments: [withBreaks(consecutiveBreaks(SHIFT_ASSIGNMENT_BREAK_LIMIT))],
+      }),
+    ).toEqual([]);
+    expect(
+      validateShiftAssignments({
+        ...baseInput,
+        assignments: [withBreaks(consecutiveBreaks(SHIFT_ASSIGNMENT_BREAK_LIMIT + 1))],
       }),
     ).toEqual([
       {
         code: "BREAK_LIMIT",
         date: "2026-01-20",
         staffId: "staff1",
-        message: "休憩は1つの勤務に3件まで入れられます",
+        message: `休憩は1つの勤務に${SHIFT_ASSIGNMENT_BREAK_LIMIT}件まで入れられます`,
       },
     ]);
   });
@@ -414,7 +427,7 @@ describe("validateShiftAssignments（休憩）", () => {
         assignments: [
           {
             ...assignment({ staffId: "staff1", startTime: "09:00", endTime: "22:00" }),
-            breaks: [rest("10:00", "10:30"), rest("11:00", "11:30"), rest("12:00", "12:30"), rest("13:00", "13:30")],
+            breaks: consecutiveBreaks(SHIFT_ASSIGNMENT_BREAK_LIMIT + 1),
           },
           {
             ...assignment({ staffId: "staff2", startTime: "09:00", endTime: "22:00" }),

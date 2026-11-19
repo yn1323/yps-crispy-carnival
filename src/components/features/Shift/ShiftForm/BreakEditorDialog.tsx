@@ -2,11 +2,10 @@ import { Field, Flex, HStack, Text, VisuallyHidden, VStack } from "@chakra-ui/re
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 import { LuPlus, LuTrash2 } from "react-icons/lu";
-import { SHIFT_ASSIGNMENT_BREAK_LIMIT } from "@/convex/constants";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
 import { Select, type SelectItemType } from "@/src/components/ui/Select";
-import { BREAK_TIME_UNIT_MINUTES, getEffectiveBreaks } from "@/src/domains/shift/breaks";
+import { BREAK_TIME_UNIT_MINUTES, getEffectiveBreaks, getWorkBlocks, mergeBreaks } from "@/src/domains/shift/breaks";
 import { formatDateWithWeekday } from "@/src/domains/shift/date";
 import { isCanonicalWorkPosition } from "@/src/domains/shift/positions";
 import {
@@ -45,7 +44,10 @@ export const getBreakEditorRange = (
     : { startMinutes: workStart, endMinutes: workEnd };
 };
 
-/** 休憩の入力を検証し、最初に見つけた違反の文言を返す。違反がなければnullを返す。 */
+/**
+ * 休憩の入力を検証し、最初に見つけた違反の文言を返す。違反がなければnullを返す。
+ * 重なる休憩と隣り合う休憩は、保存のときに1つにまとめるため、まとめた結果を検証する。
+ */
 export const findBreakEditorError = (
   rows: ReadonlyArray<Pick<BreakRow, "start" | "end">>,
   shift: Pick<ShiftData, "positions">,
@@ -57,17 +59,14 @@ export const findBreakEditorError = (
   ) {
     return "休憩の終了時間は開始時間より後にしてください";
   }
-  const sorted = ranges.slice().sort((a, b) => a.start - b.start);
-  if (sorted.some((range, index) => index > 0 && range.start < sorted[index - 1].end)) {
-    return "休憩の時間帯が重なっています";
-  }
   if (isDateOnly) return null;
+  const merged = mergeBreaks(rows).map((row) => ({ start: timeToMinutes(row.start), end: timeToMinutes(row.end) }));
   const segments = shift.positions
     .filter(isCanonicalWorkPosition)
     .map((position) => ({ start: timeToMinutes(position.start), end: timeToMinutes(position.end) }))
     .sort((a, b) => a.start - b.start || a.end - b.end);
   // 勤務区間をまるごと覆う休憩は、その勤務がないのと同じになるため受け付けない。
-  const coversWholeSegment = ranges.some((range) =>
+  const coversWholeSegment = merged.some((range) =>
     segments.some((segment) => range.start <= segment.start && range.end >= segment.end),
   );
   if (coversWholeSegment) return "休憩は勤務時間の一部にしてください";
@@ -82,7 +81,7 @@ export const findBreakEditorError = (
     work.push({ ...segment });
   }
   // 勤務の頭かお尻にある休憩は勤務ではないため、ひと続きの勤務の開始より後、終了より前だけを受け付ける。
-  const isInsideWork = ranges.every((range) =>
+  const isInsideWork = merged.every((range) =>
     work.some((segment) => range.start > segment.start && range.end < segment.end),
   );
   return isInsideWork ? null : "休憩は勤務の開始より後、終了より前にしてください";
@@ -98,7 +97,10 @@ const buildNewBreak = (range: { startMinutes: number; endMinutes: number }): Shi
   return { start: minutesToTime(start), end: minutesToTime(start + length) };
 };
 
-/** 選んだ日の休憩を編集するDialog。「入れるもの」で休憩を選び、勤務を押すと開く。 */
+/**
+ * 選んだ日の休憩を編集するDialog。「入れるもの」で休憩を選び、勤務を押すと開く。
+ * 時間指定のPCの日別表示では、勤務のバーの範囲を選んで開くメニューの「休憩を時刻で追加」（休憩を選んでいる間は「休憩を時刻で変更」）から開く。
+ */
 export const BreakEditorDialog = () => {
   const [target, setTarget] = useAtom(breakEditorTargetAtom);
   const config = useAtomValue(shiftConfigAtom);
@@ -139,13 +141,12 @@ export const BreakEditorDialog = () => {
   const isOpen = target !== null && shift !== undefined && staff !== undefined && range !== null;
   if (!isOpen || !target || !shift || !staff || !range) return null;
 
+  // 勤務は、バーの見た目と同じく、ひと続きの勤務ごとに出す。ポジションの境目では区切らない。
   const workLabel = isDateOnly
     ? "出勤"
-    : shift.positions
-        .filter(isCanonicalWorkPosition)
-        .map((position) => formatShiftClockTimeRange(position.start, position.end))
+    : getWorkBlocks(shift)
+        .map((block) => formatShiftClockTimeRange(minutesToTime(block.start), minutesToTime(block.end)))
         .join(" / ");
-  const canAdd = rows.length < SHIFT_ASSIGNMENT_BREAK_LIMIT;
 
   const updateRow = (key: number, patch: Partial<Pick<BreakRow, "start" | "end">>) => {
     setRows((current) => current.map((row) => (row.key === key ? { ...row, ...patch } : row)));
@@ -161,7 +162,8 @@ export const BreakEditorDialog = () => {
     setShiftBreaks({
       staffId: target.staffId,
       date: target.date,
-      breaks: rows.map((row) => ({ start: row.start, end: row.end })),
+      // 重なる休憩と隣り合う休憩は、いちばん早い開始からいちばん遅い終了までの1つにまとめて入れる。
+      breaks: mergeBreaks(rows.map((row) => ({ start: row.start, end: row.end }))),
     });
     close();
   };
@@ -244,7 +246,6 @@ export const BreakEditorDialog = () => {
             type="button"
             size="sm"
             variant="outline"
-            disabled={!canAdd}
             onClick={() => {
               const next = buildNewBreak(range);
               setRows((current) => [
@@ -257,11 +258,6 @@ export const BreakEditorDialog = () => {
             <LuPlus aria-hidden />
             休憩を追加
           </Button>
-          {!canAdd && (
-            <Text fontSize="xs" color="gray.600">
-              休憩は{SHIFT_ASSIGNMENT_BREAK_LIMIT}件まで入れられます
-            </Text>
-          )}
         </Flex>
       </VStack>
     </Dialog>

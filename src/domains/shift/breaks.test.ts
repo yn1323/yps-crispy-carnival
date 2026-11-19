@@ -6,7 +6,8 @@ import {
   getEffectiveBreaks,
   getWorkedMinutes,
   mergeBreaks,
-  removeBreakAt,
+  moveBreakEdge,
+  pruneBreaks,
   withInitialBreak,
 } from "./breaks";
 import { BREAK_POSITION } from "./constants";
@@ -303,22 +304,6 @@ describe("applyBreakRange", () => {
   });
 });
 
-describe("removeBreakAt", () => {
-  const shift = day([segment("09:00", "18:00")], [range("12:00", "13:00"), range("15:00", "15:15")]);
-
-  it("その時刻を含む休憩だけを外す。開始の時刻は含み、終了の時刻は含まない", () => {
-    expect(removeBreakAt(shift, 12 * 60)).toEqual([range("15:00", "15:15")]);
-    expect(removeBreakAt(shift, 12 * 60 + 59)).toEqual([range("15:00", "15:15")]);
-    expect(removeBreakAt(shift, 15 * 60 + 10)).toEqual([range("12:00", "13:00")]);
-    expect(removeBreakAt(shift, 13 * 60)).toBeNull();
-  });
-
-  it("その時刻に休憩がなければ、何も変えない（null）", () => {
-    expect(removeBreakAt(shift, 10 * 60)).toBeNull();
-    expect(removeBreakAt(day([segment("09:00", "18:00")]), 12 * 60)).toBeNull();
-  });
-});
-
 describe("getWorkedMinutes", () => {
   it("休憩がなければ勤務の長さを返す", () => {
     expect(getWorkedMinutes(day([segment("10:00", "18:00")]))).toBe(480);
@@ -488,5 +473,106 @@ describe("withInitialBreak", () => {
   it("最も長い区間が決まりの長さに届かなければ、合計が届いていても入れない", () => {
     const shift = day([segment("09:00", "13:00"), segment("14:00", "18:00")]);
     expect(withInitialBreak(shift, rule)).toBe(shift);
+  });
+});
+
+describe("pruneBreaks", () => {
+  it("勤務の外に出た休憩と、勤務の頭かお尻にかかった休憩を取り除き、内側の休憩は残す", () => {
+    const shift = day(
+      [segment("12:00", "18:00")],
+      [range("10:00", "11:00"), range("11:30", "12:30"), range("15:00", "16:00"), range("17:30", "18:00")],
+    );
+
+    expect(pruneBreaks(shift)).toEqual(day([segment("12:00", "18:00")], [range("15:00", "16:00")]));
+  });
+
+  it("残る休憩がなければ、休憩の項目ごと取り除く", () => {
+    const shift = day([segment("12:00", "18:00")], [range("10:00", "11:00")]);
+
+    expect(pruneBreaks(shift)).toEqual(day([segment("12:00", "18:00")]));
+    expect(pruneBreaks(shift)).not.toHaveProperty("breaks");
+  });
+
+  it("取り除くものがなければ、そのまま返す", () => {
+    const withBreak = day([segment("10:00", "18:00")], [range("12:00", "13:00")]);
+    const withoutBreak = day([segment("10:00", "18:00")]);
+
+    expect(pruneBreaks(withBreak)).toBe(withBreak);
+    expect(pruneBreaks(withoutBreak)).toBe(withoutBreak);
+  });
+});
+
+describe("moveBreakEdge", () => {
+  const minutes = (start: string, end: string) => {
+    const toMinutes = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3));
+    return { start: toMinutes(start), end: toMinutes(end) };
+  };
+  const shift = day([segment("10:00", "18:00")], [range("12:00", "13:00"), range("15:00", "15:30")]);
+
+  it("休憩の終了を動かす", () => {
+    expect(moveBreakEdge(shift, minutes("12:00", "13:00"), "end", 13 * 60 + 45)).toEqual([
+      range("12:00", "13:45"),
+      range("15:00", "15:30"),
+    ]);
+  });
+
+  it("休憩の開始を動かす", () => {
+    expect(moveBreakEdge(shift, minutes("12:00", "13:00"), "start", 11 * 60 + 15)).toEqual([
+      range("11:15", "13:00"),
+      range("15:00", "15:30"),
+    ]);
+  });
+
+  it("15分の長さまでは縮められる", () => {
+    expect(moveBreakEdge(shift, minutes("12:00", "13:00"), "end", 12 * 60 + 15)).toEqual([
+      range("12:00", "12:15"),
+      range("15:00", "15:30"),
+    ]);
+    expect(moveBreakEdge(shift, minutes("12:00", "13:00"), "start", 12 * 60 + 45)).toEqual([
+      range("12:45", "13:00"),
+      range("15:00", "15:30"),
+    ]);
+  });
+
+  it("反対の端まで、またはそれを越えて動かすと、その休憩だけを削除する", () => {
+    expect(moveBreakEdge(shift, minutes("12:00", "13:00"), "end", 12 * 60)).toEqual([range("15:00", "15:30")]);
+    expect(moveBreakEdge(shift, minutes("12:00", "13:00"), "end", 11 * 60)).toEqual([range("15:00", "15:30")]);
+    expect(moveBreakEdge(shift, minutes("12:00", "13:00"), "start", 13 * 60)).toEqual([range("15:00", "15:30")]);
+    expect(moveBreakEdge(shift, minutes("15:00", "15:30"), "start", 16 * 60)).toEqual([range("12:00", "13:00")]);
+  });
+
+  it("休憩が1件だけの日で削除すると、休憩がなくなる", () => {
+    const single = day([segment("10:00", "18:00")], [range("12:00", "13:00")]);
+
+    expect(moveBreakEdge(single, minutes("12:00", "13:00"), "end", 12 * 60)).toEqual([]);
+  });
+
+  it("動かす端は、勤務の開始より後、終了より前に収める", () => {
+    expect(moveBreakEdge(shift, minutes("12:00", "13:00"), "start", 9 * 60)).toEqual([
+      range("10:15", "13:00"),
+      range("15:00", "15:30"),
+    ]);
+    expect(moveBreakEdge(shift, minutes("15:00", "15:30"), "end", 19 * 60)).toEqual([
+      range("12:00", "13:00"),
+      range("15:00", "17:45"),
+    ]);
+  });
+
+  it("ほかの休憩と重なるまで動かすと、1件にまとめる", () => {
+    expect(moveBreakEdge(shift, minutes("12:00", "13:00"), "end", 15 * 60 + 15)).toEqual([range("12:00", "15:30")]);
+  });
+
+  it("動かしていない場合と、対象の休憩がない場合はnullを返す", () => {
+    expect(moveBreakEdge(shift, minutes("12:00", "13:00"), "end", 13 * 60)).toBeNull();
+    expect(moveBreakEdge(shift, minutes("11:00", "11:30"), "end", 12 * 60)).toBeNull();
+  });
+
+  it("動かした結果、ポジションの区間をまるごと覆う場合は、変えない", () => {
+    const twoPositions = day(
+      [segment("10:00", "12:00"), segment("12:00", "13:00", { positionId: "pos2" }), segment("13:00", "18:00")],
+      [range("12:00", "12:30")],
+    );
+
+    expect(moveBreakEdge(twoPositions, minutes("12:00", "12:30"), "end", 13 * 60)).toBeNull();
   });
 });
