@@ -6,7 +6,7 @@ import type { ShiftData } from "@/src/domains/shift/types";
 import { useAllShiftDateNotes } from "../../dateNotes";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
-import { StaffingSummary, useDayStaffingView } from "../../staffingParts";
+import { DayTemplateMenu, useDayStaffingView } from "../../staffingParts";
 import {
   breakEditorTargetAtom,
   clearShiftDraftPositionsAtom,
@@ -24,6 +24,7 @@ import {
   warningMessagesByStaffIdForSelectedDateAtom,
 } from "../../stores";
 import { DateRail } from "./DateRail";
+import { FulfillmentSection } from "./FulfillmentSection";
 import { ShiftDetailSheet } from "./ShiftDetailSheet";
 import { ShiftEditSheet } from "./ShiftEditSheet";
 import { SectionHeader, SPDailyCard, SPOffCard } from "./StaffCards";
@@ -43,7 +44,7 @@ export const SPDailyView = () => {
   const issueStaffIds = useAtomValue(issueStaffIdSetForSelectedDateAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
   const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
-  // 人数と過不足を出す日（くわしく表示の営業日）だけ値が入る。
+  // その日のテンプレートを出す日（くわしく表示の営業日）だけ値が入る。
   const staffingView = useDayStaffingView(selectedDate);
   const isToolPaletteActive = useAtomValue(isToolPaletteActiveAtom);
   const openBreakEditorForTool = useSetAtom(openBreakEditorForToolAtom);
@@ -170,23 +171,13 @@ export const SPDailyView = () => {
         warningCounts={warningCounts}
         dateStripRef={dateStripRef}
         onSelect={selectDate}
+        headingAction={staffingView && <DayTemplateMenu date={selectedDate} view={staffingView} shrinks />}
       />
-      {/* 人数と過不足。一覧をスクロールしても見えるよう、上端に留める。 */}
-      {staffingView && (
-        <Box
-          position="sticky"
-          top={0}
-          zIndex={2}
-          flexShrink={0}
-          maxH="40dvh"
-          overflowY="auto"
-          bg="gray.50"
-          px={3}
-          pt={3}
-        >
-          <StaffingSummary date={selectedDate} />
-        </Box>
-      )}
+      {/*
+        充足。閉じた1行は一覧をスクロールしても上端に留まり、開いている間は一覧と一緒に流れる。
+        この画面は日付の一覧ごと外側の入れ物でスクロールするため、一覧の入れ物の外に置く。
+      */}
+      <FulfillmentSection />
       <Box flex={1} minH={0} overflow="auto" bg="gray.50" px={3} py={3} data-tour="shift-grid">
         {isShopClosedDate ? (
           <Flex minH="240px" align="center" justify="center" direction="column" gap={2} px={4}>

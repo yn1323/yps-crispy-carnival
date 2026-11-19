@@ -265,6 +265,7 @@ const expectNoManagerOnlyParts = async (canvasElement: HTMLElement) => {
   await expect(canvas.queryByRole("radiogroup", { name: "表示の詳しさ" })).not.toBeInTheDocument();
   await expect(canvas.queryByRole("radiogroup", { name: "入れるもの" })).not.toBeInTheDocument();
   await expect(canvas.queryByRole("region", { name: "人数" })).not.toBeInTheDocument();
+  await expect(canvas.queryByRole("region", { name: "充足" })).not.toBeInTheDocument();
   await expect(canvas.queryByText("リーダー")).not.toBeInTheDocument();
   await expect(canvas.queryByText("見習い")).not.toBeInTheDocument();
 };

@@ -147,16 +147,27 @@ export const DayTemplateMenuItems = ({ date, view }: { date: string; view: DaySt
 };
 
 /**
- * その日のテンプレートの名前と、テンプレートを変えるメニュー。PCは日付の見出し、スマートフォンは人数のカードに1つだけ置く。
+ * その日のテンプレートの名前と、テンプレートを変えるメニュー。
+ * PCの日別表示と時間指定のスマートフォンは日付の見出し、パターン選択と日付選択のスマートフォンは人数のカードに1つだけ置く。
  * 閲覧専用と確定済みでは、名前だけを出す。
+ * `shrinks`を渡すと、置いた行の幅が足りないときに、名前を省略して縮む。
  */
-export const DayTemplateMenu = ({ date, view }: { date: string; view: DayStaffingView }) => {
+export const DayTemplateMenu = ({
+  date,
+  view,
+  shrinks = false,
+}: {
+  date: string;
+  view: DayStaffingView;
+  shrinks?: boolean;
+}) => {
   const editor = useDayStaffingEditor();
   const label = view.template.label;
+  const sizeProps = shrinks ? { flexShrink: 1, minW: 0 } : { flexShrink: 0 };
 
   if (!editor) {
     return (
-      <Text textStyle="xs" color="gray.600" flexShrink={0} truncate maxW="200px">
+      <Text textStyle="xs" color="gray.600" truncate maxW="200px" {...sizeProps}>
         <chakra.span srOnly>この日のテンプレート: </chakra.span>
         {label}
       </Text>
@@ -173,8 +184,8 @@ export const DayTemplateMenu = ({ date, view }: { date: string; view: DayStaffin
           h="28px"
           px={2}
           gap={1}
-          flexShrink={0}
           maxW="200px"
+          {...sizeProps}
           aria-label={`この日のテンプレート: ${label}`}
         >
           <Box as="span" truncate>
@@ -202,7 +213,7 @@ export const StaffingUnsetNote = () => (
 );
 
 // ==========================================
-// 人数のカード（時間の軸を持たない表示）
+// 人数のカード（パターン選択と日付選択）
 // ==========================================
 const SummaryRow = ({ label, children }: { label: string; children: ReactNode }) => (
   <Flex as="li" align="center" justify="space-between" gap={3} py="3px" borderTopWidth="1px" borderColor="gray.100">
@@ -214,9 +225,9 @@ const SummaryRow = ({ label, children }: { label: string; children: ReactNode })
 );
 
 /**
- * その日の人数と過不足の一覧。スマートフォンの日別表示で、上端のカードとして使う。
- * 時間指定は「ポジション → 時間 → 人数」、パターン選択と日付選択は区切りごとの行にする。
- * 畳んだ状態では不足だけを出し、「すべて見る」で全部を出す。
+ * その日の人数と過不足の一覧。パターン選択と日付選択のスマートフォンの日別表示で、上端のカードとして使う。
+ * 勤務パターンごと、または1日の行にする。畳んだ状態では不足だけを出し、「すべて見る」で全部を出す。
+ * 時間指定のスマートフォンは、このカードではなく充足の帯（FulfillmentSection）で示す。
  */
 export const StaffingSummary = ({ date, defaultExpanded = false }: { date: string; defaultExpanded?: boolean }) => {
   const view = useDayStaffingView(date);
@@ -224,18 +235,8 @@ export const StaffingSummary = ({ date, defaultExpanded = false }: { date: strin
   if (!view) return null;
 
   const visibleSlots = isExpanded ? view.slots : view.slots.filter((slot) => slot.hasShortage);
-  const visibleBands = view.bands
-    .map((band) => ({
-      ...band,
-      segments: isExpanded ? band.segments : band.segments.filter((segment) => segment.tone === "shortage"),
-    }))
-    .filter((band) => band.segments.length > 0);
-  const totalRowCount = view.slots.length + view.bands.reduce((sum, band) => sum + band.segments.length, 0);
-  const visibleRowCount = visibleSlots.length + visibleBands.reduce((sum, band) => sum + band.segments.length, 0);
   // 不足だけを出している間に、隠れている行があるか。すべて不足の日は切り替えを出さない。
-  const hasHiddenRows = totalRowCount > view.shortageCount;
-  // ポジションが1つだけの店舗では、ポジション名の見出しを出さない。
-  const showsPositionHeading = view.bands.length > 1;
+  const hasHiddenRows = view.slots.length > view.shortageCount;
 
   return (
     <Box
@@ -284,39 +285,12 @@ export const StaffingSummary = ({ date, defaultExpanded = false }: { date: strin
           )}
         </Flex>
       </Flex>
-      {visibleRowCount > 0 && (
-        <Box mt={2}>
-          {visibleSlots.length > 0 && (
-            <Box as="ul" listStyleType="none">
-              {visibleSlots.map((slot) => (
-                <SummaryRow key={slot.id} label={slot.label}>
-                  <StaffingPositionCounts slot={slot} showNames />
-                </SummaryRow>
-              ))}
-            </Box>
-          )}
-          {visibleBands.map((band) => (
-            <Box key={band.positionId} mt={showsPositionHeading ? 1 : 0}>
-              {showsPositionHeading && (
-                <Flex align="center" gap="6px" fontWeight={700} color="gray.800" py="2px">
-                  <Box
-                    boxSize="8px"
-                    borderRadius="full"
-                    flexShrink={0}
-                    style={{ background: band.color }}
-                    aria-hidden
-                  />
-                  {band.name}
-                </Flex>
-              )}
-              <Box as="ul" listStyleType="none" aria-label={`${band.name}の人数`}>
-                {band.segments.map((segment) => (
-                  <SummaryRow key={segment.key} label={segment.timeLabel}>
-                    <StaffingCountChip view={segment} />
-                  </SummaryRow>
-                ))}
-              </Box>
-            </Box>
+      {visibleSlots.length > 0 && (
+        <Box as="ul" listStyleType="none" mt={2}>
+          {visibleSlots.map((slot) => (
+            <SummaryRow key={slot.id} label={slot.label}>
+              <StaffingPositionCounts slot={slot} showNames />
+            </SummaryRow>
           ))}
         </Box>
       )}

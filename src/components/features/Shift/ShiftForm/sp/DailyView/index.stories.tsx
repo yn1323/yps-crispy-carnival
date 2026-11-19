@@ -2,8 +2,24 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import { ShiftForm } from "../..";
 import { fullscreenParameters, mobileGlobals, shiftFormDecorators } from "../../stories/shared";
-import { buildStaffing, readStaffingCalls, StaffingHarness, unsetDay } from "../../stories/staffingHarness";
-import { hall, timeDetailArgs, timeDetailDate, timeDetailTemplates } from "../detailStoryFixtures";
+import {
+  buildStaffing,
+  customDay,
+  readStaffingCalls,
+  StaffingHarness,
+  templateDay,
+  timeRequirements,
+  unsetDay,
+} from "../../stories/staffingHarness";
+import {
+  hall,
+  register,
+  timeDetailArgs,
+  timeDetailDate,
+  timeDetailTemplates,
+  timeEventTemplate,
+  timeWeekdayTemplate,
+} from "../detailStoryFixtures";
 
 const meta = {
   title: "Features/Shift/ShiftForm/Time/SP/Daily Detail",
@@ -17,15 +33,15 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * 複数ポジション、休憩、熟練度、仮の勤務と、上端の人数のカードを1画面で確かめる。
- * カードは畳んだ状態で、不足している時間だけを「ポジション → 時間 → 人数」で出す。
+ * 複数ポジション、休憩、熟練度、仮の勤務と、日付の見出しの下の充足を1画面で確かめる。
+ * 充足は閉じた状態で、充足率と進捗バーの1行だけを出す。
  */
 export const Detail: Story = {
   args: timeDetailArgs,
   globals: mobileGlobals,
 };
 
-/** ポジションが1つの店舗では色分けせず、人数、休憩、印だけを足す。 */
+/** ポジションが1つの店舗では色分けせず、休憩だけを足す。必要人数のない日なので、充足は出ない。 */
 export const DetailSinglePosition: Story = {
   name: "Detail Single Position",
   args: {
@@ -45,7 +61,7 @@ export const DetailSinglePosition: Story = {
   globals: mobileGlobals,
 };
 
-/** 閲覧専用でも、ポジションと休憩と人数は出す。入れるものの選択は出さない。 */
+/** スタッフ向けの確定シフト表示でも、ポジションと休憩は出す。入れるものの選択と充足は出さない。 */
 export const DetailReadOnly: Story = {
   name: "Detail Read Only",
   args: { ...timeDetailArgs, isReadOnly: true, displayMode: "confirmed", onDetailModeChange: undefined },
@@ -181,56 +197,217 @@ export const BreakToolInteractive: Story = {
 };
 
 // ==========================================
-// 人数のカードと、その日のテンプレートの操作
+// 充足と、その日のテンプレートの操作
 // ==========================================
 type ShiftFormArgs = Parameters<typeof ShiftForm>[0];
 
 const harnessRender = (args: ShiftFormArgs) => <StaffingHarness {...args} templates={timeDetailTemplates} />;
 
-const findStaffingCard = (canvasElement: HTMLElement) => within(canvasElement).findByRole("region", { name: "人数" });
+// 2日とも平日のテンプレートが当たっている募集。日付を切り替えても充足の欄が出る。
+const bothDaysStaffedArgs = {
+  ...timeDetailArgs,
+  staffing: buildStaffing({
+    templates: timeDetailTemplates,
+    days: timeDetailArgs.dates.map((date) => templateDay(date, timeWeekdayTemplate)),
+  }),
+} satisfies ShiftFormArgs;
 
-/** 人数の行を「時間 人数」の文字で返す。 */
-const getRows = (card: HTMLElement, positionName: string) =>
-  within(within(card).getByRole("list", { name: `${positionName}の人数` }))
-    .getAllByRole("listitem")
-    .map((row) => row.textContent);
+const findFulfillment = (canvasElement: HTMLElement) => within(canvasElement).findByRole("region", { name: "充足" });
 
-/** カードは不足の数を文字で出し、畳んだ状態では不足だけ、「すべて見る」で多い時間と見習いだけの時間も出す。 */
-export const StaffingCardInteractive: Story = {
-  name: "Staffing Card Interactive",
+const openFulfillment = async (canvasElement: HTMLElement) => {
+  const section = await findFulfillment(canvasElement);
+  await userEvent.click(within(section).getByRole("button", { name: /^充足/ }));
+  return section;
+};
+
+const getBandSegments = (section: HTMLElement, positionName: string) =>
+  within(within(section).getByRole("list", { name: `${positionName}の充足` })).getAllByRole("listitem");
+
+/** 帯の区間を「時間 状態」の文字で返す。 */
+const describeBand = (section: HTMLElement, positionName: string) =>
+  getBandSegments(section, positionName).map((segment) => segment.getAttribute("aria-label"));
+
+/** 充足を開いた状態。ポジションごとの帯と、3時間ごとの時刻が出る。 */
+export const DetailFulfillmentOpen: Story = {
+  name: "Detail Fulfillment Open",
+  args: timeDetailArgs,
+  globals: mobileGlobals,
+  play: async ({ canvasElement }) => {
+    const section = await openFulfillment(canvasElement);
+    await expect(await within(section).findByRole("list", { name: "ホールの充足" })).toBeInTheDocument();
+  },
+};
+
+/** 不足が3人以上の区間は、いちばん濃い赤に白い文字で出す。イベント日は、ホールに3人、キッチンに2人が1日を通して必要である。 */
+export const DetailFulfillmentOpenHeavyShortage: Story = {
+  name: "Detail Fulfillment Open Heavy Shortage",
+  args: {
+    ...timeDetailArgs,
+    staffing: buildStaffing({
+      templates: timeDetailTemplates,
+      days: timeDetailArgs.dates.map((date) => templateDay(date, timeEventTemplate)),
+    }),
+  },
+  globals: mobileGlobals,
+  play: async ({ canvasElement }) => {
+    const section = await openFulfillment(canvasElement);
+    await expect(await within(section).findByRole("list", { name: "ホールの充足" })).toBeInTheDocument();
+  },
+};
+
+/** 必要人数をすべて満たした日は、充足率と進捗バーを緑で出す。必要人数は、レジの午後の1人だけである。 */
+export const DetailFulfillmentFull: Story = {
+  name: "Detail Fulfillment Full",
+  args: {
+    ...timeDetailArgs,
+    staffing: buildStaffing({
+      templates: timeDetailTemplates,
+      days: timeDetailArgs.dates.map((date) => customDay(date, timeRequirements([[register, "13:00", "17:00"]]))),
+    }),
+  },
+  globals: mobileGlobals,
+};
+
+/**
+ * 充足は閉じた状態で始まり、押すとポジションごとの帯が開く。
+ * 帯は人数か必要人数が変わる時刻で区切り、不足の人数は幅のある区間にだけ出す。
+ */
+export const FulfillmentInteractive: Story = {
+  name: "Fulfillment Interactive",
   args: timeDetailArgs,
   globals: mobileGlobals,
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
-    const card = await findStaffingCard(canvasElement);
-    await expect(within(card).getByText("不足 7か所")).toBeInTheDocument();
-    // 畳んだ状態は、不足している時間だけ。不足のないレジは出さない。
-    await expect(getRows(card, "ホール")).toEqual([
-      "09:00〜10:000/2 ▲2",
-      "10:00〜12:001/2 ▲1",
-      "12:00〜13:000/2 ▲2",
-      "17:00〜22:000/1 ▲1",
-    ]);
-    await expect(within(card).queryByRole("list", { name: "レジの人数" })).not.toBeInTheDocument();
+    const section = await findFulfillment(canvasElement);
+    const toggle = within(section).getByRole("button", { name: "充足 56%" });
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(within(section).queryByRole("list")).not.toBeInTheDocument();
 
-    await userEvent.click(within(card).getByRole("button", { name: "すべて見る" }));
+    await userEvent.click(toggle);
 
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
     await waitFor(() =>
-      expect(getRows(card, "ホール")).toEqual([
-        "09:00〜10:000/2 ▲2",
-        "10:00〜12:001/2 ▲1",
-        "12:00〜13:000/2 ▲2",
-        "13:00〜14:002/1 ＋1",
-        "14:00〜17:001/1",
-        "17:00〜22:000/1 ▲1",
+      expect(describeBand(section, "ホール")).toEqual([
+        "09:00〜10:00 2人不足",
+        "10:00〜12:00 1人不足",
+        "12:00〜13:00 2人不足",
+        "13:00〜14:00 1人多い",
+        "14:00〜17:00 ちょうど",
+        "17:00〜22:00 1人不足",
       ]),
     );
-    // レジは見習いのDさんだけが入る。必要人数のない午前は多い時間になる。
-    await expect(getRows(card, "レジ")).toEqual(["09:00〜12:001/0 ＋1見習いだけ", "13:00〜17:001/1見習いだけ"]);
+    // キッチンは17時から必要人数がない。人が入っている時間は多い、だれもいない時間は指定なしになる。
+    await expect(describeBand(section, "キッチン")).toEqual([
+      "09:00〜11:00 1人不足",
+      "11:00〜13:00 ちょうど",
+      "13:00〜14:00 1人不足",
+      "14:00〜15:00 ちょうど",
+      "15:00〜15:30 1人不足",
+      "15:30〜17:00 ちょうど",
+      "17:00〜18:00 2人多い",
+      "18:00〜19:00 1人多い",
+      "19:00〜22:00 必要人数の指定なし",
+    ]);
+    await expect(describeBand(section, "レジ")).toEqual([
+      "09:00〜12:00 1人多い",
+      "12:00〜13:00 必要人数の指定なし",
+      "13:00〜17:00 ちょうど",
+      "17:00〜22:00 必要人数の指定なし",
+    ]);
+
+    // 不足の人数は、幅のある区間にだけ出す。30分の区間は色だけになる。
+    const kitchen = getBandSegments(section, "キッチン");
+    await expect(within(kitchen[0]).getByText("1")).toBeVisible();
+    await expect(within(kitchen[4]).getByText("1")).not.toBeVisible();
+    // 多い、ちょうど、指定なしの区間には文字を出さない。
+    await expect(kitchen.slice(5).map((segment) => segment.textContent)).toEqual(["", "", "", ""]);
+
+    await userEvent.click(toggle);
+    await waitFor(() => expect(within(section).queryByRole("list")).not.toBeInTheDocument());
   },
 };
 
-/** カードのテンプレートのメニューからテンプレートを当てると、その日とテンプレートを1回で送り、不足の数が変わる。 */
+/** 充足の区画から上へたどり、画面をスクロールしている入れ物を返す。 */
+const findScroller = (element: HTMLElement): HTMLElement => {
+  for (let node = element.parentElement; node; node = node.parentElement) {
+    if (node.scrollHeight > node.clientHeight && getComputedStyle(node).overflowY === "auto") return node;
+  }
+  throw new Error("スクロールしている入れ物が見つかりません");
+};
+
+/** 閉じた1行は、一覧をスクロールしても上端に留まる。開いている間は留まらず、一覧と一緒に流れる。 */
+export const FulfillmentStaysOnTopWhileClosedInteractive: Story = {
+  name: "Fulfillment Stays On Top While Closed Interactive",
+  args: timeDetailArgs,
+  globals: mobileGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const section = await findFulfillment(canvasElement);
+    // 一覧が画面に収まらない高さにして、スクロールできるようにする。
+    const frame = section.closest<HTMLElement>('div[style*="100dvh"]');
+    if (!frame) throw new Error("画面の高さを決めている入れ物が見つかりません");
+    frame.style.height = "480px";
+    const scroller = await waitFor(() => findScroller(section));
+    const topOf = (element: HTMLElement) => Math.round(element.getBoundingClientRect().top);
+
+    scroller.scrollTop = scroller.scrollHeight;
+    await waitFor(() => expect(topOf(section)).toBe(topOf(scroller)));
+
+    scroller.scrollTop = 0;
+    await userEvent.click(within(section).getByRole("button", { name: /^充足/ }));
+    await within(section).findByRole("list", { name: "ホールの充足" });
+    scroller.scrollTop = scroller.scrollHeight;
+    await waitFor(() => expect(topOf(section)).toBeLessThan(topOf(scroller)));
+  },
+};
+
+/** 開いた状態は、日付を切り替えても保つ。 */
+export const FulfillmentKeepsOpenAcrossDatesInteractive: Story = {
+  name: "Fulfillment Keeps Open Across Dates Interactive",
+  args: bothDaysStaffedArgs,
+  globals: mobileGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    await openFulfillment(canvasElement);
+
+    await userEvent.click(canvasElement.querySelector('[data-date-chip="2026-01-24"]') as HTMLElement);
+
+    // 24日は、ホールにAさん、キッチンにBさんだけが入る。
+    const section = await findFulfillment(canvasElement);
+    const toggle = await within(section).findByRole("button", { name: "充足 39%" });
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await expect(describeBand(section, "レジ")).toEqual([
+      "09:00〜13:00 必要人数の指定なし",
+      "13:00〜17:00 1人不足",
+      "17:00〜22:00 必要人数の指定なし",
+    ]);
+  },
+};
+
+/** 勤務の時間を変えると、充足率と帯の色が変わる。 */
+export const FulfillmentFollowsShiftEditInteractive: Story = {
+  name: "Fulfillment Follows Shift Edit Interactive",
+  args: timeDetailArgs,
+  globals: mobileGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const section = await openFulfillment(canvasElement);
+    await expect(within(section).getByRole("button", { name: "充足 56%" })).toBeInTheDocument();
+    const lastHallSegment = () => getBandSegments(section, "ホール").at(-1);
+    await expect(lastHallSegment()).toHaveAttribute("data-fulfillment-state", "shortage");
+
+    // Cさんのホールの勤務（13:00〜17:00）を、22:00まで伸ばす。
+    const sheet = await openEditSheet(canvasElement, "Cさん");
+    await selectTime(sheet, "勤務時間1の終了時間", "22:00");
+    await userEvent.click(sheet.getByRole("button", { name: "変更する" }));
+
+    await expect(await within(section).findByRole("button", { name: "充足 71%" })).toBeInTheDocument();
+    await expect(lastHallSegment()).toHaveAttribute("aria-label", "14:00〜22:00 ちょうど");
+    await expect(lastHallSegment()).toHaveAttribute("data-fulfillment-state", "even");
+  },
+};
+
+/** 日付の見出しのメニューからテンプレートを当てると、その日とテンプレートを1回で送り、充足率が変わる。 */
 export const ApplyTemplateInteractive: Story = {
   name: "Apply Template Interactive",
   args: timeDetailArgs,
@@ -238,49 +415,51 @@ export const ApplyTemplateInteractive: Story = {
   globals: mobileGlobals,
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
     const body = within(canvasElement.ownerDocument.body);
-    const card = await findStaffingCard(canvasElement);
+    const section = await openFulfillment(canvasElement);
 
-    await userEvent.click(within(card).getByRole("button", { name: "この日のテンプレート: 平日" }));
+    await userEvent.click(canvas.getByRole("button", { name: "この日のテンプレート: 平日" }));
     await userEvent.click(await body.findByRole("menuitem", { name: "イベント日" }));
 
-    await expect(
-      await within(card).findByRole("button", { name: "この日のテンプレート: イベント日" }),
-    ).toBeInTheDocument();
+    await expect(await canvas.findByRole("button", { name: "この日のテンプレート: イベント日" })).toBeInTheDocument();
     await expect((await readStaffingCalls(canvasElement)).calls).toEqual([
       { mutation: "applyDayTemplateToDates", dates: [timeDetailDate], templateId: "event" },
     ]);
-    // イベント日はホールに3人、キッチンに2人が1日を通して必要で、レジは未設定になる。
-    await waitFor(() =>
-      expect(getRows(card, "ホール")).toEqual([
-        "09:00〜10:000/3 ▲3",
-        "10:00〜12:001/3 ▲2",
-        "12:00〜13:000/3 ▲3",
-        "13:00〜14:002/3 ▲1",
-        "14:00〜17:001/3 ▲2",
-        "17:00〜22:000/3 ▲3",
-      ]),
-    );
+    // イベント日はホールに3人、キッチンに2人が1日を通して必要で、レジは必要人数がない。
+    await expect(await within(section).findByRole("button", { name: "充足 28%" })).toBeInTheDocument();
+    await expect(describeBand(section, "ホール")).toEqual([
+      "09:00〜10:00 3人不足",
+      "10:00〜12:00 2人不足",
+      "12:00〜13:00 3人不足",
+      "13:00〜14:00 1人不足",
+      "14:00〜17:00 2人不足",
+      "17:00〜22:00 3人不足",
+    ]);
+    // 必要人数を入れていないポジションの帯は出さない。
+    await expect(within(section).queryByRole("list", { name: "レジの充足" })).not.toBeInTheDocument();
   },
 };
 
-/** テンプレートが当たらない日は、カードに「必要人数が未設定」と出し、「すべて見る」で人数だけを確かめられる。 */
+/** 必要人数のない日は、充足の欄を出さない。テンプレートは日付の見出しのメニューから当てられる。 */
 export const UnsetDayInteractive: Story = {
   name: "Unset Day Interactive",
   args: timeDetailArgs,
+  render: harnessRender,
   globals: mobileGlobals,
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    await findFulfillment(canvasElement);
+
     await userEvent.click(canvasElement.querySelector('[data-date-chip="2026-01-24"]') as HTMLElement);
 
-    const card = await canvas.findByRole("region", { name: "人数" });
-    await expect(await within(card).findByText("必要人数が未設定")).toBeInTheDocument();
-    await expect(within(card).getByRole("button", { name: "この日のテンプレート: 未設定" })).toBeInTheDocument();
+    await waitFor(() => expect(canvas.queryByRole("region", { name: "充足" })).not.toBeInTheDocument());
 
-    await userEvent.click(within(card).getByRole("button", { name: "すべて見る" }));
-    // 過不足を出さず、人数だけを出す。
-    await waitFor(() => expect(getRows(card, "ホール")).toEqual(["10:00〜18:001"]));
-    await expect(getRows(card, "キッチン")).toEqual(["12:00〜17:001"]);
+    await userEvent.click(await canvas.findByRole("button", { name: "この日のテンプレート: 未設定" }));
+    await userEvent.click(await body.findByRole("menuitem", { name: "平日" }));
+
+    await expect(await canvas.findByRole("region", { name: "充足" })).toHaveTextContent("充足 39%");
   },
 };

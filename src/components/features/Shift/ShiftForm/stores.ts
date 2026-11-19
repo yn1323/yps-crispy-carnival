@@ -24,10 +24,11 @@ import { minutesToTime } from "@/src/domains/shift/time";
 import type { PositionType, ShiftData, SortMode, StaffType, TimeRange, ViewMode } from "@/src/domains/shift/types";
 import { sumStaffWorkTotals } from "@/src/domains/shift/workTotals";
 import { DEFAULT_TIME_PATTERN } from "@/src/domains/shop/submissionPattern";
+import { buildDayFulfillmentView } from "./fulfillmentPresentation";
 import { readLastPositionId, storeLastPositionId } from "./lastPositionStorage";
 import { readRangeAssignHintDismissed, storeRangeAssignHintDismissed } from "./rangeAssignHintStorage";
 import { resolveNameSkillPosition } from "./skillPresentation";
-import { buildDayStaffingView, type DayStaffingView } from "./staffingPresentation";
+import { buildDayStaffingView, type DayStaffingView, selectStaffingShifts } from "./staffingPresentation";
 import type { ShiftFormStaffing } from "./types";
 
 export type { ShiftFormStaffing } from "./types";
@@ -467,6 +468,24 @@ export const dayStaffingViewByDateAtom = atom((get) => {
   }
   return views;
 });
+
+// 選んでいる日の、充足率と充足の帯。時間指定のくわしく表示で、必要人数のある営業日だけ値を持つ。
+// 出す条件と数える勤務は、人数と過不足（dayStaffingViewByDateAtom）と同じである。
+export const selectedDayFulfillmentViewAtom = atom((get) => {
+  const config = get(shiftConfigAtom);
+  const date = get(selectedDateAtom);
+  if (!get(detailModeAtom) || config.displayMode === "confirmed") return null;
+  if (config.submissionPattern.kind !== "time" || config.holidays.includes(date)) return null;
+  return buildDayFulfillmentView({
+    shifts: selectStaffingShifts(get(shiftsAtom), config.staffs, date),
+    positions: config.positions,
+    timeRange: config.timeRange,
+    day: config.staffing?.days.find((day) => day.date === date),
+  });
+});
+
+// 充足の帯を開いているか。日付を切り替えても保ち、シフト表を開き直すと閉じた状態に戻る。
+export const isFulfillmentExpandedAtom = atom(false);
 
 // その日の必要人数を変えられるか。閲覧専用と確定済みでは、テンプレートの名前だけを出す。
 export const canEditDayStaffingAtom = atom((get) => {

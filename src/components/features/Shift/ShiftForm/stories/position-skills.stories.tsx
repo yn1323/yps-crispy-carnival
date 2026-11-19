@@ -214,27 +214,3 @@ export const ConfirmedForStaffOnMobile: Story = {
   tags: ["vrt-mobile2"],
   play: async ({ canvasElement }) => expectNoSkillMarks(canvasElement),
 };
-
-/** 人数のカードの「見習いだけ」も、ポジションごとに判定する。 */
-export const NewcomerOnlyCardFollowsPositionOnMobile: Story = {
-  name: "Newcomer Only Card Follows Position On Mobile",
-  args: timeDetailArgs,
-  globals: mobileGlobals,
-  tags: ["vrt-mobile2"],
-  play: async ({ canvasElement }) => {
-    const card = within(await within(canvasElement).findByRole("region", { name: "人数" }));
-    const rowsOf = (positionName: string) =>
-      within(card.getByRole("list", { name: `${positionName}の人数` }))
-        .getAllByRole("listitem")
-        .map((row) => row.textContent);
-
-    await userEvent.click(await card.findByRole("button", { name: "すべて見る" }));
-
-    // キッチンは、Bさんの休憩中だけ、キッチンで見習いのAさんが1人になる。
-    await waitFor(() =>
-      expect(rowsOf("キッチン").filter((row) => row?.includes("見習いだけ"))).toEqual(["15:00〜15:301/2 ▲1見習いだけ"]),
-    );
-    // ホールは、ホールでリーダーのAさんが1人でいる時間も、見習いだけにならない。
-    await expect(rowsOf("ホール").filter((row) => row?.includes("見習いだけ"))).toEqual([]);
-  },
-};
