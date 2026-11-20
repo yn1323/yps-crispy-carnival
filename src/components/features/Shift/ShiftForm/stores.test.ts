@@ -28,6 +28,7 @@ import {
   shiftConfigAtom,
   shiftsAtom,
   showsSegmentSkillMarksAtom,
+  staffWarningCountByDateAtom,
   staffWorkTotalsAtom,
   toggleDateOnlyAssignmentAtom,
   toggleShiftTypeAssignmentAtom,
@@ -1165,6 +1166,13 @@ describe("日付ごとの確認事項の件数（warningCountByDateAtom）", () 
     setWarnings(store);
 
     expect([...store.get(warningCountByDateAtom)]).toEqual([[date, 1]]);
+  });
+
+  it("時間指定のスマートフォンが使う件数は、くわしく表示でも、見習いだけの時間帯を足さない", () => {
+    const store = createDetailStore();
+    setWarnings(store);
+
+    expect([...store.get(staffWarningCountByDateAtom)]).toEqual([[date, 1]]);
   });
 });
 

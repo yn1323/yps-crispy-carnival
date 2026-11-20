@@ -196,6 +196,29 @@ export const BreakToolInteractive: Story = {
   },
 };
 
+/**
+ * 見習いだけの時間帯は、時間指定のスマートフォンでは日付の件数に足さない。
+ * 充足の帯に見習いだけの時間を出さず、その日の画面で場所を確かめられないためである。
+ */
+export const NewcomerOnlyNotCountedOnDateInteractive: Story = {
+  name: "Newcomer Only Not Counted On Date Interactive",
+  args: {
+    ...timeDetailArgs,
+    newcomerOnlyPeriods: [
+      { date: timeDetailDate, positionId: "kitchen", scope: { kind: "time", start: "15:00", end: "15:30" } },
+    ],
+  },
+  globals: mobileGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const chip = canvasElement.querySelector(`[data-date-chip="${timeDetailDate}"]`) as HTMLElement;
+    // 見習いだけの時間帯を受け取ったあとも、件数が出ないことを確かめるため、充足が出るまで待つ。
+    await within(canvasElement).findByRole("region", { name: "充足" });
+
+    await expect(within(chip).queryByLabelText(/確認事項/)).not.toBeInTheDocument();
+  },
+};
+
 // ==========================================
 // 充足と、その日のテンプレートの操作
 // ==========================================

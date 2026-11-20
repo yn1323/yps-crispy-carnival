@@ -19,8 +19,8 @@ import {
   selectedDateAtom,
   shiftByStaffIdForSelectedDateAtom,
   shiftConfigAtom,
+  staffWarningCountByDateAtom,
   upsertShiftDraftAtom,
-  warningCountByDateAtom,
   warningMessagesByStaffIdForSelectedDateAtom,
 } from "../../stores";
 import { DateRail } from "./DateRail";
@@ -42,7 +42,7 @@ export const SPDailyView = () => {
   const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const issueCounts = useAtomValue(issueCountByDateAtom);
   const issueStaffIds = useAtomValue(issueStaffIdSetForSelectedDateAtom);
-  const warningCounts = useAtomValue(warningCountByDateAtom);
+  const warningCounts = useAtomValue(staffWarningCountByDateAtom);
   const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
   // その日のテンプレートを出す日（くわしく表示の営業日）だけ値が入る。
   const staffingView = useDayStaffingView(selectedDate);

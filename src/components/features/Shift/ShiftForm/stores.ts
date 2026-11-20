@@ -587,10 +587,14 @@ export const validationWarningsAtom = atom<AssignmentWarning[]>([]);
 // 見習いだけの時間帯（確認事項）。スタッフ1人に結び付かないため、スタッフ別の確認事項とは別に持つ。
 export const newcomerOnlyPeriodsAtom = atom<NewcomerOnlyPeriod[]>([]);
 
-// DateRailのオレンジバッジ用: 日付ごとの確認事項件数。
-// 見習いだけの時間帯は、帯の「見」の印で場所を確かめられる、くわしく表示のときだけ件数へ足す。
+// DateRailのオレンジバッジ用: 日付ごとの、スタッフ別の確認事項の件数。見習いだけの時間帯は含めない。
+// 時間指定のスマートフォンは、こちらを使う。充足の帯に見習いだけの時間を出さず、その日の画面で場所を確かめられないためである。
+export const staffWarningCountByDateAtom = atom((get) => issueCountByDate(get(validationWarningsAtom)));
+
+// DateRailのオレンジバッジ用: 日付ごとの確認事項の件数。
+// 見習いだけの時間帯は、人数の表示の注意のアイコンで場所を確かめられる、くわしく表示のときだけ件数へ足す。
 export const warningCountByDateAtom = atom((get) => {
-  const counts = issueCountByDate(get(validationWarningsAtom));
+  const counts = new Map(get(staffWarningCountByDateAtom));
   if (!get(detailModeAtom)) return counts;
   for (const period of get(newcomerOnlyPeriodsAtom)) {
     counts.set(period.date, (counts.get(period.date) ?? 0) + 1);

@@ -9,8 +9,8 @@ import {
   selectDateWithDailyStaffOrderAtom,
   shiftConfigAtom,
   shiftsAtom,
+  staffWarningCountByDateAtom,
   viewModeAtom,
-  warningCountByDateAtom,
 } from "../../stores";
 import { SHIFT_WEEKDAY_TONE_COLORS } from "../../weekdayPresentation";
 import { StaffTotalsCard } from "../StaffTotalsCard";
@@ -19,7 +19,7 @@ import { buildOverviewViewModel, type OverviewDayRowViewModel, type OverviewStaf
 export const SPOverviewView = () => {
   const config = useAtomValue(shiftConfigAtom);
   const shifts = useAtomValue(shiftsAtom);
-  const warningCounts = useAtomValue(warningCountByDateAtom);
+  const warningCounts = useAtomValue(staffWarningCountByDateAtom);
   const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const setViewMode = useSetAtom(viewModeAtom);
   const { dates, holidays, staffs, isReadOnly } = config;
