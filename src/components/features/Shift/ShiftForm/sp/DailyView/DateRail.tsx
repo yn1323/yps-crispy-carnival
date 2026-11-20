@@ -6,6 +6,9 @@ import { DateIssueBadge, dateIssueBorderColor } from "../../components";
 import { DisplaySettingsMenu } from "../../DisplaySettingsMenu";
 import { getShiftWeekdayColor } from "../../weekdayPresentation";
 
+/** 日付の見出しの行の高さ（px）。見出しを上端に留め、その下に入れるものの行と充足を留めるために使う。 */
+export const SP_DATE_HEADING_HEIGHT_PX = 52;
+
 type Props = {
   dates: string[];
   selectedDate: string;
@@ -106,9 +109,13 @@ export const DateRail = ({
         </Flex>
       </Box>
       {selected && (
+        // 日付の一覧はスクロールで上へ流し、この見出しは上端に留める。
         <Flex
+          position="sticky"
+          top={0}
+          zIndex={3}
+          h={`${SP_DATE_HEADING_HEIGHT_PX}px`}
           px={4}
-          py={3}
           bg="white"
           borderBottomWidth="1px"
           borderColor="gray.200"

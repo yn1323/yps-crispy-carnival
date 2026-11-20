@@ -152,9 +152,9 @@ export const OverlapErrorInteractive: Story = {
     await selectTime(sheet, "勤務時間1の終了時間", "13:00");
     await waitFor(() => expect(sheet.queryByRole("alert")).not.toBeInTheDocument());
     await userEvent.click(sheet.getByRole("button", { name: "変更する" }));
-    // Aさんはホールでリーダーなので、ポジションの名前と時刻の間に、熟練度の印が入る。
+    // Aさんはホールでリーダーだが、シフト表にリーダーの印は出さない。ポジションの名前のすぐ後ろに時刻が続く。
     await waitFor(() =>
-      expect(canvas.getByRole("button", { name: "Aさんの勤務を編集" })).toHaveTextContent("ホールリーダー10:00〜13:00"),
+      expect(canvas.getByRole("button", { name: "Aさんの勤務を編集" })).toHaveTextContent("ホール10:00〜13:00"),
     );
   },
 };
@@ -350,6 +350,60 @@ export const FulfillmentInteractive: Story = {
   },
 };
 
+/** 時刻の位置（px）。要素の左端、または中央。 */
+const leftOf = (element: Element) => element.getBoundingClientRect().left;
+const centerOf = (element: Element) => {
+  const rect = element.getBoundingClientRect();
+  return rect.left + rect.width / 2;
+};
+
+/**
+ * 充足の帯、時刻の軸、1時間ごとの縦線、スタッフのカードのバーは、同じ物差しと余白で描き、同じ時刻を上下で同じ位置にそろえる。
+ * 画面の幅が375pxと430pxのどちらでも、12時と13時の位置が1px以内でそろう。
+ */
+export const FulfillmentAlignsWithCardBarsInteractive: Story = {
+  name: "Fulfillment Aligns With Card Bars Interactive",
+  args: timeDetailArgs,
+  globals: mobileGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const section = await openFulfillment(canvasElement);
+    const frame = section.closest<HTMLElement>('div[style*="100dvh"]');
+    if (!frame) throw new Error("画面の幅を決めている入れ物が見つかりません");
+    const hall = await within(section).findByRole("list", { name: "ホールの充足" });
+    const findSegment = (start: string) =>
+      within(hall)
+        .getAllByRole("listitem")
+        .find((segment) => segment.getAttribute("aria-label")?.startsWith(`${start}〜`));
+    const tick12 = section.querySelector('[data-tick-minutes="720"]');
+    const hourLine12 = section.querySelector('[data-hour-line-minutes="720"]');
+    // Aさんは12時から休憩に入り、Cさんの仮の勤務は13時から始まる。
+    const cardA = canvasElement.querySelector('[data-tour="shift-row-staff1"]');
+    const cardC = canvasElement.querySelector('[data-tour="shift-row-staff3"]');
+    // カードの中で、時刻に合わせて置くバーは絶対配置で描く。アバターなどの色の付いた要素と分ける。
+    const findBar = (card: Element | null, selector: string) =>
+      Array.from(card?.querySelectorAll(selector) ?? []).find(
+        (element) => getComputedStyle(element).position === "absolute",
+      );
+    const breakBarA = findBar(cardA, 'div[style*="background-image"]');
+    const workBarC = findBar(cardC, 'div[style*="background"]');
+    if (!tick12 || !hourLine12 || !breakBarA || !workBarC) throw new Error("比べる時刻の要素が見つかりません");
+
+    for (const width of [375, 430]) {
+      frame.style.width = `${width}px`;
+      await waitFor(() => expect(Math.round(frame.getBoundingClientRect().width)).toBe(width));
+      const segment12 = findSegment("12:00");
+      const segment13 = findSegment("13:00");
+      if (!segment12 || !segment13) throw new Error("12時と13時から始まる区間が見つかりません");
+
+      await expect(Math.abs(leftOf(segment12) - leftOf(breakBarA))).toBeLessThanOrEqual(1);
+      await expect(Math.abs(centerOf(tick12) - leftOf(breakBarA))).toBeLessThanOrEqual(1);
+      await expect(Math.abs(centerOf(hourLine12) - leftOf(breakBarA))).toBeLessThanOrEqual(1);
+      await expect(Math.abs(leftOf(segment13) - leftOf(workBarC))).toBeLessThanOrEqual(1);
+    }
+  },
+};
+
 /** 充足の区画から上へたどり、画面をスクロールしている入れ物を返す。 */
 const findScroller = (element: HTMLElement): HTMLElement => {
   for (let node = element.parentElement; node; node = node.parentElement) {
@@ -358,7 +412,10 @@ const findScroller = (element: HTMLElement): HTMLElement => {
   throw new Error("スクロールしている入れ物が見つかりません");
 };
 
-/** 閉じた1行は、一覧をスクロールしても上端に留まる。開いている間は留まらず、一覧と一緒に流れる。 */
+/**
+ * 閉じた1行は、上に置く入れるものの行と一緒に、一覧をスクロールしても上端に留まる。
+ * 開いている間は留まらず、一覧と一緒に流れる。
+ */
 export const FulfillmentStaysOnTopWhileClosedInteractive: Story = {
   name: "Fulfillment Stays On Top While Closed Interactive",
   args: timeDetailArgs,
@@ -372,9 +429,15 @@ export const FulfillmentStaysOnTopWhileClosedInteractive: Story = {
     frame.style.height = "480px";
     const scroller = await waitFor(() => findScroller(section));
     const topOf = (element: HTMLElement) => Math.round(element.getBoundingClientRect().top);
+    const palette = within(canvasElement).getByRole("radiogroup", { name: "入れるもの" });
+    // 入れるものの行は、充足のすぐ上にある。
+    await expect(palette.getBoundingClientRect().bottom).toBeLessThanOrEqual(section.getBoundingClientRect().top);
 
     scroller.scrollTop = scroller.scrollHeight;
-    await waitFor(() => expect(topOf(section)).toBe(topOf(scroller)));
+    // 入れるものの行が上端に留まり、充足はその下に留まる。
+    await waitFor(() => expect(topOf(palette)).toBeLessThan(topOf(section)));
+    await waitFor(() => expect(topOf(palette)).toBeGreaterThanOrEqual(topOf(scroller)));
+    await expect(section.getBoundingClientRect().bottom).toBeLessThan(scroller.getBoundingClientRect().bottom);
 
     scroller.scrollTop = 0;
     await userEvent.click(within(section).getByRole("button", { name: /^充足/ }));

@@ -4,6 +4,7 @@ import { normalizeStaffingSegments } from "@/src/domains/shift/staffingSegments"
 import {
   applyPositionInputs,
   createDraftPositionId,
+  hasRemovedSavedPositions,
   isDraftPositionId,
   isSamePositions,
   keepPositionsInDayTemplateDrafts,
@@ -106,6 +107,21 @@ describe("Dialogで決めた一覧の反映", () => {
     },
   ])("$name は、保存内容として同じかどうかを $expected と判定する", ({ next, expected }) => {
     expect(isSamePositions(next, positions)).toBe(expected);
+  });
+});
+
+describe("保存済みのポジションを外したか", () => {
+  it("保存済みのポジションを1つでも外していればtrueを返す", () => {
+    expect(hasRemovedSavedPositions(positions, [positions[0]])).toBe(true);
+  });
+
+  it("名前や色を変えただけ、並べ替えただけ、新しく足しただけならfalseを返す", () => {
+    const edited: ShiftSetupPosition[] = [
+      { ...positions[1], name: "厨房" },
+      { ...positions[0], color: "#000000" },
+      { _id: draftA, name: "レジ", color: "#a78bfa", isDefault: false },
+    ];
+    expect(hasRemovedSavedPositions(positions, edited)).toBe(false);
   });
 });
 

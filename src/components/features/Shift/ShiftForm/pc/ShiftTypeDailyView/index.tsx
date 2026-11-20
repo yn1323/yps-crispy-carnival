@@ -6,7 +6,7 @@ import type { ShiftTypeOptionLike } from "@/src/domains/shift/shiftTypeAssignmen
 import type { StaffType } from "@/src/domains/shift/types";
 import { Avatar, StaffWarningIcon } from "../../components";
 import { ShiftDateNoteText, ShiftStaffNoteIcon, useAllShiftDateNotes, useShiftDateNotes } from "../../dateNotes";
-import { BreakMark, PositionMark, SegmentSkillMark, StaffMeta } from "../../detailParts";
+import { BreakMark, PositionMark, StaffMeta } from "../../detailParts";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import type { ShiftTypeOptionColor } from "../../shiftTypeOptionStyles";
 import { StaffingUnsetNote, useDayStaffingView } from "../../staffingParts";
@@ -211,7 +211,6 @@ export const ShiftTypeDailyView = () => {
                         <ShiftTypeCell
                           key={cell.key}
                           cell={cell}
-                          staff={row.staff}
                           detailMode={detailMode}
                           usesPositionColors={usesPositionColors}
                           isReadOnly={isReadOnly}
@@ -337,14 +336,12 @@ const RequestBadge = ({ bg, color, children }: { bg: string; color: string; chil
 
 const ShiftTypeCell = ({
   cell,
-  staff,
   detailMode,
   usesPositionColors,
   isReadOnly,
   onToggle,
 }: {
   cell: ShiftTypeDailyAssignmentCellViewModel;
-  staff: StaffType;
   detailMode: boolean;
   usesPositionColors: boolean;
   isReadOnly: boolean;
@@ -416,13 +413,11 @@ const ShiftTypeCell = ({
         <Flex direction="column" align="center" justify="center" gap="3px" minW={0} maxW="100%" px={2}>
           {usesPositionColors && cell.segment ? (
             <Flex maxW="100%" minW={0} color="gray.800">
-              <PositionMark segment={cell.segment} staff={staff} />
+              <PositionMark segment={cell.segment} />
             </Flex>
           ) : (
-            // ポジションが1つの店舗では、記号の横に熟練度の印だけを添える。
-            <Flex as="span" align="center" gap="4px" lineHeight={1}>
+            <Flex as="span" align="center" lineHeight={1}>
               {cell.symbol}
-              <SegmentSkillMark staff={staff} segment={cell.segment} />
             </Flex>
           )}
           <BreakMark shift={cell.breakShift} />

@@ -68,7 +68,7 @@ describe("listFulfillmentTicks", () => {
 });
 
 describe("buildDayFulfillmentView", () => {
-  it("帯の範囲を必要人数の最初から最後までにし、区間に不足の人数と濃さを付ける", () => {
+  it("帯の範囲を必要人数の最初から最後までにし、時刻の軸は店舗の表示する時間に置き、区間に不足の人数と濃さを付ける", () => {
     const view = buildDayFulfillmentView({
       shifts: [shift("a", hall, "11:00", "15:00")],
       positions: [hall, kitchen],
@@ -83,11 +83,16 @@ describe("buildDayFulfillmentView", () => {
       // 必要は 4人×3時間 + 1人×7時間 = 19人時。満たすのは 1人×2時間 + 1人×2時間 = 4人時。
       percent: 21,
       range: { start: 10 * 60, end: 20 * 60 },
+      // 時刻の軸は、スタッフのカードのバーと同じ、店舗の表示する時間（9〜22時）に置く。
+      timelineRange: { start: 9 * 60, end: 22 * 60 },
       ticks: [
+        { minutes: 540, label: "9" },
         { minutes: 720, label: "12" },
         { minutes: 900, label: "15" },
         { minutes: 1080, label: "18" },
+        { minutes: 1260, label: "21" },
       ],
+      hourLines: [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22].map((hour) => hour * 60),
       showsPositionNames: true,
       // 必要人数を入れていないキッチンの帯は含めない。
       bands: [

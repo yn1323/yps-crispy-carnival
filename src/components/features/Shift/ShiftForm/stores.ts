@@ -310,6 +310,12 @@ export const detailModeAtom = atom<boolean>(false);
 export const detailToggleEnabledAtom = atom<boolean>(false);
 
 // ==========================================
+// スクロールで隠す上の行
+// ==========================================
+// 内側の入れ物を下へスクロールして、上の行（戻る、日別と一覧、保存の行）を隠している間はtrue。
+export const chromeHiddenAtom = atom<boolean>(false);
+
+// ==========================================
 // 入れるものの選択（ポジションまたは休憩）
 // ==========================================
 // 時間指定のPCの日別表示には選ぶ場所がなく、勤務のバーのメニューで最後に選んだポジションが入る。
@@ -407,11 +413,6 @@ export const nameSkillPositionAtom = atom((get) => {
     isConfirmedDisplay: config.displayMode === "confirmed",
   });
 });
-
-// 勤務の区間に熟練度の印（見・リ）を添えるかどうか。くわしく表示の、担当者の画面だけに出す。
-export const showsSegmentSkillMarksAtom = atom(
-  (get) => get(detailModeAtom) && get(shiftConfigAtom).displayMode !== "confirmed",
-);
 
 // 休憩を選んでいる場合は、勤務のある日の休憩の編集を開き、通常の操作を止める。
 const openBreakEditorIfBreakTool = (get: Getter, set: Setter, staffId: string, date: string): boolean => {

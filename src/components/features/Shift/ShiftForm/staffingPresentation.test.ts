@@ -10,11 +10,13 @@ import {
   type DayStaffingView,
   describeStaffingCount,
   formatStaffingCount,
+  getBandSegmentStyle,
   resolveBandSegmentContent,
   type StaffingBandView,
   selectStaffingShifts,
   shouldDefaultToDetailMode,
   summarizeStaffingBands,
+  toRequiredSpans,
   toStaffingBars,
 } from "./staffingPresentation";
 import type { ShiftFormDayRequirements, ShiftFormStaffing, ShiftFormStaffingDay } from "./types";
@@ -187,25 +189,56 @@ describe("buildStaffingCountView", () => {
 });
 
 describe("describeStaffingCount", () => {
-  it("足りない区間は、人数、必要人数、足りない人数を説明する", () => {
-    expect(describeStaffingCount(buildStaffingCountView({ count: 1, required: 3, isNewcomerOnly: false }))).toEqual([
-      "人数 1人 / 必要 3人",
-      "2人足りません",
-    ]);
+  it("必要人数がある区間は、人数と必要人数だけを出し、過不足の文は出さない", () => {
+    expect(describeStaffingCount(buildStaffingCountView({ count: 1, required: 3, isNewcomerOnly: false }))).toEqual({
+      count: "1/3人 担当",
+      newcomerNote: null,
+    });
   });
 
-  it("多い区間で見習いだけの場合は、多い人数と見習いだけであることを説明する", () => {
-    expect(describeStaffingCount(buildStaffingCountView({ count: 2, required: 1, isNewcomerOnly: true }))).toEqual([
-      "人数 2人 / 必要 1人",
-      "1人多くなっています",
-      "見習いだけの時間です",
-    ]);
+  it("見習いだけの区間は、スキル見習いのみであることを添える", () => {
+    expect(describeStaffingCount(buildStaffingCountView({ count: 2, required: 1, isNewcomerOnly: true }))).toEqual({
+      count: "2/1人 担当",
+      newcomerNote: "スキル見習いのみ",
+    });
   });
 
-  it("必要人数が未設定の区間は、人数だけを説明する", () => {
-    expect(describeStaffingCount(buildStaffingCountView({ count: 2, required: null, isNewcomerOnly: false }))).toEqual([
-      "人数 2人",
-    ]);
+  it("必要人数が未設定の区間は、人数だけを出す", () => {
+    expect(describeStaffingCount(buildStaffingCountView({ count: 2, required: null, isNewcomerOnly: false }))).toEqual({
+      count: "2人 担当",
+      newcomerNote: null,
+    });
+  });
+});
+
+describe("getBandSegmentStyle", () => {
+  const withRequirements = { dayHasRequirements: true, positionColor: "#60a5fa" };
+  const withoutRequirements = { dayHasRequirements: false, positionColor: "#60a5fa" };
+
+  it("見習いだけでも必要人数が足りている区間は、緑の地にする", () => {
+    expect(getBandSegmentStyle({ tone: "even", isNewcomerOnly: true }, withRequirements).bg).toBe("green.50");
+  });
+
+  it("見習いだけでない、ちょうどの区間も、緑の地にする", () => {
+    expect(getBandSegmentStyle({ tone: "even", isNewcomerOnly: false }, withRequirements).bg).toBe("green.50");
+  });
+
+  it("見習いだけで足りない区間は、足りない色のままにする", () => {
+    expect(getBandSegmentStyle({ tone: "shortage", isNewcomerOnly: true }, withRequirements).bg).toBe("red.50");
+  });
+
+  it("必要人数が1つもない日は、人数を出す区間を、その帯のポジションの色の箱にする", () => {
+    expect(getBandSegmentStyle({ tone: "unset", isNewcomerOnly: false }, withoutRequirements)).toMatchObject({
+      bg: "color-mix(in srgb, #60a5fa 15%, white)",
+      borderColor: "#60a5fa",
+    });
+  });
+
+  it("必要人数のある日に、必要人数を入れていないポジションの区間は、白の地に灰色の枠の箱にする", () => {
+    expect(getBandSegmentStyle({ tone: "unset", isNewcomerOnly: false }, withRequirements)).toMatchObject({
+      bg: "white",
+      borderColor: "gray.400",
+    });
   });
 });
 
@@ -226,6 +259,21 @@ describe("toStaffingBars", () => {
 });
 
 describe("buildDayTemplateView", () => {
+  it("その日だけ「テンプレートなし」にした日は「テンプレートなし」と出し、その項目にチェックを付ける", () => {
+    const view = buildDayTemplateView(
+      day({ source: "dateNone", templateId: null, templateName: null, requirements: null }),
+    );
+
+    expect(view).toEqual({
+      label: "テンプレートなし",
+      templateId: null,
+      templateName: null,
+      isCustom: false,
+      isDateSpecific: true,
+      isNone: true,
+    });
+  });
+
   it("曜日、祝日のテンプレートが当たっている日は、テンプレートの名前を出し、そのテンプレートにチェックを付ける", () => {
     for (const source of ["weekday", "holiday"] as const) {
       expect(buildDayTemplateView(timeDay([bar("09:00", "13:00")], { source }))).toEqual({
@@ -234,6 +282,7 @@ describe("buildDayTemplateView", () => {
         templateName: "通常",
         isCustom: false,
         isDateSpecific: false,
+        isNone: false,
       });
     }
   });
@@ -253,6 +302,7 @@ describe("buildDayTemplateView", () => {
       templateName: "繁忙日",
       isCustom: false,
       isDateSpecific: true,
+      isNone: false,
     });
   });
 
@@ -267,6 +317,7 @@ describe("buildDayTemplateView", () => {
       templateName: null,
       isCustom: true,
       isDateSpecific: true,
+      isNone: false,
     });
   });
 
@@ -280,7 +331,14 @@ describe("buildDayTemplateView", () => {
   });
 
   it("テンプレートが当たらない日と、必要人数が渡されない日は「未設定」と出す", () => {
-    const unset = { label: "未設定", templateId: null, templateName: null, isCustom: false, isDateSpecific: false };
+    const unset = {
+      label: "未設定",
+      templateId: null,
+      templateName: null,
+      isCustom: false,
+      isDateSpecific: false,
+      isNone: false,
+    };
 
     expect(buildDayTemplateView(day({ source: "none", templateId: null, templateName: null }))).toEqual(unset);
     expect(buildDayTemplateView(undefined)).toEqual(unset);
@@ -293,6 +351,7 @@ describe("buildDayTemplateView", () => {
       templateName: null,
       isCustom: false,
       isDateSpecific: false,
+      isNone: false,
     });
   });
 
@@ -307,6 +366,7 @@ describe("buildDayTemplateView", () => {
       templateName: "通常",
       isCustom: false,
       isDateSpecific: false,
+      isNone: false,
     });
   });
 
@@ -327,6 +387,25 @@ describe("buildDayTemplateView", () => {
 });
 
 describe("buildDayStaffingView", () => {
+  describe("ポジションを分けていない店舗の時間指定の帯", () => {
+    const unsplit: PositionType = { id: "default", name: "シフト", color: "#0d9488", isDefault: true };
+
+    it("必要人数がない日は、帯の名前を「時間帯人数」にする", () => {
+      const view = buildTimeView({ positions: [unsplit], shifts: [shift("a", [segment("09:00", "11:00", unsplit)])] });
+      expect(view.bands.map((band) => band.name)).toEqual(["時間帯人数"]);
+      expect(view.bands[0].segments[0].description).toBe("時間帯人数 09:00〜11:00 1");
+    });
+
+    it("必要人数がある日は、帯の名前を「全体」のままにする", () => {
+      const view = buildTimeView({
+        positions: [unsplit],
+        shifts: [shift("a", [segment("09:00", "11:00", unsplit)])],
+        day: timeDay([bar("09:00", "13:00", unsplit)]),
+      });
+      expect(view.bands.map((band) => band.name)).toEqual(["全体"]);
+    });
+  });
+
   describe("時間指定の帯", () => {
     it("ポジションごとに、人数か必要人数が変わる時刻で区切り、足りない、多い、ちょうどを出す", () => {
       const view = buildTimeView({
@@ -665,37 +744,113 @@ describe("resolveBandSegmentContent", () => {
   const unsetNewcomer = buildStaffingCountView({ count: 2, required: null, isNewcomerOnly: true });
 
   it("足りない区間は「−◯」、多い区間は「+◯」を出す（22px以上）", () => {
-    expect(resolveBandSegmentContent(shortage, 22)).toEqual({ text: "−1", showsNewcomerMark: false });
-    expect(resolveBandSegmentContent(excess, 22)).toEqual({ text: "+1", showsNewcomerMark: false });
+    expect(resolveBandSegmentContent(shortage, 22)).toEqual({
+      text: "−1",
+      showsCheckMark: false,
+      showsNewcomerMark: false,
+    });
+    expect(resolveBandSegmentContent(excess, 22)).toEqual({
+      text: "+1",
+      showsCheckMark: false,
+      showsNewcomerMark: false,
+    });
   });
 
   it("「−◯」「+◯」も入らない幅では文字を出さない", () => {
-    expect(resolveBandSegmentContent(shortage, 21)).toEqual({ text: null, showsNewcomerMark: false });
-    expect(resolveBandSegmentContent(excess, 21)).toEqual({ text: null, showsNewcomerMark: false });
+    expect(resolveBandSegmentContent(shortage, 21)).toEqual({
+      text: null,
+      showsCheckMark: false,
+      showsNewcomerMark: false,
+    });
+    expect(resolveBandSegmentContent(excess, 21)).toEqual({
+      text: null,
+      showsCheckMark: false,
+      showsNewcomerMark: false,
+    });
   });
 
-  it("ちょうどの区間は、幅があっても文字を出さない", () => {
-    expect(resolveBandSegmentContent(even, 200)).toEqual({ text: null, showsNewcomerMark: false });
+  it("ちょうどの区間は、文字の代わりにチェックの印を出す（24px以上）", () => {
+    expect(resolveBandSegmentContent(even, 24)).toEqual({ text: null, showsCheckMark: true, showsNewcomerMark: false });
+    expect(resolveBandSegmentContent(even, 23)).toEqual({
+      text: null,
+      showsCheckMark: false,
+      showsNewcomerMark: false,
+    });
   });
 
-  it("ちょうどで見習いだけの区間は、印だけを出す（24px以上）", () => {
-    expect(resolveBandSegmentContent(evenNewcomer, 24)).toEqual({ text: null, showsNewcomerMark: true });
-    expect(resolveBandSegmentContent(evenNewcomer, 23)).toEqual({ text: null, showsNewcomerMark: false });
+  it("ちょうどで見習いだけの区間は、2つの印が並ぶ幅（40px以上）で両方を出し、並ばない幅では注意の印を残す", () => {
+    expect(resolveBandSegmentContent(evenNewcomer, 40)).toEqual({
+      text: null,
+      showsCheckMark: true,
+      showsNewcomerMark: true,
+    });
+    expect(resolveBandSegmentContent(evenNewcomer, 39)).toEqual({
+      text: null,
+      showsCheckMark: false,
+      showsNewcomerMark: true,
+    });
+    expect(resolveBandSegmentContent(evenNewcomer, 23)).toEqual({
+      text: null,
+      showsCheckMark: false,
+      showsNewcomerMark: false,
+    });
   });
 
   it("未設定の区間は人数だけを出す（15px以上）", () => {
-    expect(resolveBandSegmentContent(unset, 15)).toEqual({ text: "2", showsNewcomerMark: false });
+    expect(resolveBandSegmentContent(unset, 15)).toEqual({
+      text: "2",
+      showsCheckMark: false,
+      showsNewcomerMark: false,
+    });
     expect(resolveBandSegmentContent(unset, 14).text).toBeNull();
   });
 
   it("見習いだけの区間は、文字と印が並ぶ幅（文字の幅＋16px）で両方を出す", () => {
-    expect(resolveBandSegmentContent(shortageNewcomer, 38)).toEqual({ text: "−1", showsNewcomerMark: true });
+    expect(resolveBandSegmentContent(shortageNewcomer, 38)).toEqual({
+      text: "−1",
+      showsCheckMark: false,
+      showsNewcomerMark: true,
+    });
   });
 
   it("見習いだけの区間でも、印が入らない幅では、印を省いて文字だけを出す", () => {
-    expect(resolveBandSegmentContent(shortageNewcomer, 37)).toEqual({ text: "−1", showsNewcomerMark: false });
-    expect(resolveBandSegmentContent(unsetNewcomer, 30)).toEqual({ text: "2", showsNewcomerMark: false });
-    expect(resolveBandSegmentContent(unsetNewcomer, 31)).toEqual({ text: "2", showsNewcomerMark: true });
+    expect(resolveBandSegmentContent(shortageNewcomer, 37)).toEqual({
+      text: "−1",
+      showsCheckMark: false,
+      showsNewcomerMark: false,
+    });
+    expect(resolveBandSegmentContent(unsetNewcomer, 30)).toEqual({
+      text: "2",
+      showsCheckMark: false,
+      showsNewcomerMark: false,
+    });
+    expect(resolveBandSegmentContent(unsetNewcomer, 31)).toEqual({
+      text: "2",
+      showsCheckMark: false,
+      showsNewcomerMark: true,
+    });
+  });
+});
+
+describe("toRequiredSpans", () => {
+  const span = (start: number, end: number, required: number | null) => ({
+    startMinutes: start * 60,
+    endMinutes: end * 60,
+    required,
+  });
+
+  it("人数だけが変わる境目はつなげ、必要人数が変わる時刻で区切る", () => {
+    expect(toRequiredSpans([span(9, 10, 2), span(10, 12, 2), span(12, 13, 3)])).toEqual([
+      { key: "540", startMinutes: 540, endMinutes: 720, required: 2 },
+      { key: "720", startMinutes: 720, endMinutes: 780, required: 3 },
+    ]);
+  });
+
+  it("必要人数がない時間は含めず、その前後の同じ必要人数もつなげない", () => {
+    expect(toRequiredSpans([span(9, 10, 2), span(10, 11, null), span(11, 12, 0), span(12, 13, 2)])).toEqual([
+      { key: "540", startMinutes: 540, endMinutes: 600, required: 2 },
+      { key: "720", startMinutes: 720, endMinutes: 780, required: 2 },
+    ]);
   });
 });
 

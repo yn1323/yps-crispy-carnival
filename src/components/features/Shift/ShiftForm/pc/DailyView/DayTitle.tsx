@@ -14,9 +14,11 @@ type Props = {
    * `rangeAssign`は勤務のバーの範囲を選んでから入れる形で、見出しでは次に新しく入れるものを選ぶ。
    */
   positionControl?: "palette" | "rangeAssign";
+  /** その日のテンプレートを日付の横に出すか。時間指定は人数の帯の見出しに出すため、falseを渡す。 */
+  showsTemplate?: boolean;
 };
 
-export const DayTitle = ({ date, holidays = [], positionControl = "palette" }: Props) => {
+export const DayTitle = ({ date, holidays = [], positionControl = "palette", showsTemplate = true }: Props) => {
   // くわしく表示のときだけ、その日のテンプレートを日付の横に出す。人数を見る前に、何と比べるかを選べるようにする。
   const staffingView = useDayStaffingView(date);
   if (!date) return null;
@@ -48,7 +50,7 @@ export const DayTitle = ({ date, holidays = [], positionControl = "palette" }: P
             </Box>
           )}
         </Flex>
-        {staffingView && (
+        {showsTemplate && staffingView && (
           <Flex align="center" gap={2} flexShrink={0}>
             <Text textStyle="xs" color="gray.600" whiteSpace="nowrap">
               テンプレート

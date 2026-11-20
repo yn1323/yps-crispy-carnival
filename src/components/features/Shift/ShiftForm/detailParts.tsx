@@ -8,12 +8,7 @@ import { isPositionsUnsplit, resolveDefaultPosition } from "@/src/domains/shift/
 import { formatShiftClockTimeRange } from "@/src/domains/shift/time";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { formatStaffWorkTotal } from "@/src/domains/shift/workTotals";
-import {
-  buildNameSkillMark,
-  buildSegmentSkillMark,
-  type NameSkillMarkView,
-  SKILL_MARK_COLORS,
-} from "./skillPresentation";
+import { buildNameSkillMark, type NameSkillMarkView, UNAVAILABLE_MARK_COLORS } from "./skillPresentation";
 import {
   breakToolActiveAtom,
   detailModeAtom,
@@ -26,7 +21,6 @@ import {
   rememberWorkPositionAtom,
   selectedPositionIdAtom,
   shiftConfigAtom,
-  showsSegmentSkillMarksAtom,
   staffWorkTotalsAtom,
   usesPositionColorsAtom,
 } from "./stores";
@@ -36,7 +30,10 @@ import {
 // ==========================================
 /** その日の必要人数を変える操作。成功したらtrueを返す。失敗は呼び出し先が利用者へ伝える。 */
 export type ShiftFormDayStaffingActions = {
-  /** 選んだ日へテンプレートを当てる。nullは、その日だけの指定を消して曜日の設定へ戻す。 */
+  /**
+   * 選んだ日へテンプレートを当てる。nullは、その日だけの指定を消して曜日の設定へ戻す。
+   * NO_DAY_TEMPLATE（"none"）は、その日にテンプレートを当てない。
+   */
   onApplyTemplate: (dates: string[], templateId: string | null) => Promise<boolean>;
   /** 処理している間はtrue。 */
   isPending: boolean;
@@ -49,6 +46,11 @@ export type ShiftFormDetailActions = {
   dayStaffingActions?: ShiftFormDayStaffingActions;
   /** 未提出者へ前回の勤務を仮で入れる。前回確定した募集がない場合は渡さない。 */
   provisionalAction?: { onInsert: () => void; isLoading: boolean };
+  /**
+   * 「シンプル / くわしく」の切り替えを、画面の外で受け付ける。渡した場合、表示設定で選んでも、その場では切り替えない。
+   * 切り替えで下書きを削除する画面が、確認してから開き直すために使う。
+   */
+  requestDetailModeChange?: (isDetailMode: boolean) => void;
 };
 
 const ShiftFormDetailActionsContext = createContext<ShiftFormDetailActions>({});
@@ -62,57 +64,6 @@ export const ShiftFormDetailActionsProvider = ({
 }) => <ShiftFormDetailActionsContext.Provider value={actions}>{children}</ShiftFormDetailActionsContext.Provider>;
 
 export const useShiftFormDetailActions = () => useContext(ShiftFormDetailActionsContext);
-
-// ==========================================
-// シンプル / くわしく の切り替え
-// ==========================================
-const DETAIL_MODE_OPTIONS = [
-  { value: false, label: "シンプル" },
-  { value: true, label: "くわしく" },
-] as const;
-
-/** シフト表の情報量を2段で切り替える。シンプルは従来の画面と同じ。 */
-export const DetailModeToggle = () => {
-  const [detailMode, setDetailMode] = useAtom(detailModeAtom);
-  return (
-    <Flex
-      role="radiogroup"
-      aria-label="表示の詳しさ"
-      borderWidth="1px"
-      borderColor="gray.300"
-      borderRadius="md"
-      overflow="hidden"
-      flexShrink={0}
-    >
-      {DETAIL_MODE_OPTIONS.map((option) => {
-        const checked = detailMode === option.value;
-        return (
-          <chakra.button
-            key={option.label}
-            type="button"
-            role="radio"
-            aria-checked={checked}
-            onClick={() => setDetailMode(option.value)}
-            h="32px"
-            px={3}
-            textStyle="xs"
-            fontWeight={checked ? 700 : 500}
-            bg={checked ? "teal.600" : "white"}
-            color={checked ? "white" : "gray.600"}
-            cursor="pointer"
-            whiteSpace="nowrap"
-            transitionProperty="colors"
-            transitionDuration="faster"
-            _active={checked ? undefined : { bg: "gray.100", transitionDuration: "0ms" }}
-            _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "-2px" }}
-          >
-            {option.label}
-          </chakra.button>
-        );
-      })}
-    </Flex>
-  );
-};
 
 // ==========================================
 // 入れるもの（ポジションまたは休憩）の選択
@@ -144,11 +95,26 @@ const toolChipBaseStyle = {
  * 時間指定のPCの日別表示は、勤務のバーの範囲を選んでから入れるため、代わりに`RangeAssignPalette`を置く。
  * `row`は、それ以外の表示で使う、ヘッダーの下の1行である。
  */
-export const ToolPalette = ({ variant = "row" }: { variant?: "row" | "inline" }) => {
-  const isActive = useAtomValue(isToolPaletteActiveAtom);
-  const isPositionSelectable = useAtomValue(isPositionSelectableAtom);
+export const ToolPalette = ({
+  variant = "row",
+  active,
+  leading,
+  hidesSetup = false,
+}: {
+  variant?: "row" | "inline";
+  /** 出すかどうかを置く側が決める場合に渡す。シンプル表示へ切り替えたあと、消えきるまで出し続けるために使う。 */
+  active?: boolean;
+  /** 行の左端、選択肢の前に置くもの。時間指定のスマートフォンでは、その日のテンプレートのメニューを置く。 */
+  leading?: ReactNode;
+  /** 行の右端の「設定」を出さない。 */
+  hidesSetup?: boolean;
+}) => {
+  const isActiveInStore = useAtomValue(isToolPaletteActiveAtom);
   const isBreakTool = useAtomValue(isBreakToolActiveAtom);
   const config = useAtomValue(shiftConfigAtom);
+  const isActive = active ?? isActiveInStore;
+  // isPositionSelectableAtomと同じ条件を、置く側が決めた出す・出さないで判定する。
+  const isPositionSelectable = isActive && config.positions.length >= 2;
   const [selectedPositionId, setSelectedPositionId] = useAtom(selectedPositionIdAtom);
   const setBreakTool = useSetAtom(breakToolActiveAtom);
   const { onOpenSetup } = useShiftFormDetailActions();
@@ -233,8 +199,9 @@ export const ToolPalette = ({ variant = "row" }: { variant?: "row" | "inline" })
       <Text textStyle="xs" color="gray.600" flexShrink={0} display={{ base: "none", lg: "block" }}>
         入れるもの
       </Text>
+      {leading}
       {choices}
-      {onOpenSetup && (
+      {onOpenSetup && !hidesSetup && (
         <Button
           type="button"
           size="sm"
@@ -324,7 +291,8 @@ export const RangeAssignPalette = () => {
   // ポジションが1つだけの店舗では、勤務と休憩の2つだけを選ばせる。
   const choices = isUnsplit ? [] : isPositionSelectable ? positions : [nextWorkPosition];
   return (
-    <Flex align="center" gap={4} minW={0}>
+    // くわしく表示へ切り替えたときに、勤務のバーの色と合わせて、ふわっと出す。
+    <Flex align="center" gap={4} minW={0} animation="fade-in 320ms ease-out" _motionReduce={{ animation: "none" }}>
       {!isHintDismissed && (
         <Text textStyle="xs" color="gray.600" whiteSpace="nowrap">
           {isUnsplit ? "バーをなぞると 休憩を入れられます" : "バーをなぞると ポジションを変えられます"}
@@ -433,20 +401,15 @@ export const useWorkColor = () => {
  */
 export const PositionMark = ({
   segment,
-  staff,
   onColor = false,
 }: {
   segment: { positionId: string; positionName: string; color: string } | undefined;
-  /** 勤務しているスタッフ。渡すと、そのポジションでの熟練度の印（見・リ）を添える。 */
-  staff?: StaffType;
   /** 色の付いた面の上に置く場合はtrue。丸を白にして見分けられるようにする。 */
   onColor?: boolean;
 }) => {
   const usesPositionColors = useAtomValue(usesPositionColorsAtom);
-  if (!segment) return null;
-  const skillMark = staff ? <SegmentSkillMark staff={staff} segment={segment} /> : null;
-  // ポジションが1つの店舗では色と名前を出さず、熟練度の印だけを出す。
-  if (!usesPositionColors) return skillMark;
+  // ポジションが1つの店舗では、色と名前を出さない。
+  if (!segment || !usesPositionColors) return null;
   return (
     <Flex as="span" align="center" gap="4px" minW={0} textStyle="2xs" fontWeight={600} lineHeight={1.2}>
       <Box
@@ -460,41 +423,7 @@ export const PositionMark = ({
       <Box as="span" truncate>
         {segment.positionName}
       </Box>
-      {skillMark}
     </Flex>
-  );
-};
-
-/**
- * 勤務の区間に添える、そのポジションでの熟練度の印（見・リ）。帯の「見」の印と同じ見た目にする。
- * くわしく表示の、担当者の画面だけに出す。スタッフ向けの確定シフト表示には出さない。
- */
-export const SegmentSkillMark = ({
-  staff,
-  segment,
-}: {
-  staff: StaffType | undefined;
-  segment: { positionId: string; positionName: string } | undefined;
-}) => {
-  const shows = useAtomValue(showsSegmentSkillMarksAtom);
-  const mark = shows ? buildSegmentSkillMark(staff, segment) : null;
-  if (!mark) return null;
-  return (
-    <Box
-      as="span"
-      px="3px"
-      borderRadius="sm"
-      textStyle="2xs"
-      fontWeight={700}
-      lineHeight={1.4}
-      flexShrink={0}
-      title={mark.title}
-      data-skill-mark={mark.level}
-      {...SKILL_MARK_COLORS[mark.level]}
-    >
-      {mark.label}
-      <chakra.span srOnly>{mark.hiddenSuffix}</chakra.span>
-    </Box>
   );
 };
 
@@ -532,7 +461,7 @@ export const BreakMark = ({ shift, compact = false }: { shift: ShiftData | undef
 // ==========================================
 // スタッフ名に添える印（熟練度、仮の勤務、合計）
 // ==========================================
-/** 名前の横の熟練度の印。ポジションが2つ以上の店舗では、どのポジションでの値かを色の丸で添える。 */
+/** 名前の横の担当外の印。ポジションが2つ以上の店舗では、どのポジションでの値かを色の丸で添える。 */
 const NameSkillBadge = ({ mark }: { mark: NameSkillMarkView }) => (
   <Flex
     as="span"
@@ -546,7 +475,7 @@ const NameSkillBadge = ({ mark }: { mark: NameSkillMarkView }) => (
     flexShrink={0}
     title={mark.title ?? undefined}
     data-skill-badge={mark.level}
-    {...SKILL_MARK_COLORS[mark.level]}
+    {...UNAVAILABLE_MARK_COLORS}
   >
     {mark.position && (
       <>
@@ -586,7 +515,7 @@ export const StaffMeta = ({
 
   // 人ごとの合計は担当者が偏りを確かめるためのもので、スタッフ向けの確定シフト表示には出さない。
   const total = config.displayMode === "confirmed" ? undefined : totals.get(staff.id);
-  // 熟練度は「入れるもの」で選んでいるポジションでの値を出す。勤務を入れる前に、担当外のポジションも分かるようにする。
+  // 担当外は「入れるもの」で選んでいるポジションでの値を出す。勤務を入れる前に、担当外のポジションが分かるようにする。
   const skillMark = buildNameSkillMark({ staff, position: skillPosition, positionCount: config.positions.length });
   const hasContent = skillMark || shift?.isProvisional || (showTotal && total);
   if (!hasContent) return null;

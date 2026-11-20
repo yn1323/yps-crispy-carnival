@@ -53,7 +53,7 @@ export const ShiftDetailSheet = ({ staff, shift, selectedDate, isOpen, onOpenCha
                     <Text fontVariantNumeric="tabular-nums">
                       {formatShiftClockTime(seg.start)} - {formatShiftClockTime(seg.end)}
                     </Text>
-                    <PositionMark segment={seg} staff={staff} />
+                    <PositionMark segment={seg} />
                   </Flex>
                 ) : (
                   <Text key={seg.id} fontSize="sm" color="gray.700">

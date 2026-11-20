@@ -43,7 +43,7 @@ export const StaffTotalsInteractive: Story = {
     await userEvent.click(within(totals).getByRole("button", { name: "人ごとの合計" }));
     await within(totals).findByText("Aさん");
     // Aさんは「8時間−休憩1時間」と「8時間」で、計15時間。
-    // 熟練度の印は、「入れるもの」で選んでいるポジション（選ぶ前はホール）での値を出す。
-    await expect(totals).toHaveTextContent("Aさんホール：リーダー15hBさん12.5hCさん4hDさん7hEさんホール：担当外-");
+    // 担当外の印は、「入れるもの」で選んでいるポジション（選ぶ前はホール）での値を出す。リーダーの印は出さない。
+    await expect(totals).toHaveTextContent("Aさん15hBさん12.5hCさん4hDさん7hEさんホール：担当外-");
   },
 };

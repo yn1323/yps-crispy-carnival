@@ -14,7 +14,7 @@ import type { StaffType } from "@/src/domains/shift/types";
 import { Avatar, DateIssueBadge, dateIssueBorderColor, StaffWarningIcon } from "../../components";
 import { DisplaySettingsMenu } from "../../DisplaySettingsMenu";
 import { ShiftDateNoteBlock, ShiftStaffNoteIcon, useAllShiftDateNotes } from "../../dateNotes";
-import { BreakMark, PositionMark, SegmentSkillMark, StaffMeta } from "../../detailParts";
+import { BreakMark, PositionMark, StaffMeta } from "../../detailParts";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
 import { StaffingSummary, useDayStaffingView } from "../../staffingParts";
@@ -340,13 +340,7 @@ const StaffToggleRow = ({
               <Box as="span" fontSize="md">
                 ○
               </Box>
-              <PositionMark segment={positionSegment} staff={row.staff} onColor />
-            </Flex>
-          ) : row.assigned && detailMode ? (
-            // ポジションが1つの店舗では、記号の横に熟練度の印だけを添える。
-            <Flex as="span" display="inline-flex" align="center" justify="center" gap="4px">
-              ○
-              <SegmentSkillMark staff={row.staff} segment={row.assignedSegment} />
+              <PositionMark segment={positionSegment} onColor />
             </Flex>
           ) : row.assigned ? (
             "○"

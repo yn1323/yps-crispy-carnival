@@ -28,6 +28,8 @@ export const DateRail = ({ dates, selectedDate, onSelect, holidays = [], issueCo
       bg="white"
       py={2}
       overflow="auto"
+      // 日付の列のスクロールでは、上の行を隠さない。
+      data-chrome-scroll-ignore
       alignSelf="stretch"
       role="tablist"
       aria-label="日付選択"

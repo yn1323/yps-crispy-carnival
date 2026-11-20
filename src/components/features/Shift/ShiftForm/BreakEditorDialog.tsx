@@ -99,7 +99,7 @@ const buildNewBreak = (range: { startMinutes: number; endMinutes: number }): Shi
 
 /**
  * 選んだ日の休憩を編集するDialog。「入れるもの」で休憩を選び、勤務を押すと開く。
- * 時間指定のPCの日別表示では、勤務のバーの範囲を選んで開くメニューの「休憩を時刻で追加」（休憩を選んでいる間は「休憩を時刻で変更」）から開く。
+ * 時間指定のPCの日別表示では、勤務のバーの範囲を選んで開くメニューの「休憩を追加」（休憩を選んでいる間は「休憩を変更」）から開く。
  */
 export const BreakEditorDialog = () => {
   const [target, setTarget] = useAtom(breakEditorTargetAtom);

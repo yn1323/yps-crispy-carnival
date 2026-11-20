@@ -1,23 +1,16 @@
 import { resolveDefaultPosition } from "@/src/domains/shift/operations";
 import { getPositionSkill } from "@/src/domains/shift/positionSkills";
-import type { PositionSkillLevel, PositionType, StaffType } from "@/src/domains/shift/types";
+import type { PositionType, StaffType } from "@/src/domains/shift/types";
 
-// スタッフの、ポジションごとの値（担当外、見習い、リーダー）を、シフト表へ出す印にまとめる。
-// 名前の横には、担当外とリーダーだけを出す。勤務の側には、リーダーだけを出す。
+// スタッフの、ポジションごとの値（担当外、見習い、リーダー）のうち、シフト表へ出すものを印にまとめる。
+// シフト表には、名前の横の「担当外」だけを出す。リーダーは、シフト表では印を出さない。
 // 見習いは印を出さず、見習いだけの時間帯として人数の表示と確認事項で知らせる。
-// 名前の横の印は「入れるもの」で選んでいるポジションでの値、勤務の側の印はその区間のポジションでの値を表す。
+// 名前の横の印は「入れるもの」で選んでいるポジションでの値を表す。
 
-/** 印の配色。帯の「見」の印と同じ決まりで、見習いは橙、リーダーは緑、担当外は灰色にする。 */
-export const SKILL_MARK_COLORS = {
-  unavailable: { bg: "gray.100", color: "gray.700" },
-  newcomer: { bg: "orange.100", color: "orange.800" },
-  lead: { bg: "green.100", color: "green.800" },
-} as const satisfies Record<PositionSkillLevel, { bg: string; color: string }>;
+/** 担当外の印の配色。 */
+export const UNAVAILABLE_MARK_COLORS = { bg: "gray.100", color: "gray.700" } as const;
 
-const NAME_LABELS = { unavailable: "担当外", newcomer: "見習い", lead: "リーダー" } as const;
-
-const describeSkill = (positionName: string, level: PositionSkillLevel): string =>
-  level === "unavailable" ? `${positionName}は担当外です` : `${positionName}では${NAME_LABELS[level]}です`;
+const UNAVAILABLE_LABEL = "担当外";
 
 // ==========================================
 // 名前の横の印
@@ -43,8 +36,8 @@ export const resolveNameSkillPosition = (input: {
 };
 
 export type NameSkillMarkView = {
-  level: "unavailable" | "lead";
-  /** 「リーダー」「担当外」 */
+  level: "unavailable";
+  /** 「担当外」 */
   label: string;
   /** どのポジションでの値かを添える場合の、ポジション。ポジションが1つの店舗ではnull。 */
   position: { name: string; color: string } | null;
@@ -52,7 +45,7 @@ export type NameSkillMarkView = {
   title: string | null;
 };
 
-/** 名前の横の印。一人前、見習い、根拠にするポジションがない表示では出さない（null）。 */
+/** 名前の横の印。担当外のときだけ出し、一人前、見習い、リーダー、根拠にするポジションがない表示では出さない（null）。 */
 export const buildNameSkillMark = (input: {
   staff: Pick<StaffType, "positionSkills">;
   /** resolveNameSkillPositionの結果 */
@@ -61,41 +54,12 @@ export const buildNameSkillMark = (input: {
   positionCount: number;
 }): NameSkillMarkView | null => {
   if (!input.position) return null;
-  const level = getPositionSkill(input.staff, input.position.id);
-  if (level === "standard" || level === "newcomer") return null;
+  if (getPositionSkill(input.staff, input.position.id) !== "unavailable") return null;
   const showsPosition = input.positionCount >= 2;
   return {
-    level,
-    label: NAME_LABELS[level],
+    level: "unavailable",
+    label: UNAVAILABLE_LABEL,
     position: showsPosition ? { name: input.position.name, color: input.position.color } : null,
-    title: showsPosition ? describeSkill(input.position.name, level) : null,
+    title: showsPosition ? `${input.position.name}は担当外です` : null,
   };
-};
-
-// ==========================================
-// 勤務の側の印
-// ==========================================
-export type SegmentSkillMarkView = {
-  level: "lead";
-  /** 「リ」 */
-  label: string;
-  /** 読み上げで「リーダー」にするための続き */
-  hiddenSuffix: string;
-  title: string;
-};
-
-const LEAD_SEGMENT_LABEL = { label: "リ", hiddenSuffix: "ーダー" } as const;
-
-/**
- * 勤務の区間に添える印。その区間のポジションでの値が、リーダーのときだけ出す。
- * 見習いには印を出さない。担当外のポジションの勤務は確認事項で知らせるため、ここでは印を出さない。
- */
-export const buildSegmentSkillMark = (
-  staff: Pick<StaffType, "positionSkills"> | undefined,
-  segment: { positionId: string; positionName: string } | undefined,
-): SegmentSkillMarkView | null => {
-  if (!staff || !segment) return null;
-  const level = getPositionSkill(staff, segment.positionId);
-  if (level !== "lead") return null;
-  return { level, ...LEAD_SEGMENT_LABEL, title: describeSkill(segment.positionName, level) };
 };

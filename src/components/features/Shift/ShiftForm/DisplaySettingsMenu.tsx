@@ -1,17 +1,33 @@
-import { Icon, Menu, Portal, useBreakpointValue } from "@chakra-ui/react";
+import { Icon, Menu, Portal, Stack, Text } from "@chakra-ui/react";
 import { useAtom, useAtomValue } from "jotai";
-import { LuCheck, LuChevronDown, LuListPlus, LuMessageSquare } from "react-icons/lu";
+import { useId } from "react";
+import { LuCheck, LuChevronDown, LuMessageSquare } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
 import { useShiftDateNotesVisibility } from "./dateNotes";
+import { useShiftFormDetailActions } from "./detailParts";
 import { detailModeAtom, detailToggleEnabledAtom } from "./stores";
 
-/** 日付見出しの右端に置く、シフト表の見え方を切り替えるメニュー。 */
+const DETAIL_MODE_OPTIONS = [
+  { value: "simple", label: "シンプル", description: "勤務時間のみ表示" },
+  { value: "detail", label: "くわしく", description: "時間、ポジション、過不足を表示" },
+] as const;
+
+/**
+ * 日付見出しの右端に置く、シフト表の見え方を切り替えるメニュー。
+ * 「シンプル / くわしく」は、PCとスマートフォンのどちらも、このメニューだけで切り替える。
+ */
 export function DisplaySettingsMenu() {
+  const descriptionId = useId();
   const { isVisible, setVisible } = useShiftDateNotesVisibility();
   const [detailMode, setDetailMode] = useAtom(detailModeAtom);
-  const isDetailToggleEnabled = useAtomValue(detailToggleEnabledAtom);
-  // PCはヘッダーに「シンプル / くわしく」の切り替えを出すため、メニューへ出すのはスマートフォンだけにする。
-  const showDetailToggle = (useBreakpointValue({ base: true, lg: false }) ?? false) && isDetailToggleEnabled;
+  const showDetailToggle = useAtomValue(detailToggleEnabledAtom);
+  const { requestDetailModeChange } = useShiftFormDetailActions();
+  const handleDetailModeSelect = (isDetailMode: boolean) => {
+    if (isDetailMode === detailMode) return;
+    // 切り替えを画面の外で受け付ける場合は、確認が済んで開き直されるまで、いまの表示のままにする。
+    if (requestDetailModeChange) requestDetailModeChange(isDetailMode);
+    else setDetailMode(isDetailMode);
+  };
 
   return (
     <Menu.Root positioning={{ placement: "bottom-end", gutter: 8 }}>
@@ -57,25 +73,43 @@ export function DisplaySettingsMenu() {
               </Menu.ItemText>
             </Menu.CheckboxItem>
             {showDetailToggle && (
-              <Menu.CheckboxItem
-                value="detail-mode"
-                checked={detailMode}
-                onCheckedChange={setDetailMode}
-                cursor="pointer"
-                ps={8}
-                pe={3}
-                py={2.5}
-              >
-                <Menu.ItemIndicator color="teal.600">
-                  <LuCheck aria-hidden />
-                </Menu.ItemIndicator>
-                <Icon boxSize={4} color="gray.600" aria-hidden>
-                  <LuListPlus />
-                </Icon>
-                <Menu.ItemText fontSize="sm" fontWeight="medium">
-                  くわしく表示
-                </Menu.ItemText>
-              </Menu.CheckboxItem>
+              <>
+                <Menu.Separator />
+                <Menu.RadioItemGroup
+                  value={detailMode ? "detail" : "simple"}
+                  onValueChange={({ value }) => handleDetailModeSelect(value === "detail")}
+                >
+                  {DETAIL_MODE_OPTIONS.map((option) => (
+                    <Menu.RadioItem
+                      key={option.value}
+                      value={option.value}
+                      aria-label={option.label}
+                      aria-describedby={`${descriptionId}-${option.value}`}
+                      cursor="pointer"
+                      ps={8}
+                      pe={3}
+                      py={2.5}
+                    >
+                      <Menu.ItemIndicator color="teal.600">
+                        <LuCheck aria-hidden />
+                      </Menu.ItemIndicator>
+                      <Stack gap={0.5} minW={0}>
+                        <Menu.ItemText fontSize="sm" fontWeight="semibold">
+                          {option.label}
+                        </Menu.ItemText>
+                        <Text
+                          id={`${descriptionId}-${option.value}`}
+                          fontSize="xs"
+                          color="fg.muted"
+                          whiteSpace="normal"
+                        >
+                          {option.description}
+                        </Text>
+                      </Stack>
+                    </Menu.RadioItem>
+                  ))}
+                </Menu.RadioItemGroup>
+              </>
             )}
           </Menu.Content>
         </Menu.Positioner>

@@ -6,6 +6,7 @@ import { TIME_AXIS_PADDING_PX } from "../../../constants";
 import { useAllShiftDateNotes, useShiftDateNotes } from "../../../dateNotes";
 import {
   dailySortedStaffsAtom,
+  detailModeAtom,
   hourWidthAtom,
   issueStaffIdSetForSelectedDateAtom,
   selectedDateAtom,
@@ -17,6 +18,7 @@ import {
 import { useDrag } from "../hooks/useDrag";
 import { RangeAssignMenu } from "../RangeAssignMenu";
 import { TimeHeader } from "../TimeHeader";
+import { POSITION_REVEAL_DURATION_MS } from "./ShiftBar";
 import { StaffingBand } from "./StaffingBand";
 import { StaffRow } from "./StaffRow";
 
@@ -38,6 +40,7 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick }: ShiftGridProps) =>
   const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
   const setHourWidth = useSetAtom(hourWidthAtom);
   const selectedDate = useAtomValue(selectedDateAtom);
+  const isRevealingPositions = usePositionReveal();
   const dateNotes = useShiftDateNotes();
   const allDateNotes = useAllShiftDateNotes();
   const { timeRange, isReadOnly, currentStaffId } = config;
@@ -58,6 +61,8 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick }: ShiftGridProps) =>
 
   const dragRowRectRef = useRef<DOMRect | null>(null);
   const timelineMeasureRef = useRef<HTMLDivElement | null>(null);
+  // 範囲を選んだときのメニューを、この入れ物の中に収める。
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   // タイムラインコンテナ幅に応じて hourWidth を動的計算
   useLayoutEffect(() => {
@@ -125,8 +130,15 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick }: ShiftGridProps) =>
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
   return (
-    <Flex direction="column" h="100%" minH={0} bg="gray.50" data-tour="shift-grid">
-      <Box flex={1} minH={0} overflowY="auto" overflowX="hidden">
+    <Flex
+      direction="column"
+      h="100%"
+      minH={0}
+      bg="gray.50"
+      data-tour="shift-grid"
+      data-position-reveal={isRevealingPositions || undefined}
+    >
+      <Box ref={scrollContainerRef} flex={1} minH={0} overflowY="auto" overflowX="hidden">
         <Flex direction="column" w="100%" minH="100%">
           {/* Sticky header */}
           <Flex
@@ -224,9 +236,30 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick }: ShiftGridProps) =>
           shift={selectedShift}
           range={selection.range}
           anchorRef={selectionAnchorRef}
+          boundaryRef={scrollContainerRef}
           onClose={clearSelection}
         />
       )}
     </Flex>
   );
+};
+
+/**
+ * くわしく表示へ切り替えた直後だけtrueを返す。勤務のバーは、この間にポジションの色をにじませて出す。
+ * 開いた時点でくわしく表示の画面と、日付を変えたときには動かさない。
+ */
+const usePositionReveal = () => {
+  const detailMode = useAtomValue(detailModeAtom);
+  const previousDetailModeRef = useRef(detailMode);
+  const [isRevealing, setRevealing] = useState(false);
+  // 色が変わった最初の描画から重ねるため、描画の前に切り替える。
+  useLayoutEffect(() => {
+    if (previousDetailModeRef.current === detailMode) return;
+    previousDetailModeRef.current = detailMode;
+    setRevealing(detailMode);
+    if (!detailMode) return;
+    const timer = setTimeout(() => setRevealing(false), POSITION_REVEAL_DURATION_MS);
+    return () => clearTimeout(timer);
+  }, [detailMode]);
+  return isRevealing;
 };

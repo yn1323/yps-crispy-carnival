@@ -67,7 +67,8 @@ export const DailyView = () => {
         warningCounts={warningCounts}
       />
       <Flex direction="column" minW={0} minH={0} overflow="hidden">
-        <DayTitle date={selectedDate} holidays={holidays} positionControl="rangeAssign" />
+        {/* その日のテンプレートは、比べる相手の人数の帯の見出しに置く。 */}
+        <DayTitle date={selectedDate} holidays={holidays} positionControl="rangeAssign" showsTemplate={false} />
         {isShopClosedDate ? (
           <Flex flex={1} minH={0} bg="gray.50" align="center" justify="center" direction="column" gap={2} px={6}>
             <Text fontSize="md" fontWeight="bold" color="gray.700">

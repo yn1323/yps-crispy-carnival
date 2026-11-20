@@ -1,4 +1,5 @@
 import type { Id } from "@/convex/_generated/dataModel";
+import { NO_DAY_TEMPLATE } from "@/convex/shiftSetup/dayTemplates";
 import type { ShiftFormStaffing } from "@/src/components/features/Shift/ShiftForm";
 import type { ShiftBreakRule, StaffPositionSkill } from "@/src/domains/shift/types";
 import type { ShiftBoardStaffingData } from "../types";
@@ -42,6 +43,11 @@ export const toPositionSkillsByStaffId = (
       ]),
   );
 
-/** ShiftFormが返すテンプレートのIDを、mutationの引数へ直す。nullは、その日だけの指定を消すことを表す。 */
-export const toDayTemplateIdArg = (templateId: string | null): Id<"shiftDayTemplates"> | null =>
-  templateId as Id<"shiftDayTemplates"> | null;
+/**
+ * ShiftFormが返すテンプレートのIDを、mutationの引数へ直す。
+ * nullは、その日だけの指定を消すことを表す。NO_DAY_TEMPLATEは、その日にテンプレートを当てないことを表す。
+ */
+export const toDayTemplateIdArg = (
+  templateId: string | null,
+): Id<"shiftDayTemplates"> | null | typeof NO_DAY_TEMPLATE =>
+  templateId === NO_DAY_TEMPLATE ? NO_DAY_TEMPLATE : (templateId as Id<"shiftDayTemplates"> | null);

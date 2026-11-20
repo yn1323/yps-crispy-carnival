@@ -1,4 +1,4 @@
-import { chakra, Field, Flex, Grid, Stack, Text } from "@chakra-ui/react";
+import { Alert, chakra, Field, Flex, Grid, Stack, Text } from "@chakra-ui/react";
 import {
   type Announcements,
   closestCenter,
@@ -25,6 +25,7 @@ import { Dialog } from "@/src/components/ui/Dialog";
 import { Input } from "@/src/components/ui/FormControls";
 import { isPositionsUnsplit, isUnnamedDefaultPosition } from "@/src/domains/shift/operations";
 import { PositionBadge, PositionDot, SetupCard, SetupLockedNote, SetupSection } from "./parts";
+import { hasRemovedSavedPositions } from "./positionDrafts";
 import {
   addPositionDraft,
   canAddPosition,
@@ -112,6 +113,16 @@ export function PositionsSection({ positions, savedPositions, canWrite, isSaving
             ))}
           </Flex>
         </SetupCard>
+      )}
+      {/* 保存済みのポジションを外したまま保存していない間だけ、保存すると下書きの勤務が消えることを伝える。 */}
+      {hasRemovedSavedPositions(savedPositions, positions) && (
+        <Alert.Root status="warning" borderRadius="lg" alignItems="flex-start">
+          <Alert.Indicator mt="2px" />
+          <Alert.Description fontSize="sm">
+            <Text>下書きのシフトから削除したポジションの割当を削除します。</Text>
+            <Text>確定済みのシフトはそのままです。</Text>
+          </Alert.Description>
+        </Alert.Root>
       )}
 
       <Dialog

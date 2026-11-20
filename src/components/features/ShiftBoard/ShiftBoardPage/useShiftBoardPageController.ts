@@ -43,7 +43,6 @@ import { trackAppError, trackProductEvent } from "@/src/lib/webMeasurement";
 import { useManagerShopScope } from "@/src/providers/ManagerShopScopeProvider";
 import type { ShiftBoardData, ShiftBoardStaffingData } from "../types";
 import { buildShiftData } from "./buildShiftData";
-import { readStoredDetailMode, storeDetailMode } from "./detailModeStorage";
 import { buildNewcomerOnlyItems } from "./newcomerOnlyPresentation";
 import { toDayTemplateIdArg, toPositionSkillsByStaffId, toShiftFormStaffing } from "./staffingAdapter";
 import type { ShiftBoardPageViewProps } from "./types";
@@ -152,6 +151,7 @@ export const useShiftBoardPageController = (
     managerShopScope?.shopId === data.shopId ? managerShopScope.expectedOrganizationId : undefined;
   const saveShiftAssignments = useShopMutation(api.shiftBoard.mutations.saveShiftAssignments);
   const confirmRecruitmentMutation = useShopMutation(api.shiftBoard.mutations.confirmRecruitment);
+  const switchShiftDetailMode = useShopMutation(api.shiftBoard.mutations.switchShiftDetailMode);
 
   const confirmedAt = data.recruitment.confirmedAt ? new Date(data.recruitment.confirmedAt) : null;
   const isConfirmed = data.recruitment.status === "confirmed";
@@ -211,10 +211,10 @@ export const useShiftBoardPageController = (
     () => (staffing ? toShiftFormStaffing(staffing, breakRule) : undefined),
     [staffing, breakRule],
   );
-  // 表示の初期状態は開いた時点で決める。利用者が選んだ状態があればそれを優先する。
+  // 表示の初期状態は開いた時点で決める。店舗が最後に選んだ表示があればそれを使い、なければ店舗の設定から決める。
   const [initialDetailMode] = useState(
     () =>
-      readStoredDetailMode() ??
+      data.shiftDetailMode ??
       shouldDefaultToDetailMode({
         positionCount: data.positions.length,
         staffing: shiftFormStaffing,
@@ -683,8 +683,39 @@ export const useShiftBoardPageController = (
   const isDetailModeRef = useRef(initialDetailMode);
   const handleDetailModeChange = useCallback((isDetailMode: boolean) => {
     isDetailModeRef.current = isDetailMode;
-    storeDetailMode(isDetailMode);
   }, []);
+
+  // 「シンプル / くわしく」の切り替え。表示が変わると勤務の持ち方が合わなくなるため、この募集の下書きを削除し、
+  // 選んだ表示を店舗へ保存する。保存が済むと、店舗の表示が変わったデータを受けて、ページ全体が開き直される。
+  // 確定済みの募集、変更できない画面、店舗を特定できない利用箇所では切り替えを出さない。
+  const canSwitchDetailMode = Boolean(setupScope) && !isReadOnly && !isConfirmed;
+  const [pendingDetailMode, setPendingDetailMode] = useState<boolean | null>(null);
+  const { run: runSwitchDetailMode, isRunning: isSwitchingDetailMode } = useSingleFlight(
+    async (isDetailMode: boolean) => {
+      try {
+        await switchShiftDetailMode({ recruitmentId, expectedEditVersion, isDetailMode });
+      } catch (error) {
+        setPendingDetailMode(null);
+        handleMutationError(error);
+      }
+    },
+  );
+  const hasSavedDraft = data.recruitment.draftSavedAt !== null;
+  const requestDetailModeChange = useCallback(
+    (isDetailMode: boolean) => {
+      // 削除するシフトがなければ、確認せずに切り替える。
+      if (!hasSavedDraft && !hasUnsavedChanges()) {
+        void runSwitchDetailMode(isDetailMode);
+        return;
+      }
+      setPendingDetailMode(isDetailMode);
+    },
+    [hasSavedDraft, hasUnsavedChanges, runSwitchDetailMode],
+  );
+  const confirmDetailModeSwitch = useCallback(() => {
+    if (pendingDetailMode !== null) void runSwitchDetailMode(pendingDetailMode);
+  }, [pendingDetailMode, runSwitchDetailMode]);
+  const cancelDetailModeSwitch = useCallback(() => setPendingDetailMode(null), []);
 
   const hasUnsubmittedStaff = staffs.some((staff) => !staff.isSubmitted && !staff.isRemoved);
   const canInsertProvisional =
@@ -709,8 +740,11 @@ export const useShiftBoardPageController = (
       ...(canInsertProvisional
         ? { provisionalAction: { onInsert: handleInsertProvisional, isLoading: isInsertingProvisional } }
         : {}),
+      ...(canSwitchDetailMode ? { requestDetailModeChange } : {}),
     }),
     [
+      canSwitchDetailMode,
+      requestDetailModeChange,
       setupScope,
       canEditDayStaffing,
       canInsertProvisional,
@@ -816,8 +850,13 @@ export const useShiftBoardPageController = (
         dateNotes: loadedDateNotes,
         staffing: shiftFormStaffing,
         initialDetailMode,
+        canSwitchDetailMode,
         detailActions,
         applyShiftsRef,
+      },
+      detailModeSwitchDialog: {
+        isOpen: pendingDetailMode !== null,
+        isSwitching: isSwitchingDetailMode,
       },
       confirmDialog: {
         isOpen: confirmModal.isOpen,
@@ -847,6 +886,8 @@ export const useShiftBoardPageController = (
       onOpenExport: handleOpenExport,
       onShiftsChange: handleShiftsChange,
       onDetailModeChange: handleDetailModeChange,
+      onConfirmDetailModeSwitch: confirmDetailModeSwitch,
+      onCancelDetailModeSwitch: cancelDetailModeSwitch,
       onSaveDraft: performSaveDraft,
       onConfirmRequest: handleConfirmRequest,
       onOpenUnsubmittedDetails: unsubmittedDialog.open,

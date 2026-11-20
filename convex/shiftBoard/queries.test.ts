@@ -412,6 +412,39 @@ describe("shiftBoard/queries", () => {
     });
   });
 
+  it("店舗が最後に選んだ表示を返す。まだ選んでいない店舗はnullを返す", async () => {
+    const t = convexTest(schema, modules);
+    const { shopId, recruitmentId } = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, { subject: "manager_detail_mode", shopName: "テスト店舗" });
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: "2026-04-01",
+        periodEnd: "2026-04-07",
+        deadline: "2026-03-28",
+        shopClosedDates: [],
+        status: "open",
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      return { shopId, recruitmentId };
+    });
+    const getData = async () =>
+      t.withIdentity({ subject: "manager_detail_mode" }).query(api.shiftBoard.queries.getShiftBoardData, {
+        shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
+        recruitmentId,
+        refreshDayKey: QUERY_REFRESH_DAY_KEY,
+      });
+
+    const before = await getData();
+    expect(before).not.toBeNull();
+    expect(before?.shiftDetailMode).toBeNull();
+
+    await t.run(async (ctx) => ctx.db.patch(shopId, { shiftDetailMode: false }));
+
+    expect((await getData())?.shiftDetailMode).toBe(false);
+  });
+
   it("シフト対象外スタッフはシフト表に含めない", async () => {
     const t = convexTest(schema, modules);
     const { shopId, recruitmentId, includedStaffId } = await t.run(async (ctx) => {
@@ -1509,6 +1542,29 @@ describe("shiftBoard/queries", () => {
       await expect(
         t.query(api.shiftBoard.queries.getShiftBoardStaffing, { ...ids.scope, recruitmentId: ids.recruitmentId }),
       ).resolves.toBeNull();
+    });
+
+    it("ポジションを追加していない店舗では、テンプレートやその日だけの指定が残っていても、テンプレートを返さず、どの日も未設定にする", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedStaffingBoard(t);
+      const settings = await seedStaffingSettings(t, ids);
+      await t.run(async (ctx) => {
+        // 名前を付けていない既定のポジションだけを残し、ほかのポジションを削除する。
+        await ctx.db.patch(ids.hallPositionId, { isDeleted: true });
+        await ctx.db.patch(ids.kitchenPositionId, { isDeleted: true });
+        await ctx.db.insert("shiftDayTemplateOverrides", {
+          shopId: ids.shopId,
+          date: "2026-08-20",
+          kind: "template",
+          templateId: settings.weekdayTemplateId,
+        });
+      });
+
+      const staffing = await getStaffing(t, ids);
+
+      expect(staffing).not.toBeNull();
+      expect(staffing?.templates).toEqual([]);
+      expect(staffing?.days).toEqual(PERIOD_DATES.map((date) => unsetDay(date, "none")));
     });
 
     it("別組織の管理者と、別組織の店舗・募集の指定にはnullを返す", async () => {

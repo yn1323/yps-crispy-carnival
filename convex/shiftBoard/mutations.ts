@@ -326,6 +326,45 @@ export const saveShiftAssignments = managerMutation({
 });
 
 /**
+ * シフト表の「シンプル / くわしく」を切り替え、選んだ表示を店舗に保存する。
+ * 表示が変わると勤務の持ち方（ポジション、休憩）が合わなくなるため、この募集の下書きの勤務をすべて消し、
+ * 下書き保存の前の状態（希望から勤務の候補を作る状態）へ戻す。ほかの募集の下書きは変えない。
+ * 確定済みの募集では受け付けない。
+ */
+export const switchShiftDetailMode = managerMutation({
+  args: {
+    recruitmentId: v.id("recruitments"),
+    expectedEditVersion: v.optional(v.number()),
+    isDetailMode: v.boolean(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const recruitment = await getActiveRecruitmentInShop(ctx, ctx.shop._id, args.recruitmentId);
+    if (!recruitment) {
+      throw new ConvexError("Not found");
+    }
+    assertRecruitmentEditVersion(recruitment, args.expectedEditVersion);
+    if (recruitment.status === "confirmed") {
+      throw new ConvexError("確定済みのシフトでは、表示を切り替えられません");
+    }
+
+    // 消し残しを作らないよう、上限を超える下書きでは切り替えごと受け付けない。
+    const existing = await ctx.db
+      .query("shiftAssignments")
+      .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", args.recruitmentId))
+      .take(SHIFT_ASSIGNMENT_LIMIT + 1);
+    if (existing.length > SHIFT_ASSIGNMENT_LIMIT) {
+      throw new ConvexError("保存済みシフト割当が上限を超えています");
+    }
+    await Promise.all(existing.map((assignment) => ctx.db.delete(assignment._id)));
+    // 勤務のない募集は「下書き未保存」が正しいため、下書き保存の時刻も消す。
+    await ctx.db.patch(args.recruitmentId, { draftSavedAt: undefined });
+    await ctx.db.patch(ctx.shop._id, { shiftDetailMode: args.isDetailMode });
+    return null;
+  },
+});
+
+/**
  * 確定した時点の、募集期間の各日の必要人数（募集の集め方へ写したもの）とテンプレートの名前を保存する。
  * 確定済みのシフト表は、この内容だけを表示する。テンプレートが当たらない日は行を作らない。
  */

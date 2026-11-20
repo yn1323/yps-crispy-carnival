@@ -679,6 +679,20 @@ describe("resolveDayStaffing", () => {
   const resolve = (date: string, overrides: DayStaffingOverride[] = [], usedTemplates = templates) =>
     resolveDayStaffing({ date, templates: usedTemplates, overrides, holidayDates });
 
+  it("その日だけ「テンプレートなし」にした日は、祝日や曜日のテンプレートより優先し、必要人数を持たない", () => {
+    const none = (date: string): DayStaffingOverride => ({ date, kind: "none" });
+    for (const date of ["2026-01-12", "2026-01-13"]) {
+      expect(resolve(date, [none(date)])).toEqual({
+        source: "dateNone",
+        templateId: null,
+        templateName: null,
+        requirements: null,
+      });
+    }
+    // ほかの日の指定は、その日に当たらない。
+    expect(resolve("2026-01-13", [none("2026-01-14")]).source).toBe("weekday");
+  });
+
   it("指定も祝日もない日は、曜日のテンプレートを当てる", () => {
     expect(resolve("2026-01-13")).toEqual({
       source: "weekday",

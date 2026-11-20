@@ -17,7 +17,9 @@ import {
   DEFAULT_POSITION_COLOR,
   POSITION_ACTIVE_LIMIT,
   POSITION_COLOR_PALETTE,
+  POSITION_REMOVAL_OPEN_RECRUITMENT_LIMIT,
   RECRUITMENT_PERIOD_DAYS_MAX,
+  SHIFT_ASSIGNMENT_LIMIT,
   SHIFT_BOARD_STAFF_LIMIT,
 } from "../constants";
 import { ensureDefaultPosition, getDefaultPosition } from "../position/service";
@@ -28,6 +30,7 @@ import {
   type DayRequirements,
   findDayRequirementsIssue,
   findDayTemplateIssue,
+  NO_DAY_TEMPLATE,
   normalizeDayRequirements,
 } from "./dayTemplates";
 import { breakRuleSchema, savePositionsSchema } from "./schemas";
@@ -81,11 +84,13 @@ export const savePositions = managerMutation({
       usedColors.add(unused);
       return unused;
     };
-    await Promise.all(
-      existing
-        .filter((position) => !keptIds.has(position._id))
-        .map((position) => ctx.db.patch(position._id, { isDeleted: true, isDefault: false })),
-    );
+    const removed = existing.filter((position) => !keptIds.has(position._id));
+    // ポジションを削除する保存では、残すポジション以外を指す下書きの勤務を消す。
+    // 今回削除するポジションに加えて、この処理が入る前に削除したポジションを指したまま残っている勤務も対象にする。
+    if (removed.length > 0) {
+      await deleteDraftDaysOutsidePositions(ctx, ctx.shop._id, keptIds);
+    }
+    await Promise.all(removed.map((position) => ctx.db.patch(position._id, { isDeleted: true, isDefault: false })));
     return await Promise.all(
       parsed.data.positions.map(async (position, index) => {
         const id = args.positions[index].id;
@@ -111,6 +116,47 @@ export const savePositions = managerMutation({
     );
   },
 });
+
+/**
+ * 確定していない募集の下書きから、残すポジション以外の勤務がある「スタッフ×日付」の勤務を、その日の分まとめて消す。
+ * 同じ日に残るポジションの勤務も消す。確定済みの募集は、確定した時点のポジションのまま残すため触れない。
+ * 募集や勤務が上限を超える店舗では、消し残しを作らないよう、保存ごと受け付けない。
+ */
+async function deleteDraftDaysOutsidePositions(
+  ctx: MutationCtx,
+  shopId: Id<"shops">,
+  keptPositionIds: ReadonlySet<Id<"positions">>,
+): Promise<void> {
+  const recruitments = await ctx.db
+    .query("recruitments")
+    .withIndex("by_shopId_and_isDeleted_and_status_and_periodStart", (q) =>
+      q.eq("shopId", shopId).eq("isDeleted", false).eq("status", "open"),
+    )
+    .take(POSITION_REMOVAL_OPEN_RECRUITMENT_LIMIT + 1);
+  if (recruitments.length > POSITION_REMOVAL_OPEN_RECRUITMENT_LIMIT) {
+    throw new ConvexError("確定していない募集が多いため、ポジションを削除できません");
+  }
+
+  const dayKey = (assignment: Doc<"shiftAssignments">) => `${assignment.staffId}\u0000${assignment.date}`;
+  for (const recruitment of recruitments) {
+    const assignments = await ctx.db
+      .query("shiftAssignments")
+      .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitment._id))
+      .take(SHIFT_ASSIGNMENT_LIMIT + 1);
+    if (assignments.length > SHIFT_ASSIGNMENT_LIMIT) {
+      throw new ConvexError("下書きの勤務が多いため、ポジションを削除できません");
+    }
+    const targetDays = new Set(
+      assignments.filter((assignment) => !keptPositionIds.has(assignment.positionId)).map(dayKey),
+    );
+    if (targetDays.size === 0) continue;
+    await Promise.all(
+      assignments
+        .filter((assignment) => targetDays.has(dayKey(assignment)))
+        .map((assignment) => ctx.db.delete(assignment._id)),
+    );
+  }
+}
 
 /** 必要人数が指すポジションを返す。同じポジションが複数回出ることがある。 */
 function listRequirementPositionIds(requirements: DayRequirements<Id<"positions">>): Id<"positions">[] {
@@ -282,19 +328,21 @@ async function deleteDayOverrides(ctx: MutationCtx, shopId: Id<"shops">, date: s
 
 /**
  * シフト表で選んだ複数の日へ、テンプレートをまとめて当てる。
- * nullはその日だけの指定を消し、曜日と祝日のテンプレートへ戻す。確定済みの募集では受け付けない。
+ * nullはその日だけの指定を消し、曜日と祝日のテンプレートへ戻す。"none"は、その日にテンプレートを当てない。
+ * 確定済みの募集では受け付けない。
  */
 export const applyDayTemplateToDates = managerMutation({
   args: {
     recruitmentId: v.id("recruitments"),
     dates: v.array(v.string()),
-    templateId: v.union(v.id("shiftDayTemplates"), v.null()),
+    // テンプレートのID、その日だけの指定を消して曜日や祝日の設定へ戻すnull、テンプレートを当てない"none"のどれか。
+    templateId: v.union(v.id("shiftDayTemplates"), v.null(), v.literal(NO_DAY_TEMPLATE)),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
     const recruitment = await requireStaffingEditableRecruitment(ctx, ctx.shop._id, args.recruitmentId, args.dates);
     const templateId = args.templateId;
-    if (templateId !== null) {
+    if (templateId !== null && templateId !== NO_DAY_TEMPLATE) {
       const template = await ctx.db.get(templateId);
       if (!template || template.shopId !== ctx.shop._id) throw new ConvexError("Not found");
       if (template.requirements.kind !== recruitment.submissionPattern.kind) {
@@ -304,7 +352,9 @@ export const applyDayTemplateToDates = managerMutation({
 
     for (const date of args.dates) {
       await deleteDayOverrides(ctx, ctx.shop._id, date);
-      if (templateId !== null) {
+      if (templateId === NO_DAY_TEMPLATE) {
+        await ctx.db.insert("shiftDayTemplateOverrides", { shopId: ctx.shop._id, date, kind: "none" });
+      } else if (templateId !== null) {
         await ctx.db.insert("shiftDayTemplateOverrides", {
           shopId: ctx.shop._id,
           date,

@@ -361,6 +361,47 @@ export const AppOrganizationScopedDesktop: Story = {
   },
 };
 
+/**
+ * 下書きを保存した募集で「表示設定」から表示を切り替えようとすると、下書きを削除する前の確認が出る。
+ * キャンセルすると、確認を閉じて、いまの表示のまま残る。
+ */
+export const DetailModeSwitchConfirm: Story = {
+  name: "Detail Mode Switch Confirm",
+  args: { data: mockDataWithInitialWarnings },
+  parameters: { vrt: { releaseFixedHeader: true } },
+  render: renderAppShiftBoard,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const screen = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(await canvas.findByRole("button", { name: "表示設定" }));
+    await userEvent.click(await screen.findByRole("menuitemradio", { name: "くわしく" }));
+
+    // 開くアニメーションが終わるまで待つ。
+    const dialog = await screen.findByRole("alertdialog", { name: "表示を切り替えますか？" });
+    await waitFor(() => expect(dialog).toBeVisible());
+  },
+};
+
+export const DetailModeSwitchCancelBehavior: Story = {
+  ...DetailModeSwitchConfirm,
+  name: "Behavior: 表示の切り替えの確認をキャンセルすると、いまの表示のまま残る",
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const screen = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await canvas.findByRole("button", { name: "表示設定" }));
+    await userEvent.click(await screen.findByRole("menuitemradio", { name: "くわしく" }));
+    const dialog = await screen.findByRole("alertdialog", { name: "表示を切り替えますか？" });
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "キャンセル" }));
+
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    // シンプルのままなので、くわしく表示の「入れるもの」は出ない。
+    await expect(canvas.queryByRole("radiogroup", { name: "入れるもの" })).not.toBeInTheDocument();
+  },
+};
+
 export const SPDialogInteraction: Story = {
   tags: ["vrt-mobile2"],
   globals: {

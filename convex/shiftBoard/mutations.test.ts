@@ -1667,6 +1667,155 @@ describe("shiftBoard/mutations", () => {
     });
   });
 
+  describe("switchShiftDetailMode", () => {
+    beforeEach(() => {
+      vi.stubEnv("ANALYTICS_SOURCE_CAPTURE_START_AT", "");
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-01-20T00:00:00+09:00"));
+    });
+    afterEach(() => {
+      vi.unstubAllEnvs();
+      vi.useRealTimers();
+    });
+
+    /** 対象の募集と、同じ店舗の別の確定前の募集に、下書きの勤務を1件ずつ用意する。 */
+    async function seedDrafts(t: TestConvex<typeof schema>) {
+      const data = await setupTestData(t);
+      const otherRecruitmentId = await t.run(async (ctx) => {
+        const defaultPositionId = await ctx.db.insert("positions", {
+          shopId: data.shopId,
+          name: "シフト",
+          color: "#3b82f6",
+          sortOrder: 0,
+          isDefault: true,
+          isDeleted: false,
+        });
+        const otherRecruitmentId = await ctx.db.insert("recruitments", {
+          shopId: data.shopId,
+          periodStart: "2026-02-01",
+          periodEnd: "2026-02-07",
+          deadline: "2026-01-28",
+          shopClosedDates: [],
+          status: "open",
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+          draftSavedAt: 1,
+        });
+        await ctx.db.patch(data.recruitmentId, { draftSavedAt: 1 });
+        for (const [recruitmentId, date] of [
+          [data.recruitmentId, "2026-01-20"],
+          [otherRecruitmentId, "2026-02-02"],
+        ] as const) {
+          await ctx.db.insert("shiftAssignments", {
+            recruitmentId,
+            staffId: data.staffId1,
+            date,
+            startTime: "10:00",
+            endTime: "18:00",
+            positionId: defaultPositionId,
+          });
+        }
+        return otherRecruitmentId;
+      });
+      return { ...data, otherRecruitmentId };
+    }
+    const readState = (t: TestConvex<typeof schema>, ids: Awaited<ReturnType<typeof seedDrafts>>) =>
+      t.run(async (ctx) => {
+        const assignments = await ctx.db.query("shiftAssignments").collect();
+        const recruitment = await ctx.db.get(ids.recruitmentId);
+        const shop = await ctx.db.get(ids.shopId);
+        return {
+          assignmentRecruitmentIds: assignments.map((assignment) => assignment.recruitmentId),
+          draftSavedAt: recruitment?.draftSavedAt ?? null,
+          shiftDetailMode: shop?.shiftDetailMode ?? null,
+        };
+      });
+
+    it("未認証では拒否し、下書きと店舗の表示を変えない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedDrafts(t);
+      const before = await readState(t, ids);
+
+      await expect(
+        t.mutation(api.shiftBoard.mutations.switchShiftDetailMode, {
+          recruitmentId: ids.recruitmentId,
+          shopId: ids.shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, ids.shopId),
+          isDetailMode: true,
+        }),
+      ).rejects.toThrow();
+      expect(await readState(t, ids)).toEqual(before);
+    });
+
+    it("他店舗の管理者は、この店舗の募集を切り替えられない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedDrafts(t);
+      const before = await readState(t, ids);
+      const otherShopId = await t.run(async (ctx) => {
+        const { shopId } = await seedManagerShop(ctx, {
+          subject: "user_other",
+          email: "other@example.com",
+          shopName: "他店舗",
+        });
+        return shopId;
+      });
+
+      await expect(
+        t.withIdentity({ subject: "user_other" }).mutation(api.shiftBoard.mutations.switchShiftDetailMode, {
+          recruitmentId: ids.recruitmentId,
+          shopId: otherShopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, otherShopId),
+          isDetailMode: true,
+        }),
+      ).rejects.toThrow(ConvexError);
+      expect(await readState(t, ids)).toEqual(before);
+    });
+
+    it("切り替えると、この募集の下書きの勤務と下書き保存の時刻を消し、選んだ表示を店舗に保存する。ほかの募集の下書きは残す", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedDrafts(t);
+
+      await t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.switchShiftDetailMode, {
+        recruitmentId: ids.recruitmentId,
+        shopId: ids.shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, ids.shopId),
+        isDetailMode: true,
+      });
+
+      expect(await readState(t, ids)).toEqual({
+        assignmentRecruitmentIds: [ids.otherRecruitmentId],
+        draftSavedAt: null,
+        shiftDetailMode: true,
+      });
+
+      // シンプルへ戻す切り替えも、選んだ表示として保存する。
+      await t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.switchShiftDetailMode, {
+        recruitmentId: ids.recruitmentId,
+        shopId: ids.shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, ids.shopId),
+        isDetailMode: false,
+      });
+      expect((await readState(t, ids)).shiftDetailMode).toBe(false);
+    });
+
+    it("確定済みの募集では拒否し、勤務と店舗の表示を変えない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedDrafts(t);
+      await t.run(async (ctx) => ctx.db.patch(ids.recruitmentId, { status: "confirmed", confirmedAt: 2 }));
+      const before = await readState(t, ids);
+
+      await expect(
+        t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.switchShiftDetailMode, {
+          recruitmentId: ids.recruitmentId,
+          shopId: ids.shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, ids.shopId),
+          isDetailMode: true,
+        }),
+      ).rejects.toThrow("確定済みのシフトでは、表示を切り替えられません");
+      expect(await readState(t, ids)).toEqual(before);
+    });
+  });
+
   describe("confirmRecruitment", () => {
     // scheduler.runAfter(0, ...) による "use node" アクションがテスト環境で
     // トランザクション外書き込みエラーを起こすため、タイマーを止めて実行を抑制する

@@ -5,7 +5,14 @@ import type { ShiftBreakRule } from "@/src/domains/shift/types";
 export type ShiftFormDayRequirements = DayRequirements;
 
 /** その日の必要人数を決めた理由。確定済みの募集は、確定時に保存した内容（confirmed）だけを持つ。 */
-export type ShiftFormStaffingSource = "confirmed" | "dateCustom" | "dateTemplate" | "holiday" | "weekday" | "none";
+export type ShiftFormStaffingSource =
+  | "confirmed"
+  | "dateCustom"
+  | "dateTemplate"
+  | "dateNone"
+  | "holiday"
+  | "weekday"
+  | "none";
 
 /** サーバーが解決した、1日分の必要人数。requirementsがnullの日は未設定として扱う。 */
 export type ShiftFormStaffingDay = {

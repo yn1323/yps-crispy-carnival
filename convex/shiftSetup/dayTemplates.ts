@@ -337,17 +337,24 @@ export function projectDayRequirementsForPattern<PositionId extends string>(
   return requirements;
 }
 
-/** その日だけの指定。別のテンプレートを当てるか、その日だけの必要人数を持つ。 */
+/** その日にテンプレートを当てないことを、テンプレートの選択として伝える値。 */
+export const NO_DAY_TEMPLATE = "none";
+
+/** その日だけの指定。別のテンプレートを当てるか、その日だけの必要人数を持つか、テンプレートを当てない。 */
 export type DayStaffingOverride<TemplateId extends string = string, PositionId extends string = string> =
   | { date: string; kind: "template"; templateId: TemplateId }
-  | { date: string; kind: "custom"; requirements: DayRequirements<PositionId> };
+  | { date: string; kind: "custom"; requirements: DayRequirements<PositionId> }
+  | { date: string; kind: "none" };
 
-/** その日の必要人数を決めた理由。 */
-export type DayStaffingSource = "dateCustom" | "dateTemplate" | "holiday" | "weekday" | "none";
+/**
+ * その日の必要人数を決めた理由。
+ * dateNoneは、その日だけテンプレートを当てないと指定した日。noneは、当たるテンプレートがない日。
+ */
+export type DayStaffingSource = "dateCustom" | "dateTemplate" | "dateNone" | "holiday" | "weekday" | "none";
 
 export type ResolvedDayStaffing<TemplateId extends string = string, PositionId extends string = string> = {
   source: DayStaffingSource;
-  /** 当たったテンプレート。その日だけの必要人数（dateCustom）と未設定（none）ではnull。 */
+  /** 当たったテンプレート。その日だけの必要人数（dateCustom）、テンプレートなし（dateNone）、未設定（none）ではnull。 */
   templateId: TemplateId | null;
   templateName: string | null;
   requirements: DayRequirements<PositionId> | null;
@@ -367,6 +374,7 @@ type ResolveDayStaffingInput<TemplateId extends string, PositionId extends strin
 /**
  * その日に当たる必要人数を決める。
  * 優先順位は「その日だけの指定 ＞ 祝日に使うテンプレート（その日が祝日の場合）＞ 曜日のテンプレート」。
+ * その日だけの指定で「テンプレートなし」にした日は、祝日や曜日のテンプレートがあっても、必要人数を持たない。
  * 同じ曜日や祝日を選んだテンプレートが複数あるときは、並びの先頭のテンプレートを使う。
  * 削除済みのテンプレートを指す指定は無視して、下の順位へ落とす。
  */
@@ -386,6 +394,9 @@ export function resolveDayStaffing<TemplateId extends string, PositionId extends
   const override = input.overrides.find((entry) => entry.date === input.date);
   if (override?.kind === "custom") {
     return { source: "dateCustom", templateId: null, templateName: null, requirements: override.requirements };
+  }
+  if (override?.kind === "none") {
+    return { source: "dateNone", templateId: null, templateName: null, requirements: null };
   }
   if (override?.kind === "template") {
     const overridden = input.templates.find((template) => template.id === override.templateId);

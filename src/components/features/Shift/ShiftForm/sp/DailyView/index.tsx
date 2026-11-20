@@ -6,6 +6,7 @@ import type { ShiftData } from "@/src/domains/shift/types";
 import { useAllShiftDateNotes } from "../../dateNotes";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
+import { SP_LIST_PADDING_X_PX } from "../../spTimelineScale";
 import { DayTemplateMenu, useDayStaffingView } from "../../staffingParts";
 import {
   breakEditorTargetAtom,
@@ -24,7 +25,7 @@ import {
   warningMessagesByStaffIdForSelectedDateAtom,
 } from "../../stores";
 import { DateRail } from "./DateRail";
-import { FulfillmentSection } from "./FulfillmentSection";
+import { DetailControls } from "./DetailControls";
 import { ShiftDetailSheet } from "./ShiftDetailSheet";
 import { ShiftEditSheet } from "./ShiftEditSheet";
 import { SectionHeader, SPDailyCard, SPOffCard } from "./StaffCards";
@@ -171,14 +172,26 @@ export const SPDailyView = () => {
         warningCounts={warningCounts}
         dateStripRef={dateStripRef}
         onSelect={selectDate}
-        headingAction={staffingView && <DayTemplateMenu date={selectedDate} view={staffingView} shrinks />}
+        // テンプレートは、入れるものの行の左端に置く。入れるものの行がない画面（閲覧専用など）だけ、日付の見出しに置く。
+        headingAction={
+          staffingView &&
+          (!isToolPaletteActive || positions.length === 0) && (
+            <DayTemplateMenu date={selectedDate} view={staffingView} shrinks />
+          )
+        }
       />
-      {/*
-        充足。閉じた1行は一覧をスクロールしても上端に留まり、開いている間は一覧と一緒に流れる。
-        この画面は日付の一覧ごと外側の入れ物でスクロールするため、一覧の入れ物の外に置く。
-      */}
-      <FulfillmentSection />
-      <Box flex={1} minH={0} overflow="auto" bg="gray.50" px={3} py={3} data-tour="shift-grid">
+      {/* 入れるものの行と充足。充足の上に入れるものを置き、閉じた充足と一緒に上端に留める。 */}
+      <DetailControls />
+      <Box
+        flex={1}
+        minH={0}
+        overflow="auto"
+        bg="gray.50"
+        // カードのバーの両端を、充足の帯と時刻の軸にそろえるため、物差しと同じ余白を使う。
+        px={`${SP_LIST_PADDING_X_PX}px`}
+        py={3}
+        data-tour="shift-grid"
+      >
         {isShopClosedDate ? (
           <Flex minH="240px" align="center" justify="center" direction="column" gap={2} px={4}>
             <Box textStyle="md" fontWeight={700} color="gray.700">

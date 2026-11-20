@@ -12,10 +12,12 @@ const mocks = vi.hoisted(() => ({
   saveReference: Symbol("save"),
   confirmReference: Symbol("confirm"),
   applyTemplateReference: Symbol("applyDayTemplateToDates"),
+  switchDetailModeReference: Symbol("switchShiftDetailMode"),
   provisionalQueryReference: Symbol("getProvisionalAssignments"),
   save: vi.fn(),
   confirm: vi.fn(),
   applyDayTemplateToDates: vi.fn(),
+  switchShiftDetailMode: vi.fn(),
   navigate: vi.fn(),
   convexQuery: vi.fn(),
   toast: vi.fn(),
@@ -29,7 +31,11 @@ vi.mock("convex/react", () => ({ useConvex: () => ({ query: mocks.convexQuery })
 vi.mock("@/convex/_generated/api", () => ({
   api: {
     shiftBoard: {
-      mutations: { saveShiftAssignments: mocks.saveReference, confirmRecruitment: mocks.confirmReference },
+      mutations: {
+        saveShiftAssignments: mocks.saveReference,
+        confirmRecruitment: mocks.confirmReference,
+        switchShiftDetailMode: mocks.switchDetailModeReference,
+      },
       queries: { getProvisionalAssignments: mocks.provisionalQueryReference },
     },
     shiftSetup: {
@@ -44,6 +50,7 @@ vi.mock("@/src/hooks/useShopMutation", () => ({
     if (reference === mocks.saveReference) return mocks.save;
     if (reference === mocks.confirmReference) return mocks.confirm;
     if (reference === mocks.applyTemplateReference) return mocks.applyDayTemplateToDates;
+    if (reference === mocks.switchDetailModeReference) return mocks.switchShiftDetailMode;
     throw new Error("unexpected mutation reference");
   },
 }));
@@ -53,7 +60,6 @@ vi.mock("@/src/components/shared/feedback", () => ({
 }));
 vi.mock("@/src/components/ui/toaster", () => ({ toaster: { create: mocks.toast } }));
 
-import { readStoredDetailMode, storeDetailMode } from "./detailModeStorage";
 import { useShiftBoardPageController } from "./useShiftBoardPageController";
 
 const shopId = "shop-a" as Id<"shops">;
@@ -161,8 +167,8 @@ function renderInitialized(options: RenderOptions = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  window.localStorage.clear();
   mocks.save.mockResolvedValue(null);
+  mocks.switchShiftDetailMode.mockResolvedValue(null);
   mocks.confirm.mockResolvedValue(null);
   mocks.applyDayTemplateToDates.mockResolvedValue(null);
   mocks.convexQuery.mockResolvedValue([]);
@@ -329,18 +335,14 @@ describe("表示の初期状態", () => {
     expect(result.current.viewModel.shiftForm.initialDetailMode).toBe(true);
   });
 
-  it.each(configuredCases)("%s店舗でも、シンプルを選んだ端末ではシンプルで開く", (_label, options) => {
-    storeDetailMode(false);
-
-    const { result } = renderController(options);
+  it.each(configuredCases)("%s店舗でも、店舗が最後にシンプルを選んでいればシンプルで開く", (_label, options) => {
+    const { result } = renderController({ ...options, data: { ...(options.data ?? data), shiftDetailMode: false } });
 
     expect(result.current.viewModel.shiftForm.initialDetailMode).toBe(false);
   });
 
-  it("何も設定していない店舗でも、くわしくを選んだ端末ではくわしくで開く", () => {
-    storeDetailMode(true);
-
-    const { result } = renderController({ staffing: emptyStaffing });
+  it("何も設定していない店舗でも、店舗が最後にくわしくを選んでいればくわしくで開く", () => {
+    const { result } = renderController({ data: { ...data, shiftDetailMode: true }, staffing: emptyStaffing });
 
     expect(result.current.viewModel.shiftForm.initialDetailMode).toBe(true);
   });
@@ -357,16 +359,78 @@ describe("表示の初期状態", () => {
     expect(result.current.viewModel.shiftForm.initialDetailMode).toBe(false);
     expect(result.current.viewModel.shiftForm.staffing?.templates).toEqual([{ id: templateId, name: "平日" }]);
   });
+});
 
-  it("利用者が切り替えた表示を端末に覚える", () => {
-    const { result } = renderController({ staffing: emptyStaffing });
-    expect(readStoredDetailMode()).toBeNull();
+describe("表示の切り替え", () => {
+  const savedDraftData: ShiftBoardData = { ...data, recruitment: { ...data.recruitment, draftSavedAt: 1 } };
+  const editedShift = (shifts: ShiftData[]): ShiftData[] =>
+    shifts.map((shift, index) =>
+      index === 0 ? { ...shift, positions: shift.positions.map((position) => ({ ...position, end: "17:00" })) } : shift,
+    );
 
-    act(() => result.current.intents.onDetailModeChange(true));
-    expect(readStoredDetailMode()).toBe(true);
+  it("下書きも未保存の編集もなければ、確認せずに、選んだ表示を保存して下書きを消す処理を呼ぶ", async () => {
+    const { result } = renderInitialized({ staffing: emptyStaffing });
 
-    act(() => result.current.intents.onDetailModeChange(false));
-    expect(readStoredDetailMode()).toBe(false);
+    await act(async () => result.current.viewModel.shiftForm.detailActions.requestDetailModeChange?.(true));
+
+    expect(result.current.viewModel.detailModeSwitchDialog.isOpen).toBe(false);
+    expect(mocks.switchShiftDetailMode.mock.calls).toEqual([
+      [{ recruitmentId, expectedEditVersion: 0, isDetailMode: true }],
+    ]);
+  });
+
+  it("保存済みの下書きがあれば、確認を出し、キャンセルでは何も呼ばない", async () => {
+    const { result } = renderInitialized({ data: savedDraftData, staffing: emptyStaffing });
+
+    await act(async () => result.current.viewModel.shiftForm.detailActions.requestDetailModeChange?.(true));
+    expect(result.current.viewModel.detailModeSwitchDialog.isOpen).toBe(true);
+
+    act(() => result.current.intents.onCancelDetailModeSwitch());
+
+    expect(result.current.viewModel.detailModeSwitchDialog.isOpen).toBe(false);
+    expect(mocks.switchShiftDetailMode).not.toHaveBeenCalled();
+  });
+
+  it("未保存の編集があれば、確認を出し、切り替えると選んだ表示で処理を呼ぶ", async () => {
+    const { result } = renderInitialized({ staffing: emptyStaffing });
+    act(() => result.current.intents.onShiftsChange(editedShift(result.current.viewModel.shiftForm.initialShifts)));
+
+    await act(async () => result.current.viewModel.shiftForm.detailActions.requestDetailModeChange?.(true));
+    expect(result.current.viewModel.detailModeSwitchDialog.isOpen).toBe(true);
+    expect(mocks.switchShiftDetailMode).not.toHaveBeenCalled();
+
+    await act(async () => result.current.intents.onConfirmDetailModeSwitch());
+
+    expect(mocks.switchShiftDetailMode.mock.calls).toEqual([
+      [{ recruitmentId, expectedEditVersion: 0, isDetailMode: true }],
+    ]);
+  });
+
+  it("切り替えに失敗したら、確認を閉じて誤りを伝える", async () => {
+    mocks.switchShiftDetailMode.mockRejectedValue(new Error("failed"));
+    const { result } = renderInitialized({ data: savedDraftData, staffing: emptyStaffing });
+    await act(async () => result.current.viewModel.shiftForm.detailActions.requestDetailModeChange?.(true));
+
+    await act(async () => result.current.intents.onConfirmDetailModeSwitch());
+
+    expect(result.current.viewModel.detailModeSwitchDialog.isOpen).toBe(false);
+    expect(mocks.showErrorToast).toHaveBeenCalledTimes(1);
+  });
+
+  it("確定済みの募集と、変更できない画面では、切り替えを出さない", () => {
+    const confirmed = renderController({
+      data: { ...data, recruitment: { ...data.recruitment, status: "confirmed", confirmedAt: 1 } },
+      staffing: emptyStaffing,
+    });
+    const readOnly = renderController({
+      data: { ...data, canWriteBusinessData: false, businessWriteBlockReason: "usageLimitExceeded" },
+      staffing: emptyStaffing,
+    });
+
+    for (const { result } of [confirmed, readOnly]) {
+      expect(result.current.viewModel.shiftForm.canSwitchDetailMode).toBe(false);
+      expect(result.current.viewModel.shiftForm.detailActions.requestDetailModeChange).toBeUndefined();
+    }
   });
 });
 
@@ -738,6 +802,7 @@ describe("その日の必要人数の変更と設定ページへの導線", () =
     expect(Object.keys(result.current.viewModel.shiftForm.detailActions).sort()).toEqual([
       "dayStaffingActions",
       "onOpenSetup",
+      "requestDetailModeChange",
     ]);
 
     rerender({ current: { ...data, recruitment: { ...data.recruitment, editVersion: 1 } } });

@@ -27,7 +27,6 @@ import {
   setShiftBreaksAtom,
   shiftConfigAtom,
   shiftsAtom,
-  showsSegmentSkillMarksAtom,
   staffWarningCountByDateAtom,
   staffWorkTotalsAtom,
   toggleDateOnlyAssignmentAtom,
@@ -1075,7 +1074,7 @@ describe("全日の人数と過不足（dayStaffingViewByDateAtom）", () => {
   });
 });
 
-describe("熟練度の印を出す場所（nameSkillPositionAtom / showsSegmentSkillMarksAtom）", () => {
+describe("名前の横の担当外の印の根拠（nameSkillPositionAtom）", () => {
   it("名前の横の印は、「入れるもの」で選んだポジションを根拠にし、選んでいなければ既定のポジションを根拠にする", () => {
     const store = createDetailStore();
     expect(store.get(nameSkillPositionAtom)).toEqual(position);
@@ -1105,20 +1104,6 @@ describe("熟練度の印を出す場所（nameSkillPositionAtom / showsSegmentS
       store.set(selectedPositionIdAtom, kitchen.id);
       expect(store.get(nameSkillPositionAtom)).toBeNull();
     }
-  });
-
-  it("勤務の区間の印は、くわしく表示なら閲覧専用でも出し、シンプル表示とスタッフ向けの確定シフト表示では出さない", () => {
-    const editable = createDetailStore();
-    const readOnly = createDetailStore({ isReadOnly: true });
-    const simple = createDetailStore({}, { detailMode: false });
-    const confirmed = createDetailStore({ isReadOnly: true, displayMode: "confirmed" });
-
-    expect([editable, readOnly, simple, confirmed].map((store) => store.get(showsSegmentSkillMarksAtom))).toEqual([
-      true,
-      true,
-      false,
-      false,
-    ]);
   });
 });
 

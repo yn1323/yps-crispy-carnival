@@ -23,7 +23,7 @@ import {
 } from "../constants";
 import { getOrganizationStaffOrderScope } from "../organization/staffOrder";
 import { getOrganizationAccessPolicy } from "../organizationBilling/service";
-import { getDefaultPosition } from "../position/service";
+import { getDefaultPosition, isPositionsUnsplit } from "../position/service";
 import { getActiveRecruitmentInShop } from "../recruitment/service";
 import { filterDayRequirementsByPositions } from "../shiftSetup/dayTemplates";
 import {
@@ -45,6 +45,8 @@ const shiftBoardWriteBlockReasonValidator = v.union(
 
 const shiftBoardDataValidator = v.object({
   shopId: v.id("shops"),
+  // 店舗がシフト表で最後に選んだ表示。trueは「くわしく」、falseは「シンプル」、nullはまだ選んでいない。
+  shiftDetailMode: v.union(v.boolean(), v.null()),
   exportStaffOrder: v.array(v.id("staffs")),
   canWriteBusinessData: v.boolean(),
   businessWriteBlockReason: shiftBoardWriteBlockReasonValidator,
@@ -240,6 +242,7 @@ export const getShiftBoardData = managerQuery({
 
     return {
       shopId: shop._id,
+      shiftDetailMode: shop.shiftDetailMode ?? null,
       exportStaffOrder,
       canWriteBusinessData: businessWriteBlockReason === null,
       businessWriteBlockReason,
@@ -437,6 +440,7 @@ export const getShiftBoardStaffing = managerQuery({
             v.literal("confirmed"),
             v.literal("dateCustom"),
             v.literal("dateTemplate"),
+            v.literal("dateNone"),
             v.literal("holiday"),
             v.literal("weekday"),
             v.literal("none"),
@@ -468,9 +472,20 @@ export const getShiftBoardStaffing = managerQuery({
     ]);
     const activePositionIds = new Set(positions.map((position) => position._id));
     const isLocked = recruitment.status === "confirmed";
+    // ポジションを追加していない店舗は、シフト作成の設定で必要人数を扱えず、テンプレートも見えない。
+    // 確定していない募集のシフト表でも同じにそろえ、テンプレートを出さず、どの日も未設定として返す。
+    const hidesTemplates = !isLocked && isPositionsUnsplit(positions);
     const days: ShiftBoardStaffingDay[] = isLocked
       ? await listConfirmedStaffingDays(ctx, recruitment, activePositionIds)
-      : await resolveRecruitmentStaffingDays(ctx, { shopId: shop._id, recruitment, templates, activePositionIds });
+      : hidesTemplates
+        ? generateDateRange(recruitment.periodStart, recruitment.periodEnd).map((date) => ({
+            date,
+            source: "none" as const,
+            templateId: null,
+            templateName: null,
+            requirements: null,
+          }))
+        : await resolveRecruitmentStaffingDays(ctx, { shopId: shop._id, recruitment, templates, activePositionIds });
 
     return {
       breakRule: shop.breakRule ?? null,
@@ -480,9 +495,11 @@ export const getShiftBoardStaffing = managerQuery({
         .filter((profile) => profile.positionSkills.length > 0),
       hasPreviousConfirmedRecruitment: previousRecruitment !== null,
       isLocked,
-      templates: templates
-        .filter((template) => template.requirements.kind === recruitment.submissionPattern.kind)
-        .map((template) => ({ _id: template._id, name: template.name })),
+      templates: hidesTemplates
+        ? []
+        : templates
+            .filter((template) => template.requirements.kind === recruitment.submissionPattern.kind)
+            .map((template) => ({ _id: template._id, name: template.name })),
       days,
     };
   },

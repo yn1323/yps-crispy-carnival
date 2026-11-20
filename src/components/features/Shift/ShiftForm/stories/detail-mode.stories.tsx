@@ -45,14 +45,9 @@ const waitForInitialSync = () => new Promise((resolve) => setTimeout(resolve, 20
 const findNotification = (canvasElement: HTMLElement) =>
   within(canvasElement).findByRole("status", { name: "切り替えの通知" });
 
-const findDetailRadio = async (canvasElement: HTMLElement, name: "シンプル" | "くわしく") =>
-  within(await within(canvasElement).findByRole("radiogroup", { name: "表示の詳しさ" })).getByRole("radio", { name });
-
-const toggleDetailFromDisplaySettings = async (canvasElement: HTMLElement) => {
+const selectDetailModeFromDisplaySettings = async (canvasElement: HTMLElement, name: "シンプル" | "くわしく") => {
   await userEvent.click(await within(canvasElement).findByRole("button", { name: "表示設定" }));
-  await userEvent.click(
-    await within(canvasElement.ownerDocument.body).findByRole("menuitemcheckbox", { name: "くわしく表示" }),
-  );
+  await userEvent.click(await within(canvasElement.ownerDocument.body).findByRole("menuitemradio", { name }));
 };
 
 /** くわしく表示が初期値の店舗を開いただけでは、切り替えを通知しない（端末に「くわしく」を覚えさせない）。 */
@@ -64,7 +59,6 @@ export const InitialDetailDoesNotNotify: Story = {
     const canvas = within(canvasElement);
     // くわしく表示では「入れるもの」が出る。
     await expect(await canvas.findByRole("radiogroup", { name: "入れるもの" })).toBeInTheDocument();
-    await expect(await findDetailRadio(canvasElement, "くわしく")).toHaveAttribute("aria-checked", "true");
 
     await waitForInitialSync();
     await expect(await findNotification(canvasElement)).toHaveTextContent(/^通知：0回$/);
@@ -78,8 +72,6 @@ export const InitialSimpleDoesNotNotify: Story = {
   globals: desktopGlobals,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(await findDetailRadio(canvasElement, "シンプル")).toHaveAttribute("aria-checked", "true");
-
     await waitForInitialSync();
     await expect(await findNotification(canvasElement)).toHaveTextContent(/^通知：0回$/);
     // シンプルでは「入れるもの」を出さない。
@@ -87,7 +79,7 @@ export const InitialSimpleDoesNotNotify: Story = {
   },
 };
 
-/** PCでは「表示の詳しさ」で切り替え、利用者が押したときだけ、押した値を通知する。 */
+/** PCでも「表示設定」の「シンプル」「くわしく」で切り替え、利用者が押したときだけ、押した値を通知する。 */
 export const ToggleOnDesktopNotifies: Story = {
   name: "Toggle On Desktop Notifies",
   args: { ...toggleArgs, initialDetailMode: true },
@@ -98,13 +90,55 @@ export const ToggleOnDesktopNotifies: Story = {
     await expect(await canvas.findByRole("radiogroup", { name: "入れるもの" })).toBeInTheDocument();
 
     // 初期値の反映を通知していれば、ここで2回になる。
-    await userEvent.click(await findDetailRadio(canvasElement, "シンプル"));
+    await selectDetailModeFromDisplaySettings(canvasElement, "シンプル");
     await waitFor(() => expect(notification).toHaveTextContent(/^通知：1回（false）$/));
     await expect(canvas.queryByRole("radiogroup", { name: "入れるもの" })).not.toBeInTheDocument();
 
-    await userEvent.click(await findDetailRadio(canvasElement, "くわしく"));
+    await selectDetailModeFromDisplaySettings(canvasElement, "くわしく");
     await waitFor(() => expect(notification).toHaveTextContent(/^通知：2回（false、true）$/));
     await expect(await canvas.findByRole("radiogroup", { name: "入れるもの" })).toBeInTheDocument();
+  },
+};
+
+/**
+ * 切り替えを画面の外で受け付ける場合のハーネス。受け付けた表示を画面に出し、ShiftFormの表示は変えない。
+ */
+const RequestHarness = (args: ShiftFormArgs) => {
+  const [requests, setRequests] = useState<boolean[]>([]);
+  const detailActions = {
+    ...args.detailActions,
+    requestDetailModeChange: (isDetailMode: boolean) => setRequests((current) => [...current, isDetailMode]),
+  };
+  return (
+    <>
+      <output aria-label="切り替えの依頼">依頼：{requests.join("、") || "なし"}</output>
+      <div style={{ flex: 1, minHeight: 0 }}>
+        <ShiftForm {...args} detailActions={detailActions} />
+      </div>
+    </>
+  );
+};
+
+/**
+ * 切り替えを画面の外で受け付ける場合は、「表示設定」で選んでも、その場では表示を変えず、選んだ表示を外へ伝える。
+ * 下書きを削除する画面が、確認してから開き直すために使う。
+ */
+export const RequestsModeChangeOutside: Story = {
+  name: "Requests Mode Change Outside",
+  args: { ...toggleArgs, initialDetailMode: true },
+  globals: desktopGlobals,
+  render: (args) => <RequestHarness {...args} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByRole("radiogroup", { name: "入れるもの" })).toBeInTheDocument();
+
+    await selectDetailModeFromDisplaySettings(canvasElement, "シンプル");
+
+    await waitFor(() =>
+      expect(canvas.getByRole("status", { name: "切り替えの依頼" })).toHaveTextContent("依頼：false"),
+    );
+    // 表示はくわしくのままで、「入れるもの」が残る。
+    await expect(canvas.getByRole("radiogroup", { name: "入れるもの" })).toBeInTheDocument();
   },
 };
 
@@ -135,7 +169,7 @@ export const ToolPaletteHiddenOnOverviewMobile: Story = {
   play: async ({ canvasElement }) => expectToolPaletteOnlyOnDaily(canvasElement),
 };
 
-/** スマートフォンでは「表示設定」の「くわしく表示」で切り替え、切り替えるたびに通知する。 */
+/** スマートフォンでは「表示設定」の「シンプル」「くわしく」で切り替え、切り替えるたびに通知する。 */
 export const ToggleOnMobileNotifies: Story = {
   name: "Toggle On Mobile Notifies",
   args: toggleArgs,
@@ -144,18 +178,16 @@ export const ToggleOnMobileNotifies: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const notification = await findNotification(canvasElement);
-    // スマートフォンには、ヘッダーの「表示の詳しさ」を出さない。
-    await expect(await canvas.findByRole("button", { name: "表示設定" })).toBeInTheDocument();
-    await expect(canvas.queryByRole("radiogroup", { name: "表示の詳しさ" })).not.toBeInTheDocument();
     await expect(canvas.queryByRole("radiogroup", { name: "入れるもの" })).not.toBeInTheDocument();
 
-    await toggleDetailFromDisplaySettings(canvasElement);
+    await selectDetailModeFromDisplaySettings(canvasElement, "くわしく");
     await waitFor(() => expect(notification).toHaveTextContent(/^通知：1回（true）$/));
     await expect(await canvas.findByRole("radiogroup", { name: "入れるもの" })).toBeInTheDocument();
 
-    await toggleDetailFromDisplaySettings(canvasElement);
+    await selectDetailModeFromDisplaySettings(canvasElement, "シンプル");
     await waitFor(() => expect(notification).toHaveTextContent(/^通知：2回（true、false）$/));
-    await expect(canvas.queryByRole("radiogroup", { name: "入れるもの" })).not.toBeInTheDocument();
+    // 入れるものの行は、上へ戻りきってから消える。
+    await waitFor(() => expect(canvas.queryByRole("radiogroup", { name: "入れるもの" })).not.toBeInTheDocument());
   },
 };
 
@@ -173,7 +205,7 @@ export const InitialDetailDoesNotNotifyOnMobile: Story = {
     await expect(await findNotification(canvasElement)).toHaveTextContent(/^通知：0回$/);
 
     // 利用者が切り替えたときは通知する。初期値の反映を通知していれば、ここで2回になる。
-    await toggleDetailFromDisplaySettings(canvasElement);
+    await selectDetailModeFromDisplaySettings(canvasElement, "シンプル");
     await waitFor(() =>
       expect(canvas.getByRole("status", { name: "切り替えの通知" })).toHaveTextContent(/^通知：1回（false）$/),
     );
@@ -189,20 +221,24 @@ const readOnlyArgs = {
   initialDetailMode: true,
 } satisfies ShiftFormArgs;
 
-/** `onDetailModeChange`を渡さない閲覧では、PCに切り替えを出さない。「入れるもの」も出さない。 */
+const expectNoToggleInDisplaySettings = async (canvasElement: HTMLElement) => {
+  const canvas = within(canvasElement);
+  const body = within(canvasElement.ownerDocument.body);
+  await waitForInitialSync();
+
+  await userEvent.click(await canvas.findByRole("button", { name: "表示設定" }));
+  await expect(await body.findByRole("menuitemcheckbox", { name: "連絡事項を表示" })).toBeInTheDocument();
+  await expect(body.queryByRole("menuitemradio", { name: "シンプル" })).not.toBeInTheDocument();
+  await expect(canvas.queryByRole("radiogroup", { name: "入れるもの" })).not.toBeInTheDocument();
+  await expect(await findNotification(canvasElement)).toHaveTextContent(/^通知：0回$/);
+};
+
+/** `onDetailModeChange`を渡さない閲覧では、PCの「表示設定」に切り替えを出さない。「入れるもの」も出さない。 */
 export const NoToggleWithoutCallbackOnDesktop: Story = {
   name: "No Toggle Without Callback On Desktop",
   args: readOnlyArgs,
   globals: desktopGlobals,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(await canvas.findByRole("tab", { name: "日別" })).toBeInTheDocument();
-    await waitForInitialSync();
-
-    await expect(canvas.queryByRole("radiogroup", { name: "表示の詳しさ" })).not.toBeInTheDocument();
-    await expect(canvas.queryByRole("radiogroup", { name: "入れるもの" })).not.toBeInTheDocument();
-    await expect(await findNotification(canvasElement)).toHaveTextContent(/^通知：0回$/);
-  },
+  play: async ({ canvasElement }) => expectNoToggleInDisplaySettings(canvasElement),
 };
 
 /** `onDetailModeChange`を渡さない閲覧では、スマートフォンの「表示設定」にも切り替えを出さない。 */
@@ -211,14 +247,5 @@ export const NoToggleWithoutCallbackOnMobile: Story = {
   args: readOnlyArgs,
   globals: mobileGlobals,
   tags: ["vrt-mobile2"],
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const body = within(canvasElement.ownerDocument.body);
-    await waitForInitialSync();
-
-    await userEvent.click(await canvas.findByRole("button", { name: "表示設定" }));
-    await expect(await body.findByRole("menuitemcheckbox", { name: "連絡事項を表示" })).toBeInTheDocument();
-    await expect(body.queryByRole("menuitemcheckbox", { name: "くわしく表示" })).not.toBeInTheDocument();
-    await expect(canvas.queryByRole("radiogroup", { name: "入れるもの" })).not.toBeInTheDocument();
-  },
+  play: async ({ canvasElement }) => expectNoToggleInDisplaySettings(canvasElement),
 };

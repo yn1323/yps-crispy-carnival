@@ -1675,6 +1675,25 @@ export const PositionReorderBehavior: Story = {
   },
 };
 
+export const PositionRemovedNoticeBehavior: Story = {
+  name: "Behavior: 保存済みのポジションを削除して決定すると、保存の前に下書きの割当を削除することを伝える",
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    const section = within(canvas.getByRole("region", { name: "ポジション" }));
+    const notice = "下書きのシフトから削除したポジションの割当を削除します。";
+    await expect(section.queryByText(notice)).not.toBeInTheDocument();
+
+    await userEvent.click(section.getByRole("button", { name: "ポジションを編集する" }));
+    const dialog = within(await body.findByRole("dialog", { name: "ポジションを編集" }));
+    await userEvent.click(dialog.getByRole("button", { name: "キッチンを削除" }));
+    await userEvent.click(dialog.getByRole("button", { name: "決定する" }));
+
+    await expect(await section.findByText(notice)).toBeVisible();
+  },
+};
+
 export const PositionAddLimitBehavior: Story = {
   name: "Behavior: ポジションを足すと、10件で追加できなくなる",
   args: { setup: ninePositionsSetup },

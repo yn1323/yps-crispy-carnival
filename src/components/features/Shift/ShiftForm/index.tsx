@@ -21,13 +21,13 @@ import {
 } from "./components";
 import { type ShiftDateNote, ShiftDateNotesProvider } from "./dateNotes";
 import {
-  DetailModeToggle,
   PositionLegend,
   type ShiftFormDetailActions,
   ShiftFormDetailActionsProvider,
   ToolPalette,
   useShiftFormDetailActions,
 } from "./detailParts";
+import { useChromeHideOnScroll } from "./hooks/useChromeHideOnScroll";
 import { useShiftFormInit } from "./hooks/useShiftFormInit";
 import { DailyView } from "./pc/DailyView";
 import { DateOnlyView } from "./pc/DateOnlyView";
@@ -43,9 +43,11 @@ import { SPShiftTypeDailyView } from "./sp/ShiftTypeDailyView";
 import { SPShiftTypeOverviewView } from "./sp/ShiftTypeOverviewView";
 import {
   applyShiftDraftsAtom,
+  chromeHiddenAtom,
   detailModeAtom,
   detailToggleEnabledAtom,
   selectDateWithDailyStaffOrderAtom,
+  selectedDateAtom,
   shiftsAtom,
   viewModeAtom,
 } from "./stores";
@@ -109,6 +111,11 @@ type ShiftFormProps = {
   exportAction?: ShiftFormExportAction;
   /** スタッフが提出した日付メモ。割当状態には入れず、表示だけに使う。 */
   dateNotes?: readonly ShiftDateNote[];
+  /**
+   * 内側の入れ物のスクロールで、上の行を隠した・表示したときに通知する。
+   * 置く側は、これに合わせてアプリのヘッダーを隠し、シフト表を画面の上端まで広げる。
+   */
+  onChromeHiddenChange?: (isHidden: boolean) => void;
 };
 
 const ShiftFormInner = ({
@@ -146,6 +153,7 @@ const ShiftFormInner = ({
   onDismissValidationIssues,
   header,
   exportAction,
+  onChromeHiddenChange,
 }: ShiftFormProps) => {
   useShiftFormInit({
     shopId,
@@ -193,7 +201,7 @@ const ShiftFormInner = ({
     onDetailModeChangeRef.current?.(detailMode);
   }, [detailMode, expectedInitialDetailMode]);
 
-  // スマートフォンでは「表示設定」メニューの中へ切り替えを出すため、出してよいかをstoreへ伝える。
+  // 「表示設定」メニューの中へ切り替えを出すため、出してよいかをstoreへ伝える。
   const setDetailToggleEnabled = useSetAtom(detailToggleEnabledAtom);
   const isDetailToggleEnabled = Boolean(onDetailModeChange);
   useEffect(() => {
@@ -223,6 +231,9 @@ const ShiftFormInner = ({
   const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const displayIssues = useMemo(() => toDisplayIssues(validationIssues ?? [], staffs), [validationIssues, staffs]);
   const layoutMode = useBreakpointValue({ base: "sp", lg: "pc" }) ?? "pc";
+  // 内側の入れ物を下へスクロールすると、上の行を隠す。選んだ日か表示を変えると、表示した状態へ戻す。
+  const selectedDateForChrome = useAtomValue(selectedDateAtom);
+  const handleScrollCapture = useChromeHideOnScroll(`${viewMode}:${selectedDateForChrome}`, onChromeHiddenChange);
 
   // エラー行クリックで該当日付の日別ビューへ移動し、該当スタッフ行までスクロールする
   const handleSelectIssue = useCallback(
@@ -240,7 +251,15 @@ const ShiftFormInner = ({
 
   if (layoutMode === "pc") {
     return (
-      <Box display="flex" flexDirection="column" h="100%" minH={0} overflow="hidden" bg="gray.50">
+      <Box
+        display="flex"
+        flexDirection="column"
+        h="100%"
+        minH={0}
+        overflow="hidden"
+        bg="gray.50"
+        onScrollCapture={handleScrollCapture}
+      >
         <Shell
           viewMode={viewMode}
           setViewMode={(v) => setViewMode(v)}
@@ -258,7 +277,6 @@ const ShiftFormInner = ({
           // PCの日別表示（時間指定、パターン選択）は、日付の見出しの行に入れるものの選択を置く。
           // 一覧は勤務を入れる画面ではないため、入れるものの選択を出さない。日付選択のPCは表で勤務を入れるため出す。
           hideToolPaletteRow={!isDateOnlyPattern}
-          showDetailToggle={Boolean(onDetailModeChange)}
           validationIssues={displayIssues}
           onSelectIssue={handleSelectIssue}
           onDismissValidationIssues={onDismissValidationIssues}
@@ -282,7 +300,15 @@ const ShiftFormInner = ({
   }
 
   return (
-    <Box display="flex" flexDirection="column" h="100%" minH={0} overflow="hidden" bg="gray.50">
+    <Box
+      display="flex"
+      flexDirection="column"
+      h="100%"
+      minH={0}
+      overflow="hidden"
+      bg="gray.50"
+      onScrollCapture={handleScrollCapture}
+    >
       <Shell
         viewMode={viewMode}
         setViewMode={(v) => setViewMode(v)}
@@ -297,8 +323,10 @@ const ShiftFormInner = ({
         reminderStatus={reminderStatus}
         onOpenUnsubmittedDetails={onOpenUnsubmittedDetails}
         // 一覧は勤務を入れる画面ではないため、入れるものの選択を出さない。
-        hideToolPaletteRow={viewMode === "overview"}
-        showDetailToggle={Boolean(onDetailModeChange)}
+        // 時間指定の日別は、日付の見出しの下、充足の上に入れるものの行を置く。
+        hideToolPaletteRow={
+          viewMode === "overview" || (viewMode === "daily" && !isShiftTypePattern && !isDateOnlyPattern)
+        }
         validationIssues={displayIssues}
         onSelectIssue={handleSelectIssue}
         onDismissValidationIssues={onDismissValidationIssues}
@@ -354,7 +382,6 @@ type ShellProps = {
   onOpenUnsubmittedDetails?: () => void;
   hideViewTabs?: boolean;
   hideToolPaletteRow?: boolean;
-  showDetailToggle: boolean;
   validationIssues: DisplayIssue[];
   onSelectIssue: (issue: DisplayIssue) => void;
   onDismissValidationIssues?: () => void;
@@ -378,7 +405,6 @@ const Shell = ({
   onOpenUnsubmittedDetails,
   hideViewTabs,
   hideToolPaletteRow,
-  showDetailToggle,
   validationIssues,
   onSelectIssue,
   onDismissValidationIssues,
@@ -387,6 +413,7 @@ const Shell = ({
   children,
 }: ShellProps) => {
   const detailMode = useAtomValue(detailModeAtom);
+  const isChromeHidden = useAtomValue(chromeHiddenAtom);
   const { provisionalAction } = useShiftFormDetailActions();
   return (
     <Flex direction="column" h="100%" minH={0}>
@@ -395,70 +422,85 @@ const Shell = ({
           <Heading as="h1">{header.mobileTitle}</Heading>
         </VisuallyHidden>
       )}
-      <Grid
-        templateColumns={header && !compact ? "auto minmax(0, 1fr) auto" : "minmax(0, 1fr) auto"}
-        px={compact ? 3 : 5}
-        bg="white"
-        borderBottomWidth="1px"
-        borderColor="gray.200"
-        alignItems="center"
+      {/*
+        上の行（戻る、日別と一覧、保存）。内側の入れ物を下へスクロールすると、高さを0へ縮めて隠す。
+        隠している間は、中のボタンへフォーカスが移らないようにする。
+      */}
+      <Box
+        display="grid"
+        gridTemplateRows={isChromeHidden ? "0fr" : "1fr"}
+        transition="grid-template-rows 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
+        _motionReduce={{ transition: "none" }}
         flexShrink={0}
+        data-chrome-row
+        data-chrome-hidden={isChromeHidden ? "" : undefined}
+        inert={isChromeHidden}
       >
-        <Flex minW={0} align="center" alignSelf="stretch" gap={header ? { base: 3, lg: 4 } : undefined}>
-          {header && <FocusedFlowBackButton backLabel={header.backLabel} backAriaLabel={header.backAriaLabel} />}
-          {!hideViewTabs && (
-            <ViewTabs value={viewMode} onChange={setViewMode} compactSpacing={compact && Boolean(header)} />
-          )}
-          {showDetailToggle && !compact && <DetailModeToggle />}
-        </Flex>
-        {header && !compact && (
-          <Heading
-            as="h1"
-            alignSelf="stretch"
-            display="flex"
+        <Box minH={0} overflow="hidden">
+          <Grid
+            templateColumns={header && !compact ? "auto minmax(0, 1fr) auto" : "minmax(0, 1fr) auto"}
+            px={compact ? 3 : 5}
+            bg="white"
+            borderBottomWidth="1px"
+            borderColor="gray.200"
             alignItems="center"
-            justifyContent="center"
-            minW={0}
-            color="gray.950"
-            fontSize="lg"
-            textAlign="center"
-            truncate
           >
-            {header.desktopTitle}
-          </Heading>
-        )}
-        {!isReadOnly || exportAction ? (
-          <Flex justifySelf="end" gap={2} align="center" py={compact ? 1 : 2} flexShrink={0}>
-            {compact && !isReadOnly ? (
-              <ActionsMenu
-                isConfirmed={isConfirmed}
-                isSavingDraft={isSavingDraft}
-                isConfirming={isConfirming}
-                onSaveDraft={onSaveDraft}
-                onConfirm={onConfirm}
-                exportAction={exportAction}
-              />
-            ) : (
-              <>
-                {exportAction && <ExportButton {...exportAction} />}
-                {!isReadOnly && (
+            <Flex minW={0} align="center" alignSelf="stretch" gap={header ? { base: 3, lg: 4 } : undefined}>
+              {header && <FocusedFlowBackButton backLabel={header.backLabel} backAriaLabel={header.backAriaLabel} />}
+              {!hideViewTabs && (
+                <ViewTabs value={viewMode} onChange={setViewMode} compactSpacing={compact && Boolean(header)} />
+              )}
+            </Flex>
+            {header && !compact && (
+              <Heading
+                as="h1"
+                alignSelf="stretch"
+                display="flex"
+                alignItems="center"
+                justifyContent="center"
+                minW={0}
+                color="gray.950"
+                fontSize="lg"
+                textAlign="center"
+                truncate
+              >
+                {header.desktopTitle}
+              </Heading>
+            )}
+            {!isReadOnly || exportAction ? (
+              <Flex justifySelf="end" gap={2} align="center" py={compact ? 1 : 2} flexShrink={0}>
+                {compact && !isReadOnly ? (
+                  <ActionsMenu
+                    isConfirmed={isConfirmed}
+                    isSavingDraft={isSavingDraft}
+                    isConfirming={isConfirming}
+                    onSaveDraft={onSaveDraft}
+                    onConfirm={onConfirm}
+                    exportAction={exportAction}
+                  />
+                ) : (
                   <>
-                    <SaveButton compact={compact} isSaving={isSavingDraft} onClick={onSaveDraft} />
-                    <ConfirmButton
-                      compact={compact}
-                      isConfirmed={isConfirmed}
-                      isConfirming={isConfirming}
-                      onClick={onConfirm}
-                    />
+                    {exportAction && <ExportButton {...exportAction} />}
+                    {!isReadOnly && (
+                      <>
+                        <SaveButton compact={compact} isSaving={isSavingDraft} onClick={onSaveDraft} />
+                        <ConfirmButton
+                          compact={compact}
+                          isConfirmed={isConfirmed}
+                          isConfirming={isConfirming}
+                          onClick={onConfirm}
+                        />
+                      </>
+                    )}
                   </>
                 )}
-              </>
+              </Flex>
+            ) : (
+              header && <Box justifySelf="end" minW="44px" />
             )}
-          </Flex>
-        ) : (
-          header && <Box justifySelf="end" minW="44px" />
-        )}
-      </Grid>
+          </Grid>
+        </Box>
+      </Box>
 
       {!hideToolPaletteRow && <ToolPalette />}
       <PositionLegend />

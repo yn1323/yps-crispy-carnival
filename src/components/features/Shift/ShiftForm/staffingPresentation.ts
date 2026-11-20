@@ -1,6 +1,6 @@
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import { getEditableEndMinutes, getEditableStartMinutes } from "@/src/components/shared/ShiftTimeline/timelineGeometry";
-import { toStaffingDisplayPositions } from "@/src/domains/shift/operations";
+import { isPositionsUnsplit, toStaffingDisplayPositions } from "@/src/domains/shift/operations";
 import type { NewcomerStaffIdsByPositionId } from "@/src/domains/shift/positionSkills";
 import {
   buildPositionStaffingBands,
@@ -95,29 +95,76 @@ export const buildStaffingCountView = (input: {
   };
 };
 
-/** 過不足の色。ポジションの色と混ぜないよう、地色、枠の線の種類、文字色で示す。 */
-export const STAFFING_TONE_STYLES: Record<
-  StaffingTone,
-  { bg?: string; borderColor: string; borderStyle: "solid" | "dashed"; color: string; fontWeight: number }
-> = {
+/** 過不足の色。ポジションの色と混ぜないよう、地色、枠の色、文字色で示す。 */
+type StaffingToneStyle = {
+  bg?: string;
+  borderColor: string;
+  borderStyle: "solid" | "dashed";
+  color: string;
+  fontWeight: number;
+};
+
+export const STAFFING_TONE_STYLES: Record<StaffingTone, StaffingToneStyle> = {
   shortage: { bg: "red.50", borderColor: "red.300", borderStyle: "solid", color: "red.700", fontWeight: 700 },
-  excess: { bg: "blue.50", borderColor: "blue.300", borderStyle: "dashed", color: "blue.700", fontWeight: 600 },
+  excess: { bg: "blue.50", borderColor: "blue.300", borderStyle: "solid", color: "blue.700", fontWeight: 600 },
   even: { borderColor: "transparent", borderStyle: "solid", color: "gray.600", fontWeight: 600 },
   unset: { borderColor: "transparent", borderStyle: "solid", color: "gray.600", fontWeight: 600 },
 };
 
-const describeTone = (view: StaffingCountView): string | null => {
-  if (view.required === null) return null;
-  if (view.tone === "shortage") return `${view.required - view.count}人足りません`;
-  if (view.tone === "excess") return `${view.count - view.required}人多くなっています`;
-  return null;
+// 必要人数のある日に、必要人数を入れていないポジションの区間。過不足ではないため、色を付けずに灰色の枠で囲む。
+const UNSET_POSITION_BOX_STYLE: StaffingToneStyle = {
+  bg: "white",
+  borderColor: "gray.400",
+  borderStyle: "solid",
+  color: "gray.700",
+  fontWeight: 600,
 };
 
-/** 押したときの欄と読み上げに出す、人数の説明。 */
-export const describeStaffingCount = (view: StaffingCountView): string[] => [
-  view.required === null ? `人数 ${view.count}人` : `人数 ${view.count}人 / 必要 ${view.required}人`,
-  ...[describeTone(view), view.isNewcomerOnly ? "見習いだけの時間です" : null].flatMap((line) => (line ? [line] : [])),
-];
+// 必要人数どおりの区間。充足の緑の地にチェックの印を載せる。見習いだけの区間も同じ地にし、注意のアイコンを添える。
+const EVEN_BOX_STYLE: StaffingToneStyle = {
+  bg: "green.50",
+  borderColor: "green.500",
+  borderStyle: "solid",
+  color: "green.700",
+  fontWeight: 600,
+};
+
+/**
+ * 時間指定のPCの帯の、1区間の色。必要人数どおりの区間は、緑の地の箱にする。
+ * その日に必要人数が1つもない（テンプレートが未設定の）日は、人数を出す区間をすべて、その帯のポジションの色の箱に入れる。
+ * 必要人数のある日に、必要人数を入れていないポジションの区間は、白の地に灰色の枠の箱に人数を出す。
+ */
+export const getBandSegmentStyle = (
+  segment: Pick<StaffingCountView, "tone" | "isNewcomerOnly">,
+  context: {
+    dayHasRequirements: boolean;
+    /** その帯のポジションの色。行の先頭の丸と同じ色。 */
+    positionColor: string;
+  },
+): StaffingToneStyle => {
+  if (segment.tone === "unset" && !context.dayHasRequirements) {
+    return {
+      // 地はポジションの色を白で薄め、文字は色に関わらず読めるよう濃いグレーにする。
+      bg: `color-mix(in srgb, ${context.positionColor} 15%, white)`,
+      borderColor: context.positionColor,
+      borderStyle: "solid",
+      color: "gray.800",
+      fontWeight: 600,
+    };
+  }
+  if (segment.tone === "unset") return UNSET_POSITION_BOX_STYLE;
+  if (segment.tone === "even") return EVEN_BOX_STYLE;
+  return STAFFING_TONE_STYLES[segment.tone];
+};
+
+/**
+ * 押したときの欄に出す、人数の説明。過不足は帯の色と文字で分かるため、担当する人数と必要人数だけを出す。
+ * 必要人数がない区間は人数だけ。見習いだけの区間には、そのことを添える。
+ */
+export const describeStaffingCount = (view: StaffingCountView): { count: string; newcomerNote: string | null } => ({
+  count: view.required === null ? `${view.count}人 担当` : `${view.count}/${view.required}人 担当`,
+  newcomerNote: view.isNewcomerOnly ? "スキル見習いのみ" : null,
+});
 
 // ==========================================
 // パターン選択と日付選択の区切り
@@ -176,9 +223,12 @@ export type DayTemplateView = {
   isCustom: boolean;
   /** その日だけの指定がある。日付選択の表で、テンプレート名に「（この日だけ）」を添える。 */
   isDateSpecific: boolean;
+  /** その日だけ、テンプレートを当てないと指定した日。メニューの「テンプレートなし」にチェックを付ける。 */
+  isNone: boolean;
 };
 
 const UNSET_TEMPLATE_LABEL = "未設定";
+export const NO_TEMPLATE_LABEL = "テンプレートなし";
 const CUSTOM_TEMPLATE_LABEL = "この日だけ変更";
 
 /** その日のテンプレートのメニューに出す名前と、選べる操作の元になる状態を返す。 */
@@ -189,8 +239,10 @@ export const buildDayTemplateView = (day: ShiftFormStaffingDay | undefined): Day
     templateName: null,
     isCustom: false,
     isDateSpecific: false,
+    isNone: false,
   };
   if (!day) return unset;
+  if (day.source === "dateNone") return { ...unset, label: NO_TEMPLATE_LABEL, isDateSpecific: true, isNone: true };
 
   const isDateSpecific = day.source === "dateCustom" || day.source === "dateTemplate";
   // その日だけ人数を変えた日。確定済みは、テンプレートの名前を持たずに必要人数だけが残っている日がこれにあたる。
@@ -203,6 +255,7 @@ export const buildDayTemplateView = (day: ShiftFormStaffingDay | undefined): Day
       templateName: day.templateName,
       isCustom: true,
       isDateSpecific,
+      isNone: false,
     };
   }
   return {
@@ -211,6 +264,7 @@ export const buildDayTemplateView = (day: ShiftFormStaffingDay | undefined): Day
     templateName: day.templateName,
     isCustom: false,
     isDateSpecific,
+    isNone: false,
   };
 };
 
@@ -315,6 +369,9 @@ const buildSlotViews = (input: BuildInput): StaffingSlotView[] => {
   }));
 };
 
+// ポジションを分けていない店舗で、必要人数がない日の帯の名前。比べる必要人数がないため、時間帯ごとの人数だと分かる名前にする。
+const UNSPLIT_UNSET_BAND_LABEL = "時間帯人数";
+
 const buildBandViews = (input: BuildInput): StaffingBandView[] => {
   const bands = buildPositionStaffingBands({
     shifts: input.shifts,
@@ -325,9 +382,11 @@ const buildBandViews = (input: BuildInput): StaffingBandView[] => {
     endMinutes: getEditableEndMinutes(input.timeRange),
   });
   const positionById = new Map(toStaffingDisplayPositions(input.positions).map((position) => [position.id, position]));
+  const isUnsplit = isPositionsUnsplit(input.positions);
   return bands.flatMap((band) => {
     const position = positionById.get(band.positionId);
     if (!position) return [];
+    const name = isUnsplit && !band.isConfigured ? UNSPLIT_UNSET_BAND_LABEL : position.name;
     const segments = band.segments
       // だれもいなくて必要人数もない区間は、帯に何も出さない。
       .filter((segment) => segment.count > 0 || (segment.required ?? 0) > 0)
@@ -340,13 +399,13 @@ const buildBandViews = (input: BuildInput): StaffingBandView[] => {
           startMinutes: timeToMinutes(segment.start),
           endMinutes: timeToMinutes(segment.end),
           timeLabel,
-          description: `${position.name} ${timeLabel} ${count.label}${count.isNewcomerOnly ? "、見習いだけ" : ""}`,
+          description: `${name} ${timeLabel} ${count.label}${count.isNewcomerOnly ? "、見習いだけ" : ""}`,
         };
       });
     return [
       {
         positionId: position.id,
-        name: position.name,
+        name,
         color: position.color,
         isConfigured: band.isConfigured,
         hasImbalance: segments.some((segment) => segment.tone === "shortage" || segment.tone === "excess"),
@@ -400,8 +459,8 @@ const BAND_LABEL_NARROW_CHAR_WIDTH_PX = 7;
 const BAND_LABEL_WIDE_CHAR_WIDTH_PX = 12;
 // 区間の左右の余白と枠。
 const BAND_LABEL_PADDING_PX = 8;
-// 見習いだけの印（注意のアイコン）の幅と、文字との間。
-const BAND_NEWCOMER_MARK_WIDTH_PX = 16;
+// 見習いだけの印（注意のアイコン）とチェックの印の幅と、文字との間。
+const BAND_MARK_WIDTH_PX = 16;
 
 const isNarrowChar = (char: string): boolean => char === "−" || char.charCodeAt(0) < 0x80;
 
@@ -414,6 +473,8 @@ const estimateBandLabelWidth = (label: string): number =>
 export type BandSegmentContent = {
   /** 区間に出す文字。ちょうどの区間と、入らない幅ではnull。 */
   text: string | null;
+  /** 必要人数どおりの区間に出す、チェックの印。 */
+  showsCheckMark: boolean;
   showsNewcomerMark: boolean;
 };
 
@@ -421,21 +482,60 @@ export type BandSegmentContent = {
  * 区間の幅に入る文字を決める。帯には過不足だけを出し、人数と必要人数は押したときの欄で出す。
  * 過不足は「−1」「+2」で示し、入らない幅では文字を出さない。
  * 見習いだけの区間は、文字と印が並ぶ幅なら両方を出し、並ばない幅では印を省いて文字だけを出す。
+ * 必要人数どおりの区間は、文字の代わりにチェックの印を出す。見習いだけで、2つの印が並ばない幅では、注意の印を残す。
  */
 export const resolveBandSegmentContent = (
   segment: Pick<StaffingCountView, "diffLabel" | "isNewcomerOnly">,
   widthPx: number,
 ): BandSegmentContent => {
-  const markWidth = (withMark: boolean) => (withMark ? BAND_NEWCOMER_MARK_WIDTH_PX : 0);
-  const fits = (label: string, withMark: boolean) => widthPx >= estimateBandLabelWidth(label) + markWidth(withMark);
-  // ちょうどの区間は文字がないため、印だけが入るかを見る。
+  const fits = (label: string, markCount: number) =>
+    widthPx >= estimateBandLabelWidth(label) + BAND_MARK_WIDTH_PX * markCount;
+  const none: BandSegmentContent = { text: null, showsCheckMark: false, showsNewcomerMark: false };
+  // ちょうどの区間は文字がないため、印が入るかを見る。
   if (segment.diffLabel === "") {
-    return { text: null, showsNewcomerMark: segment.isNewcomerOnly && fits("", true) };
+    if (!segment.isNewcomerOnly) return { ...none, showsCheckMark: fits("", 1) };
+    if (fits("", 2)) return { ...none, showsCheckMark: true, showsNewcomerMark: true };
+    return { ...none, showsNewcomerMark: fits("", 1) };
   }
-  if (segment.isNewcomerOnly && fits(segment.diffLabel, true))
-    return { text: segment.diffLabel, showsNewcomerMark: true };
-  if (fits(segment.diffLabel, false)) return { text: segment.diffLabel, showsNewcomerMark: false };
-  return { text: null, showsNewcomerMark: false };
+  if (segment.isNewcomerOnly && fits(segment.diffLabel, 1))
+    return { ...none, text: segment.diffLabel, showsNewcomerMark: true };
+  if (fits(segment.diffLabel, 0)) return { ...none, text: segment.diffLabel };
+  return none;
+};
+
+// ==========================================
+// 必要人数だけを見せる帯
+// ==========================================
+export type RequiredSpanView = {
+  key: string;
+  startMinutes: number;
+  endMinutes: number;
+  required: number;
+};
+
+/**
+ * 帯の区間を、必要人数が変わる時刻だけで区切り直す。シフト作成の設定のテンプレートと同じ区切りで見せるために使う。
+ * 人数だけが変わる境目はつなげ、必要人数がない時間は含めない。
+ */
+export const toRequiredSpans = (
+  segments: ReadonlyArray<Pick<StaffingBandSegmentView, "startMinutes" | "endMinutes" | "required">>,
+): RequiredSpanView[] => {
+  const spans: RequiredSpanView[] = [];
+  for (const segment of segments) {
+    if (segment.required === null || segment.required <= 0) continue;
+    const previous = spans.at(-1);
+    if (previous && previous.endMinutes === segment.startMinutes && previous.required === segment.required) {
+      previous.endMinutes = segment.endMinutes;
+      continue;
+    }
+    spans.push({
+      key: `${segment.startMinutes}`,
+      startMinutes: segment.startMinutes,
+      endMinutes: segment.endMinutes,
+      required: segment.required,
+    });
+  }
+  return spans;
 };
 
 // ==========================================

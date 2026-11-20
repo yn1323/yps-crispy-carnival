@@ -5,6 +5,8 @@ import type { TimeRange } from "@/src/domains/shift/types";
 
 export type ShiftBoardData = {
   shopId: Id<"shops">;
+  /** 店舗がシフト表で最後に選んだ表示。trueは「くわしく」、falseは「シンプル」。まだ選んでいない店舗はnull。 */
+  shiftDetailMode?: boolean | null;
   exportStaffOrder?: Id<"staffs">[];
   canWriteBusinessData: boolean;
   businessWriteBlockReason: "paymentResultPending" | "usageLimitExceeded" | "usageLimitEvaluationUnavailable" | null;
@@ -78,7 +80,7 @@ export type ShiftBoardStaffingData = {
   /** 募集期間の全日。requirementsがnullの日は未設定として扱う。 */
   days: Array<{
     date: string;
-    source: "confirmed" | "dateCustom" | "dateTemplate" | "holiday" | "weekday" | "none";
+    source: "confirmed" | "dateCustom" | "dateTemplate" | "dateNone" | "holiday" | "weekday" | "none";
     templateId: Id<"shiftDayTemplates"> | null;
     templateName: string | null;
     requirements: DayRequirements<Id<"positions">> | null;

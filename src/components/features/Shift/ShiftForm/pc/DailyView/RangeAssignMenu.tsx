@@ -19,6 +19,11 @@ type RangeAssignMenuProps = {
   range: MinuteRange;
   /** 選んだ範囲を示す面。メニューを、この面のすぐ上に出す。 */
   anchorRef: RefObject<HTMLDivElement | null>;
+  /**
+   * メニューを収める範囲。表のスクロールする入れ物を渡す。
+   * 上に入りきらない場合は面の下に出し、画面のヘッダーの後ろに隠れないようにする。
+   */
+  boundaryRef: RefObject<HTMLElement | null>;
   /** 何も変えずに閉じる。選んだあとも呼ぶ。 */
   onClose: () => void;
 };
@@ -32,7 +37,7 @@ const itemStyle = { cursor: "pointer", ps: 8, pe: 3, py: 2 } as const;
  * ポジションを塗り分けない表示では、ポジションの代わりに「勤務」を出す。
  * 勤務の削除と、時刻を指定して休憩を足し引きする編集を開く項目もここに置く。
  */
-export const RangeAssignMenu = ({ shift, range, anchorRef, onClose }: RangeAssignMenuProps) => {
+export const RangeAssignMenu = ({ shift, range, anchorRef, boundaryRef, onClose }: RangeAssignMenuProps) => {
   const { positions } = useAtomValue(shiftConfigAtom);
   const assignShiftRange = useSetAtom(assignShiftRangeAtom);
   const deleteShiftPosition = useSetAtom(deleteShiftPositionAtom);
@@ -107,6 +112,8 @@ export const RangeAssignMenu = ({ shift, range, anchorRef, onClose }: RangeAssig
         placement: "top",
         gutter: 8,
         getAnchorRect: () => anchorRef.current?.getBoundingClientRect() ?? null,
+        // 画面の上端ではなく表の上端を境にして、上に入りきらなければ下へ出す。
+        boundary: () => boundaryRef.current ?? "clippingAncestors",
       }}
     >
       <Portal>
@@ -175,9 +182,7 @@ export const RangeAssignMenu = ({ shift, range, anchorRef, onClose }: RangeAssig
                 <Icon boxSize={3.5} aria-hidden>
                   <LuTrash2 />
                 </Icon>
-                <Menu.ItemText fontSize="sm" fontVariantNumeric="tabular-nums">
-                  勤務 {viewModel.deleteTarget.timeLabel}を削除
-                </Menu.ItemText>
+                <Menu.ItemText fontSize="sm">削除</Menu.ItemText>
               </Menu.Item>
             )}
           </Menu.Content>

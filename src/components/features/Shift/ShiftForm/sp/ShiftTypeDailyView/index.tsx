@@ -288,7 +288,6 @@ const StaffShiftTypeCard = ({
           <ShiftTypeOptionButton
             key={option.option.id}
             staffName={card.staff.name}
-            staff={card.staff}
             viewModel={option}
             isReadOnly={isReadOnly}
             onToggle={() => onToggle(option.option)}
@@ -308,13 +307,11 @@ const RequestBadge = ({ bg, color, children }: { bg: string; color: string; chil
 
 const ShiftTypeOptionButton = ({
   staffName,
-  staff,
   viewModel,
   isReadOnly,
   onToggle,
 }: {
   staffName: string;
-  staff: StaffType;
   viewModel: SPShiftTypeOptionViewModel;
   isReadOnly: boolean;
   onToggle: () => void;
@@ -387,7 +384,7 @@ const ShiftTypeOptionButton = ({
           {/* ポジションが1つの店舗では、熟練度の印がある勤務だけ出す。 */}
           {detailMode && viewModel.segment && (
             <Box mt="2px" color="gray.800" _empty={{ display: "none" }}>
-              <PositionMark segment={viewModel.segment} staff={staff} />
+              <PositionMark segment={viewModel.segment} />
             </Box>
           )}
         </Box>

@@ -264,7 +264,7 @@ Mobile VRTはviewport指定だけでなく`vrt-mobile1`または`vrt-mobile2` ta
 
 ## Public Convex surface inventory
 
-2026-11-16時点のpublic query、mutation、actionは127個である。
+2026-11-21時点のpublic query、mutation、actionは128個である。
 同じ業務境界のAPIは一行へまとめるが、公開export名は省略しない。
 
 | Module | Public exports | 対応契約 / 状態 |
@@ -298,7 +298,7 @@ Mobile VRTはviewport指定だけでなく`vrt-mobile1`または`vrt-mobile2` ta
 | `organizationStripe/actions` | `cancelPendingCheckoutForOrganization`、`cancelScheduledPlanChangeForOrganization`、`cancelTrialContinuationForOrganization`、`changePaidPlanNowForOrganization`、`getPlanPriceForOrganization`、`inspectPendingCheckoutForOrganization`、`openCustomerPortalForOrganization`、`previewPaidPlanChangeForOrganization`、`schedulePaidPlanChangeForOrganization`、`scheduleServiceStopAtPeriodEndForOrganization`、`startPaidCheckoutForOrganization` | `BILLING-CHECKOUT-01`、`BILLING-PLAN-CHANGE-01`、`BILLING-TRIAL-CANCEL-01`。canonical組織境界で認可、契約状態、Stripe設定、Priceを再確認し、Webhookとinternal workerの収束を維持する |
 | `recruitment/mutations` | `createRecruitment`、`updateRecruitment`、`deleteRecruitment` | `RECRUITMENT-01`、`RECRUITMENT-EDIT-01` |
 | `setup/mutations` | `createOrganizationForApp`、`setupShopAndManager`、`verifyPromotionCode` | `ORG-CREATE-01`、`SETUP-ORGANIZATION-01`。初回Setupと追加組織で開始条件、作成プラン、上限を分け、プロモーションコードは作成前と最終Setupで照合する |
-| `shiftBoard/mutations` | `confirmRecruitment`、`saveShiftAssignments` | `SHIFT-BOARD-DRAFT-01`、`SHIFT-CONFIRM-01` |
+| `shiftBoard/mutations` | `confirmRecruitment`、`saveShiftAssignments`、`switchShiftDetailMode` | `SHIFT-BOARD-DRAFT-01`、`SHIFT-CONFIRM-01` |
 | `shiftBoard/queries` | `getShiftBoardData`、`getShiftBoardShopScopeForOrganization`、`getShiftBoardDateNotes`、`getShiftBoardStaffing`、`getProvisionalAssignments` | `SHIFT-BOARD-DRAFT-01`。新appはcanonical組織で店舗scopeを検証する。日付メモは同じ店舗scopeで有効スタッフ分だけを最小DTOで返す |
 | `shiftSetup/actions` | `suggestShiftSetup` | `SHIFT-SETUP-ASSIST-01`。環境変数で有効な環境だけ、権限とrate limitを確かめてテンプレートの下書きを返す。設定は保存しない |
 | `shiftSetup/mutations` | `savePositions`、`saveDayTemplates`、`saveBreakRule`、`saveStaffShiftProfiles`、`applyDayTemplateToDates`、`saveDayCustomRequirements` | `SHIFT-SETUP-01`。選択店舗の設定を全置換で保存し、受け取ったIDの店舗一致を再確認する。日ごとのテンプレートの当て直しとその日だけの必要人数は、未確定の募集の期間内に限る |

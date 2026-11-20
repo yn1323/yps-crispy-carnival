@@ -10,21 +10,11 @@ export type ShiftBarSegmentViewModel = {
   positionId: string;
   // ポジションの色。くわしく表示でポジションを塗り分けるときに使う。
   color: string;
-  // 区間のポジション。そのポジションでの熟練度の印に使う。
-  workPosition: { positionId: string; positionName: string };
   left: number;
   width: number;
   isResizing: boolean;
   edgeShape: "isolated" | "start" | "middle" | "end";
-  // 熟練度の印（見・リ）を、バーの右端に置けるかどうか。狭いバーと、勤務時刻のラベルに重なるバーには置かない。
-  fitsSkillMark: boolean;
 };
-
-// 熟練度の印の幅と、バーの右端からの余白。
-export const SKILL_MARK_WIDTH_PX = 16;
-export const SKILL_MARK_INSET_PX = 3;
-// 勤務時刻のラベル（「10:00–18:00」）が、勤務の左端から占める幅の目安。
-const WORK_LABEL_RESERVED_PX = 88;
 
 export type ShiftBarOverlayViewModel = {
   key: string;
@@ -120,8 +110,8 @@ export const buildShiftBarViewModel = ({
     return [{ position, index, isResizing, startMinutes, endMinutes }];
   });
 
-  const placedWorkBars = previewWork.map(
-    ({ position, index, isResizing, startMinutes, endMinutes }): Omit<ShiftBarSegmentViewModel, "fitsSkillMark"> => {
+  const workBars = previewWork.map(
+    ({ position, index, isResizing, startMinutes, endMinutes }): ShiftBarSegmentViewModel => {
       const segmentLeft = minutesToPixel(startMinutes, timeRange, hourWidth);
       const segmentRight = minutesToPixel(endMinutes, timeRange, hourWidth);
       // 勤務の間の空きは休憩の斜線で埋めるため、空きをはさむ場合も、隣り合う場合と同じく角を丸めない。
@@ -132,7 +122,6 @@ export const buildShiftBarViewModel = ({
         key: position.id,
         positionId: position.id,
         color: position.color,
-        workPosition: { positionId: position.positionId, positionName: position.positionName },
         left: segmentLeft - left,
         width: segmentRight - segmentLeft,
         isResizing,
@@ -180,16 +169,6 @@ export const buildShiftBarViewModel = ({
             label: `${formatShiftClockTime(firstWork.start)}–${formatShiftClockTime(lastWork.end)}`,
           };
         })();
-
-  // 印は各バーの右端に置く。バーに収まり、勤務時刻のラベルに重ならないバーにだけ置く。
-  const labelEnd = workLabel ? workLabel.left + WORK_LABEL_RESERVED_PX : Number.NEGATIVE_INFINITY;
-  const workBars = placedWorkBars.map((bar): ShiftBarSegmentViewModel => {
-    const markStart = bar.left + bar.width - SKILL_MARK_INSET_PX - SKILL_MARK_WIDTH_PX;
-    return {
-      ...bar,
-      fitsSkillMark: !bar.isResizing && markStart >= bar.left + SKILL_MARK_INSET_PX && markStart >= labelEnd,
-    };
-  });
 
   return { shiftId: shift.id, left, width, requestedBars, workBars, breakBars, explicitBreakBars, workLabel };
 };

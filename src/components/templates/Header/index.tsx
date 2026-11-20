@@ -51,6 +51,8 @@ type PublicHeaderVariantProps = {
 type UserHeaderVariantProps = {
   variant?: "user";
   position?: HeaderPosition;
+  /** 画面の内側のスクロールに合わせて隠す。ページのスクロールで隠れる動きに加えて使う。 */
+  hidden?: boolean;
   userActions?: ReactNode;
   primaryNavigation?: ReactNode;
   brandTo?: string;
@@ -119,6 +121,7 @@ export const Header = (props: HeaderProps = {}) => {
         minH={AUTHENTICATED_APP_HEADER_HEIGHT}
         py={0}
         bg={AUTHENTICATED_GLASS_BACKGROUND}
+        hidden={props.hidden}
       >
         <Grid templateColumns="auto minmax(0, 1fr) auto" alignItems="center" gap={{ base: 2, lg: 4 }} w="full" minW={0}>
           {brand}
@@ -135,6 +138,7 @@ export const Header = (props: HeaderProps = {}) => {
       minH={AUTHENTICATED_APP_HEADER_HEIGHT}
       py={0}
       bg={AUTHENTICATED_GLASS_BACKGROUND}
+      hidden={props.hidden}
     >
       {brand}
       {userActions}
@@ -155,6 +159,8 @@ type HeaderShellProps = {
   borderBottomWidth?: BoxProps["borderBottomWidth"];
   borderColor?: BoxProps["borderColor"];
   boxShadow?: BoxProps["boxShadow"];
+  /** ページのスクロールとは別に、呼び出し側の指示で隠す。 */
+  hidden?: boolean;
 };
 
 const HeaderShell = ({
@@ -170,8 +176,10 @@ const HeaderShell = ({
   borderBottomWidth = "1px",
   borderColor = "rgba(15, 23, 42, 0.08)",
   boxShadow,
+  hidden = false,
 }: HeaderShellProps) => {
-  const isScrollHidden = useHideOnScrollDown({ enabled: position !== "static" });
+  const isPageScrollHidden = useHideOnScrollDown({ enabled: position !== "static" });
+  const isScrollHidden = isPageScrollHidden || (hidden && position !== "static");
 
   return (
     <Box

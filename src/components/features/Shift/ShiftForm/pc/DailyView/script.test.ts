@@ -125,8 +125,8 @@ describe("buildRangeAssignMenuViewModel", () => {
         { value: "position:kitchen", name: "キッチン", color: "#fb923c", shortcut: "2" },
       ],
       isBreakDisabled: false,
-      breakEditorLabel: "休憩を時刻で追加",
-      deleteTarget: { segmentIds: ["seg-10:00"], timeLabel: "10:00〜14:00" },
+      breakEditorLabel: "休憩を追加",
+      deleteTarget: { segmentIds: ["seg-10:00"] },
     });
   });
 
@@ -135,16 +135,16 @@ describe("buildRangeAssignMenuViewModel", () => {
   });
 
   it("休憩の編集を開く項目は、休憩だけを選んだ範囲では「変更」、勤務を含む範囲では「追加」と出す", () => {
-    expect(build("12:00", "13:00").breakEditorLabel).toBe("休憩を時刻で変更");
-    expect(build("12:30", "13:00").breakEditorLabel).toBe("休憩を時刻で変更");
-    expect(build("11:00", "13:00").breakEditorLabel).toBe("休憩を時刻で追加");
-    expect(buildWithoutPositions("12:00", "13:00").breakEditorLabel).toBe("休憩を時刻で変更");
+    expect(build("12:00", "13:00").breakEditorLabel).toBe("休憩を変更");
+    expect(build("12:30", "13:00").breakEditorLabel).toBe("休憩を変更");
+    expect(build("11:00", "13:00").breakEditorLabel).toBe("休憩を追加");
+    expect(buildWithoutPositions("12:00", "13:00").breakEditorLabel).toBe("休憩を変更");
   });
 
   it("ポジションが混ざる範囲は、どれにもチェックを出さず、かかる区間をすべて削除の対象にする", () => {
     expect(build("13:00", "15:00")).toMatchObject({
       checkedValue: null,
-      deleteTarget: { segmentIds: ["seg-10:00", "seg-14:00"], timeLabel: "10:00〜18:00" },
+      deleteTarget: { segmentIds: ["seg-10:00", "seg-14:00"] },
     });
   });
 
@@ -188,7 +188,6 @@ describe("buildRangeAssignMenuViewModel", () => {
     it("選んだ範囲を含むひと続きの勤務を、ポジションの違う区間もまとめて、削除の対象にする", () => {
       expect(buildWithoutPositions("10:00", "11:30").deleteTarget).toEqual({
         segmentIds: ["seg-10:00", "seg-14:00"],
-        timeLabel: "10:00〜18:00",
       });
     });
   });

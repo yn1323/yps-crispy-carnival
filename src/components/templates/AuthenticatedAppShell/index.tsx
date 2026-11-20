@@ -9,6 +9,7 @@ import {
 } from "@/src/components/features/AuthenticatedApp/AppPrimaryNavigation";
 import { AppFeatureRequestAction, type AppFeatureRequestScope } from "@/src/components/features/FeatureRequestDialog";
 import { AUTHENTICATED_APP_HEADER_HEIGHT, Header } from "@/src/components/templates/Header";
+import { AppHeaderVisibilityProvider, useAppHeaderVisibility } from "@/src/providers/AppHeaderVisibilityProvider";
 
 export const AUTHENTICATED_APP_CONTENT_HEIGHT = {
   base: `calc(100dvh - ${AUTHENTICATED_APP_HEADER_HEIGHT.base} - ${MOBILE_APP_NAVIGATION_HEIGHT} - env(safe-area-inset-bottom))`,
@@ -38,7 +39,16 @@ type Props = {
   children: ReactNode;
 };
 
-export function AuthenticatedAppShell({
+export function AuthenticatedAppShell(props: Props) {
+  return (
+    // 画面の内側でスクロールする画面が、ヘッダーを隠す・表示するを伝えられるようにする。
+    <AppHeaderVisibilityProvider>
+      <AuthenticatedAppShellContent {...props} />
+    </AppHeaderVisibilityProvider>
+  );
+}
+
+function AuthenticatedAppShellContent({
   activeKey,
   activeOrganizationId,
   showPrimaryNavigation = true,
@@ -46,9 +56,11 @@ export function AuthenticatedAppShell({
   featureRequest,
   children,
 }: Props) {
+  const { isHiddenByContent } = useAppHeaderVisibility();
   return (
     <Box w="full" minH="100dvh" bg="gray.50">
       <Header
+        hidden={isHiddenByContent}
         brandTo="/dashboard"
         brandSearch={activeOrganizationId ? { org: activeOrganizationId } : undefined}
         brandAriaLabel="ホームへ"

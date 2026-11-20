@@ -4,9 +4,9 @@ import type { ReactNode } from "react";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { IssueDot, issueToneEmphasis, resolveIssueTone, StaffWarningIcon } from "../../components";
 import { ShiftDateNoteBlock, ShiftStaffNoteIcon } from "../../dateNotes";
-import { BreakMark, PositionMark, SegmentSkillMark, StaffMeta } from "../../detailParts";
-import { buildSegmentSkillMark } from "../../skillPresentation";
-import { detailModeAtom, showsSegmentSkillMarksAtom, usesPositionColorsAtom } from "../../stores";
+import { BreakMark, PositionMark, StaffMeta } from "../../detailParts";
+import { getSPCardPaddingXPx, SP_CARD_BORDER_PX } from "../../spTimelineScale";
+import { detailModeAtom, usesPositionColorsAtom } from "../../stores";
 import type { SPDailyCardViewModel } from "./script";
 
 const STRIPE_STYLE = {
@@ -106,18 +106,12 @@ export const SPDailyCard = ({
 }: DailyCardProps) => {
   const detailMode = useAtomValue(detailModeAtom);
   const usesPositionColors = useAtomValue(usesPositionColorsAtom);
-  const showsSkillMarks = useAtomValue(showsSegmentSkillMarksAtom);
   const tone = resolveIssueTone(hasError, false);
   const emphasis = issueToneEmphasis(tone);
+  const cardBorderPx = emphasis ? 2 : SP_CARD_BORDER_PX;
   const explicitBreakBars = detailMode ? viewModel.explicitBreakBars : [];
-  // ポジションが1つの店舗では、勤務のポジションは1つなので、熟練度の印を1つだけ出す。
-  const singlePositionSkillMark =
-    showsSkillMarks && !usesPositionColors ? buildSegmentSkillMark(staff, viewModel.workBars[0]) : null;
-  // バーの下に、ポジションの名前、熟練度の印、休憩の時刻を文字で出す。色だけに頼らないようにする。
-  const showDetailLine =
-    detailMode &&
-    viewModel.hasAssignment &&
-    (usesPositionColors || singlePositionSkillMark !== null || explicitBreakBars.length > 0);
+  // バーの下に、ポジションの名前と休憩の時刻を文字で出す。色だけに頼らないようにする。
+  const showDetailLine = detailMode && viewModel.hasAssignment && (usesPositionColors || explicitBreakBars.length > 0);
 
   return (
     <Box
@@ -136,9 +130,10 @@ export const SPDailyCard = ({
       textAlign="left"
       bg={emphasis?.bg ?? "white"}
       borderRadius="lg"
-      borderWidth={emphasis ? "2px" : "1px"}
+      borderWidth={`${cardBorderPx}px`}
       borderColor={emphasis?.border ?? "gray.200"}
-      px={3}
+      // バーの両端を充足の帯にそろえるため、枠線が太くなっても内側の余白で吸収する。
+      px={`${getSPCardPaddingXPx(cardBorderPx)}px`}
       py="10px"
       cursor="pointer"
       transitionProperty="colors"
@@ -242,7 +237,7 @@ export const SPDailyCard = ({
           {usesPositionColors &&
             viewModel.workBars.map((bar) => (
               <Flex key={bar.key} align="center" gap="6px" minW={0}>
-                <PositionMark segment={bar} staff={staff} />
+                <PositionMark segment={bar} />
                 {viewModel.workBars.length > 1 && (
                   <Box textStyle="2xs" color="gray.600" fontVariantNumeric="tabular-nums" flexShrink={0}>
                     {bar.timeLabel}
@@ -250,7 +245,6 @@ export const SPDailyCard = ({
                 )}
               </Flex>
             ))}
-          {singlePositionSkillMark && <SegmentSkillMark staff={staff} segment={viewModel.workBars[0]} />}
           <BreakMark shift={shift} />
         </Flex>
       )}

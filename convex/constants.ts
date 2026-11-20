@@ -194,6 +194,8 @@ export const DEFAULT_POSITION_COLOR = "#60a5fa";
 // 既存の読み手はpositionsを50件の窓で読む。画面で選び分けられる数に収めるため、有効な件数を10件までにする。
 export const POSITION_ACTIVE_LIMIT = 10;
 export const POSITION_NAME_MAX_LENGTH = 20;
+// ポジションを削除するときに、下書きの勤務を消す確定前の募集の数の上限。超える店舗では削除を受け付けない。
+export const POSITION_REMOVAL_OPEN_RECRUITMENT_LIMIT = 50;
 // ポジションの色は自由入力にせず、シフト表で見分けられる用意済みの色から選ぶ。
 // 色の上には白い文字を載せる。明るい色でそろえつつ、白い文字が沈む黄・青緑・黄緑・水色は一段濃くしている。
 export const POSITION_COLOR_PALETTE = [

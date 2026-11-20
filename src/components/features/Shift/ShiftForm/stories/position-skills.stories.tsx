@@ -7,7 +7,7 @@ import { desktopGlobals, fullscreenParameters, mobileGlobals, shiftFormDecorator
 
 type ShiftFormArgs = ComponentProps<typeof ShiftForm>;
 
-// ポジションごとの熟練度の印を、時間指定の日別表示で確かめる。
+// ポジションごとの熟練度の印を、時間指定の日別表示で確かめる。シフト表には、名前の横の「担当外」だけを出す。
 // Aさんは、ホールではリーダー、キッチンでは見習い。Dさんは、キッチンとレジで見習い。Eさんは、ホールが担当外。
 // Aさんはホール（10:00〜14:00）からキッチン（14:00〜18:00）へ移り、Dさんはレジに入る。Eさんは勤務がない。
 const meta = {
@@ -41,59 +41,51 @@ const selectTool = async (canvasElement: HTMLElement, name: string) => {
   await userEvent.click(within(palette).getByRole("radio", { name }));
 };
 
-/** 名前の横の印と、勤務の区間の印を、文字で返す。名前の横は「リーダー」「担当外」、勤務の区間は「リ」。見習いはどちらにも出さない。 */
+/** 名前の横の印を、文字で返す。シフト表に出すのは「担当外」だけで、リーダーと見習いは出さない。 */
 const nameBadges = (row: ReturnType<typeof within>) =>
   ["リーダー", "見習い", "担当外"].filter((label) => row.queryByText(label) !== null);
-const segmentMarks = (row: ReturnType<typeof within>) => [
-  ...row.queryAllByText("リ").map(() => "リ"),
-  ...row.queryAllByText("見").map(() => "見"),
-];
 
-/** 「入れるもの」を切り替えると、名前の横の印が、選んだポジションでの値に変わる。勤務の区間の印は変わらない。 */
+/** 画面のどこにも、リーダーの印（名前の横の「リーダー」、勤務の側の「リ」）がない。 */
+const expectNoLeaderMarks = async (canvasElement: HTMLElement) => {
+  const canvas = within(canvasElement);
+  await expect(canvas.queryByText("リーダー")).not.toBeInTheDocument();
+  await expect(canvas.queryByText("リ")).not.toBeInTheDocument();
+};
+
+/**
+ * 「入れるもの」を切り替えると、名前の横の担当外の印が、選んだポジションでの値に変わる。
+ * Aさんはホールでリーダーだが、名前の横にも勤務の側にも、リーダーの印は出さない。
+ */
 const expectNameMarkFollowsTool = async (canvasElement: HTMLElement) => {
   const rowA = await findRow(canvasElement, "staff1");
   const rowD = await findRow(canvasElement, "staff4");
   const rowE = await findRow(canvasElement, "staff5");
 
   // 選んでいなければ、既定のポジション（ホール）での値を出す。
-  await expect(await rowA.findByText("リーダー")).toHaveAttribute("title", "ホールではリーダーです");
-  await expect(rowE.getByText("担当外")).toHaveAttribute("title", "ホールは担当外です");
-  await expect(nameBadges(rowD)).toEqual([]);
-  // 勤務の区間には、その区間のポジションでリーダーのときだけ「リ」が出る。Aさんはホールでリーダー、キッチンでは見習い。
-  await expect(segmentMarks(rowA)).toEqual(["リ"]);
+  await expect(await rowE.findByText("担当外")).toHaveAttribute("title", "ホールは担当外です");
+  await expect([rowA, rowD].map(nameBadges)).toEqual([[], []]);
+  await expectNoLeaderMarks(canvasElement);
 
   // 見習いは名前の横に出さない。キッチンでは、AさんとDさんが見習い、Eさんが一人前。
   await selectTool(canvasElement, "キッチン");
   await waitFor(() => expect([rowA, rowD, rowE].map(nameBadges)).toEqual([[], [], []]));
-  await expect(segmentMarks(rowA)).toEqual(["リ"]);
 
   await selectTool(canvasElement, "ホール");
-  await expect(await rowA.findByText("リーダー")).toHaveAttribute("title", "ホールではリーダーです");
-  await expect([rowD, rowE].map(nameBadges)).toEqual([[], ["担当外"]]);
+  await expect(await rowE.findByText("担当外")).toHaveAttribute("title", "ホールは担当外です");
+  await expect([rowA, rowD].map(nameBadges)).toEqual([[], []]);
 
   // 休憩を選んでいる間は、根拠にするポジションがないため、名前の横の印を出さない。
   await selectTool(canvasElement, "休憩");
   await waitFor(() => expect([rowA, rowD, rowE].map(nameBadges)).toEqual([[], [], []]));
-  await expect(segmentMarks(rowA)).toEqual(["リ"]);
+  await expectNoLeaderMarks(canvasElement);
 };
 
-/** 閲覧専用では「入れるもの」がないため、名前の横の印を出さない。勤務の区間の印は出す。 */
-const expectReadOnlyShowsSegmentMarksOnly = async (canvasElement: HTMLElement) => {
-  const canvas = within(canvasElement);
-  const rowA = await findRow(canvasElement, "staff1");
-
-  await waitFor(() => expect(segmentMarks(rowA)).toEqual(["リ"]));
-  await expect(canvas.queryByRole("radiogroup", { name: "入れるもの" })).not.toBeInTheDocument();
-  for (const label of ["リーダー", "見習い", "担当外"]) {
-    await expect(canvas.queryByText(label)).not.toBeInTheDocument();
-  }
-};
-
-/** スタッフ向けの確定シフト表示では、名前の横にも勤務の区間にも、熟練度の印を出さない。 */
+/** 閲覧専用と、スタッフ向けの確定シフト表示では、名前の横にも勤務の側にも、熟練度の印を出さない。 */
 const expectNoSkillMarks = async (canvasElement: HTMLElement) => {
   const canvas = within(canvasElement);
   // ポジションの色分けは出る。その勤務が出たあとで、印がないことを確かめる。
   await waitFor(() => expect(canvas.queryAllByText("キッチン").length).toBeGreaterThan(0));
+  await expect(canvas.queryByRole("radiogroup", { name: "入れるもの" })).not.toBeInTheDocument();
   for (const label of ["リーダー", "見習い", "担当外", "リ", "見"]) {
     await expect(canvas.queryByText(label)).not.toBeInTheDocument();
   }
@@ -109,25 +101,26 @@ export const NameMarkFollowsToolOnDesktop: Story = {
   play: async ({ canvasElement }) => expectNameMarkFollowsTool(canvasElement),
 };
 
-/** シンプル表示へ切り替えると、名前の横の印も勤務の区間の印も消え、くわしく表示へ戻すと出る。 */
+/** 「表示設定」でシンプル表示へ切り替えると、名前の横の担当外の印が消え、くわしく表示へ戻すと出る。 */
 export const HiddenInSimpleOnDesktop: Story = {
   name: "Hidden In Simple On Desktop",
   args: timeDetailArgs,
   globals: desktopGlobals,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const rowA = await findRow(canvasElement, "staff1");
-    const detailMode = within(await canvas.findByRole("radiogroup", { name: "表示の詳しさ" }));
-    await expect(await rowA.findByText("リーダー")).toBeInTheDocument();
-    await expect(segmentMarks(rowA)).toEqual(["リ"]);
+    const body = within(canvasElement.ownerDocument.body);
+    const selectDetailMode = async (name: "シンプル" | "くわしく") => {
+      await userEvent.click(await canvas.findByRole("button", { name: "表示設定" }));
+      await userEvent.click(await body.findByRole("menuitemradio", { name }));
+    };
+    const rowE = await findRow(canvasElement, "staff5");
+    await expect(await rowE.findByText("担当外")).toBeInTheDocument();
 
-    await userEvent.click(detailMode.getByRole("radio", { name: "シンプル" }));
-    await waitFor(() => expect(nameBadges(rowA)).toEqual([]));
-    await expect(segmentMarks(rowA)).toEqual([]);
+    await selectDetailMode("シンプル");
+    await waitFor(() => expect(nameBadges(rowE)).toEqual([]));
 
-    await userEvent.click(detailMode.getByRole("radio", { name: "くわしく" }));
-    await expect(await rowA.findByText("リーダー")).toBeInTheDocument();
-    await expect(segmentMarks(rowA)).toEqual(["リ"]);
+    await selectDetailMode("くわしく");
+    await expect(await rowE.findByText("担当外")).toBeInTheDocument();
   },
 };
 
@@ -135,7 +128,7 @@ export const ReadOnlyOnDesktop: Story = {
   name: "Read Only On Desktop",
   args: readOnlyArgs,
   globals: desktopGlobals,
-  play: async ({ canvasElement }) => expectReadOnlyShowsSegmentMarksOnly(canvasElement),
+  play: async ({ canvasElement }) => expectNoSkillMarks(canvasElement),
 };
 
 export const ConfirmedForStaffOnDesktop: Story = {
@@ -162,7 +155,7 @@ export const NewcomerOnlyBandFollowsPositionOnDesktop: Story = {
     await userEvent.click(kitchenSegment);
 
     const popover = within(await within(document.body).findByRole("dialog", { name: "キッチンの人数" }));
-    await expect(popover.getByText("見習いだけの時間です")).toBeInTheDocument();
+    await expect(popover.getByText("スキル見習いのみ")).toBeInTheDocument();
   },
 };
 
@@ -177,7 +170,7 @@ export const NameMarkFollowsToolOnMobile: Story = {
   play: async ({ canvasElement }) => expectNameMarkFollowsTool(canvasElement),
 };
 
-/** 「表示設定」でシンプル表示へ切り替えると、名前の横の印も勤務の区間の印も消える。 */
+/** 「表示設定」でシンプル表示へ切り替えると、名前の横の担当外の印が消える。 */
 export const HiddenInSimpleOnMobile: Story = {
   name: "Hidden In Simple On Mobile",
   args: timeDetailArgs,
@@ -185,17 +178,15 @@ export const HiddenInSimpleOnMobile: Story = {
   tags: ["vrt-mobile2"],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const rowA = await findRow(canvasElement, "staff1");
-    await expect(await rowA.findByText("リーダー")).toBeInTheDocument();
-    await expect(segmentMarks(rowA)).toEqual(["リ"]);
+    const rowE = await findRow(canvasElement, "staff5");
+    await expect(await rowE.findByText("担当外")).toBeInTheDocument();
 
     await userEvent.click(await canvas.findByRole("button", { name: "表示設定" }));
     await userEvent.click(
-      await within(canvasElement.ownerDocument.body).findByRole("menuitemcheckbox", { name: "くわしく表示" }),
+      await within(canvasElement.ownerDocument.body).findByRole("menuitemradio", { name: "シンプル" }),
     );
 
-    await waitFor(() => expect(nameBadges(rowA)).toEqual([]));
-    await expect(segmentMarks(rowA)).toEqual([]);
+    await waitFor(() => expect(nameBadges(rowE)).toEqual([]));
   },
 };
 
@@ -204,7 +195,7 @@ export const ReadOnlyOnMobile: Story = {
   args: readOnlyArgs,
   globals: mobileGlobals,
   tags: ["vrt-mobile2"],
-  play: async ({ canvasElement }) => expectReadOnlyShowsSegmentMarksOnly(canvasElement),
+  play: async ({ canvasElement }) => expectNoSkillMarks(canvasElement),
 };
 
 export const ConfirmedForStaffOnMobile: Story = {

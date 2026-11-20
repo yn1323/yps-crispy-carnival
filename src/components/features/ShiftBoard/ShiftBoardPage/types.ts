@@ -40,6 +40,8 @@ export type ShiftBoardPageViewModel = {
     dateNotes: readonly ShiftDateNote[];
     staffing?: ShiftFormStaffing;
     initialDetailMode: boolean;
+    /** 「シンプル / くわしく」の切り替えを出すか。確定済みの募集と、変更できない画面では出さない。 */
+    canSwitchDetailMode: boolean;
     detailActions: ShiftFormDetailActions;
     applyShiftsRef: MutableRefObject<((update: (current: ShiftData[]) => ShiftData[]) => void) | null>;
   };
@@ -63,6 +65,11 @@ export type ShiftBoardPageViewModel = {
     isOpen: boolean;
     isSaving: boolean;
   };
+  /** 表示の切り替えで下書きを削除する前の確認。 */
+  detailModeSwitchDialog: {
+    isOpen: boolean;
+    isSwitching: boolean;
+  };
 };
 
 export type ShiftBoardPageIntents = {
@@ -70,6 +77,8 @@ export type ShiftBoardPageIntents = {
   onOpenExport: () => void;
   onShiftsChange: (shifts: ShiftData[]) => void;
   onDetailModeChange: (isDetailMode: boolean) => void;
+  onConfirmDetailModeSwitch: () => void;
+  onCancelDetailModeSwitch: () => void;
   onSaveDraft: () => void;
   onConfirmRequest: () => void;
   onOpenUnsubmittedDetails: () => void;
@@ -89,4 +98,6 @@ export type ShiftBoardPageViewProps = {
   intents: ShiftBoardPageIntents;
   layout?: "legacy" | "app";
   header?: ShiftFormHeader;
+  /** シフト表の内側のスクロールで、上の行を隠した・表示したときに通知する。 */
+  onChromeHiddenChange?: (isHidden: boolean) => void;
 };

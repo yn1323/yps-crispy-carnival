@@ -171,21 +171,21 @@ type Story = StoryObj<typeof meta>;
 /**
  * 複数ポジション、バーの内側の休憩、熟練度、仮の勤務と、表の下の人数の帯を1画面で確かめる。
  * 帯は、足りない時間（−◯）、多い時間（+◯）、見習いだけの時間（注意のアイコン）、未設定のポジション（レジ）を含む。
- * その日のテンプレートは、日付の見出しの横に出る。
+ * その日のテンプレートは、人数の帯の見出しに出る。
  */
 export const Detail: Story = {
   args: detailArgs,
   globals: desktopGlobals,
 };
 
-/** テンプレートが当たらない日は、帯に人数だけを出し、必要人数が未設定であることを伝える。 */
+/** テンプレートが当たらない日は、帯に人数だけを出し、帯の見出しのテンプレートに「未設定」と出す。 */
 export const DetailWithoutDayTemplateForDate: Story = {
   name: "Detail Without Day Template For Date",
   args: { ...detailArgs, dates: [SATURDAY], initialShifts: buildShifts(SATURDAY) },
   globals: desktopGlobals,
 };
 
-/** その日だけの必要人数を持つ日は、日付の見出しに、テンプレートの名前の代わりに「この日だけ変更」と出す。 */
+/** その日だけの必要人数を持つ日は、帯の見出しに、テンプレートの名前の代わりに「この日だけ変更」と出す。 */
 export const DetailCustomDay: Story = {
   name: "Detail Custom Day",
   args: {
@@ -704,7 +704,7 @@ export const DetailRangeBreakInteractive: Story = {
 
 /**
  * メニューから休憩の編集を開き、休憩を足し、消せる。
- * 項目の名前は、勤務を選んでいる間は「休憩を時刻で追加」、休憩を選んでいる間は「休憩を時刻で変更」になる。
+ * 項目の名前は、勤務を選んでいる間は「休憩を追加」、休憩を選んでいる間は「休憩を変更」になる。
  */
 export const DetailEditBreaksInteractive: Story = {
   name: "Detail Edit Breaks Interactive",
@@ -718,7 +718,7 @@ export const DetailEditBreaksInteractive: Story = {
 
     // 足す: 勤務の中央に1時間の休憩が入る。
     await clickOnRow(row, "17:00");
-    await userEvent.click((await findRangeMenu("12:00〜20:00")).getByRole("menuitem", { name: "休憩を時刻で追加" }));
+    await userEvent.click((await findRangeMenu("12:00〜20:00")).getByRole("menuitem", { name: "休憩を追加" }));
     const addDialog = within(await body.findByRole("dialog"));
     await userEvent.click(await addDialog.findByRole("button", { name: "休憩を追加" }));
     await expect(await addDialog.findByRole("group", { name: "休憩1" })).toBeInTheDocument();
@@ -728,7 +728,7 @@ export const DetailEditBreaksInteractive: Story = {
 
     // 消す。入った休憩（15:30〜16:30）を押して選ぶと、項目の名前が「変更」になり、同じ編集が開く。
     await clickOnRow(row, "16:00");
-    await userEvent.click((await findRangeMenu("15:30〜16:30")).getByRole("menuitem", { name: "休憩を時刻で変更" }));
+    await userEvent.click((await findRangeMenu("15:30〜16:30")).getByRole("menuitem", { name: "休憩を変更" }));
     const removeDialog = within(await body.findByRole("dialog"));
     await userEvent.click(await removeDialog.findByRole("button", { name: "休憩1を削除" }));
     await userEvent.click(removeDialog.getByRole("button", { name: "変更する" }));
@@ -759,7 +759,7 @@ export const DetailSeparateWorkBecomesBreakInteractive: Story = {
 
     // 休憩の編集には、勤務が1つにつながって出て、空きが休憩として入っている。
     await clickOnRow(row, "14:30");
-    await userEvent.click((await findRangeMenu("14:00〜15:00")).getByRole("menuitem", { name: "休憩を時刻で変更" }));
+    await userEvent.click((await findRangeMenu("14:00〜15:00")).getByRole("menuitem", { name: "休憩を変更" }));
     const dialog = within(await body.findByRole("dialog"));
     await expect(dialog.getByText("勤務：10:00〜17:00")).toBeInTheDocument();
     await expect(await dialog.findByRole("group", { name: "休憩1" })).toBeInTheDocument();
@@ -831,9 +831,7 @@ export const DetailRangeDeleteInteractive: Story = {
     const row = await findRow(canvasElement, "staff4");
 
     await dragOnRow(row, "14:00", "15:00");
-    await userEvent.click(
-      (await findRangeMenu("14:00〜15:00")).getByRole("menuitem", { name: "勤務 13:00〜17:00を削除" }),
-    );
+    await userEvent.click((await findRangeMenu("14:00〜15:00")).getByRole("menuitem", { name: "削除" }));
 
     await waitFor(() => expect(getWorkBarColors(row)).toEqual([HALL_RGB]));
     await expect(row).toHaveTextContent("09:00–13:00");
@@ -898,9 +896,7 @@ export const SimpleRangeBreakInteractive: Story = {
     const rowD = await findRow(canvasElement, "staff4");
     // 押すと、ポジションの境目で区切らず、9:00〜17:00の全体を選ぶ。
     await clickOnRow(rowD, "15:00");
-    await userEvent.click(
-      (await findRangeMenu("09:00〜17:00", "勤務")).getByRole("menuitem", { name: "勤務 09:00〜17:00を削除" }),
-    );
+    await userEvent.click((await findRangeMenu("09:00〜17:00", "勤務")).getByRole("menuitem", { name: "削除" }));
     await waitFor(() => expect(getWorkBars(rowD)).toHaveLength(0));
   },
 };
@@ -939,16 +935,67 @@ export const DetailPaintInteractive: Story = {
 // ==========================================
 const harnessRender = (args: ShiftFormArgs) => <StaffingHarness {...args} templates={templates} />;
 
-// テンプレートのメニューのボタンは、人数の帯ではなく、日付の見出しにある。
-const findTemplateButton = (canvasElement: HTMLElement, label: string) =>
-  within(canvasElement).findByRole("button", { name: `この日のテンプレート: ${label}` });
+// テンプレートのメニューのボタンは、日付の見出しではなく、人数の帯の見出しにある。
+const findTemplateButton = async (canvasElement: HTMLElement, label: string) =>
+  within(await findStaffingSection(canvasElement)).findByRole("button", { name: `この日のテンプレート: ${label}` });
 
 const openTemplateMenu = async (canvasElement: HTMLElement, label: string) => {
   await userEvent.click(await findTemplateButton(canvasElement, label));
   return within(document.body);
 };
 
-/** 帯の区間を押すと、人数、必要人数、足りない人数、見習いだけであることを全文で読める。 */
+/** 帯を必要人数の見せ方にした状態。テンプレートと同じく、ポジションの色の濃さと人数で示す。 */
+export const DetailRequiredMode: Story = {
+  name: "Detail Required Mode",
+  args: detailArgs,
+  globals: desktopGlobals,
+  play: async ({ canvasElement }) => {
+    const staffing = within(await findStaffingSection(canvasElement));
+    await userEvent.click(staffing.getByRole("button", { name: "必要人数で表示" }));
+    // 押したあとのボタンは、過不足の見せ方へ戻すボタンになる。
+    await expect(await staffing.findByRole("button", { name: "過不足で表示" })).toBeInTheDocument();
+  },
+};
+
+/**
+ * テンプレートの右のボタンで、帯を必要人数の見せ方へ切り替える。必要人数が変わる時刻だけで区切り、人数を出す。
+ * ボタンは「過不足で表示」に変わり、もう一度押すと過不足の見せ方へ戻る。
+ */
+export const DetailRequiredModeInteractive: Story = {
+  name: "Detail Required Mode Interactive",
+  args: detailArgs,
+  globals: desktopGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const staffingSection = await findStaffingSection(canvasElement);
+    const staffing = within(staffingSection);
+    const requiredOf = (positionName: string) =>
+      Array.from(
+        staffing.getByRole("group", { name: `${positionName}の人数` }).querySelectorAll("[data-required-span]"),
+      ).map((element) => element.getAttribute("title"));
+    await userEvent.click(staffing.getByRole("button", { name: "必要人数で表示" }));
+
+    // 押したあとのボタンは、過不足の見せ方へ戻すボタンになる。
+    // 平日のホールは9:00〜22:00に1人、11:00〜14:00にもう1人。必要人数が変わる時刻だけで区切る。
+    await waitFor(() =>
+      expect(requiredOf("ホール")).toEqual([
+        "ホール 09:00〜11:00 必要1人",
+        "ホール 11:00〜14:00 必要2人",
+        "ホール 14:00〜22:00 必要1人",
+      ]),
+    );
+    // 過不足の区間は出さない。
+    await expect(staffing.queryByRole("button", { name: /^ホール / })).not.toBeInTheDocument();
+
+    await userEvent.click(staffing.getByRole("button", { name: "過不足で表示" }));
+
+    await expect(await staffing.findByRole("button", { name: "必要人数で表示" })).toBeInTheDocument();
+    await expect(await staffing.findByRole("button", { name: "ホール 18:00〜22:00 0/1 ▲1" })).toBeInTheDocument();
+    await expect(requiredOf("ホール")).toEqual([]);
+  },
+};
+
+/** 帯の区間を押すと、人数と必要人数、見習いだけであることを読める。 */
 export const DetailBandSegmentInteractive: Story = {
   name: "Detail Band Segment Interactive",
   args: detailArgs,
@@ -964,9 +1011,8 @@ export const DetailBandSegmentInteractive: Story = {
     await userEvent.click(segment);
 
     const popover = within(await body.findByRole("dialog", { name: "ホールの人数" }));
-    await expect(popover.getByText("人数 1人 / 必要 2人")).toBeInTheDocument();
-    await expect(popover.getByText("1人足りません")).toBeInTheDocument();
-    await expect(popover.getByText("見習いだけの時間です")).toBeInTheDocument();
+    await expect(popover.getByText("1/2人 担当")).toBeInTheDocument();
+    await expect(popover.getByText("スキル見習いのみ")).toBeInTheDocument();
     // 見習いだけの時間帯は、確認事項として、その日の件数に入る。
     const dateChip = canvasElement.querySelector(`[data-date-chip="${WEEKDAY}"]`) as HTMLElement;
     await expect(within(dateChip).getByLabelText("確認事項1件")).toBeInTheDocument();
@@ -997,6 +1043,40 @@ export const DetailManyPositionsInteractive: Story = {
 
     await userEvent.click(staffing.getByRole("button", { name: "過不足のあるポジションだけにする" }));
     await waitFor(() => expect(rowNames()).toEqual(["ホールの人数", "キッチンの人数"]));
+  },
+};
+
+/**
+ * 先頭の行で範囲を選ぶと、メニューは表の中で上に入りきらないため、選んだ範囲の下に出る。
+ * 表の上に空きがあっても、表の上端を越えて、日付の見出しや画面のヘッダーの後ろに隠れない。
+ */
+export const RangeMenuStaysInsideGridInteractive: Story = {
+  name: "Range Menu Stays Inside Grid Interactive",
+  args: detailArgs,
+  globals: desktopGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    await findRow(canvasElement, "staff1");
+    // 先頭の行。Eさん以外は、12:00〜12:30にホールの勤務がある。
+    const row = canvasElement.querySelector<HTMLElement>('[data-tour^="shift-row-"]');
+    if (!row) throw new Error("先頭の行が見つかりません");
+    await expect(row.getAttribute("data-tour")).not.toBe("shift-row-staff5");
+    // 画面のヘッダーの分だけ、表の上に空きを作る。上の空きに入るだけで判断すると、メニューは表の外へ出る。
+    const frame = row.closest<HTMLElement>('div[style*="100dvh"]');
+    if (!frame) throw new Error("画面の高さを決めている入れ物が見つかりません");
+    frame.style.marginTop = "300px";
+    let scroller: HTMLElement | null = row.parentElement;
+    while (scroller && getComputedStyle(scroller).overflowY !== "auto") scroller = scroller.parentElement;
+    if (!scroller) throw new Error("表のスクロールする入れ物が見つかりません");
+
+    await dragOnRow(row, "12:00", "12:30");
+    await findRangeMenu("12:00〜12:30");
+    const content = within(document.body).getByRole("menu", { name: "12:00〜12:30のポジションと休憩" });
+
+    await waitFor(() =>
+      expect(content.getBoundingClientRect().top).toBeGreaterThanOrEqual(scroller.getBoundingClientRect().top),
+    );
+    await expect(content.getBoundingClientRect().top).toBeGreaterThan(row.getBoundingClientRect().top);
   },
 };
 
@@ -1049,6 +1129,39 @@ export const DetailApplyTemplateInteractive: Story = {
   },
 };
 
+/**
+ * メニューの「テンプレートなし」を選ぶと、その日にテンプレートを当てない指定を送り、帯は人数だけになる。
+ * ボタンは「テンプレートなし」になり、メニューではその項目に選択中の印が付く。
+ */
+export const DetailApplyNoTemplateInteractive: Story = {
+  name: "Detail Apply No Template Interactive",
+  args: detailArgs,
+  render: harnessRender,
+  globals: desktopGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const staffing = within(await findStaffingSection(canvasElement));
+    const menu = await openTemplateMenu(canvasElement, "平日");
+    await expect(menu.getByText("テンプレート")).toBeInTheDocument();
+    await userEvent.click(await menu.findByRole("menuitem", { name: "テンプレートなし" }));
+
+    await expect(await findTemplateButton(canvasElement, "テンプレートなし")).toBeInTheDocument();
+    await expect((await readStaffingCalls(canvasElement)).calls).toEqual([
+      { mutation: "applyDayTemplateToDates", dates: [WEEKDAY], templateId: "none" },
+    ]);
+    // 必要人数がないため、過不足を出さずに人数だけを出す。
+    await expect(await staffing.findByRole("button", { name: "ホール 10:00〜13:00 3" })).toHaveAttribute(
+      "data-staffing-tone",
+      "unset",
+    );
+
+    const reopened = await openTemplateMenu(canvasElement, "テンプレートなし");
+    await expect(
+      within(await reopened.findByRole("menuitem", { name: /テンプレートなし/ })).getByLabelText("選択中"),
+    ).toBeInTheDocument();
+  },
+};
+
 /** テンプレートが当たらない日は、テンプレートのメニューのボタンに「未設定」と出て、メニューから設定ページを開ける。 */
 export const DetailUnsetDayMenuInteractive: Story = {
   name: "Detail Unset Day Menu Interactive",
@@ -1080,8 +1193,7 @@ export const DetailLocked: Story = {
     const staffing = within(await findStaffingSection(canvasElement));
     // 確定時の必要人数で、過不足は出す。
     await expect(await staffing.findByRole("button", { name: "ホール 18:00〜22:00 0/1 ▲1" })).toBeInTheDocument();
-    const canvas = within(canvasElement);
-    await expect(canvas.getByText("平日")).toBeInTheDocument();
-    await expect(canvas.queryByRole("button", { name: /この日のテンプレート/ })).not.toBeInTheDocument();
+    await expect(staffing.getByText("平日")).toBeInTheDocument();
+    await expect(within(canvasElement).queryByRole("button", { name: /この日のテンプレート/ })).not.toBeInTheDocument();
   },
 };

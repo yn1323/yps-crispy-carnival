@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   saveReference: Symbol("save"),
   confirmReference: Symbol("confirm"),
   applyTemplateReference: Symbol("applyDayTemplateToDates"),
+  switchDetailModeReference: Symbol("switchShiftDetailMode"),
   save: vi.fn(),
   applyDayTemplateToDates: vi.fn(),
   navigate: vi.fn(),
@@ -27,7 +28,11 @@ vi.mock("convex/react", () => ({ useConvex: () => ({ query: mocks.convexQuery })
 vi.mock("@/convex/_generated/api", () => ({
   api: {
     shiftBoard: {
-      mutations: { saveShiftAssignments: mocks.saveReference, confirmRecruitment: mocks.confirmReference },
+      mutations: {
+        saveShiftAssignments: mocks.saveReference,
+        confirmRecruitment: mocks.confirmReference,
+        switchShiftDetailMode: mocks.switchDetailModeReference,
+      },
       queries: { getProvisionalAssignments: Symbol("getProvisionalAssignments") },
     },
     shiftSetup: {
@@ -42,6 +47,7 @@ vi.mock("@/src/hooks/useShopMutation", () => ({
     if (reference === mocks.saveReference) return mocks.save;
     if (reference === mocks.confirmReference) return mocks.confirm;
     if (reference === mocks.applyTemplateReference) return mocks.applyDayTemplateToDates;
+    if (reference === mocks.switchDetailModeReference) return vi.fn();
     throw new Error("unexpected mutation reference");
   },
 }));
@@ -104,7 +110,6 @@ function renderInitialized(currentData: ShiftBoardData = data) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  window.localStorage.clear();
   mocks.save.mockResolvedValue(null);
   mocks.confirm.mockResolvedValue(null);
   vi.spyOn(window, "open").mockReturnValue(null);
@@ -386,8 +391,7 @@ describe("シフトボードからの出力", () => {
   });
 
   it("くわしくで開いたシフト表からの出力は、切り替えなくても「ポジションと休憩も出力する」をオンにする", () => {
-    window.localStorage.setItem("shiftori:shiftBoard:detailMode", "detail");
-    const { result } = renderInitialized();
+    const { result } = renderInitialized({ ...data, shiftDetailMode: true });
 
     act(() => result.current.intents.onOpenExport());
 

@@ -1,5 +1,6 @@
 import { type ComponentProps, useMemo, useState } from "react";
 import { within } from "storybook/test";
+import { NO_DAY_TEMPLATE } from "@/convex/shiftSetup/dayTemplates";
 import type { PositionType } from "@/src/domains/shift/types";
 import { ShiftForm, type ShiftFormDayRequirements, type ShiftFormStaffing, type ShiftFormStaffingDay } from "..";
 
@@ -105,6 +106,8 @@ export const StaffingHarness = ({ templates, ...args }: HarnessProps) => {
           setDays((current) =>
             current.map((day) => {
               if (!dates.includes(day.date)) return day;
+              // 「テンプレートなし」は、その日にテンプレートを当てず、必要人数を持たない日にする。
+              if (templateId === NO_DAY_TEMPLATE) return { ...unsetDay(day.date), source: "dateNone" as const };
               // テンプレートを指定しない呼び出しは、その日だけの指定を消す。最初の必要人数へ戻す。
               if (!template) return initialDays.find((item) => item.date === day.date) ?? unsetDay(day.date);
               return templateDay(day.date, template, "dateTemplate");

@@ -290,7 +290,14 @@ describe("indexStaffingSlotsByOptionKey", () => {
     const late = slot({ id: "shiftType:late", label: "遅番" });
     const view: DayStaffingView = {
       date: "2026-06-03",
-      template: { label: "未設定", templateId: null, templateName: null, isCustom: false, isDateSpecific: false },
+      template: {
+        label: "未設定",
+        templateId: null,
+        templateName: null,
+        isCustom: false,
+        isDateSpecific: false,
+        isNone: false,
+      },
       hasRequirements: false,
       slots: [early, late, slot({ id: "allDay", label: "1日" })],
       bands: [],

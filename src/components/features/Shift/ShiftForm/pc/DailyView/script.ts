@@ -72,12 +72,12 @@ export type RangeAssignMenuViewModel = {
   /** ひと続きの勤務やポジションの区間の全体など、休憩にできない範囲ではtrue。項目の下に理由を出す。 */
   isBreakDisabled: boolean;
   /**
-   * 休憩の編集を開く項目の名前。勤務を選んでいる間は「休憩を時刻で追加」、休憩だけを選んでいる間は「休憩を時刻で変更」。
+   * 休憩の編集を開く項目の名前。勤務を選んでいる間は「休憩を追加」、休憩だけを選んでいる間は「休憩を変更」。
    * どちらも同じ編集を開き、その日の休憩をすべて足し引きできる。
    */
   breakEditorLabel: string;
-  /** 削除する勤務の区間。項目には、削除する時間を書く。 */
-  deleteTarget: { segmentIds: string[]; timeLabel: string } | null;
+  /** 削除する勤務の区間。 */
+  deleteTarget: { segmentIds: string[] } | null;
 };
 
 export const RANGE_BREAK_VALUE = "break";
@@ -136,8 +136,6 @@ export const buildRangeAssignMenuViewModel = ({
     ? [range]
     : getWorkBlocks(shift).filter((block) => block.start < range.end && block.end > range.start);
   const deleted = workSegments.filter((segment) => deleteRanges.some((item) => overlaps(segment, item)));
-  const first = deleted[0];
-  const last = deleted[deleted.length - 1];
   const workOrBreak = resolveWorkOrBreak(shift, range);
 
   const checkedValue = showsPositions
@@ -163,13 +161,7 @@ export const buildRangeAssignMenuViewModel = ({
       shortcut: index < SHORTCUT_LIMIT ? String(index + 1) : null,
     })),
     isBreakDisabled: workOrBreak !== "break" && applyBreakRange(shift, timeRange) === null,
-    breakEditorLabel: workOrBreak === "break" ? "休憩を時刻で変更" : "休憩を時刻で追加",
-    deleteTarget:
-      first && last
-        ? {
-            segmentIds: deleted.map((segment) => segment.id),
-            timeLabel: formatShiftClockTimeRange(first.start, last.end),
-          }
-        : null,
+    breakEditorLabel: workOrBreak === "break" ? "休憩を変更" : "休憩を追加",
+    deleteTarget: deleted.length > 0 ? { segmentIds: deleted.map((segment) => segment.id) } : null,
   };
 };

@@ -3,6 +3,7 @@ import { computeVisualBreaks, mergeAdjacentPositions, resolveDefaultPosition } f
 import { isLegacyCompatibleWorkPosition } from "@/src/domains/shift/positions";
 import { formatShiftClockTime, formatShiftClockTimeRange, timeToMinutes } from "@/src/domains/shift/time";
 import type { PositionSegment, PositionType, ShiftData, TimeRange } from "@/src/domains/shift/types";
+import { minutesToTimelinePercent, toSPTimelineRange } from "../../spTimelineScale";
 import { addTimeSchema } from "./ShiftEditSheet.schema";
 
 export type TimelineBarViewModel = {
@@ -205,11 +206,9 @@ export const buildSPShiftEditResult = ({
   return { kind: "updated", shift: { ...shift, positions: mergeAdjacentPositions(segments) } };
 };
 
-export const timeToPercentage = (time: string, timeRange: TimeRange): number => {
-  const [hour, minute] = time.split(":").map(Number);
-  const totalMinutes = (timeRange.end - timeRange.start) * 60;
-  return (((hour - timeRange.start) * 60 + minute) / totalMinutes) * 100;
-};
+/** カードのバーの位置（%）。充足の帯と同じ物差しを使う。 */
+export const timeToPercentage = (time: string, timeRange: TimeRange): number =>
+  minutesToTimelinePercent(timeToMinutes(time), toSPTimelineRange(timeRange));
 
 export const getAssignedRange = (shift: ShiftData | undefined): [string, string] | null => {
   const workPositions = getWorkPositions(shift);

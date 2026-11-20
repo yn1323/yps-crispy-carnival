@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PositionType, StaffType } from "@/src/domains/shift/types";
-import { buildNameSkillMark, buildSegmentSkillMark, resolveNameSkillPosition } from "./skillPresentation";
+import { buildNameSkillMark, resolveNameSkillPosition } from "./skillPresentation";
 
 const hall: PositionType = { id: "hall", name: "ホール", color: "#0d9488", isDefault: true };
 const kitchen: PositionType = { id: "kitchen", name: "キッチン", color: "#f97316", isDefault: false };
@@ -64,18 +64,13 @@ describe("resolveNameSkillPosition", () => {
 });
 
 describe("buildNameSkillMark", () => {
-  it("ポジションが2つ以上の店舗では、リーダーと担当外に、ポジションの名前と色を添える。見習いには出さない", () => {
+  it("ポジションが2つ以上の店舗では、担当外にだけ、ポジションの名前と色を添えて出す。リーダーと見習いには出さない", () => {
     const marks = [hall, kitchen, register].map((position) =>
       buildNameSkillMark({ staff, position, positionCount: 3 }),
     );
 
     expect(marks).toEqual([
-      {
-        level: "lead",
-        label: "リーダー",
-        position: { name: "ホール", color: "#0d9488" },
-        title: "ホールではリーダーです",
-      },
+      null,
       null,
       {
         level: "unavailable",
@@ -86,13 +81,17 @@ describe("buildNameSkillMark", () => {
     ]);
   });
 
-  it("ポジションが1つの店舗では、ポジションの名前と色を添えない", () => {
-    expect(buildNameSkillMark({ staff, position: hall, positionCount: 1 })).toEqual({
-      level: "lead",
-      label: "リーダー",
+  it("ポジションが1つの店舗では、担当外にポジションの名前と色を添えない", () => {
+    expect(buildNameSkillMark({ staff, position: register, positionCount: 1 })).toEqual({
+      level: "unavailable",
+      label: "担当外",
       position: null,
       title: null,
     });
+  });
+
+  it("そのポジションでリーダーのスタッフには出さない", () => {
+    expect(buildNameSkillMark({ staff, position: hall, positionCount: 1 })).toBeNull();
   });
 
   it("そのポジションで見習いのスタッフには出さない", () => {
@@ -108,29 +107,5 @@ describe("buildNameSkillMark", () => {
 
   it("根拠にするポジションがない表示では出さない", () => {
     expect(buildNameSkillMark({ staff, position: null, positionCount: 3 })).toBeNull();
-  });
-});
-
-describe("buildSegmentSkillMark", () => {
-  const segmentOf = (position: PositionType) => ({ positionId: position.id, positionName: position.name });
-
-  it("区間のポジションでリーダーなら「リ」を返し、見習いには印を出さない", () => {
-    expect(buildSegmentSkillMark(staff, segmentOf(kitchen))).toBeNull();
-    expect(buildSegmentSkillMark(staff, segmentOf(hall))).toEqual({
-      level: "lead",
-      label: "リ",
-      hiddenSuffix: "ーダー",
-      title: "ホールではリーダーです",
-    });
-  });
-
-  it("区間のポジションで一人前の勤務と、担当外のポジションの勤務には出さない", () => {
-    expect(buildSegmentSkillMark(staff, { positionId: "drink", positionName: "ドリンク" })).toBeNull();
-    expect(buildSegmentSkillMark(staff, segmentOf(register))).toBeNull();
-  });
-
-  it("スタッフか区間が分からない場合は出さない", () => {
-    expect(buildSegmentSkillMark(undefined, segmentOf(kitchen))).toBeNull();
-    expect(buildSegmentSkillMark(staff, undefined)).toBeNull();
   });
 });

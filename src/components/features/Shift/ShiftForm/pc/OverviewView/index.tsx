@@ -267,7 +267,7 @@ const WeekTable = ({ week, onDateClick, detailMode }: WeekTableProps) => (
                       _empty={{ display: "none" }}
                     >
                       {cell.positions.map((segment) => (
-                        <PositionMark key={segment.positionId} segment={segment} staff={row.staff} />
+                        <PositionMark key={segment.positionId} segment={segment} />
                       ))}
                     </Flex>
                   </Flex>

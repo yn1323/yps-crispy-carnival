@@ -79,6 +79,9 @@ const schema = defineSchema({
     submissionPattern: submissionPatternValidator,
     // 休憩の決まり（何分以上の勤務に何分）。省略は「決まりなし」を表す業務上の任意項目で、backfillは不要。
     breakRule: v.optional(shiftBreakRuleValidator),
+    // シフト表で最後に選んだ表示。trueは「くわしく」、falseは「シンプル」。次に開くシフト表は、この表示で開く。
+    // 省略は「まだ選んでいない」を表し、店舗の設定から表示を決める。業務上の任意項目で、backfillは不要。
+    shiftDetailMode: v.optional(v.boolean()),
     isDeleted: v.boolean(),
   })
     .index("by_organizationId", ["organizationId"])
@@ -925,6 +928,13 @@ const schema = defineSchema({
         date: v.string(), // "2026-01-20"
         kind: v.literal("custom"),
         requirements: dayRequirementsValidator,
+      }),
+      // その日はテンプレートを当てない。曜日や祝日のテンプレートより優先し、必要人数を持たない日にする。
+      // unionへの種類の追加で、既存の指定はそのまま読めるため、backfillは不要。
+      v.object({
+        shopId: v.id("shops"),
+        date: v.string(), // "2026-01-20"
+        kind: v.literal("none"),
       }),
     ),
   ).index("by_shopId_and_date", ["shopId", "date"]),

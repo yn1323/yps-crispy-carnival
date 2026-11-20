@@ -2,10 +2,12 @@ import { Box, chakra, Flex, Icon, Menu, Portal, Text } from "@chakra-ui/react";
 import { useAtomValue } from "jotai";
 import { type ReactNode, useState } from "react";
 import { LuCheck, LuChevronDown, LuTriangleAlert } from "react-icons/lu";
+import { NO_DAY_TEMPLATE } from "@/convex/shiftSetup/dayTemplates";
 import { Button } from "@/src/components/ui/Button";
 import { useShiftFormDetailActions } from "./detailParts";
 import {
   type DayStaffingView,
+  NO_TEMPLATE_LABEL,
   STAFFING_TONE_STYLES,
   type StaffingCountView,
   type StaffingSlotView,
@@ -38,7 +40,7 @@ export const NewcomerOnlyMark = () => (
   </Box>
 );
 
-/** 「2/3 ▲1」の形の人数。足りない場合は赤の地と実線の枠、多い場合は青の地と点線の枠で示す。 */
+/** 「2/3 ▲1」の形の人数。足りない場合は赤の地と実線の枠、多い場合は青の地と実線の枠で示す。 */
 export const StaffingCountChip = ({ view }: { view: StaffingCountView }) => {
   const style = STAFFING_TONE_STYLES[view.tone];
   return (
@@ -100,7 +102,7 @@ export const StaffingPositionCounts = ({ slot, showNames }: { slot: StaffingSlot
 // ==========================================
 const MENU_ITEM_PROPS = { cursor: "pointer", py: 2.5 } as const;
 
-/** その日のテンプレートのメニューの項目。その日に当てるテンプレートを選ぶ。設定ページも開ける。 */
+/** その日のテンプレートのメニューの項目。その日に当てるテンプレートか「テンプレートなし」を選ぶ。設定ページも開ける。 */
 export const DayTemplateMenuItems = ({ date, view }: { date: string; view: DayStaffingView }) => {
   const config = useAtomValue(shiftConfigAtom);
   const editor = useDayStaffingEditor();
@@ -113,7 +115,7 @@ export const DayTemplateMenuItems = ({ date, view }: { date: string; view: DaySt
       {templates.length > 0 && (
         <>
           <Menu.ItemGroup>
-            <Menu.ItemGroupLabel>この日のテンプレート</Menu.ItemGroupLabel>
+            <Menu.ItemGroupLabel>テンプレート</Menu.ItemGroupLabel>
             {templates.map((template) => {
               const checked = view.template.templateId === template.id;
               return (
@@ -132,6 +134,19 @@ export const DayTemplateMenuItems = ({ date, view }: { date: string; view: DaySt
                 </Menu.Item>
               );
             })}
+            {/* その日にテンプレートを当てず、必要人数を持たない日にする。曜日や祝日のテンプレートより優先する。 */}
+            <Menu.Item
+              value="template:none"
+              {...MENU_ITEM_PROPS}
+              onClick={() => {
+                if (!view.template.isNone) void editor.onApplyTemplate([date], NO_DAY_TEMPLATE);
+              }}
+            >
+              <Box w={4} color="teal.600" flexShrink={0}>
+                {view.template.isNone && <LuCheck aria-label="選択中" />}
+              </Box>
+              <Menu.ItemText fontSize="sm">{NO_TEMPLATE_LABEL}</Menu.ItemText>
+            </Menu.Item>
           </Menu.ItemGroup>
           {onOpenSetup && <Menu.Separator />}
         </>
@@ -148,26 +163,33 @@ export const DayTemplateMenuItems = ({ date, view }: { date: string; view: DaySt
 
 /**
  * その日のテンプレートの名前と、テンプレートを変えるメニュー。
- * PCの日別表示と時間指定のスマートフォンは日付の見出し、パターン選択と日付選択のスマートフォンは人数のカードに1つだけ置く。
+ * 時間指定のPCは人数の帯の見出し、時間指定のスマートフォンは入れるものの行の左端、パターン選択のPCは日付の見出し、
+ * パターン選択と日付選択のスマートフォンは人数のカードに1つだけ置く。
  * 閲覧専用と確定済みでは、名前だけを出す。
  * `shrinks`を渡すと、置いた行の幅が足りないときに、名前を省略して縮む。
+ * `fillsWidth`を渡すと、名前の長さに合わせず、置いた列の幅いっぱいに広げる。入りきらない名前は「…」で省略する。
  */
 export const DayTemplateMenu = ({
   date,
   view,
   shrinks = false,
+  fillsWidth = false,
 }: {
   date: string;
   view: DayStaffingView;
   shrinks?: boolean;
+  fillsWidth?: boolean;
 }) => {
   const editor = useDayStaffingEditor();
   const label = view.template.label;
-  const sizeProps = shrinks ? { flexShrink: 1, minW: 0 } : { flexShrink: 0 };
+  const sizeProps = {
+    ...(shrinks || fillsWidth ? { flexShrink: 1, minW: 0 } : { flexShrink: 0 }),
+    ...(fillsWidth ? { w: "full", maxW: "full" } : { maxW: "200px" }),
+  };
 
   if (!editor) {
     return (
-      <Text textStyle="xs" color="gray.600" truncate maxW="200px" {...sizeProps}>
+      <Text textStyle="xs" color="gray.600" truncate {...sizeProps}>
         <chakra.span srOnly>この日のテンプレート: </chakra.span>
         {label}
       </Text>
@@ -184,7 +206,8 @@ export const DayTemplateMenu = ({
           h="28px"
           px={2}
           gap={1}
-          maxW="200px"
+          // 列の幅いっぱいに広げたときは、名前を左、開く印を右の端に置く。
+          justifyContent={fillsWidth ? "space-between" : undefined}
           {...sizeProps}
           aria-label={`この日のテンプレート: ${label}`}
         >

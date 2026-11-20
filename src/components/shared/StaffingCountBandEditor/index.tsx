@@ -42,6 +42,8 @@ import { useBandSwipe } from "./useBandSwipe";
 import { useContainerWidth } from "./useContainerWidth";
 
 export type { StaffingCountBandLayout, StaffingCountBandPosition } from "./script";
+// 必要人数を読み取り専用で見せる帯（シフト表の人数の帯）でも、同じ地色と数字の出し方を使う。
+export { getCountLabel, getSegmentBackground } from "./script";
 
 export type StaffingCountBandEditorProps = {
   /** 人数を入れるポジション。並び順は表示順。 */

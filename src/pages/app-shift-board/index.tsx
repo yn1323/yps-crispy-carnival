@@ -1,5 +1,6 @@
 import { Box, Flex } from "@chakra-ui/react";
 import { useQuery } from "convex/react";
+import { useEffect } from "react";
 import { LuRefreshCw, LuTriangleAlert } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -7,12 +8,14 @@ import { ShiftBoardPage } from "@/src/components/features/ShiftBoard";
 import { useOpenShiftExport } from "@/src/components/features/ShiftExport";
 import { Animation } from "@/src/components/templates/Animation";
 import { AUTHENTICATED_APP_CONTENT_HEIGHT } from "@/src/components/templates/AuthenticatedAppShell";
+import { AUTHENTICATED_APP_HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
 import { ErrorBoundary } from "@/src/components/ui/ErrorBoundary";
 import { ShiftoriLoading } from "@/src/components/ui/ShiftoriLoading";
 import { formatDateRangeShort } from "@/src/domains/shift/date";
 import { useShiftBoardDayKey } from "@/src/hooks/useShiftBoardDayKey";
+import { useAppHeaderVisibility } from "@/src/providers/AppHeaderVisibilityProvider";
 import { ManagerShopScopeProvider } from "@/src/providers/ManagerShopScopeProvider";
 import { useRetainedShiftBoardData } from "./useRetainedShiftBoardData";
 
@@ -21,9 +24,31 @@ type Props = {
   recruitmentId: string;
 };
 
+/** アプリのヘッダーを隠している間の高さ。ヘッダーの分だけ、シフト表を上へ広げる。 */
+const HEADER_HIDDEN_CONTENT_HEIGHT = {
+  base: `calc(${AUTHENTICATED_APP_CONTENT_HEIGHT.base} + ${AUTHENTICATED_APP_HEADER_HEIGHT.base})`,
+  md: `calc(${AUTHENTICATED_APP_CONTENT_HEIGHT.md} + ${AUTHENTICATED_APP_HEADER_HEIGHT.md})`,
+  lg: `calc(${AUTHENTICATED_APP_CONTENT_HEIGHT.lg} + ${AUTHENTICATED_APP_HEADER_HEIGHT.md})`,
+} as const;
+const HEADER_HIDE_TRANSITION = "margin-top 0.3s cubic-bezier(0.4, 0, 0.2, 1), height 0.3s cubic-bezier(0.4, 0, 0.2, 1)";
+
 export function AppShiftBoardRoutePage({ organizationId, recruitmentId }: Props) {
+  // シフト表は画面の内側でスクロールするため、ページのスクロールではヘッダーが隠れない。
+  // シフト表が上の行を隠すのに合わせて、アプリのヘッダーも隠し、空いた分だけシフト表を広げる。
+  const { isHiddenByContent, setHiddenByContent } = useAppHeaderVisibility();
+  // ほかの画面へ移るときは、ヘッダーを表示した状態へ戻す。
+  useEffect(() => () => setHiddenByContent(false), [setHiddenByContent]);
+
   return (
-    <Flex direction="column" h={AUTHENTICATED_APP_CONTENT_HEIGHT} minH={0}>
+    <Flex
+      direction="column"
+      h={isHiddenByContent ? HEADER_HIDDEN_CONTENT_HEIGHT : AUTHENTICATED_APP_CONTENT_HEIGHT}
+      mt={isHiddenByContent ? `-${AUTHENTICATED_APP_HEADER_HEIGHT.base}` : 0}
+      minH={0}
+      transition={HEADER_HIDE_TRANSITION}
+      _motionReduce={{ transition: "none" }}
+      data-header-hidden={isHiddenByContent ? "" : undefined}
+    >
       <Box flex={1} minH={0}>
         <ErrorBoundary
           fallback={
@@ -34,14 +59,22 @@ export function AppShiftBoardRoutePage({ organizationId, recruitmentId }: Props)
             />
           }
         >
-          <AppShiftBoardQuery organizationId={organizationId} recruitmentId={recruitmentId} />
+          <AppShiftBoardQuery
+            organizationId={organizationId}
+            recruitmentId={recruitmentId}
+            onChromeHiddenChange={setHiddenByContent}
+          />
         </ErrorBoundary>
       </Box>
     </Flex>
   );
 }
 
-function AppShiftBoardQuery({ organizationId, recruitmentId }: Required<Props>) {
+function AppShiftBoardQuery({
+  organizationId,
+  recruitmentId,
+  onChromeHiddenChange,
+}: Required<Props> & { onChromeHiddenChange: (isHidden: boolean) => void }) {
   const organizationDocumentId = organizationId as Id<"organizations">;
   const recruitmentDocumentId = recruitmentId as Id<"recruitments">;
   const refreshDayKey = useShiftBoardDayKey();
@@ -127,6 +160,7 @@ function AppShiftBoardQuery({ organizationId, recruitmentId }: Required<Props>) 
           staffing={queriedStaffing ?? undefined}
           recruitmentId={recruitmentDocumentId}
           layout="app"
+          onChromeHiddenChange={onChromeHiddenChange}
           header={{
             desktopTitle: `${shopScope.shopName}：${periodTitle}`,
             mobileTitle: periodTitle,

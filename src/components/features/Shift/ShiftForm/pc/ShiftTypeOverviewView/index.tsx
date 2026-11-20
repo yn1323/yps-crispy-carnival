@@ -3,7 +3,6 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useMemo, useState } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
 import type { WeekStart } from "@/src/domains/shift/date";
-import type { StaffType } from "@/src/domains/shift/types";
 import { IssueCountBadge } from "../../components";
 import { BreakMark, PositionMark, StaffMeta } from "../../detailParts";
 import {
@@ -225,7 +224,7 @@ const ShiftTypeOverviewRow = ({ row, detailMode }: { row: ShiftTypeOverviewRowVi
       )}
     </Box>
     {row.cells.map((cell) => (
-      <ShiftTypeOverviewCell key={cell.key} cell={cell} staff={row.staff} detailMode={detailMode} />
+      <ShiftTypeOverviewCell key={cell.key} cell={cell} detailMode={detailMode} />
     ))}
     {detailMode && (
       <Box
@@ -245,15 +244,7 @@ const ShiftTypeOverviewRow = ({ row, detailMode }: { row: ShiftTypeOverviewRowVi
   </Box>
 );
 
-const ShiftTypeOverviewCell = ({
-  cell,
-  staff,
-  detailMode,
-}: {
-  cell: ShiftTypeOverviewCellViewModel;
-  staff: StaffType;
-  detailMode: boolean;
-}) => (
+const ShiftTypeOverviewCell = ({ cell, detailMode }: { cell: ShiftTypeOverviewCellViewModel; detailMode: boolean }) => (
   <Box as="td" px={2} py={2} textAlign="center" bg={cell.isClosed ? "gray.100" : undefined} verticalAlign="middle">
     {cell.content.kind === "closed" ? (
       <Text color="gray.500" textStyle="caption" fontWeight={700}>
@@ -270,7 +261,7 @@ const ShiftTypeOverviewCell = ({
             {/* ポジションが1つの店舗では、熟練度の印がある勤務だけ出す。 */}
             {badge.position && (
               <Flex maxW="100%" minW={0} color="gray.700" _empty={{ display: "none" }}>
-                <PositionMark segment={badge.position} staff={staff} />
+                <PositionMark segment={badge.position} />
               </Flex>
             )}
           </Flex>

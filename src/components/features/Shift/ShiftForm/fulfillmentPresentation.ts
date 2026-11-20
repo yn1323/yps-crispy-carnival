@@ -11,6 +11,7 @@ import {
 } from "@/src/domains/shift/staffingFulfillment";
 import { formatShiftClockTimeRange, minutesToTime } from "@/src/domains/shift/time";
 import type { PositionType, ShiftData, TimeRange } from "@/src/domains/shift/types";
+import { toSPTimelineRange } from "./spTimelineScale";
 import { toStaffingBars } from "./staffingPresentation";
 import type { ShiftFormStaffingDay } from "./types";
 
@@ -21,11 +22,12 @@ export type ShortageLevel = 1 | 2 | 3;
 
 export const getShortageLevel = (shortage: number): ShortageLevel => (shortage >= 3 ? 3 : shortage === 2 ? 2 : 1);
 
-// 不足の赤は、ポジションの橙と見分けがつくよう、ピンクに寄せる。いちばん濃い段だけ文字を白にする。
+// 不足は、足りない人数が多いほど濃い赤にする。スタッフのカードより目立たないよう、1人と2人は薄い地にとどめ、
+// いちばん濃い段だけ文字を白にする。
 const SHORTAGE_STYLES: Record<ShortageLevel, { bg: string; color: string }> = {
-  1: { bg: "#fecdd3", color: "#881337" },
-  2: { bg: "#fda4af", color: "#881337" },
-  3: { bg: "#e11d48", color: "white" },
+  1: { bg: "red.100", color: "red.700" },
+  2: { bg: "red.200", color: "red.700" },
+  3: { bg: "red.500", color: "white" },
 };
 
 /** 区間の地色と文字色。多い時間の紫は、ポジションの青と橙、警告の色と重ならない色として選んでいる。 */
@@ -33,8 +35,8 @@ export const getFulfillmentSegmentStyle = (
   segment: Pick<FulfillmentSegmentView, "state" | "shortageLevel">,
 ): { bg: string; color: string } => {
   if (segment.state === "shortage") return SHORTAGE_STYLES[segment.shortageLevel ?? 1];
-  if (segment.state === "even") return { bg: "green.300", color: "green.900" };
-  if (segment.state === "excess") return { bg: "purple.300", color: "purple.900" };
+  if (segment.state === "even") return { bg: "green.100", color: "green.800" };
+  if (segment.state === "excess") return { bg: "purple.100", color: "purple.800" };
   return { bg: "gray.200", color: "gray.700" };
 };
 
@@ -71,10 +73,14 @@ export type FulfillmentTick = {
 export type DayFulfillmentView = {
   /** 充足率（%）。整数に切り捨ててある。 */
   percent: number;
-  /** 帯と時間の軸に出す範囲。その日の必要人数の、最初の開始から最後の終了まで。 */
+  /** 帯に出す範囲。その日の必要人数の、最初の開始から最後の終了まで。 */
   range: MinuteRange;
-  /** 時間の軸に出す時刻。3時間ごと。 */
+  /** 帯と時間の軸を置く物差しの範囲。スタッフのカードのバーと同じ、店舗の表示する時間。 */
+  timelineRange: MinuteRange;
+  /** 時間の軸に出す時刻。物差しの範囲の中で、3時間ごと。 */
   ticks: FulfillmentTick[];
+  /** 帯の後ろに引く縦線の時刻（分）。物差しの範囲の中で、1時間ごと。 */
+  hourLines: number[];
   /** 必要人数を入れてあるポジションの帯。入れていないポジションは含めない。 */
   bands: FulfillmentBandView[];
   /** 帯の上にポジション名を出すか。ポジションが1つだけの店舗では出さない。 */
@@ -94,6 +100,13 @@ export const listFulfillmentTicks = (range: MinuteRange): FulfillmentTick[] => {
     ticks.push({ minutes: hour * 60, label: hour > 24 ? `翌${hour - 24}` : `${hour}` });
   }
   return ticks;
+};
+
+/** 範囲の中の、ちょうどの時（1時間ごと）を分で返す。範囲の両端がちょうどの時なら、両端も含める。 */
+export const listFulfillmentHourLines = (range: MinuteRange): number[] => {
+  const lines: number[] = [];
+  for (let minutes = Math.ceil(range.start / 60) * 60; minutes <= range.end; minutes += 60) lines.push(minutes);
+  return lines;
 };
 
 const describeState = (segment: FulfillmentSegment): string => {
@@ -149,10 +162,13 @@ export const buildDayFulfillmentView = (input: {
   const percent = calculateFulfillmentPercent(bands);
   if (percent === null) return null;
 
+  const timelineRange = toSPTimelineRange(input.timeRange);
   return {
     percent,
     range,
-    ticks: listFulfillmentTicks(range),
+    timelineRange,
+    ticks: listFulfillmentTicks(timelineRange),
+    hourLines: listFulfillmentHourLines(timelineRange),
     bands: bands.flatMap((band) => {
       const position = positionById.get(band.positionId);
       if (!position || !band.isConfigured) return [];

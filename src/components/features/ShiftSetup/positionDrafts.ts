@@ -54,6 +54,18 @@ export function isSamePositions(left: readonly ShiftSetupPosition[], right: read
   );
 }
 
+/**
+ * 保存済みのポジションのうち、編集中の一覧から外したものがあるかを返す。
+ * 外したまま保存すると、確定前の下書きから、そのポジションの勤務がある日の勤務が消えるため、保存の前にそのことを伝える。
+ */
+export function hasRemovedSavedPositions(
+  saved: readonly ShiftSetupPosition[],
+  editing: readonly ShiftSetupPosition[],
+): boolean {
+  const editingIds = new Set(editing.map((position) => position._id));
+  return saved.some((position) => !editingIds.has(position._id));
+}
+
 /** 保存する形へ直す。仮のIDは送らず、IDのないポジションとして新しく作らせる。 */
 export function toPositionSaveInputs(positions: readonly ShiftSetupPosition[]): PositionInput[] {
   return positions.map((position) => ({
