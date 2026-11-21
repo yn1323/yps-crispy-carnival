@@ -1256,7 +1256,7 @@ describe("ページを離れる操作", () => {
     expect(mocks.blockerOptions?.enableBeforeUnload()).toBe(true);
   });
 
-  it("確認で「保存して戻る」を選ぶと、保存できたときだけ離脱を進める", async () => {
+  it("確認で「保存して移動」を選ぶと、保存できたときだけ離脱を進める", async () => {
     mocks.blocker.status = "blocked";
     mocks.saveDayTemplates.mockResolvedValueOnce(null).mockRejectedValueOnce(new Error("network error"));
     const { result } = renderController();
@@ -1274,7 +1274,7 @@ describe("ページを離れる操作", () => {
     expect(mocks.blocker.reset).toHaveBeenCalledOnce();
   });
 
-  it("確認で「保存せず戻る」は離脱を進め、閉じる操作は画面に留まる", () => {
+  it("確認で「保存せず移動」は離脱を進め、閉じる操作は画面に留まる", () => {
     const { result } = renderController();
 
     act(() => result.current.leaveDialog.onLeaveWithoutSaving());

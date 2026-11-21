@@ -56,7 +56,7 @@ export function LeaveConfirmationDialog({ dialog, sections }: LeaveDialogProps) 
               onClick={dialog.onLeaveWithoutSaving}
               disabled={dialog.isSaving}
             >
-              保存せず戻る
+              保存せず移動
             </Button>
           }
           endAction={
@@ -64,16 +64,16 @@ export function LeaveConfirmationDialog({ dialog, sections }: LeaveDialogProps) 
               colorPalette="teal"
               onClick={dialog.onSaveAndLeave}
               loading={dialog.isSaving}
-              loadingText="保存して戻る"
+              loadingText="保存して移動"
             >
-              保存して戻る
+              保存して移動
             </Button>
           }
         />
       }
     >
       <Text fontSize="sm" lineHeight="tall">
-        このまま戻ると、{formatPendingSections(sections) || "設定"}の変更は失われます。
+        このまま移動すると、{formatPendingSections(sections) || "設定"}の変更は失われます。
         <br />
         これまでの変更を保存しますか？
       </Text>
