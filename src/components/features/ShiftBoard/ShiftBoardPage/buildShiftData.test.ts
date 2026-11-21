@@ -656,6 +656,48 @@ describe("buildShiftData: 保存済みの休憩と仮の印", () => {
   });
 });
 
+describe("buildShiftData: 休憩を扱わない提出方法", () => {
+  it.each([
+    [
+      "パターン選択",
+      {
+        kind: "shiftType",
+        options: [{ id: "early", name: "早番", startTime: "09:00", endTime: "17:00", sortOrder: 0 }],
+      },
+      { startTime: "09:00", endTime: "17:00", optionId: "early" },
+    ],
+    ["日付選択", { kind: "dateOnly" }, { startTime: "09:00", endTime: "22:00" }],
+  ] satisfies Array<
+    [string, ShiftBoardData["submissionPattern"], { startTime: string; endTime: string; optionId?: string }]
+  >)(
+    "%sは、保存済みの勤務に休憩が残っていても読み込まず、勤務と仮の印だけを読み込む",
+    (_label, submissionPattern, time) => {
+      const shifts = buildShiftData(
+        makeData({
+          submissionPattern,
+          shiftAssignments: [
+            {
+              staffId,
+              date,
+              ...time,
+              positionId,
+              breaks: [{ startTime: "12:00", endTime: "13:00" }],
+              isProvisional: true,
+            },
+          ],
+        }),
+        [staff],
+        [date],
+      );
+
+      expect(shifts).toHaveLength(1);
+      expect(shifts[0].positions.map((position) => position.positionId)).toEqual([positionId]);
+      expect(shifts[0].isProvisional).toBe(true);
+      expect(Object.hasOwn(shifts[0], "breaks")).toBe(false);
+    },
+  );
+});
+
 describe("buildShiftData: 希望から勤務の候補を作らない（くわしく）", () => {
   const shiftTypePattern: ShiftBoardData["submissionPattern"] = {
     kind: "shiftType",

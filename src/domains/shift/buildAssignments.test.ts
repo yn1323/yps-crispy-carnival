@@ -198,7 +198,41 @@ describe("buildAssignments", () => {
 });
 
 describe("buildAssignments: 休憩", () => {
-  it.each(["time", "shiftType", undefined] as const)(
+  it("パターン選択では、画面に休憩が残っていても保存する勤務に休憩を入れない", () => {
+    const shifts = [
+      makeShift({
+        positions: [
+          segment({ id: "seg-1", start: "10:00", end: "14:00", shiftTypeOptionId: "early" }),
+          segment({ id: "seg-2", positionId: "pos2", start: "14:00", end: "18:00", shiftTypeOptionId: "late" }),
+        ],
+        breaks: [
+          { start: "11:00", end: "11:15" },
+          { start: "13:30", end: "14:30" },
+        ],
+      }),
+    ];
+
+    expect(buildAssignments(shifts, new Set(), { submissionPatternKind: "shiftType" })).toStrictEqual([
+      {
+        staffId: "staff1",
+        date: "2026-01-20",
+        startTime: "10:00",
+        endTime: "14:00",
+        optionId: "early",
+        positionId: "pos1",
+      },
+      {
+        staffId: "staff1",
+        date: "2026-01-20",
+        startTime: "14:00",
+        endTime: "18:00",
+        optionId: "late",
+        positionId: "pos2",
+      },
+    ]);
+  });
+
+  it.each(["time", undefined] as const)(
     "時刻を持つ勤務（%s）では、ひと続きの勤務の開始より後、終了より前にある休憩だけを区間ごとに持たせる",
     (kind) => {
       const shifts = [
@@ -260,56 +294,19 @@ describe("buildAssignments: 休憩", () => {
     ]);
   });
 
-  it("日付選択では、勤務の時刻の外にある休憩も、最初の勤務へそのまま持たせる", () => {
+  it("日付選択では、画面に休憩が残っていても保存する勤務に休憩を入れない", () => {
     const shifts = [
       makeShift({
         positions: [
           segment({ id: "break", positionId: BREAK_POSITION.id, start: "08:00", end: "09:00" }),
           segment({ id: "seg-1", start: "09:00", end: "22:00" }),
         ],
-        breaks: [
-          { start: "23:00", end: "23:30" },
-          { start: "09:00", end: "22:00" },
-        ],
-      }),
-    ];
-
-    expect(buildAssignments(shifts, new Set(), { submissionPatternKind: "dateOnly" })).toStrictEqual([
-      {
-        staffId: "staff1",
-        date: "2026-01-20",
-        startTime: "09:00",
-        endTime: "22:00",
-        positionId: "pos1",
-        breaks: [
-          { startTime: "09:00", endTime: "22:00" },
-          { startTime: "23:00", endTime: "23:30" },
-        ],
-      },
-    ]);
-  });
-
-  it("日付選択で同じ日に勤務が2件ある場合は、最初の勤務にだけ休憩を持たせる", () => {
-    const shifts = [
-      makeShift({
-        positions: [
-          segment({ id: "seg-1", start: "09:00", end: "12:00" }),
-          segment({ id: "seg-2", start: "12:00", end: "22:00" }),
-        ],
         breaks: [{ start: "13:00", end: "14:00" }],
       }),
     ];
 
     expect(buildAssignments(shifts, new Set(), { submissionPatternKind: "dateOnly" })).toStrictEqual([
-      {
-        staffId: "staff1",
-        date: "2026-01-20",
-        startTime: "09:00",
-        endTime: "12:00",
-        positionId: "pos1",
-        breaks: [{ startTime: "13:00", endTime: "14:00" }],
-      },
-      { staffId: "staff1", date: "2026-01-20", startTime: "12:00", endTime: "22:00", positionId: "pos1" },
+      { staffId: "staff1", date: "2026-01-20", startTime: "09:00", endTime: "22:00", positionId: "pos1" },
     ]);
   });
 

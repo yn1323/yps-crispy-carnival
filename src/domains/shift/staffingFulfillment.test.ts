@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { buildPositionStaffingBands } from "./staffing";
 import {
   buildFulfillmentSegments,
+  calculateDateOnlyFulfillmentPercent,
   calculateFulfillmentPercent,
+  calculateShiftTypeFulfillmentPercent,
   getStaffingBarsRange,
   resolveFulfillmentState,
 } from "./staffingFulfillment";
@@ -215,5 +217,96 @@ describe("getStaffingBarsRange", () => {
   it("受付時間の中に必要人数がなければnull", () => {
     expect(getStaffingBarsRange(bars(HALL, "06:00", "09:00"), limit)).toBeNull();
     expect(getStaffingBarsRange([], limit)).toBeNull();
+  });
+});
+
+describe("calculateShiftTypeFulfillmentPercent", () => {
+  const early = { startTime: "09:00", endTime: "15:00" }; // 6時間
+  const night = { startTime: "18:00", endTime: "24:00" }; // 6時間
+  const short = { startTime: "15:00", endTime: "18:00" }; // 3時間
+
+  it("勤務パターン×ポジションごとに、足りている人数を勤務パターンの長さで重み付けする", () => {
+    // 早番: 2/2 と 1/1、夜番: 0/1 と 0/1。 (2 + 1 + 0 + 0) × 6h ÷ (2 + 1 + 1 + 1) × 6h = 60%
+    expect(
+      calculateShiftTypeFulfillmentPercent([
+        {
+          ...early,
+          positions: [
+            { count: 2, required: 2 },
+            { count: 1, required: 1 },
+          ],
+        },
+        {
+          ...night,
+          positions: [
+            { count: 0, required: 1 },
+            { count: 0, required: 1 },
+          ],
+        },
+      ]),
+    ).toBe(60);
+  });
+
+  it("多い分は足さず、長い勤務パターンの不足を重く数える", () => {
+    // 早番（6h）: 0/1、短い勤務パターン（3h）: 3/1。 (0 × 6 + 1 × 3) ÷ (1 × 6 + 1 × 3) = 33.3…% → 33%
+    expect(
+      calculateShiftTypeFulfillmentPercent([
+        { ...early, positions: [{ count: 0, required: 1 }] },
+        { ...short, positions: [{ count: 3, required: 1 }] },
+      ]),
+    ).toBe(33);
+  });
+
+  it("必要人数のないポジションは数えず、すべて足りている日は100%にする", () => {
+    expect(
+      calculateShiftTypeFulfillmentPercent([
+        {
+          ...early,
+          positions: [
+            { count: 1, required: 1 },
+            { count: 4, required: null },
+          ],
+        },
+      ]),
+    ).toBe(100);
+  });
+
+  it("必要人数が1つもない日はnullを返す", () => {
+    expect(calculateShiftTypeFulfillmentPercent([{ ...early, positions: [{ count: 2, required: null }] }])).toBeNull();
+    expect(calculateShiftTypeFulfillmentPercent([])).toBeNull();
+  });
+});
+
+describe("calculateDateOnlyFulfillmentPercent", () => {
+  const day = (...positions: Array<[count: number, required: number | null]>) => ({
+    positions: positions.map(([count, required]) => ({ count, required })),
+  });
+
+  it("日とポジションのすべての組み合わせで、Σ min(配置, 必要) ÷ Σ 必要 を求める", () => {
+    // 配置 3+1+2+1 = 7、必要 3+2+3+2 = 10
+    expect(calculateDateOnlyFulfillmentPercent([day([3, 3], [1, 2]), day([2, 3], [1, 2])])).toBe(70);
+  });
+
+  it("多い分は足さず、ほかの日の不足を隠さない", () => {
+    // 1日目は2人多いが、2日目の不足2人は埋まらない。配置 1+0 = 1、必要 1+2 = 3
+    expect(calculateDateOnlyFulfillmentPercent([day([3, 1]), day([0, 2])])).toBe(33);
+  });
+
+  it("すべて足りていれば100、端数は切り捨てて、99.9でも100にしない", () => {
+    expect(calculateDateOnlyFulfillmentPercent([day([2, 2]), day([5, 3])])).toBe(100);
+    expect(calculateDateOnlyFulfillmentPercent([day([2, 3]), day([3, 3])])).toBe(83);
+  });
+
+  it("必要人数の指定がない日とポジションは、分母にも分子にも入れない", () => {
+    expect(calculateDateOnlyFulfillmentPercent([day([4, null], [1, 2]), day([3, null])])).toBe(50);
+  });
+
+  it("必要人数の指定が1つもなければ、nullを返す", () => {
+    expect(calculateDateOnlyFulfillmentPercent([day([4, null]), day([0, null])])).toBeNull();
+    expect(calculateDateOnlyFulfillmentPercent([])).toBeNull();
+  });
+
+  it("必要人数が0人だけなら、nullを返す", () => {
+    expect(calculateDateOnlyFulfillmentPercent([day([1, 0])])).toBeNull();
   });
 });

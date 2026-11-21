@@ -1,55 +1,103 @@
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
+import { countShiftTypeAssignments, type ShiftTypeOptionLike } from "@/src/domains/shift/shiftTypeAssignments";
 import {
-  countShiftTypeAssignments,
-  getRequestedShiftTypeOptionIds,
-  hasShiftTypeAssignment,
-  type ShiftTypeOptionLike,
-} from "@/src/domains/shift/shiftTypeAssignments";
+  buildShiftTypeCells,
+  isShiftTypeRestRequestWithoutWork,
+  type ShiftTypeCellDot,
+  type ShiftTypeCellNotice,
+} from "@/src/domains/shift/shiftTypeCells";
+import { calculateShiftTypeFulfillmentPercent } from "@/src/domains/shift/staffingFulfillment";
+import { timeToMinutes } from "@/src/domains/shift/time";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { getOrderedShiftTypeOptions } from "@/src/domains/shop/submissionPattern";
 import { formatShiftTypeTimeRange } from "./shiftTypeDisplay";
 import {
-  getShiftTypeOptionColor,
-  SHIFT_TYPE_REQUEST_STATUS_COLORS,
-  type ShiftTypeOptionColor,
-} from "./shiftTypeOptionStyles";
+  type DayStaffingView,
+  type PositionStaffingCountPresentation,
+  toPositionStaffingCount,
+} from "./staffingPresentation";
+import { buildStaffNamesLabel } from "./staffNamesLabel";
+
+// パターン選択の日別の表（PCとスマートフォン）に出す内容。
+// セルは「希望の輪」と「割り当てのピル」の2つの層で示し、色はポジションと状態だけに使う。
 
 export type ShiftTypeDailyOptionPresentation = {
   key: string;
   option: ShiftTypeOptionLike;
   name: string;
+  /** 「9:00〜15:00」 */
   timeLabel: string;
+  /** 「9–15」。幅の狭いスマートフォンの見出しに使う。 */
+  shortTimeLabel: string;
+  /** 「3人」 */
   countLabel: string;
-  color: ShiftTypeOptionColor;
 };
 
-export type ShiftTypeDailyRequestBadgePresentation = {
-  key: string;
-  label: string;
-  bg: string;
-  color: string;
-};
-
-export type ShiftTypeDailyAssignmentPresentation = {
+export type ShiftTypeDailyCellPresentation = {
   key: string;
   option: ShiftTypeOptionLike;
-  name: string;
-  timeLabel: string;
+  /** 希望の輪を出すか。 */
+  showsRequestRing: boolean;
   assigned: boolean;
-  color: ShiftTypeOptionColor;
+  /** ピルの中身。ポジションを塗り分ける表示ではポジション名、それ以外は「○」。割り当てがなければnull。 */
+  pillLabel: string | null;
+  /** 入っている勤務のポジション。割り当てがなければnull。 */
+  positionId: string | null;
+  /** ピルを塗るポジションの色。ポジションを塗り分けない表示と、割り当てのないセルではnull。 */
+  positionColor: string | null;
+  dot: ShiftTypeCellDot | null;
+  /** 点の理由。点がなければ空。 */
+  noticeTexts: string[];
+  /** ボタンの名前。「田中 太郎 早番 勤務あり」。既存のテストがこの形で探すため、末尾を変えない。 */
+  ariaLabel: string;
+  /** 名前に添える説明。希望の有無と、点の理由。なければnull。 */
+  ariaDescription: string | null;
 };
 
-export type ShiftTypeDailyStaffPresentation = {
+export type ShiftTypeDailyRowPresentation = {
+  key: string;
   staff: StaffType;
+  /** 表示中の日の勤務。スタッフ名に添える「仮」に使う。 */
+  shift: ShiftData | undefined;
+  staffName: string;
   isNameMuted: boolean;
-  requestSectionLabel: "確定" | "希望";
-  requestBadges: ShiftTypeDailyRequestBadgePresentation[];
-  assignments: ShiftTypeDailyAssignmentPresentation[];
+  /** 名前に「未提出」を添えるか。 */
+  isUnsubmitted: boolean;
+  cells: ShiftTypeDailyCellPresentation[];
+};
+
+/** 表の下にまとめる「休み希望」。割り当てのない休み希望の人がいなければnull。 */
+export type ShiftTypeDailyRestGroupPresentation = {
+  /** 「休み希望 4人」 */
+  label: string;
+  /** 見出しの横に薄く出す名前。「中村・高橋・伊藤・ほか1人」 */
+  namesLabel: string;
+  rows: ShiftTypeDailyRowPresentation[];
 };
 
 export type ShiftTypeDailyPresentation = {
   options: ShiftTypeDailyOptionPresentation[];
-  staffs: ShiftTypeDailyStaffPresentation[];
+  rows: ShiftTypeDailyRowPresentation[];
+  restGroup: ShiftTypeDailyRestGroupPresentation | null;
+};
+
+const formatShortTime = (time: string): string => {
+  const minutes = timeToMinutes(time);
+  const hour = Math.floor(minutes / 60);
+  const minute = minutes % 60;
+  // 24時ちょうどは「24」、それより後は「翌5」のように書く。
+  const hourLabel = hour > 24 ? `翌${hour - 24}` : `${hour}`;
+  return minute === 0 ? hourLabel : `${hourLabel}:${String(minute).padStart(2, "0")}`;
+};
+
+export const formatShiftTypeShortTimeRange = (option: Pick<ShiftTypeOptionLike, "startTime" | "endTime">): string =>
+  `${formatShortTime(option.startTime)}–${formatShortTime(option.endTime)}`;
+
+const formatShiftTypeCellNotice = (notice: ShiftTypeCellNotice): string => {
+  if (notice.kind === "unrequested") return "希望していないシフトです";
+  if (notice.kind === "notSubmitted") return "未提出のスタッフです";
+  if (notice.kind === "positionUnavailable") return "担当外のポジションです";
+  return `${notice.optionNames.join("・")}と時間が重なっています`;
 };
 
 export function buildShiftTypeDailyPresentation({
@@ -58,85 +106,142 @@ export function buildShiftTypeDailyPresentation({
   staffs,
   shiftByStaffId,
   isConfirmedDisplay,
+  usesPositionColors = false,
 }: {
   submissionPattern: ShiftSubmissionPattern;
   shifts: ShiftData[];
   staffs: StaffType[];
   shiftByStaffId: ReadonlyMap<string, ShiftData | undefined>;
+  /** スタッフ向けの確定シフトの表示。希望の輪、点、休み希望のまとまりを出さない。 */
   isConfirmedDisplay: boolean;
+  /** ポジションを塗り分ける表示（くわしく表示で、ポジションが2つ以上）かどうか。 */
+  usesPositionColors?: boolean;
 }): ShiftTypeDailyPresentation {
   const options = getOrderedShiftTypeOptions(submissionPattern);
   const countsByOptionId = countShiftTypeAssignments(
     shifts,
     options.map((option) => option.id),
   );
-  const optionPresentations = options.map((option, index) => ({
-    key: option.id,
-    option,
-    name: option.name,
-    timeLabel: formatShiftTypeTimeRange(option),
-    countLabel: `${countsByOptionId.get(option.id) ?? 0}人`,
-    color: getShiftTypeOptionColor(index),
-  }));
+
+  const toRow = (staff: StaffType): ShiftTypeDailyRowPresentation => {
+    const shift = shiftByStaffId.get(staff.id);
+    return {
+      key: staff.id,
+      staff,
+      shift,
+      staffName: staff.name,
+      isNameMuted: !staff.isSubmitted,
+      isUnsubmitted: !isConfirmedDisplay && !staff.isSubmitted,
+      cells: buildShiftTypeCells({ shift, staff, options }).map((cell) => {
+        const assigned = cell.segment !== null;
+        const showsPositionName = assigned && usesPositionColors;
+        const noticeTexts = isConfirmedDisplay ? [] : cell.notices.map(formatShiftTypeCellNotice);
+        const showsRequestRing = !isConfirmedDisplay && cell.isRequested;
+        const descriptions = [...(showsRequestRing ? ["希望あり"] : []), ...noticeTexts];
+        return {
+          key: cell.option.id,
+          option: cell.option,
+          showsRequestRing,
+          assigned,
+          pillLabel: assigned ? (showsPositionName ? (cell.segment?.positionName ?? "○") : "○") : null,
+          positionId: cell.segment?.positionId ?? null,
+          positionColor: showsPositionName ? (cell.segment?.color ?? null) : null,
+          dot: isConfirmedDisplay ? null : cell.dot,
+          noticeTexts,
+          ariaLabel: `${staff.name} ${cell.option.name} ${assigned ? "勤務あり" : "勤務なし"}`,
+          ariaDescription: descriptions.length > 0 ? descriptions.join("、") : null,
+        };
+      }),
+    };
+  };
+
+  const isRest = (staff: StaffType): boolean =>
+    !isConfirmedDisplay && isShiftTypeRestRequestWithoutWork({ shift: shiftByStaffId.get(staff.id), staff });
+  const restStaffs = staffs.filter(isRest);
 
   return {
-    options: optionPresentations,
-    staffs: staffs.map((staff) => {
-      const shift = shiftByStaffId.get(staff.id);
-      return {
-        staff,
-        isNameMuted: !staff.isSubmitted,
-        requestSectionLabel: isConfirmedDisplay ? "確定" : "希望",
-        requestBadges: buildRequestBadges(staff, shift, optionPresentations),
-        assignments: optionPresentations.map(({ key, option, name, timeLabel, color }) => ({
-          key,
-          option,
-          name,
-          timeLabel,
-          assigned: hasShiftTypeAssignment(shift, option.id),
-          color,
-        })),
-      };
-    }),
+    options: options.map((option) => ({
+      key: option.id,
+      option,
+      name: option.name,
+      timeLabel: formatShiftTypeTimeRange(option),
+      shortTimeLabel: formatShiftTypeShortTimeRange(option),
+      countLabel: `${countsByOptionId.get(option.id) ?? 0}人`,
+    })),
+    rows: staffs.filter((staff) => !isRest(staff)).map(toRow),
+    restGroup:
+      restStaffs.length > 0
+        ? {
+            label: `休み希望 ${restStaffs.length}人`,
+            namesLabel: buildStaffNamesLabel(restStaffs.map((staff) => staff.name)),
+            rows: restStaffs.map(toRow),
+          }
+        : null,
   };
 }
 
-function buildRequestBadges(
-  staff: StaffType,
-  shift: ShiftData | undefined,
-  options: ShiftTypeDailyOptionPresentation[],
-): ShiftTypeDailyRequestBadgePresentation[] {
-  if (!staff.isSubmitted) {
-    return [
-      {
-        key: "unsubmitted",
-        label: "未提出",
-        bg: SHIFT_TYPE_REQUEST_STATUS_COLORS.unsubmitted.bg,
-        color: SHIFT_TYPE_REQUEST_STATUS_COLORS.unsubmitted.color,
-      },
-    ];
-  }
+// ==========================================
+// 充足（くわしく表示）
+// ==========================================
+export type ShiftTypeStaffingPresentation = {
+  /** その日の充足率（%）。必要人数が1つもない日はnull。 */
+  percent: number | null;
+  /** 100%のときtrue。文字の色を決める。 */
+  isFulfilled: boolean;
+  /** 人数を出すポジション。その日に必要人数があるか、だれかが入っているポジションを、設定の並び順で持つ。 */
+  positions: Array<{ positionId: string; name: string; color: string }>;
+  /** 勤務パターンのIDから、positionsと同じ並びの「配置/必要」を引く。 */
+  countsByOptionId: ReadonlyMap<string, PositionStaffingCountPresentation[]>;
+};
 
-  const requestedIds = getRequestedShiftTypeOptionIds(shift);
-  if (requestedIds.length === 0) {
-    return [
-      {
-        key: "rest",
-        label: "休み",
-        bg: SHIFT_TYPE_REQUEST_STATUS_COLORS.rest.bg,
-        color: SHIFT_TYPE_REQUEST_STATUS_COLORS.rest.color,
-      },
-    ];
-  }
+const SHIFT_TYPE_SLOT_ID_PREFIX = "shiftType:";
 
-  const optionById = new Map(options.map((option) => [option.key, option]));
-  return requestedIds.map((optionId) => {
-    const item = optionById.get(optionId);
-    return {
-      key: optionId,
-      label: item?.name ?? "勤務パターン",
-      bg: item?.color.requestedBg ?? "gray.100",
-      color: item?.color.accent ?? "gray.700",
-    };
+/**
+ * その日の人数（DayStaffingView）を、勤務パターンの見出しとスマートフォンの充足の表に出す形へ直す。
+ * 出すポジションは日ごとにそろえ、勤務パターンによって並びと数を変えない。状態が変わっても位置を動かさないためである。
+ */
+export const buildShiftTypeStaffingPresentation = (
+  view: DayStaffingView,
+  options: readonly ShiftTypeOptionLike[],
+): ShiftTypeStaffingPresentation => {
+  const slotByOptionId = new Map(
+    view.slots.flatMap((slot) =>
+      slot.id.startsWith(SHIFT_TYPE_SLOT_ID_PREFIX)
+        ? [[slot.id.slice(SHIFT_TYPE_SLOT_ID_PREFIX.length), slot] as const]
+        : [],
+    ),
+  );
+  const slots = options.flatMap((option) => {
+    const slot = slotByOptionId.get(option.id);
+    return slot ? [{ option, slot }] : [];
   });
-}
+  const shownPositionIds = new Set(
+    slots.flatMap(({ slot }) =>
+      slot.positions
+        .filter((position) => position.required !== null || position.count > 0)
+        .map((position) => position.positionId),
+    ),
+  );
+  const positions = (slots[0]?.slot.positions ?? [])
+    .filter((position) => shownPositionIds.has(position.positionId))
+    .map((position) => ({ positionId: position.positionId, name: position.name, color: position.color }));
+
+  const percent = calculateShiftTypeFulfillmentPercent(
+    slots.map(({ option, slot }) => ({
+      startTime: option.startTime,
+      endTime: option.endTime,
+      positions: slot.positions,
+    })),
+  );
+  return {
+    percent,
+    isFulfilled: percent === 100,
+    positions,
+    countsByOptionId: new Map(
+      slots.map(({ option, slot }) => [
+        option.id,
+        slot.positions.filter((position) => shownPositionIds.has(position.positionId)).map(toPositionStaffingCount),
+      ]),
+    ),
+  };
+};

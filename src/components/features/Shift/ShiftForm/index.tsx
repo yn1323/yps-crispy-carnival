@@ -26,7 +26,6 @@ import {
   PositionLegend,
   type ShiftFormDetailActions,
   ShiftFormDetailActionsProvider,
-  ToolPalette,
   useShiftFormDetailActions,
 } from "./detailParts";
 import { useChromeHideOnScroll } from "./hooks/useChromeHideOnScroll";
@@ -277,9 +276,6 @@ const ShiftFormInner = ({
           reminderStatus={reminderStatus}
           onOpenUnsubmittedDetails={onOpenUnsubmittedDetails}
           hideViewTabs={isDateOnlyPattern}
-          // PCの日別表示（時間指定、パターン選択）は、日付の見出しの行に入れるものの選択を置く。
-          // 一覧は勤務を入れる画面ではないため、入れるものの選択を出さない。日付選択のPCは表で勤務を入れるため出す。
-          hideToolPaletteRow={!isDateOnlyPattern}
           validationIssues={displayIssues}
           onSelectIssue={handleSelectIssue}
           onDismissValidationIssues={onDismissValidationIssues}
@@ -325,11 +321,6 @@ const ShiftFormInner = ({
         unsubmittedNames={unsubmittedNames}
         reminderStatus={reminderStatus}
         onOpenUnsubmittedDetails={onOpenUnsubmittedDetails}
-        // 一覧は勤務を入れる画面ではないため、入れるものの選択を出さない。
-        // 時間指定の日別は、日付の見出しの下、充足の上に入れるものの行を置く。
-        hideToolPaletteRow={
-          viewMode === "overview" || (viewMode === "daily" && !isShiftTypePattern && !isDateOnlyPattern)
-        }
         validationIssues={displayIssues}
         onSelectIssue={handleSelectIssue}
         onDismissValidationIssues={onDismissValidationIssues}
@@ -384,7 +375,6 @@ type ShellProps = {
   reminderStatus?: ReminderStatus;
   onOpenUnsubmittedDetails?: () => void;
   hideViewTabs?: boolean;
-  hideToolPaletteRow?: boolean;
   validationIssues: DisplayIssue[];
   onSelectIssue: (issue: DisplayIssue) => void;
   onDismissValidationIssues?: () => void;
@@ -407,7 +397,6 @@ const Shell = ({
   reminderStatus,
   onOpenUnsubmittedDetails,
   hideViewTabs,
-  hideToolPaletteRow,
   validationIssues,
   onSelectIssue,
   onDismissValidationIssues,
@@ -510,7 +499,6 @@ const Shell = ({
         </Box>
       </Box>
 
-      {!hideToolPaletteRow && <ToolPalette />}
       <PositionLegend />
 
       {!isReadOnly && validationIssues.length > 0 && (

@@ -99,9 +99,9 @@ export const buildNewBreak = (range: { startMinutes: number; endMinutes: number 
 };
 
 /**
- * 選んだ日の休憩を編集するDialog。「入れるもの」で休憩を選び、勤務を押すと開く。
- * 時間指定のスマートフォンでは開かず、勤務の編集シートの中で休憩も編集する。
- * 時間指定のPCの日別表示では、勤務のバーの範囲を選んで開くメニューの「休憩を追加」（休憩を選んでいる間は「休憩を変更」）から開く。
+ * 選んだ日の休憩を編集するDialog。
+ * 時間指定のPCの日別表示で、勤務のバーの範囲を選んで開くメニューの「休憩を追加」（休憩を選んでいる間は「休憩を変更」）から開く。
+ * 時間指定のスマートフォンでは開かず、勤務の編集シートの中で休憩も編集する。パターン選択と日付選択は休憩を扱わないため、開かない。
  */
 export const BreakEditorDialog = () => {
   const [target, setTarget] = useAtom(breakEditorTargetAtom);

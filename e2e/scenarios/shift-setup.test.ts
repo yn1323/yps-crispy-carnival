@@ -17,7 +17,7 @@ const SCENARIO_SHOP_NAME = "追加通知テスト店舗";
 const STAFF_NAME = "田中太郎";
 const NEW_POSITION_NAME = "キッチン";
 
-test.describe("シフト作成の設定", { tag: ["@e2e-core"] }, () => {
+test.describe("必要人数設定", { tag: ["@e2e-core"] }, () => {
   // 設定ページの保存、シフト表の読み込み、下書き保存と再読込を含む。近い契約の実測へ余裕を加えた失敗上限。
   test.setTimeout(90_000);
 
@@ -45,7 +45,6 @@ test.describe("シフト作成の設定", { tag: ["@e2e-core"] }, () => {
     await test.step("シフト表で足したポジションを選び、勤務を入れて下書きを保存する", async () => {
       await appShifts.goto(seed.organizationId);
       await appShifts.openRecruitment({ ...dates, shopName: SCENARIO_SHOP_NAME });
-      await cells.selectPositionTool(NEW_POSITION_NAME);
       await cells.assignDateOnlyWithPosition(STAFF_NAME, firstDate, NEW_POSITION_NAME);
       await shiftBoard.saveDraft();
     });

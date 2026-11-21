@@ -7,16 +7,6 @@ export type ShiftTypeOptionLike = {
   endTime: string;
 };
 
-type ToggleShiftTypeAssignmentParams = {
-  shifts: ShiftData[];
-  staff: StaffType;
-  date: string;
-  option: ShiftTypeOptionLike;
-  position: PositionType;
-  // trueの場合、別のポジションで入っている勤務は外さず、選んだポジションへ入れ替える。
-  switchPosition?: boolean;
-};
-
 export const getRequestedShiftTypeOptionIds = (shift: ShiftData | undefined): string[] =>
   shift?.requestedShiftTypeOptionIds ?? [];
 
@@ -36,9 +26,6 @@ export const getAssignedShiftTypeOptionIdsInOptionOrder = (
   return optionIds.filter((optionId) => assignedIds.has(optionId));
 };
 
-export const hasShiftTypeAssignment = (shift: ShiftData | undefined, optionId: string): boolean =>
-  getAssignedShiftTypeOptionIds(shift).includes(optionId);
-
 export const countShiftTypeAssignments = (shifts: ShiftData[], optionIds: string[]): Map<string, number> => {
   const counts = new Map(optionIds.map((optionId) => [optionId, 0]));
 
@@ -53,30 +40,34 @@ export const countShiftTypeAssignments = (shifts: ShiftData[], optionIds: string
   return counts;
 };
 
-export const getShiftTypeRequestLabel = (
-  shift: ShiftData | undefined,
-  options: ShiftTypeOptionLike[],
-  isSubmitted: boolean,
-): string => {
-  if (!isSubmitted) return "未提出";
+const toSegment = (staffId: string, date: string, option: ShiftTypeOptionLike, position: PositionType) => ({
+  id: `seg-${staffId}-${date}-${option.id}`,
+  positionId: position.id,
+  positionName: position.name,
+  color: position.color,
+  start: option.startTime,
+  end: option.endTime,
+  shiftTypeOptionId: option.id,
+});
 
-  const requestedIds = getRequestedShiftTypeOptionIds(shift);
-  if (requestedIds.length === 0) return "休み";
-
-  const optionNameById = new Map(options.map((option) => [option.id, option.name]));
-  return requestedIds.map((optionId) => optionNameById.get(optionId) ?? "勤務パターン").join("・");
-};
-
-export const toggleShiftTypeAssignment = ({
+/**
+ * 勤務パターンへ、指定したポジションで勤務を入れる。
+ * すでに入っている勤務パターンでは、ポジションだけを入れ替える。1つの勤務パターンが持つポジションは1つである。
+ */
+export const setShiftTypeAssignment = ({
   shifts,
   staff,
   date,
   option,
   position,
-  switchPosition = false,
-}: ToggleShiftTypeAssignmentParams): ShiftData[] => {
+}: {
+  shifts: ShiftData[];
+  staff: StaffType;
+  date: string;
+  option: ShiftTypeOptionLike;
+  position: PositionType;
+}): ShiftData[] => {
   const targetShift = shifts.find((shift) => shift.staffId === staff.id && shift.date === date);
-
   if (!targetShift) {
     return [
       ...shifts,
@@ -86,42 +77,39 @@ export const toggleShiftTypeAssignment = ({
         staffName: staff.name,
         date,
         requestedTime: null,
-        positions: [
-          {
-            id: `seg-${staff.id}-${date}-${option.id}`,
-            positionId: position.id,
-            positionName: position.name,
-            color: position.color,
-            start: option.startTime,
-            end: option.endTime,
-            shiftTypeOptionId: option.id,
-          },
-        ],
+        positions: [toSegment(staff.id, date, option, position)],
       },
     ];
   }
 
-  const assigned = targetShift.positions.find((positionSegment) => positionSegment.shiftTypeOptionId === option.id);
-  const nextPositions = assigned
-    ? switchPosition && assigned.positionId !== position.id
-      ? targetShift.positions.map((positionSegment) =>
-          positionSegment.shiftTypeOptionId === option.id
-            ? { ...positionSegment, positionId: position.id, positionName: position.name, color: position.color }
-            : positionSegment,
-        )
-      : targetShift.positions.filter((positionSegment) => positionSegment.shiftTypeOptionId !== option.id)
-    : [
-        ...targetShift.positions,
-        {
-          id: `seg-${staff.id}-${date}-${option.id}`,
-          positionId: position.id,
-          positionName: position.name,
-          color: position.color,
-          start: option.startTime,
-          end: option.endTime,
-          shiftTypeOptionId: option.id,
-        },
-      ];
-
+  const isAssigned = targetShift.positions.some((segment) => segment.shiftTypeOptionId === option.id);
+  const nextPositions = isAssigned
+    ? targetShift.positions.map((segment) =>
+        segment.shiftTypeOptionId === option.id
+          ? { ...segment, positionId: position.id, positionName: position.name, color: position.color }
+          : segment,
+      )
+    : [...targetShift.positions, toSegment(staff.id, date, option, position)];
   return shifts.map((shift) => (shift.id === targetShift.id ? { ...shift, positions: nextPositions } : shift));
+};
+
+/** 勤務パターンに入っている勤務を外す。入っていなければ何も変えない。 */
+export const removeShiftTypeAssignment = ({
+  shifts,
+  staffId,
+  date,
+  optionId,
+}: {
+  shifts: ShiftData[];
+  staffId: string;
+  date: string;
+  optionId: string;
+}): ShiftData[] => {
+  const targetShift = shifts.find((shift) => shift.staffId === staffId && shift.date === date);
+  if (!targetShift?.positions.some((segment) => segment.shiftTypeOptionId === optionId)) return shifts;
+  return shifts.map((shift) =>
+    shift.id === targetShift.id
+      ? { ...shift, positions: shift.positions.filter((segment) => segment.shiftTypeOptionId !== optionId) }
+      : shift,
+  );
 };

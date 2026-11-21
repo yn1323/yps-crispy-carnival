@@ -289,7 +289,10 @@ export const saveShiftAssignments = managerMutation({
       .map(({ breaks, isProvisional, ...assignment }) => ({
         ...assignment,
         positionId: assignment.positionId ?? defaultPositionId,
-        ...(breaks && breaks.length > 0 ? { breaks: sortShiftBreaks(breaks) } : {}),
+        // 休憩を扱うのは時間指定だけである。パターン選択と日付選択は、受け取っても保存しない。
+        ...(submissionPattern.kind === "time" && breaks && breaks.length > 0
+          ? { breaks: sortShiftBreaks(breaks) }
+          : {}),
         ...(isProvisional ? { isProvisional: true } : {}),
       }));
     const canonicalAssignments =

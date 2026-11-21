@@ -3,16 +3,6 @@ import { isCanonicalWorkPosition } from "./positions";
 import { minutesToTime } from "./time";
 import type { PositionType, ShiftData, StaffType, TimeRange } from "./types";
 
-type ToggleDateOnlyAssignmentParams = {
-  shifts: ShiftData[];
-  staff: StaffType;
-  date: string;
-  timeRange: TimeRange;
-  position?: PositionType;
-  // trueの場合、別のポジションで入っている勤務は外さず、選んだポジションへ入れ替える。
-  switchPosition?: boolean;
-};
-
 export const getDateOnlyAssignmentRange = (timeRange: TimeRange): { start: string; end: string } => ({
   start: minutesToTime(timeRange.editableStartMinutes ?? timeRange.start * 60),
   end: minutesToTime(timeRange.editableEndMinutes ?? timeRange.end * 60),
@@ -36,18 +26,36 @@ export const countDateOnlyAssignmentsByDate = (shifts: ShiftData[], dates: strin
   return counts;
 };
 
-export const toggleDateOnlyAssignment = ({
+/**
+ * その日に、選んだポジションで勤務を入れる。すでに勤務がある日は、ポジションだけを入れ替える。
+ * 1人の1日に持てるポジションは1つである。
+ */
+export const setDateOnlyAssignment = ({
   shifts,
   staff,
   date,
   timeRange,
   position = DEFAULT_POSITION,
-  switchPosition = false,
-}: ToggleDateOnlyAssignmentParams): ShiftData[] => {
+}: {
+  shifts: ShiftData[];
+  staff: StaffType;
+  date: string;
+  timeRange: TimeRange;
+  position?: PositionType;
+}): ShiftData[] => {
+  const { start, end } = getDateOnlyAssignmentRange(timeRange);
+  const positions = [
+    {
+      id: `seg-${staff.id}-${date}`,
+      positionId: position.id,
+      positionName: position.name,
+      color: position.color,
+      start,
+      end,
+    },
+  ];
   const targetShift = shifts.find((shift) => shift.staffId === staff.id && shift.date === date);
-
   if (!targetShift) {
-    const { start, end } = getDateOnlyAssignmentRange(timeRange);
     return [
       ...shifts,
       {
@@ -56,56 +64,21 @@ export const toggleDateOnlyAssignment = ({
         staffName: staff.name,
         date,
         requestedTime: null,
-        positions: [
-          {
-            id: `seg-${staff.id}-${date}`,
-            positionId: position.id,
-            positionName: position.name,
-            color: position.color,
-            start,
-            end,
-          },
-        ],
+        positions,
       },
     ];
   }
-
-  if (hasDateOnlyAssignment(targetShift)) {
-    // 別のポジションで入っている勤務は外さず、選んだポジションへ入れ替える。
-    const needsSwitch = switchPosition && targetShift.positions.some((segment) => segment.positionId !== position.id);
-    return shifts.map((shift) =>
-      shift.id === targetShift.id
-        ? {
-            ...shift,
-            positions: needsSwitch
-              ? shift.positions.map((segment) => ({
-                  ...segment,
-                  positionId: position.id,
-                  positionName: position.name,
-                  color: position.color,
-                }))
-              : [],
-          }
-        : shift,
-    );
-  }
-
-  const { start, end } = getDateOnlyAssignmentRange(timeRange);
-  return shifts.map((shift) =>
-    shift.id === targetShift.id
-      ? {
-          ...shift,
-          positions: [
-            {
-              id: `seg-${staff.id}-${date}`,
-              positionId: position.id,
-              positionName: position.name,
-              color: position.color,
-              start,
-              end,
-            },
-          ],
-        }
-      : shift,
-  );
+  return shifts.map((shift) => (shift.id === targetShift.id ? { ...shift, positions } : shift));
 };
+
+/** その日の勤務を外す。希望は残す。 */
+export const removeDateOnlyAssignment = ({
+  shifts,
+  staffId,
+  date,
+}: {
+  shifts: ShiftData[];
+  staffId: string;
+  date: string;
+}): ShiftData[] =>
+  shifts.map((shift) => (shift.staffId === staffId && shift.date === date ? { ...shift, positions: [] } : shift));

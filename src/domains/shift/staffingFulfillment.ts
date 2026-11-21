@@ -1,5 +1,5 @@
 import type { MinuteRange } from "./breaks";
-import type { PositionStaffingBand, PositionStaffingBandSegment } from "./staffing";
+import type { PositionStaffingBandSegment } from "./staffing";
 import { timeToMinutes } from "./time";
 import type { StaffingBar } from "./types";
 
@@ -53,7 +53,9 @@ export const buildFulfillmentSegments = (segments: readonly PositionStaffingBand
  * 必要人数が1つもない日はnullを返す。
  */
 export const calculateFulfillmentPercent = (
-  bands: ReadonlyArray<Pick<PositionStaffingBand, "segments">>,
+  bands: ReadonlyArray<{
+    segments: ReadonlyArray<Pick<PositionStaffingBandSegment, "start" | "end" | "count" | "required">>;
+  }>,
 ): number | null => {
   let filled = 0;
   let required = 0;
@@ -63,6 +65,48 @@ export const calculateFulfillmentPercent = (
       const length = timeToMinutes(segment.end) - timeToMinutes(segment.start);
       filled += Math.min(segment.count, segment.required) * length;
       required += segment.required * length;
+    }
+  }
+  return required === 0 ? null : Math.floor((filled * 100) / required);
+};
+
+/**
+ * パターン選択の、その日の充足率（%）。勤務パターンを「開始から終了までの区間」として、時間指定と同じ式で求める。
+ * 対象は、必要人数のある「勤務パターン×ポジション」のすべてである。必要人数が1つもない日はnullを返す。
+ */
+export const calculateShiftTypeFulfillmentPercent = (
+  slots: ReadonlyArray<{
+    startTime: string;
+    endTime: string;
+    positions: ReadonlyArray<{ count: number; required: number | null }>;
+  }>,
+): number | null =>
+  calculateFulfillmentPercent(
+    slots.map((slot) => ({
+      segments: slot.positions.map((position) => ({
+        start: slot.startTime,
+        end: slot.endTime,
+        count: position.count,
+        required: position.required,
+      })),
+    })),
+  );
+
+/**
+ * 日付選択の充足率（%）を、整数に切り捨てて返す。週の見出しには表示中の週の全日、スマートフォンにはその日の1日分を渡す。
+ * Σ min(配置, 必要) ÷ Σ 必要 で求め、対象は必要人数のある「日×ポジション」のすべてである。多い分は足さない。
+ * 日付選択の勤務は時刻を持たないため、時間の長さでは重み付けしない。必要人数が1つもなければnullを返す。
+ */
+export const calculateDateOnlyFulfillmentPercent = (
+  days: ReadonlyArray<{ positions: ReadonlyArray<{ count: number; required: number | null }> }>,
+): number | null => {
+  let filled = 0;
+  let required = 0;
+  for (const day of days) {
+    for (const position of day.positions) {
+      if (position.required === null) continue;
+      filled += Math.min(position.count, position.required);
+      required += position.required;
     }
   }
   return required === 0 ? null : Math.floor((filled * 100) / required);

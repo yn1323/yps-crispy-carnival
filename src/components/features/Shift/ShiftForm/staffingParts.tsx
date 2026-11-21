@@ -1,20 +1,13 @@
 import { Box, chakra, Flex, Icon, Menu, Portal, Text } from "@chakra-ui/react";
 import { useAtomValue } from "jotai";
-import { type ReactNode, useState } from "react";
 import { LuChartGantt, LuCheck, LuChevronDown, LuTriangleAlert } from "react-icons/lu";
 import { NO_DAY_TEMPLATE } from "@/convex/shiftSetup/dayTemplates";
 import { Button } from "@/src/components/ui/Button";
 import { useShiftFormDetailActions } from "./detailParts";
-import {
-  type DayStaffingView,
-  NO_TEMPLATE_LABEL,
-  STAFFING_TONE_STYLES,
-  type StaffingCountView,
-  type StaffingSlotView,
-} from "./staffingPresentation";
+import { type DayStaffingView, NO_TEMPLATE_LABEL } from "./staffingPresentation";
 import { canEditDayStaffingAtom, dayStaffingViewByDateAtom, shiftConfigAtom } from "./stores";
 
-// 人数と過不足、その日のテンプレートのメニュー。くわしく表示のときだけ出す。
+// その日の人数の取り出しと、その日のテンプレートのメニュー。くわしく表示のときだけ使う。
 
 /** その日の人数と過不足を返す。くわしく表示でない場合、定休日、スタッフ向けの確定シフト表示ではnullを返す。 */
 export const useDayStaffingView = (date: string): DayStaffingView | null =>
@@ -39,63 +32,6 @@ export const NewcomerOnlyMark = () => (
     <chakra.span srOnly>見習いだけ</chakra.span>
   </Box>
 );
-
-/** 「2/3 ▲1」の形の人数。足りない場合は赤の地と実線の枠、多い場合は青の地と実線の枠で示す。 */
-export const StaffingCountChip = ({ view }: { view: StaffingCountView }) => {
-  const style = STAFFING_TONE_STYLES[view.tone];
-  return (
-    <Flex as="span" align="center" gap="3px" whiteSpace="nowrap">
-      <Box
-        as="span"
-        px={style.bg ? "4px" : 0}
-        borderRadius="sm"
-        borderWidth="1px"
-        bg={style.bg}
-        borderColor={style.borderColor}
-        borderStyle={style.borderStyle}
-        color={style.color}
-        fontWeight={style.fontWeight}
-        fontVariantNumeric="tabular-nums"
-      >
-        {view.label}
-      </Box>
-      {view.isNewcomerOnly && <NewcomerOnlyMark />}
-    </Flex>
-  );
-};
-
-/** ポジションごとの「人数 / 必要」。ポジションが1つだけの場合は名前を出さない。 */
-export const StaffingPositionCounts = ({ slot, showNames }: { slot: StaffingSlotView; showNames: boolean }) => {
-  // 必要人数が未設定で、誰も入っていないポジションは出さない。内訳を、見るべきポジションだけにする。
-  const positions = slot.positions.filter((position) => position.required !== null || position.count > 0);
-  if (slot.positions.length <= 1 || positions.length === 0) {
-    const only = slot.positions.length <= 1 ? slot.positions[0] : undefined;
-    return only ? (
-      <StaffingCountChip view={only} />
-    ) : (
-      <Box as="span" color="gray.600" fontWeight={600} fontVariantNumeric="tabular-nums">
-        {slot.total}
-      </Box>
-    );
-  }
-  return (
-    <Flex as="span" align="center" columnGap={2} rowGap="2px" flexWrap="wrap" justify="center">
-      {positions.map((position) => (
-        <Flex as="span" key={position.positionId} align="center" gap={1} whiteSpace="nowrap">
-          <Box boxSize="8px" borderRadius="full" flexShrink={0} style={{ background: position.color }} aria-hidden />
-          {showNames ? (
-            <Box as="span" color="gray.700">
-              {position.name}
-            </Box>
-          ) : (
-            <chakra.span srOnly>{position.name}</chakra.span>
-          )}
-          <StaffingCountChip view={position} />
-        </Flex>
-      ))}
-    </Flex>
-  );
-};
 
 // ==========================================
 // その日のテンプレートのメニュー
@@ -154,7 +90,7 @@ export const DayTemplateMenuItems = ({ date, view }: { date: string; view: DaySt
       {onOpenSetup && (
         <Menu.Item value="setup" {...MENU_ITEM_PROPS} onClick={onOpenSetup}>
           <Box w={4} flexShrink={0} />
-          <Menu.ItemText fontSize="sm">シフト作成の設定を開く</Menu.ItemText>
+          <Menu.ItemText fontSize="sm">必要人数設定を開く</Menu.ItemText>
         </Menu.Item>
       )}
     </>
@@ -163,8 +99,8 @@ export const DayTemplateMenuItems = ({ date, view }: { date: string; view: DaySt
 
 /**
  * その日のテンプレートの名前と、テンプレートを変えるメニュー。
- * 時間指定のPCは人数の帯の見出し、時間指定のスマートフォンは日付の見出し、パターン選択のPCは日付の見出し、
- * パターン選択と日付選択のスマートフォンは人数のカードに1つだけ置く。
+ * 時間指定のPCは人数の帯の見出し、そのほかのスマートフォンとパターン選択のPCは日付の見出しに1つだけ置く。
+ * 日付選択のPCの週の表は、日ごとの見出しに小さな名前を置き、同じ項目のメニューを開く。
  * 閲覧専用と確定済みでは、名前だけを出す。
  * `shrinks`を渡すと、置いた行の幅が足りないときに、名前を省略して縮む。
  * `fillsWidth`を渡すと、名前の長さに合わせず、置いた列の幅いっぱいに広げる。入りきらない名前は「…」で省略する。
@@ -231,98 +167,5 @@ export const DayTemplateMenu = ({
         </Menu.Positioner>
       </Portal>
     </Menu.Root>
-  );
-};
-
-/** 必要人数がない日に、人数だけを出していることを伝える。 */
-export const StaffingUnsetNote = () => (
-  <Text textStyle="xs" color="gray.600" flexShrink={0} whiteSpace="nowrap">
-    必要人数が未設定
-  </Text>
-);
-
-// ==========================================
-// 人数のカード（パターン選択と日付選択）
-// ==========================================
-const SummaryRow = ({ label, children }: { label: string; children: ReactNode }) => (
-  <Flex as="li" align="center" justify="space-between" gap={3} py="3px" borderTopWidth="1px" borderColor="gray.100">
-    <Text flexShrink={0} color="gray.700" fontVariantNumeric="tabular-nums">
-      {label}
-    </Text>
-    {children}
-  </Flex>
-);
-
-/**
- * その日の人数と過不足の一覧。パターン選択と日付選択のスマートフォンの日別表示で、上端のカードとして使う。
- * 勤務パターンごと、または1日の行にする。畳んだ状態では不足だけを出し、「すべて見る」で全部を出す。
- * 時間指定のスマートフォンは、このカードではなく充足の帯（FulfillmentSection）で示す。
- */
-export const StaffingSummary = ({ date, defaultExpanded = false }: { date: string; defaultExpanded?: boolean }) => {
-  const view = useDayStaffingView(date);
-  const [isExpanded, setExpanded] = useState(defaultExpanded);
-  if (!view) return null;
-
-  const visibleSlots = isExpanded ? view.slots : view.slots.filter((slot) => slot.hasShortage);
-  // 不足だけを出している間に、隠れている行があるか。すべて不足の日は切り替えを出さない。
-  const hasHiddenRows = view.slots.length > view.shortageCount;
-
-  return (
-    <Box
-      as="section"
-      aria-label="人数"
-      bg="white"
-      borderWidth="1px"
-      borderColor="gray.200"
-      borderRadius="lg"
-      px={3}
-      py={2}
-      textStyle="xs"
-      color="gray.800"
-    >
-      <Flex align="center" justify="space-between" gap={2}>
-        <Flex align="center" gap={2} minW={0}>
-          <Text fontWeight={700} flexShrink={0}>
-            人数
-          </Text>
-          {view.hasShortage ? (
-            <Text color="red.700" fontWeight={700} flexShrink={0}>
-              不足 {view.shortageCount}か所
-            </Text>
-          ) : view.hasRequirements ? (
-            <Text color="gray.600" flexShrink={0}>
-              不足なし
-            </Text>
-          ) : (
-            <StaffingUnsetNote />
-          )}
-        </Flex>
-        <Flex align="center" gap={1} flexShrink={0} minW={0}>
-          <DayTemplateMenu date={date} view={view} />
-          {hasHiddenRows && (
-            <Button
-              type="button"
-              size="xs"
-              variant="ghost"
-              h="28px"
-              px={2}
-              aria-expanded={isExpanded}
-              onClick={() => setExpanded((current) => !current)}
-            >
-              {isExpanded ? "閉じる" : "すべて見る"}
-            </Button>
-          )}
-        </Flex>
-      </Flex>
-      {visibleSlots.length > 0 && (
-        <Box as="ul" listStyleType="none" mt={2}>
-          {visibleSlots.map((slot) => (
-            <SummaryRow key={slot.id} label={slot.label}>
-              <StaffingPositionCounts slot={slot} showNames />
-            </SummaryRow>
-          ))}
-        </Box>
-      )}
-    </Box>
   );
 };

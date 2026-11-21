@@ -143,13 +143,13 @@ export const buildAssignments = <StaffId extends string = string, PositionId ext
 ): ShiftAssignmentDraft<StaffId, PositionId>[] => {
   const assignments = shifts.flatMap((s) => {
     if (closedDateSet.has(s.date)) return [];
-    const isDateOnly = options.submissionPatternKind === "dateOnly";
+    // 休憩を扱うのは時間指定だけである。パターン選択と日付選択は、画面に残っていても保存しない。
     // 時刻を持つ勤務は、ひと続きの勤務の開始より後、終了より前にある休憩だけを保存する。
-    const dayBreaks = isDateOnly ? mergeBreaks(s.breaks ?? []) : getEffectiveBreaks(s, { clipToWork: true });
-    return s.positions.filter(isCanonicalWorkPosition).map((position, index) => {
-      // 時刻を持つ勤務は、その勤務区間の内側に収まる休憩だけを持たせる。
-      // 日付選択の勤務は時刻を持たないため、入力された休憩を最初の勤務へそのまま持たせる。
-      const breaks = isDateOnly ? (index === 0 ? dayBreaks : []) : getBreaksForSegment(position, dayBreaks);
+    const usesBreaks = (options.submissionPatternKind ?? "time") === "time";
+    const dayBreaks = usesBreaks ? getEffectiveBreaks(s, { clipToWork: true }) : [];
+    return s.positions.filter(isCanonicalWorkPosition).map((position) => {
+      // その勤務区間の内側に収まる休憩だけを持たせる。
+      const breaks = getBreaksForSegment(position, dayBreaks);
       return {
         staffId: s.staffId as StaffId,
         date: s.date,

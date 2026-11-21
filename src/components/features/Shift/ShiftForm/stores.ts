@@ -5,7 +5,7 @@ import { getAssignmentWarningSettingText } from "@/src/components/shared/ShiftAs
 import { issueCountByDate } from "@/src/domains/shift/assignmentIssues";
 import type { AssignmentWarning } from "@/src/domains/shift/assignmentWarnings";
 import { applyBreakRange, type MinuteRange, withInitialBreak } from "@/src/domains/shift/breaks";
-import { toggleDateOnlyAssignment } from "@/src/domains/shift/dateOnlyAssignments";
+import { removeDateOnlyAssignment, setDateOnlyAssignment } from "@/src/domains/shift/dateOnlyAssignments";
 import { isPositionsUnsplit, mergeAdjacentPositions, resolveDefaultPosition } from "@/src/domains/shift/operations";
 import { collectNewcomerStaffIdsByPositionId } from "@/src/domains/shift/positionSkills";
 import { isCanonicalWorkPosition } from "@/src/domains/shift/positions";
@@ -17,7 +17,11 @@ import {
   restoreWorkInRange,
 } from "@/src/domains/shift/rangeAssignment";
 import { indexShiftsByStaffId } from "@/src/domains/shift/shiftLookup";
-import { type ShiftTypeOptionLike, toggleShiftTypeAssignment } from "@/src/domains/shift/shiftTypeAssignments";
+import {
+  removeShiftTypeAssignment,
+  type ShiftTypeOptionLike,
+  setShiftTypeAssignment,
+} from "@/src/domains/shift/shiftTypeAssignments";
 import { compareDefaultStaffOrder, sortDailyStaffs, sortStaffs } from "@/src/domains/shift/sortStaffs";
 import type { NewcomerOnlyPeriod } from "@/src/domains/shift/staffing";
 import { minutesToTime } from "@/src/domains/shift/time";
@@ -83,8 +87,8 @@ const hasWork = (shift: ShiftData | undefined): boolean => shift?.positions.some
 
 // 編集の前後を比べ、勤務の有無が変わった日にだけ決まりを当てる。
 // - 勤務がなくなった日は、休憩と「仮」の印も消す。
-// - 勤務が新しくできた日は、くわしく表示のときだけ、店舗の休憩の決まりから休憩の初期値を入れる
-//   （日付選択は勤務の長さがないため入れない）。
+// - 勤務が新しくできた日は、時間指定のくわしく表示のときだけ、店舗の休憩の決まりから休憩の初期値を入れる
+//   （日付選択は勤務の長さがないため、パターン選択は休憩を扱わないため、入れない）。
 const applyShiftEditRules = (get: Getter, previous: ShiftData[], next: ShiftData[]): ShiftData[] => {
   if (previous === next) return next;
   const config = get(shiftConfigAtom);
@@ -98,7 +102,7 @@ const applyShiftEditRules = (get: Getter, previous: ShiftData[], next: ShiftData
       return rest;
     }
     // シンプル表示は休憩を見せないため、見えない休憩を足さない。くわしく表示のときだけ初期値を入れる。
-    if (!hasWork(before) && config.submissionPattern.kind !== "dateOnly" && get(detailModeAtom)) {
+    if (!hasWork(before) && config.submissionPattern.kind === "time" && get(detailModeAtom)) {
       return withInitialBreak(shift, config.staffing?.breakRule);
     }
     return shift;
@@ -114,47 +118,110 @@ export const updateShiftDraftsAtom = atom(null, (get, set, update: (current: Shi
   commitShiftDrafts(get, set, update(get(shiftDraftsAtom)));
 });
 
-export const toggleDateOnlyAssignmentAtom = atom(
-  null,
-  (get, set, { staff, date }: { staff: StaffType; date: string }) => {
-    const config = get(shiftConfigAtom);
-    if (config.isReadOnly || !config.dates.includes(date) || config.holidays.includes(date)) return;
+// 勤務を入れられる日か。閲覧専用、期間外の日、定休日は入れられない。
+const canEditAssignmentDate = (get: Getter, date: string): boolean => {
+  const config = get(shiftConfigAtom);
+  return !config.isReadOnly && config.dates.includes(date) && !config.holidays.includes(date);
+};
 
-    if (openBreakEditorIfBreakTool(get, set, staff.id, date)) return;
+/**
+ * 日付選択: 勤務のない日へ勤務を入れる。
+ * ポジションを選び分ける表示（くわしく表示で、ポジションが2つ以上）では、最後に選んだポジションで入れる。
+ * それ以外の表示では、店舗の既定のポジションで入れる。
+ */
+export const assignDateOnlyAtom = atom(null, (get, set, { staff, date }: { staff: StaffType; date: string }) => {
+  if (!canEditAssignmentDate(get, date)) return;
+  const position = get(nextWorkPositionAtom);
+  if (!position) return;
+  commitShiftDrafts(
+    get,
+    set,
+    setDateOnlyAssignment({
+      shifts: get(shiftDraftsAtom),
+      staff,
+      date,
+      timeRange: get(shiftConfigAtom).timeRange,
+      position,
+    }),
+  );
+});
+
+/** 日付選択: 入っている勤務のポジションを変える。選んだポジションは、次に入れる勤務のポジションとして覚える。 */
+export const changeDateOnlyPositionAtom = atom(
+  null,
+  (get, set, { staff, date, positionId }: { staff: StaffType; date: string; positionId: string }) => {
+    if (!canEditAssignmentDate(get, date)) return;
+    const config = get(shiftConfigAtom);
+    const position = config.positions.find((item) => item.id === positionId);
+    if (!position) return;
+    set(rememberWorkPositionAtom, positionId);
     commitShiftDrafts(
       get,
       set,
-      toggleDateOnlyAssignment({
-        shifts: get(shiftDraftsAtom),
-        staff,
-        date,
-        timeRange: config.timeRange,
-        position: get(workPositionAtom),
-        switchPosition: get(isPositionSelectableAtom),
-      }),
+      setDateOnlyAssignment({ shifts: get(shiftDraftsAtom), staff, date, timeRange: config.timeRange, position }),
     );
   },
 );
 
-export const toggleShiftTypeAssignmentAtom = atom(
+/** 日付選択: その日の勤務を外す。 */
+export const removeDateOnlyAssignmentAtom = atom(
+  null,
+  (get, set, { staffId, date }: { staffId: string; date: string }) => {
+    if (!canEditAssignmentDate(get, date)) return;
+    commitShiftDrafts(get, set, removeDateOnlyAssignment({ shifts: get(shiftDraftsAtom), staffId, date }));
+  },
+);
+
+/**
+ * パターン選択: 空いている勤務パターンへ勤務を入れる。
+ * ポジションを選び分ける表示（くわしく表示で、ポジションが2つ以上）では、最後に選んだポジションで入れる。
+ * それ以外の表示では、店舗の既定のポジションで入れる。
+ */
+export const assignShiftTypeAtom = atom(
   null,
   (get, set, { staff, date, option }: { staff: StaffType; date: string; option: ShiftTypeOptionLike }) => {
-    const config = get(shiftConfigAtom);
-    if (config.isReadOnly || !config.dates.includes(date) || config.holidays.includes(date)) return;
-
-    if (openBreakEditorIfBreakTool(get, set, staff.id, date)) return;
+    if (!canEditAssignmentDate(get, date)) return;
+    const position = get(nextWorkPositionAtom);
+    if (!position) return;
     commitShiftDrafts(
       get,
       set,
-      toggleShiftTypeAssignment({
-        shifts: get(shiftDraftsAtom),
-        staff,
-        date,
-        option,
-        position: get(workPositionAtom),
-        switchPosition: get(isPositionSelectableAtom),
-      }),
+      setShiftTypeAssignment({ shifts: get(shiftDraftsAtom), staff, date, option, position }),
     );
+  },
+);
+
+/** パターン選択: 入っている勤務のポジションを変える。選んだポジションは、次に入れる勤務のポジションとして覚える。 */
+export const changeShiftTypePositionAtom = atom(
+  null,
+  (
+    get,
+    set,
+    {
+      staff,
+      date,
+      option,
+      positionId,
+    }: { staff: StaffType; date: string; option: ShiftTypeOptionLike; positionId: string },
+  ) => {
+    if (!canEditAssignmentDate(get, date)) return;
+    const position = get(shiftConfigAtom).positions.find((item) => item.id === positionId);
+    if (!position) return;
+    set(rememberWorkPositionAtom, positionId);
+    commitShiftDrafts(
+      get,
+      set,
+      setShiftTypeAssignment({ shifts: get(shiftDraftsAtom), staff, date, option, position }),
+    );
+  },
+);
+
+/** パターン選択: 勤務パターンに入っている勤務を外す。 */
+export const removeShiftTypeAssignmentAtom = atom(
+  null,
+  (get, set, { staffId, date, optionId }: { staffId: string; date: string; optionId: string }) => {
+    if (!canEditAssignmentDate(get, date)) return;
+    commitShiftDrafts(get, set, removeShiftTypeAssignment({ shifts: get(shiftDraftsAtom), staffId, date, optionId }));
   },
 );
 
@@ -383,7 +450,7 @@ export const rememberWorkPositionAtom = atom(null, (get, set, positionId: string
 });
 
 /**
- * 時間指定のPCの日別表示で、次に入れるポジションを決める。この画面でまだ選んでいない場合だけ決める。
+ * 時間指定のPCの日別表示と、パターン選択の日別表示で、次に入れるポジションを決める。この画面でまだ選んでいない場合だけ決める。
  * 端末に覚えたポジションがあればそれを使い、覚えていない場合と削除済みの場合は、ポジションの一覧の先頭を使う。
  * 既定のポジションは画面から分からないため、ここでは使わない。
  */
@@ -396,7 +463,7 @@ export const restoreRememberedWorkPositionAtom = atom(null, (get, set) => {
 });
 
 /**
- * 時間指定のPCの日別表示で、次に新しく入れる勤務のポジション。
+ * 時間指定のPCの日別表示と、パターン選択の日別表示で、次に新しく入れる勤務のポジション。
  * メニューで最後に選んだポジションで、選んでいなければ一覧の先頭。ポジションを選び分けない表示では既定のポジション。
  */
 export const nextWorkPositionAtom = atom((get) => {
@@ -405,27 +472,7 @@ export const nextWorkPositionAtom = atom((get) => {
   return get(selectedPositionAtom) ?? positions[0];
 });
 
-// 新しい勤務に使うポジション。選んでいなければ既定のポジション。
-const workPositionAtom = atom(
-  (get) => get(selectedPositionAtom) ?? resolveDefaultPosition(get(shiftConfigAtom).positions),
-);
-
 export const isBreakToolActiveAtom = atom((get) => get(isToolPaletteActiveAtom) && get(breakToolActiveAtom));
-
-// 休憩を選んでいる場合は、勤務のある日の休憩の編集を開き、通常の操作を止める。
-const openBreakEditorIfBreakTool = (get: Getter, set: Setter, staffId: string, date: string): boolean => {
-  if (!get(isBreakToolActiveAtom)) return false;
-  const shift = get(shiftDraftsAtom).find((item) => item.staffId === staffId && item.date === date);
-  if (hasWork(shift)) set(breakEditorTargetAtom, { staffId, date });
-  return true;
-};
-
-/** 休憩を選んでいる場合に、その日の休憩の編集を開く。開いた場合（または通常の操作を止めた場合）はtrueを返す。 */
-export const openBreakEditorForToolAtom = atom(
-  null,
-  (get, set, { staffId, date }: { staffId: string; date: string }): boolean =>
-    openBreakEditorIfBreakTool(get, set, staffId, date),
-);
 
 // ==========================================
 // 人数と過不足

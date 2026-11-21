@@ -74,7 +74,7 @@ export function getPromotionComplimentaryProCode(): string | undefined {
 export type ShiftSetupAssistMode = "off" | "random";
 
 /**
- * シフト作成の設定のAIサポート。未設定の環境では出さない。
+ * 「必要人数設定」のAIサポート。未設定の環境では出さない。
  * "random"は実際のAIにつながず、必要人数をランダムな値で埋める仮の処理を使う。
  * 根拠のない人数を店舗へ見せないため、Productionでは設定しない。
  */

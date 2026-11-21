@@ -198,12 +198,14 @@ export const useShiftBoardPageController = (
   }, [data.positions, data.submissionPattern.kind]);
   const breakRuleMinWorkMinutes = staffing?.breakRule?.minWorkMinutes;
   const breakRuleBreakMinutes = staffing?.breakRule?.breakMinutes;
+  // 休憩を扱うのは時間指定だけである。パターン選択と日付選択は、店舗に休憩の決まりが残っていても使わない。
+  const usesBreakRule = data.submissionPattern.kind === "time";
   const breakRule = useMemo(
     () =>
-      breakRuleMinWorkMinutes !== undefined && breakRuleBreakMinutes !== undefined
+      usesBreakRule && breakRuleMinWorkMinutes !== undefined && breakRuleBreakMinutes !== undefined
         ? { minWorkMinutes: breakRuleMinWorkMinutes, breakMinutes: breakRuleBreakMinutes }
         : null,
-    [breakRuleMinWorkMinutes, breakRuleBreakMinutes],
+    [usesBreakRule, breakRuleMinWorkMinutes, breakRuleBreakMinutes],
   );
   const shiftFormStaffing = useMemo<ShiftFormStaffing | undefined>(
     () => (staffing ? toShiftFormStaffing(staffing, breakRule) : undefined),
@@ -662,7 +664,10 @@ export const useShiftBoardPageController = (
       const unsubmittedStaffIds = new Set(staffs.filter((staff) => !staff.isSubmitted).map((staff) => staff.id));
       const result = insertProvisionalAssignments({
         shifts: shiftsRef.current,
-        candidates: candidates ?? [],
+        // パターン選択と日付選択は休憩を扱わないため、前回の勤務の休憩を引き継がない。
+        candidates: (candidates ?? []).map((candidate) =>
+          data.submissionPattern.kind === "time" ? candidate : { ...candidate, breaks: undefined },
+        ),
         unsubmittedStaffIds,
         positions,
       });

@@ -201,17 +201,12 @@ const shiftTypeShift = (
 
 const shiftTypeDetailShifts: ShiftData[] = [
   // リーダー。早番と中番を続けて入り、早番の中で休憩する。
-  shiftTypeShift(
-    "staff1",
-    shiftTypeDate,
-    [
-      ["morning", hall],
-      ["middle", hall],
-    ],
-    { breaks: [{ start: "11:00", end: "11:30" }] },
-  ),
+  shiftTypeShift("staff1", shiftTypeDate, [
+    ["morning", hall],
+    ["middle", hall],
+  ]),
   shiftTypeShift("staff2", shiftTypeDate, [["middle", kitchen]]),
-  shiftTypeShift("staff3", shiftTypeDate, [["late", hall]], { breaks: [{ start: "19:00", end: "19:30" }] }),
+  shiftTypeShift("staff3", shiftTypeDate, [["late", hall]]),
   // 見習い。
   shiftTypeShift("staff4", shiftTypeDate, [["night", register]]),
   shiftTypeShift("staff5", shiftTypeDate, [], { requestedShiftTypeOptionIds: [] }),
@@ -317,8 +312,8 @@ const dateOnlyShift = (
 });
 
 const dateOnlyDetailShifts: ShiftData[] = [
-  // リーダー。休憩あり。
-  dateOnlyShift("staff1", dateOnlyDate, hall, { breaks: [{ start: "12:00", end: "13:00" }] }),
+  // リーダー。
+  dateOnlyShift("staff1", dateOnlyDate, hall),
   dateOnlyShift("staff2", dateOnlyDate, kitchen),
   // 希望はあるが、まだ入れていない。
   dateOnlyShift("staff3", dateOnlyDate, null),

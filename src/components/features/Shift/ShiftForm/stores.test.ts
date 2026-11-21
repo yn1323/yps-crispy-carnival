@@ -6,10 +6,14 @@ import type { PositionSegment, PositionType, ShiftData, StaffType } from "@/src/
 import { DEFAULT_TIME_PATTERN } from "@/src/domains/shop/submissionPattern";
 import {
   applyShiftDraftsAtom,
+  assignDateOnlyAtom,
   assignShiftRangeAtom,
+  assignShiftTypeAtom,
   breakEditorTargetAtom,
   breakToolActiveAtom,
   canEditDayStaffingAtom,
+  changeDateOnlyPositionAtom,
+  changeShiftTypePositionAtom,
   clearShiftDraftPositionsAtom,
   dayStaffingViewByDateAtom,
   deleteShiftPositionAtom,
@@ -17,9 +21,10 @@ import {
   isRangeAssignHintDismissedAtom,
   newcomerOnlyPeriodsAtom,
   nextWorkPositionAtom,
-  openBreakEditorForToolAtom,
   paintsPositionColorAtom,
   rememberWorkPositionAtom,
+  removeDateOnlyAssignmentAtom,
+  removeShiftTypeAssignmentAtom,
   replaceShiftDraftsAtom,
   restoreRememberedWorkPositionAtom,
   type ShiftFormStaffing,
@@ -29,8 +34,6 @@ import {
   shiftsAtom,
   staffWarningCountByDateAtom,
   staffWorkTotalsAtom,
-  toggleDateOnlyAssignmentAtom,
-  toggleShiftTypeAssignmentAtom,
   updateShiftDraftsAtom,
   upsertShiftDraftAtom,
   validationWarningsAtom,
@@ -61,7 +64,7 @@ describe("ShiftForm draft intents", () => {
   it("日付選択の割当を追加・解除する", () => {
     const store = createShiftStore();
 
-    store.set(toggleDateOnlyAssignmentAtom, { staff, date });
+    store.set(assignDateOnlyAtom, { staff, date });
     expect(store.get(shiftsAtom)).toMatchObject([
       {
         staffId: staff.id,
@@ -70,7 +73,7 @@ describe("ShiftForm draft intents", () => {
       },
     ]);
 
-    store.set(toggleDateOnlyAssignmentAtom, { staff, date });
+    store.set(removeDateOnlyAssignmentAtom, { staffId: staff.id, date });
     expect(store.get(shiftsAtom)[0]?.positions).toEqual([]);
   });
 
@@ -78,12 +81,12 @@ describe("ShiftForm draft intents", () => {
     const store = createShiftStore();
     const option = { id: "early", name: "早番", startTime: "09:00", endTime: "13:00" };
 
-    store.set(toggleShiftTypeAssignmentAtom, { staff, date, option });
+    store.set(assignShiftTypeAtom, { staff, date, option });
     expect(store.get(shiftsAtom)[0]?.positions).toMatchObject([
       { positionId: position.id, shiftTypeOptionId: option.id, start: option.startTime, end: option.endTime },
     ]);
 
-    store.set(toggleShiftTypeAssignmentAtom, { staff, date, option });
+    store.set(removeShiftTypeAssignmentAtom, { staffId: staff.id, date, optionId: option.id });
     expect(store.get(shiftsAtom)[0]?.positions).toEqual([]);
   });
 
@@ -100,7 +103,7 @@ describe("ShiftForm draft intents", () => {
       positions: [{ id: "position-other", name: "キッチン", color: "#f97316", isDefault: false }, defaultPosition],
     });
 
-    store.set(toggleDateOnlyAssignmentAtom, { staff, date });
+    store.set(assignDateOnlyAtom, { staff, date });
 
     expect(store.get(shiftsAtom)[0]?.positions[0]).toMatchObject({
       positionId: defaultPosition.id,
@@ -114,11 +117,11 @@ describe("ShiftForm draft intents", () => {
     const currentConfig = store.get(shiftConfigAtom);
     store.set(shiftConfigAtom, { ...currentConfig, holidays: [date] });
 
-    store.set(toggleDateOnlyAssignmentAtom, { staff, date });
+    store.set(assignDateOnlyAtom, { staff, date });
     expect(store.get(shiftsAtom)).toEqual([]);
 
     store.set(shiftConfigAtom, { ...currentConfig, isReadOnly: true });
-    store.set(toggleShiftTypeAssignmentAtom, {
+    store.set(assignShiftTypeAtom, {
       staff,
       date,
       option: { id: "early", name: "早番", startTime: "09:00", endTime: "13:00" },
@@ -238,7 +241,7 @@ describe("入れるポジションの選択", () => {
       const store = createDetailStore({ submissionPattern: dateOnlyPattern }, { detailMode: false });
       store.set(selectedPositionIdAtom, kitchen.id);
 
-      store.set(toggleDateOnlyAssignmentAtom, { staff, date });
+      store.set(assignDateOnlyAtom, { staff, date });
 
       expect(positionIdsOf(store.get(shiftsAtom))).toEqual([[position.id]]);
     });
@@ -247,27 +250,27 @@ describe("入れるポジションの選択", () => {
       const store = createDetailStore({ submissionPattern: shiftTypePattern }, { detailMode: false });
       store.set(selectedPositionIdAtom, kitchen.id);
 
-      store.set(toggleShiftTypeAssignmentAtom, { staff, date, option: earlyOption });
+      store.set(assignShiftTypeAtom, { staff, date, option: earlyOption });
 
       expect(positionIdsOf(store.get(shiftsAtom))).toEqual([[position.id]]);
     });
 
-    it("別のポジションで入っている日付選択の勤務を押すと、入れ替えずに外す", () => {
+    it("別のポジションで入っている日付選択の勤務を、ポジションにかかわらず外す", () => {
       const store = createDetailStore({ submissionPattern: dateOnlyPattern }, { detailMode: false });
       store.set(replaceShiftDraftsAtom, [draft({ positions: [workSegment(kitchen, "09:00", "18:00")] })]);
 
-      store.set(toggleDateOnlyAssignmentAtom, { staff, date });
+      store.set(removeDateOnlyAssignmentAtom, { staffId: staff.id, date });
 
       expect(positionIdsOf(store.get(shiftsAtom))).toEqual([[]]);
     });
 
-    it("別のポジションで入っている勤務パターンを押すと、入れ替えずに外す", () => {
+    it("別のポジションで入っている勤務パターンを、ポジションにかかわらず外す", () => {
       const store = createDetailStore({ submissionPattern: shiftTypePattern }, { detailMode: false });
       store.set(replaceShiftDraftsAtom, [
         draft({ positions: [workSegment(kitchen, "09:00", "17:00", { shiftTypeOptionId: earlyOption.id })] }),
       ]);
 
-      store.set(toggleShiftTypeAssignmentAtom, { staff, date, option: earlyOption });
+      store.set(removeShiftTypeAssignmentAtom, { staffId: staff.id, date, optionId: earlyOption.id });
 
       expect(positionIdsOf(store.get(shiftsAtom))).toEqual([[]]);
     });
@@ -290,69 +293,113 @@ describe("入れるポジションの選択", () => {
   });
 
   describe("くわしく表示でポジションが2つ以上ある店舗", () => {
-    it("日付選択の勤務を選んだポジションで入れ、別のポジションを選んで押すと入れ替え、同じポジションで押すと外す", () => {
+    it("日付選択の勤務を最後に選んだポジションで入れ、ポジションを変えると次に入れるポジションとして覚える", () => {
       const store = createDetailStore({ submissionPattern: dateOnlyPattern });
 
       store.set(selectedPositionIdAtom, kitchen.id);
-      store.set(toggleDateOnlyAssignmentAtom, { staff, date });
+      store.set(assignDateOnlyAtom, { staff, date });
       expect(store.get(shiftsAtom)[0]?.positions).toMatchObject([
         { positionId: kitchen.id, positionName: kitchen.name, color: kitchen.color, start: "09:00", end: "18:00" },
       ]);
 
-      store.set(selectedPositionIdAtom, position.id);
-      store.set(toggleDateOnlyAssignmentAtom, { staff, date });
+      store.set(changeDateOnlyPositionAtom, { staff, date, positionId: position.id });
+      // 1人の1日に持てるポジションは1つで、入れ替わる。
       expect(store.get(shiftsAtom)[0]?.positions).toMatchObject([
         { positionId: position.id, positionName: position.name, color: position.color, start: "09:00", end: "18:00" },
       ]);
+      expect(store.get(selectedPositionIdAtom)).toBe(position.id);
 
-      store.set(toggleDateOnlyAssignmentAtom, { staff, date });
-      expect(positionIdsOf(store.get(shiftsAtom))).toEqual([[]]);
+      // 次に入れる勤務は、覚えたポジションで入る。
+      store.set(assignDateOnlyAtom, { staff: secondStaff, date });
+      expect(positionIdsOf(store.get(shiftsAtom))).toEqual([[position.id], [position.id]]);
+
+      store.set(removeDateOnlyAssignmentAtom, { staffId: staff.id, date });
+      expect(positionIdsOf(store.get(shiftsAtom))).toEqual([[], [position.id]]);
     });
 
-    it("勤務パターンを選んだポジションで入れ、別のポジションを選んで押すと入れ替え、同じポジションで押すと外す", () => {
-      const store = createDetailStore({ submissionPattern: shiftTypePattern });
+    it("日付選択で、店舗にないポジションへは変えず、閲覧専用ではどの操作も受け付けない", () => {
+      const store = createDetailStore({ submissionPattern: dateOnlyPattern });
+      store.set(assignDateOnlyAtom, { staff, date });
+      const before = store.get(shiftsAtom);
 
-      store.set(selectedPositionIdAtom, kitchen.id);
-      store.set(toggleShiftTypeAssignmentAtom, { staff, date, option: earlyOption });
+      store.set(changeDateOnlyPositionAtom, { staff, date, positionId: "removed-position" });
+      expect(store.get(shiftsAtom)).toBe(before);
+
+      store.set(shiftConfigAtom, { ...store.get(shiftConfigAtom), isReadOnly: true });
+      store.set(changeDateOnlyPositionAtom, { staff, date, positionId: kitchen.id });
+      store.set(removeDateOnlyAssignmentAtom, { staffId: staff.id, date });
+      store.set(assignDateOnlyAtom, { staff: secondStaff, date });
+      expect(store.get(shiftsAtom)).toBe(before);
+    });
+
+    it("空いている勤務パターンは、最後に選んだポジションで入る。選んでいなければ一覧の先頭で入る", () => {
+      const store = createDetailStore({ submissionPattern: shiftTypePattern, positions: [kitchen, position] });
+
+      store.set(assignShiftTypeAtom, { staff, date, option: earlyOption });
+      expect(positionIdsOf(store.get(shiftsAtom))).toEqual([[kitchen.id]]);
+
+      store.set(selectedPositionIdAtom, position.id);
+      store.set(assignShiftTypeAtom, { staff, date, option: shortOption });
+      expect(positionIdsOf(store.get(shiftsAtom))).toEqual([[kitchen.id, position.id]]);
+    });
+
+    it("入っている勤務パターンのポジションを変えると、そのポジションを次に入れるポジションとして覚える", () => {
+      const store = createDetailStore({ submissionPattern: shiftTypePattern });
+      store.set(assignShiftTypeAtom, { staff, date, option: earlyOption });
+      expect(positionIdsOf(store.get(shiftsAtom))).toEqual([[position.id]]);
+
+      store.set(changeShiftTypePositionAtom, { staff, date, option: earlyOption, positionId: kitchen.id });
+
       expect(store.get(shiftsAtom)[0]?.positions).toMatchObject([
         { positionId: kitchen.id, positionName: kitchen.name, shiftTypeOptionId: earlyOption.id },
       ]);
+      expect(store.get(selectedPositionIdAtom)).toBe(kitchen.id);
 
-      store.set(selectedPositionIdAtom, position.id);
-      store.set(toggleShiftTypeAssignmentAtom, { staff, date, option: earlyOption });
-      expect(store.get(shiftsAtom)[0]?.positions).toMatchObject([
-        { positionId: position.id, positionName: position.name, shiftTypeOptionId: earlyOption.id },
-      ]);
-
-      store.set(toggleShiftTypeAssignmentAtom, { staff, date, option: earlyOption });
-      expect(positionIdsOf(store.get(shiftsAtom))).toEqual([[]]);
+      // 次に入れる勤務パターンは、覚えたポジションで入る。
+      store.set(assignShiftTypeAtom, { staff: secondStaff, date, option: earlyOption });
+      expect(positionIdsOf(store.get(shiftsAtom))).toEqual([[kitchen.id], [kitchen.id]]);
     });
 
-    it("ポジションを選んでいない間は、既定のポジションで入れる", () => {
+    it("店舗にないポジションへは変えず、閲覧専用ではどの操作も受け付けない", () => {
+      const store = createDetailStore({ submissionPattern: shiftTypePattern });
+      store.set(assignShiftTypeAtom, { staff, date, option: earlyOption });
+      const before = store.get(shiftsAtom);
+
+      store.set(changeShiftTypePositionAtom, { staff, date, option: earlyOption, positionId: "removed-position" });
+      expect(store.get(shiftsAtom)).toBe(before);
+
+      store.set(shiftConfigAtom, { ...store.get(shiftConfigAtom), isReadOnly: true });
+      store.set(changeShiftTypePositionAtom, { staff, date, option: earlyOption, positionId: kitchen.id });
+      store.set(removeShiftTypeAssignmentAtom, { staffId: staff.id, date, optionId: earlyOption.id });
+      store.set(assignShiftTypeAtom, { staff, date, option: shortOption });
+      expect(store.get(shiftsAtom)).toBe(before);
+    });
+
+    it("日付選択でポジションを選んでいない間は、既定のポジションではなく、一覧の先頭のポジションで入れる", () => {
       const store = createDetailStore({ submissionPattern: dateOnlyPattern, positions: [kitchen, position] });
 
-      store.set(toggleDateOnlyAssignmentAtom, { staff, date });
+      store.set(assignDateOnlyAtom, { staff, date });
 
-      expect(positionIdsOf(store.get(shiftsAtom))).toEqual([[position.id]]);
+      expect(positionIdsOf(store.get(shiftsAtom))).toEqual([[kitchen.id]]);
     });
 
-    it("店舗にないポジションを選んでいる場合は、既定のポジションで入れる", () => {
+    it("日付選択で店舗にないポジションを選んでいる場合は、一覧の先頭のポジションで入れる", () => {
       const store = createDetailStore({ submissionPattern: dateOnlyPattern });
       store.set(selectedPositionIdAtom, "removed-position");
 
-      store.set(toggleDateOnlyAssignmentAtom, { staff, date });
+      store.set(assignDateOnlyAtom, { staff, date });
 
       expect(positionIdsOf(store.get(shiftsAtom))).toEqual([[position.id]]);
     });
   });
 
-  it("くわしく表示でもポジションが1つの店舗では、別のポジションで残っている勤務を入れ替えずに外す", () => {
+  it("くわしく表示でもポジションが1つの店舗では、日付選択の勤務を既定のポジションで入れる", () => {
     const store = createDetailStore({ submissionPattern: dateOnlyPattern, positions: [position] });
-    store.set(replaceShiftDraftsAtom, [draft({ positions: [workSegment(kitchen, "09:00", "18:00")] })]);
+    store.set(selectedPositionIdAtom, kitchen.id);
 
-    store.set(toggleDateOnlyAssignmentAtom, { staff, date });
+    store.set(assignDateOnlyAtom, { staff, date });
 
-    expect(positionIdsOf(store.get(shiftsAtom))).toEqual([[]]);
+    expect(positionIdsOf(store.get(shiftsAtom))).toEqual([[position.id]]);
   });
 });
 
@@ -362,86 +409,31 @@ describe("休憩を選んでいる間の操作", () => {
     draft({ id: `shift-${staff.id}-${nextDate}`, date: nextDate }),
   ];
 
-  it("日付選択で勤務のある日を押すと、割当を変えずにその日の休憩の編集を開く", () => {
-    const store = createDetailStore({ submissionPattern: dateOnlyPattern });
-    const shifts = withWork();
-    store.set(replaceShiftDraftsAtom, shifts);
-    store.set(breakToolActiveAtom, true);
-
-    store.set(toggleDateOnlyAssignmentAtom, { staff, date });
-
-    expect(store.get(shiftsAtom)).toBe(shifts);
-    expect(store.get(breakEditorTargetAtom)).toEqual({ staffId: staff.id, date });
-  });
-
-  it("勤務パターンで勤務のある日を押すと、割当を変えずにその日の休憩の編集を開く", () => {
+  it("パターン選択は休憩を扱わないため、休憩を選んだ状態が残っていても、休憩の編集を開かずに勤務を入れる", () => {
     const store = createDetailStore({ submissionPattern: shiftTypePattern });
-    const shifts = withWork();
-    store.set(replaceShiftDraftsAtom, shifts);
+    store.set(replaceShiftDraftsAtom, withWork());
     store.set(breakToolActiveAtom, true);
 
-    store.set(toggleShiftTypeAssignmentAtom, { staff, date, option: shortOption });
+    store.set(assignShiftTypeAtom, { staff, date, option: shortOption });
 
-    expect(store.get(shiftsAtom)).toBe(shifts);
-    expect(store.get(breakEditorTargetAtom)).toEqual({ staffId: staff.id, date });
+    expect(store.get(shiftsAtom)[0]?.positions.map((item) => item.shiftTypeOptionId)).toEqual([
+      earlyOption.id,
+      shortOption.id,
+    ]);
+    expect(store.get(breakEditorTargetAtom)).toBeNull();
   });
 
-  it("勤務のない日を押しても、勤務を入れず、休憩の編集も開かない", () => {
+  it("日付選択は休憩を扱わないため、休憩を選んだ状態が残っていても、休憩の編集を開かずに勤務を入れて外す", () => {
     const store = createDetailStore({ submissionPattern: dateOnlyPattern });
-    const shifts = withWork();
-    store.set(replaceShiftDraftsAtom, shifts);
-    store.set(breakToolActiveAtom, true);
-
-    store.set(toggleDateOnlyAssignmentAtom, { staff, date: nextDate });
-    store.set(toggleDateOnlyAssignmentAtom, { staff: secondStaff, date });
-
-    expect(store.get(shiftsAtom)).toBe(shifts);
-    expect(store.get(breakEditorTargetAtom)).toBeNull();
-  });
-
-  it("時間指定の画面から呼ぶ操作は、勤務のある日なら休憩の編集を開き、通常の操作を止めたことを返す", () => {
-    const store = createDetailStore();
     store.set(replaceShiftDraftsAtom, withWork());
     store.set(breakToolActiveAtom, true);
 
-    expect(store.set(openBreakEditorForToolAtom, { staffId: staff.id, date: nextDate })).toBe(true);
+    store.set(assignDateOnlyAtom, { staff, date: nextDate });
+    expect(positionIdsOf(store.get(shiftsAtom))).toEqual([[position.id], [position.id]]);
+
+    store.set(removeDateOnlyAssignmentAtom, { staffId: staff.id, date });
+    expect(positionIdsOf(store.get(shiftsAtom))).toEqual([[], [position.id]]);
     expect(store.get(breakEditorTargetAtom)).toBeNull();
-
-    expect(store.set(openBreakEditorForToolAtom, { staffId: staff.id, date })).toBe(true);
-    expect(store.get(breakEditorTargetAtom)).toEqual({ staffId: staff.id, date });
-  });
-
-  it("休憩を選んでいなければ、通常の操作を止めない", () => {
-    const store = createDetailStore();
-    store.set(replaceShiftDraftsAtom, withWork());
-
-    expect(store.set(openBreakEditorForToolAtom, { staffId: staff.id, date })).toBe(false);
-    expect(store.get(breakEditorTargetAtom)).toBeNull();
-  });
-
-  it("シンプル表示では、休憩を選んだ状態が残っていても通常どおり割当を切り替える", () => {
-    const store = createDetailStore({ submissionPattern: dateOnlyPattern }, { detailMode: false });
-    store.set(replaceShiftDraftsAtom, withWork());
-    store.set(breakToolActiveAtom, true);
-
-    store.set(toggleDateOnlyAssignmentAtom, { staff, date });
-
-    expect(positionIdsOf(store.get(shiftsAtom))).toEqual([[], []]);
-    expect(store.get(breakEditorTargetAtom)).toBeNull();
-    expect(store.set(openBreakEditorForToolAtom, { staffId: staff.id, date: nextDate })).toBe(false);
-  });
-
-  it("閲覧専用では、休憩を選んだ状態が残っていても休憩の編集を開かない", () => {
-    const store = createDetailStore({ submissionPattern: dateOnlyPattern, isReadOnly: true });
-    const shifts = withWork();
-    store.set(replaceShiftDraftsAtom, shifts);
-    store.set(breakToolActiveAtom, true);
-
-    store.set(toggleDateOnlyAssignmentAtom, { staff, date });
-
-    expect(store.get(shiftsAtom)).toBe(shifts);
-    expect(store.get(breakEditorTargetAtom)).toBeNull();
-    expect(store.set(openBreakEditorForToolAtom, { staffId: staff.id, date })).toBe(false);
   });
 });
 
@@ -470,43 +462,42 @@ describe("休憩の決まりの初期値", () => {
     ]);
   });
 
-  it("パターン選択で決まりの長さ以上の勤務パターンを入れた日に、休憩を入れる", () => {
-    const store = createDetailStore({ submissionPattern: shiftTypePattern, staffing: staffingWith(breakRule) });
+  it("パターン選択では、休憩の決まりがあっても、くわしく表示でもシンプル表示でも休憩を入れない", () => {
+    for (const detailMode of [true, false]) {
+      const store = createDetailStore(
+        { submissionPattern: shiftTypePattern, staffing: staffingWith(breakRule) },
+        { detailMode },
+      );
 
-    store.set(toggleShiftTypeAssignmentAtom, { staff, date, option: earlyOption });
+      store.set(assignShiftTypeAtom, { staff, date, option: earlyOption });
 
-    expect(store.get(shiftsAtom).map((shift) => shift.breaks)).toEqual([[{ start: "12:30", end: "13:30" }]]);
+      const shifts = store.get(shiftsAtom);
+      expect(shifts).toHaveLength(1);
+      expect(shifts[0].positions).toHaveLength(1);
+      expect(shifts[0].breaks).toBeUndefined();
+    }
   });
 
-  it("シンプル表示では、休憩の決まりがあっても見えない休憩を入れない", () => {
-    const store = createDetailStore(
-      { submissionPattern: shiftTypePattern, staffing: staffingWith(breakRule) },
-      { detailMode: false },
-    );
+  it("時間指定のシンプル表示では、休憩の決まりがあっても見えない休憩を入れない", () => {
+    const store = createDetailStore({ staffing: staffingWith(breakRule) }, { detailMode: false });
 
-    store.set(toggleShiftTypeAssignmentAtom, { staff, date, option: earlyOption });
+    store.set(upsertShiftDraftAtom, draft({ positions: [workSegment(position, "10:00", "18:00")] }));
 
-    const shifts = store.get(shiftsAtom);
-    expect(shifts).toHaveLength(1);
-    expect(shifts[0].positions).toHaveLength(1);
-    expect(shifts[0].breaks).toBeUndefined();
+    expect(store.get(shiftsAtom).map((shift) => shift.breaks)).toEqual([undefined]);
   });
 
   it("決まりの長さに届かない勤務には入れない", () => {
-    const store = createDetailStore({ submissionPattern: shiftTypePattern, staffing: staffingWith(breakRule) });
+    const store = createDetailStore({ staffing: staffingWith(breakRule) });
 
-    store.set(toggleShiftTypeAssignmentAtom, { staff, date, option: shortOption });
+    store.set(upsertShiftDraftAtom, draft({ positions: [workSegment(position, "10:00", "13:00")] }));
 
-    const shifts = store.get(shiftsAtom);
-    expect(shifts).toHaveLength(1);
-    expect(shifts[0].positions).toHaveLength(1);
-    expect(shifts[0].breaks).toBeUndefined();
+    expect(store.get(shiftsAtom).map((shift) => shift.breaks)).toEqual([undefined]);
   });
 
   it("日付選択では、休憩の決まりがあっても入れない", () => {
     const store = createDetailStore({ submissionPattern: dateOnlyPattern, staffing: staffingWith(breakRule) });
 
-    store.set(toggleDateOnlyAssignmentAtom, { staff, date });
+    store.set(assignDateOnlyAtom, { staff, date });
 
     const shifts = store.get(shiftsAtom);
     expect(shifts).toHaveLength(1);
@@ -539,19 +530,6 @@ describe("休憩の決まりの初期値", () => {
     const shifts = store.get(shiftsAtom);
     expect(shifts.map((shift) => shift.positions.map((item) => [item.start, item.end]))).toEqual([
       [["09:00", "19:00"]],
-    ]);
-    expect(shifts[0].breaks).toBeUndefined();
-  });
-
-  it("すでに勤務のある日へ勤務パターンを足しても、休憩を入れない", () => {
-    const store = createDetailStore({ submissionPattern: shiftTypePattern, staffing: staffingWith(breakRule) });
-    store.set(toggleShiftTypeAssignmentAtom, { staff, date, option: shortOption });
-
-    store.set(toggleShiftTypeAssignmentAtom, { staff, date, option: earlyOption });
-
-    const shifts = store.get(shiftsAtom);
-    expect(shifts.map((shift) => shift.positions.map((item) => item.shiftTypeOptionId))).toEqual([
-      [shortOption.id, earlyOption.id],
     ]);
     expect(shifts[0].breaks).toBeUndefined();
   });
@@ -613,7 +591,7 @@ describe("勤務がなくなった日の休憩と仮の印", () => {
       }),
     ]);
 
-    store.set(toggleDateOnlyAssignmentAtom, { staff, date });
+    store.set(removeDateOnlyAssignmentAtom, { staffId: staff.id, date });
 
     expect(store.get(shiftsAtom)).toStrictEqual([draft()]);
   });
@@ -628,7 +606,7 @@ describe("勤務がなくなった日の休憩と仮の印", () => {
       }),
     ]);
 
-    store.set(toggleShiftTypeAssignmentAtom, { staff, date, option: earlyOption });
+    store.set(removeShiftTypeAssignmentAtom, { staffId: staff.id, date, optionId: earlyOption.id });
 
     expect(store.get(shiftsAtom)).toStrictEqual([draft()]);
   });

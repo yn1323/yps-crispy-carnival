@@ -1664,6 +1664,76 @@ describe("shiftBoard/mutations", () => {
 
         expect(await readStoredAssignments(t, recruitmentId)).toEqual([]);
       });
+
+      it("パターン選択では、受け取った休憩を保存しない", async () => {
+        const t = convexTest(schema, modules);
+        const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
+        const positionId = await seedDefaultPosition(t, shopId);
+        await t.run(async (ctx) => {
+          await ctx.db.patch(recruitmentId, {
+            submissionPattern: {
+              kind: "shiftType",
+              options: [{ id: "early", name: "早番", startTime: "09:00", endTime: "15:00", sortOrder: 0 }],
+            },
+          });
+        });
+
+        await t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
+          recruitmentId,
+          assignments: [
+            {
+              staffId: staffId1,
+              date: "2026-01-20",
+              startTime: "09:00",
+              endTime: "15:00",
+              optionId: "early",
+              breaks: [{ startTime: "12:00", endTime: "12:45" }],
+            },
+          ],
+        });
+
+        // 休憩の項目を持たない勤務として保存する。
+        expect(await readStoredAssignments(t, recruitmentId)).toEqual([
+          {
+            recruitmentId,
+            staffId: staffId1,
+            date: "2026-01-20",
+            startTime: "09:00",
+            endTime: "15:00",
+            positionId,
+            optionId: "early",
+          },
+        ]);
+      });
+
+      it("日付選択では、受け取った休憩を保存しない", async () => {
+        const t = convexTest(schema, modules);
+        const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
+        const positionId = await seedDefaultPosition(t, shopId);
+        await t.run(async (ctx) => await ctx.db.patch(recruitmentId, { submissionPattern: { kind: "dateOnly" } }));
+
+        await t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
+          recruitmentId,
+          assignments: [
+            {
+              staffId: staffId1,
+              date: "2026-01-20",
+              startTime: "09:00",
+              endTime: "22:00",
+              breaks: [{ startTime: "12:00", endTime: "12:45" }],
+            },
+          ],
+        });
+
+        // 休憩の項目を持たない勤務として保存する。
+        expect(await readStoredAssignments(t, recruitmentId)).toEqual([
+          { recruitmentId, staffId: staffId1, date: "2026-01-20", startTime: "09:00", endTime: "22:00", positionId },
+        ]);
+      });
     });
   });
 

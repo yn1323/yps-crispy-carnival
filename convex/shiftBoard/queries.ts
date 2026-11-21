@@ -472,7 +472,7 @@ export const getShiftBoardStaffing = managerQuery({
     ]);
     const activePositionIds = new Set(positions.map((position) => position._id));
     const isLocked = recruitment.status === "confirmed";
-    // ポジションを追加していない店舗は、シフト作成の設定で必要人数を扱えず、テンプレートも見えない。
+    // ポジションを追加していない店舗は、「必要人数設定」で必要人数を扱えず、テンプレートも見えない。
     // 確定していない募集のシフト表でも同じにそろえ、テンプレートを出さず、どの日も未設定として返す。
     const hidesTemplates = !isLocked && isPositionsUnsplit(positions);
     const days: ShiftBoardStaffingDay[] = isLocked

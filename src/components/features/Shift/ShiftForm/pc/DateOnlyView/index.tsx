@@ -1,47 +1,49 @@
 import { Box, Flex } from "@chakra-ui/react";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getAssignmentWarningSettingText } from "@/src/components/shared/ShiftAssignmentWarning";
-import { formatDateShort } from "@/src/domains/shift/date";
-import { countDateOnlyAssignmentsByDate } from "@/src/domains/shift/dateOnlyAssignments";
-import type { StaffType } from "@/src/domains/shift/types";
-import { useShiftDateNotes } from "../../dateNotes";
+import { useAllShiftDateNotes, useShiftDateNotes } from "../../dateNotes";
+import { buildDateOnlyStaffingPresentation, buildDateOnlyWeekPresentation } from "../../dateOnlyPresentation";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import {
+  assignDateOnlyAtom,
+  changeDateOnlyPositionAtom,
   dailySortedStaffsAtom,
   dayStaffingViewByDateAtom,
-  detailModeAtom,
+  isPositionSelectableAtom,
   issueCountByDateAtom,
   lockDailyStaffOrderAtom,
-  paintsPositionColorAtom,
+  removeDateOnlyAssignmentAtom,
+  restoreRememberedWorkPositionAtom,
   selectedDateAtom,
   shiftConfigAtom,
   shiftsAtom,
-  toggleDateOnlyAssignmentAtom,
   usesPositionColorsAtom,
-  validationWarningsAtom,
   warningCountByDateAtom,
 } from "../../stores";
 import { DateOnlyTable } from "./DateOnlyTable";
-import { buildDateOnlyRows, buildDateOnlyWeeks, getSortableDates } from "./script";
-import type { DateOnlyColumn } from "./types";
+import { buildDateOnlyWeeks, getSortableDates } from "./script";
+import { WeekPeriodBar } from "./WeekPeriodBar";
 import { WeekRail } from "./WeekRail";
 
 export const DateOnlyView = () => {
   const config = useAtomValue(shiftConfigAtom);
   const shifts = useAtomValue(shiftsAtom);
-  const validationWarnings = useAtomValue(validationWarningsAtom);
   const issueCounts = useAtomValue(issueCountByDateAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
-  const toggleAssignment = useSetAtom(toggleDateOnlyAssignmentAtom);
+  const assign = useSetAtom(assignDateOnlyAtom);
+  const changePosition = useSetAtom(changeDateOnlyPositionAtom);
+  const removeAssignment = useSetAtom(removeDateOnlyAssignmentAtom);
   const sortedStaffs = useAtomValue(dailySortedStaffsAtom);
   const lockDailyStaffOrder = useSetAtom(lockDailyStaffOrderAtom);
+  // 連絡事項の列と角の印は、表示設定に従う。たたむ人の判定は、表示設定で変わらないよう、すべての連絡事項で行う。
   const dateNotes = useShiftDateNotes();
-  const detailMode = useAtomValue(detailModeAtom);
+  const allDateNotes = useAllShiftDateNotes();
   const usesPositionColors = useAtomValue(usesPositionColorsAtom);
-  const paintsPositionColor = useAtomValue(paintsPositionColorAtom);
+  const isPositionSelectable = useAtomValue(isPositionSelectableAtom);
+  // くわしく表示のときだけ値を持つ。スタッフ向けの確定シフトでは空になる。
+  const staffingViews = useAtomValue(dayStaffingViewByDateAtom);
 
-  const { dates, holidays, isReadOnly } = config;
+  const { dates, holidays, isReadOnly, shopId, positions } = config;
   const isConfirmedDisplay = config.displayMode === "confirmed";
   const weeks = useMemo(() => buildDateOnlyWeeks(dates), [dates]);
   const [selectedWeekIndex, setSelectedWeekIndex] = useState(0);
@@ -53,6 +55,13 @@ export const DateOnlyView = () => {
   const selectedDate = useAtomValue(selectedDateAtom);
   const didInitWeek = useRef(false);
 
+  // 前にこの店舗で最後に選んだポジションを、次に入れるポジションへ戻す。店舗とポジションが読み込まれてから行う。
+  const restoreRememberedWorkPosition = useSetAtom(restoreRememberedWorkPositionAtom);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 店舗かポジションが変わったときに戻し直すため、値の変化を見る。
+  useEffect(() => {
+    restoreRememberedWorkPosition();
+  }, [restoreRememberedWorkPosition, shopId, positions]);
+
   useEffect(() => {
     if (didInitWeek.current || !selectedDate || weeks.length === 0) return;
     didInitWeek.current = true;
@@ -60,49 +69,30 @@ export const DateOnlyView = () => {
     if (index > 0) setSelectedWeekIndex(index);
   }, [selectedDate, weeks]);
 
-  const visibleInRangeDateKeys = useMemo(
-    () => visibleDates.filter((date) => date.inRange).map((date) => date.iso),
-    [visibleDates],
-  );
-  const counts = useMemo(
-    () => countDateOnlyAssignmentsByDate(shifts, visibleInRangeDateKeys),
-    [shifts, visibleInRangeDateKeys],
-  );
-  // くわしく表示のときだけ、日付ごとの人数と過不足を出す。スタッフ向けの確定シフト表示には出さない。
-  const staffingViews = useAtomValue(dayStaffingViewByDateAtom);
-  const staffingByDate = detailMode && !isConfirmedDisplay ? staffingViews : null;
-  const warningMessagesByStaffId = useMemo(() => {
-    const visibleDateSet = new Set(visibleInRangeDateKeys);
-    const messagesByStaffId = new Map<string, string[]>();
-    for (const warning of validationWarnings) {
-      if (!visibleDateSet.has(warning.date)) continue;
-      const messages = messagesByStaffId.get(warning.staffId) ?? [];
-      messages.push(`${formatDateShort(warning.date)} ${getAssignmentWarningSettingText(warning.code)}`);
-      messagesByStaffId.set(warning.staffId, messages);
-    }
-    return messagesByStaffId;
-  }, [validationWarnings, visibleInRangeDateKeys]);
-  const columns = useMemo<DateOnlyColumn[]>(
+  const presentation = useMemo(
     () =>
-      visibleDates.map((date) => ({
-        date,
-        isClosed: date.inRange && holidays.includes(date.iso),
-        assignmentCount: counts.get(date.iso) ?? 0,
-      })),
-    [counts, holidays, visibleDates],
-  );
-  const rows = useMemo(
-    () =>
-      buildDateOnlyRows({
+      buildDateOnlyWeekPresentation({
         staffs: sortedStaffs,
         shifts,
         dates: visibleDates,
         holidays,
         isConfirmedDisplay,
-        warningMessagesByStaffId,
+        usesPositionColors,
+        getNote: allDateNotes.getNote,
       }),
-    [holidays, isConfirmedDisplay, shifts, sortedStaffs, visibleDates, warningMessagesByStaffId],
+    [allDateNotes.getNote, holidays, isConfirmedDisplay, shifts, sortedStaffs, usesPositionColors, visibleDates],
   );
+  // 表示中の週の営業日の人数。くわしく表示でない場合と、スタッフ向けの確定シフトではnullにする。
+  const staffing = useMemo(() => {
+    const views = visibleDates.flatMap((date) => {
+      const view = date.inRange ? staffingViews.get(date.iso) : undefined;
+      return view ? [view] : [];
+    });
+    return views.length > 0 ? buildDateOnlyStaffingPresentation(views) : null;
+  }, [staffingViews, visibleDates]);
+  // 充足率は、必要人数が1つでもある週にだけ出す。
+  const fulfillment =
+    staffing && staffing.percent !== null ? { percent: staffing.percent, isFulfilled: staffing.isFulfilled } : null;
 
   useEffect(() => {
     if (selectedWeekIndex >= weeks.length) setSelectedWeekIndex(0);
@@ -134,10 +124,6 @@ export const DateOnlyView = () => {
     [lockDailyStaffOrder],
   );
 
-  const handleToggle = (staff: StaffType, date: string) => {
-    toggleAssignment({ staff, date });
-  };
-
   return (
     <Flex flex={1} minH={0} overflow="hidden" bg="gray.50">
       <WeekRail
@@ -147,24 +133,30 @@ export const DateOnlyView = () => {
         warningCounts={warningCounts}
         onSelect={handleWeekSelect}
       />
-      <Box flex={1} minW={0} overflow="auto" bg="gray.50">
-        <DateOnlyTable
-          columns={columns}
-          rows={rows}
-          periodLabel={selectedWeek?.label ?? ""}
-          sortableDates={sortableDates}
-          sortDate={sortDate}
-          isConfirmedDisplay={isConfirmedDisplay}
-          isReadOnly={isReadOnly}
-          detailMode={detailMode}
-          usesPositionColors={usesPositionColors}
-          paintsPositionColor={paintsPositionColor}
-          staffingByDate={staffingByDate}
-          onSortDateSelect={handleSortDateSelect}
-          onToggle={handleToggle}
-          dateNotes={dateNotes}
-        />
-      </Box>
+      <Flex direction="column" flex={1} minW={0} minH={0}>
+        <WeekPeriodBar periodLabel={selectedWeek?.label ?? ""} fulfillment={fulfillment} />
+        <Box flex={1} minH={0} overflow="auto" bg="gray.50">
+          <DateOnlyTable
+            // 「希望なし」のまとまりは、週を変えるたびに閉じた状態へ戻す。
+            key={selectedWeek?.key}
+            presentation={presentation}
+            staffing={staffing}
+            staffingViews={staffingViews}
+            sortableDates={sortableDates}
+            sortDate={sortDate}
+            isReadOnly={isReadOnly}
+            usesPositionColors={usesPositionColors}
+            isPositionSelectable={isPositionSelectable}
+            positions={positions}
+            showsNoteColumn={dateNotes.hasNotes}
+            noteCountByDate={dateNotes.countByDate}
+            onSortDateSelect={handleSortDateSelect}
+            onAssign={(staff, date) => assign({ staff, date })}
+            onChangePosition={(staff, date, positionId) => changePosition({ staff, date, positionId })}
+            onRemove={(staff, date) => removeAssignment({ staffId: staff.id, date })}
+          />
+        </Box>
+      </Flex>
     </Flex>
   );
 };

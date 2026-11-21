@@ -4,7 +4,8 @@ import {
   countDateOnlyAssignmentsByDate,
   getDateOnlyAssignmentRange,
   hasDateOnlyRequest,
-  toggleDateOnlyAssignment,
+  removeDateOnlyAssignment,
+  setDateOnlyAssignment,
 } from "./dateOnlyAssignments";
 import type { PositionType, ShiftData, StaffType, TimeRange } from "./types";
 
@@ -18,8 +19,8 @@ describe("dateOnlyAssignments", () => {
     ).toEqual({ start: "05:30", end: "22:30" });
   });
 
-  it("シフトがない日に○を付けると全日割当を作成する", () => {
-    const result = toggleDateOnlyAssignment({ shifts: [], staff, date: "2026-05-21", timeRange });
+  it("シフトがない日に勤務を入れると、全日の割り当てを作る", () => {
+    const result = setDateOnlyAssignment({ shifts: [], staff, date: "2026-05-21", timeRange });
 
     expect(result).toEqual([
       {
@@ -42,7 +43,7 @@ describe("dateOnlyAssignments", () => {
     ]);
   });
 
-  it("既存の希望情報を残したまま○×を切り替える", () => {
+  it("希望を残したまま、勤務を入れて外せる", () => {
     const shifts: ShiftData[] = [
       {
         id: "shift-staff1-2026-05-21",
@@ -55,11 +56,11 @@ describe("dateOnlyAssignments", () => {
       },
     ];
 
-    const assigned = toggleDateOnlyAssignment({ shifts, staff, date: "2026-05-21", timeRange });
+    const assigned = setDateOnlyAssignment({ shifts, staff, date: "2026-05-21", timeRange });
     expect(assigned[0].requestedTime).toEqual({ start: "09:00", end: "22:00" });
     expect(assigned[0].positions).toHaveLength(1);
 
-    const removed = toggleDateOnlyAssignment({ shifts: assigned, staff, date: "2026-05-21", timeRange });
+    const removed = removeDateOnlyAssignment({ shifts: assigned, staffId: staff.id, date: "2026-05-21" });
     expect(removed[0].requestedTime).toEqual({ start: "09:00", end: "22:00" });
     expect(removed[0].positions).toEqual([]);
   });
@@ -95,7 +96,7 @@ describe("dateOnlyAssignments", () => {
   });
 });
 
-describe("toggleDateOnlyAssignment: ポジションの入れ替え", () => {
+describe("setDateOnlyAssignment: ポジションの入れ替え", () => {
   const date = "2026-05-21";
   const hall: PositionType = { id: "hall", name: "ホール", color: "#0d9488", isDefault: true };
   const kitchen: PositionType = { id: "kitchen", name: "キッチン", color: "#f97316", isDefault: false };
@@ -118,7 +119,6 @@ describe("toggleDateOnlyAssignment: ポジションの入れ替え", () => {
           end: "22:00",
         },
       ],
-      breaks: [{ start: "12:00", end: "13:00" }],
     },
     {
       id: `shift-staff2-${date}`,
@@ -140,79 +140,29 @@ describe("toggleDateOnlyAssignment: ポジションの入れ替え", () => {
   ];
 
   it("勤務のない日には、選んだポジションで勤務を入れる", () => {
-    const result = toggleDateOnlyAssignment({
-      shifts: [],
-      staff,
-      date,
-      timeRange,
-      position: kitchen,
-      switchPosition: true,
-    });
-
-    expect(result.map((shift) => shift.positions)).toEqual([
-      [
-        {
-          id: `seg-staff1-${date}`,
-          positionId: kitchen.id,
-          positionName: kitchen.name,
-          color: kitchen.color,
-          start: "09:00",
-          end: "22:00",
-        },
-      ],
-    ]);
+    const result = setDateOnlyAssignment({ shifts: [], staff, date, timeRange, position: kitchen });
+    expect(result[0].positions.map((segment) => segment.positionId)).toEqual(["kitchen"]);
   });
 
-  it("入れ替えが有効なとき、別のポジションの勤務を押すと選んだポジションへ入れ替わる", () => {
-    const shifts = assigned(hall);
-    const result = toggleDateOnlyAssignment({
-      shifts,
-      staff,
-      date,
-      timeRange,
-      position: kitchen,
-      switchPosition: true,
-    });
-
-    expect(result).toEqual([
+  it("勤務のある日は、ポジションだけを入れ替え、1日に1つのポジションを保つ", () => {
+    const result = setDateOnlyAssignment({ shifts: assigned(hall), staff, date, timeRange, position: kitchen });
+    expect(result[0].positions).toEqual([
       {
-        ...shifts[0],
-        positions: [
-          {
-            id: `seg-staff1-${date}`,
-            positionId: kitchen.id,
-            positionName: kitchen.name,
-            color: kitchen.color,
-            start: "09:00",
-            end: "22:00",
-          },
-        ],
+        id: `seg-staff1-${date}`,
+        positionId: "kitchen",
+        positionName: "キッチン",
+        color: "#f97316",
+        start: "09:00",
+        end: "22:00",
       },
-      shifts[1],
     ]);
+    expect(result[0].requestedTime).toEqual({ start: "09:00", end: "22:00" });
   });
 
-  it("入れ替えが有効でも、同じポジションの勤務を押すと外れる", () => {
-    const shifts = assigned(kitchen);
-    const result = toggleDateOnlyAssignment({
-      shifts,
-      staff,
-      date,
-      timeRange,
-      position: kitchen,
-      switchPosition: true,
-    });
-
-    expect(result).toEqual([{ ...shifts[0], positions: [] }, shifts[1]]);
+  it("ほかのスタッフの勤務は変えない", () => {
+    const shifts = assigned(hall);
+    const result = setDateOnlyAssignment({ shifts, staff, date, timeRange, position: kitchen });
+    expect(result[1]).toBe(shifts[1]);
+    expect(removeDateOnlyAssignment({ shifts, staffId: staff.id, date })[1]).toBe(shifts[1]);
   });
-
-  it.each([false, undefined])(
-    "入れ替えが無効（%s）なら、別のポジションの勤務を押しても従来どおり外れる",
-    (switchPosition) => {
-      const shifts = assigned(hall);
-      const result = toggleDateOnlyAssignment({ shifts, staff, date, timeRange, position: kitchen, switchPosition });
-
-      expect(result).toEqual([{ ...shifts[0], positions: [] }, shifts[1]]);
-    },
-  );
 });

@@ -4,7 +4,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import type { ShiftSetupWeekday } from "@/convex/shiftSetup/dayTemplates";
 import type { StaffingSegment } from "@/src/domains/shift/staffingSegments";
 
-/** 「シフト作成の設定」ページが表示する、店舗の設定とスタッフの属性。 */
+/** 「必要人数設定」ページが表示する、店舗の設定とスタッフの属性。 */
 export type ShiftSetupData = NonNullable<FunctionReturnType<typeof api.shiftSetup.queries.getShiftSetup>>;
 
 export type ShiftSetupPosition = ShiftSetupData["positions"][number];

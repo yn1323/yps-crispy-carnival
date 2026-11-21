@@ -2,6 +2,8 @@ import { expect, type Page } from "@playwright/test";
 
 const SHIFT_FORM_DATA_TIMEOUT = 20_000;
 
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 /** 管理者のシフト表と、スタッフの確定シフト閲覧が共有するShiftFormのセル操作。 */
 export class ShiftFormCells {
   constructor(private page: Page) {}
@@ -13,6 +15,12 @@ export class ShiftFormCells {
   }
 
   async expectDateOnlyStaffAbsent(staffName: string, dateLabel: string) {
+    // 希望のない人は、たたんだまとまりの中にいてDOMにない。開いてから、どこにもいないことを確かめる。
+    const foldedGroup = this.page.getByRole("button", { name: /^(希望なし|この日の希望がない人) \d+人/ });
+    if ((await foldedGroup.count()) > 0) {
+      await foldedGroup.click();
+      await expect(foldedGroup).toHaveAttribute("aria-expanded", "true");
+    }
     await expect(this.dateOnlyCell(staffName, dateLabel, true)).toHaveCount(0);
     await expect(this.dateOnlyCell(staffName, dateLabel, false)).toHaveCount(0);
   }
@@ -22,19 +30,18 @@ export class ShiftFormCells {
     await this.expectDateOnlyAssignment(staffName, dateLabel, !currentlyAssigned);
   }
 
-  /** くわしく表示の「入れるもの」で、これから入れるポジションを選ぶ。 */
-  async selectPositionTool(positionName: string) {
-    const tool = this.page
-      .getByRole("radiogroup", { name: "入れるもの", exact: true })
-      .getByRole("radio", { name: positionName, exact: true });
-    await expect(tool).toBeVisible({ timeout: SHIFT_FORM_DATA_TIMEOUT });
-    await tool.click();
-    await expect(tool).toHaveAttribute("aria-checked", "true");
-  }
-
-  /** 日付選択の週表で、勤務のない日へ選んでいるポジションの勤務を入れる。 */
+  /**
+   * 日付選択の週表で、勤務のない日へ勤務を入れ、開いたメニューでポジションを選ぶ。
+   * 空きのセルを押すと、最後に選んだポジション（選んでいなければ先頭のポジション）で入る。
+   */
   async assignDateOnlyWithPosition(staffName: string, dateLabel: string, positionName: string) {
     await this.dateOnlyCell(staffName, dateLabel, false).click();
+    const assigned = this.page.getByRole("button", {
+      name: new RegExp(`^${staffName} ${escapeRegExp(dateLabel)} 勤務あり`),
+    });
+    await expect(assigned).toBeVisible({ timeout: SHIFT_FORM_DATA_TIMEOUT });
+    await assigned.click();
+    await this.page.getByRole("menuitemradio", { name: positionName }).click();
     await this.expectDateOnlyPosition(staffName, dateLabel, positionName);
   }
 

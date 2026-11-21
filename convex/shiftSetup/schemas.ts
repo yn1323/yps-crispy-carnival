@@ -9,7 +9,7 @@ import {
   SHIFT_SETUP_ASSIST_SITUATION_MAX_LENGTH,
 } from "../constants";
 
-// 「シフト作成の設定」の入力をフロントエンドと共有するschema。
+// 「必要人数設定」の入力をフロントエンドと共有するschema。
 // DBアクセス・Convex APIのインポート禁止。
 
 export const positionNameSchema = requiredDisplayTextSchema({

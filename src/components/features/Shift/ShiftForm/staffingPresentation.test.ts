@@ -9,7 +9,6 @@ import {
   buildStaffingCountView,
   type DayStaffingView,
   describeStaffingCount,
-  formatStaffingCount,
   getBandSegmentStyle,
   resolveBandSegmentContent,
   type StaffingBandView,
@@ -936,18 +935,6 @@ describe("summarizeStaffingBands", () => {
       visibleBands: bands,
       toggleLabel: null,
     });
-  });
-});
-
-describe("formatStaffingCount", () => {
-  it("必要人数がある場合は「人数/必要人数」で示す", () => {
-    expect(formatStaffingCount(2, 3)).toBe("2/3");
-    expect(formatStaffingCount(0, 0)).toBe("0/0");
-  });
-
-  it("必要人数が未設定の場合は人数だけを示す", () => {
-    expect(formatStaffingCount(2, null)).toBe("2");
-    expect(formatStaffingCount(0, null)).toBe("0");
   });
 });
 

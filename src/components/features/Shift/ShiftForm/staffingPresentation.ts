@@ -175,6 +175,39 @@ export type StaffingPositionView = StaffingCountView & {
   color: string;
 };
 
+/** ポジション1つ分の「配置/必要」。必要人数の指定がなく、だれも入っていない場合は、文字を持たない。 */
+export type PositionStaffingCountPresentation = {
+  positionId: string;
+  positionName: string;
+  color: string;
+  /** 「2/2」「0/1」「1」。出さない場合はnull。 */
+  label: string | null;
+  tone: StaffingTone;
+  /** そのポジションに入っている人が、全員そのポジションで見習いのときtrue。 */
+  isNewcomerOnly: boolean;
+  /** 読み上げとtitleに使う全文。「ホール 2/2」 */
+  description: string;
+};
+
+/** パターン選択と日付選択の見出しに出す「配置/必要」。過不足の記号（▲1、＋1）は付けず、色で示す。 */
+export const toPositionStaffingCount = (position: StaffingPositionView): PositionStaffingCountPresentation => {
+  const label =
+    position.required === null
+      ? position.count > 0
+        ? `${position.count}`
+        : null
+      : `${position.count}/${position.required}`;
+  return {
+    positionId: position.positionId,
+    positionName: position.name,
+    color: position.color,
+    label,
+    tone: position.tone,
+    isNewcomerOnly: position.isNewcomerOnly,
+    description: `${position.name} ${label ?? "0"}${position.isNewcomerOnly ? "、見習いだけ" : ""}`,
+  };
+};
+
 export type StaffingSlotView = {
   id: string;
   label: string;
@@ -447,10 +480,6 @@ export const buildDayStaffingView = (input: BuildInput): DayStaffingView => {
   };
 };
 
-/** 人数の表示。必要人数がある場合は「2/3」、ない場合は「2」。 */
-export const formatStaffingCount = (count: number, required: number | null): string =>
-  required === null ? `${count}` : `${count}/${required}`;
-
 // ==========================================
 // 帯の区間に出す文字
 // ==========================================
@@ -514,7 +543,7 @@ export type RequiredSpanView = {
 };
 
 /**
- * 帯の区間を、必要人数が変わる時刻だけで区切り直す。シフト作成の設定のテンプレートと同じ区切りで見せるために使う。
+ * 帯の区間を、必要人数が変わる時刻だけで区切り直す。「必要人数設定」のテンプレートと同じ区切りで見せるために使う。
  * 人数だけが変わる境目はつなげ、必要人数がない時間は含めない。
  */
 export const toRequiredSpans = (

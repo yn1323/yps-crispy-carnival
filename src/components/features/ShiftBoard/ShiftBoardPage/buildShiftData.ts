@@ -111,7 +111,11 @@ export const buildShiftData = (
       endTime: assignment.endTime,
       positionId: assignment.positionId,
       optionId: assignment.optionId ?? null,
-      breaks: (assignment.breaks ?? []).map((item) => ({ start: item.startTime, end: item.endTime })),
+      // 休憩を扱うのは時間指定だけである。パターン選択と日付選択は、保存済みの休憩が残っていても、画面へ読み込まない。
+      breaks:
+        data.submissionPattern.kind === "time"
+          ? (assignment.breaks ?? []).map((item) => ({ start: item.startTime, end: item.endTime }))
+          : [],
       isProvisional: assignment.isProvisional === true,
     });
     assignmentMap.set(key, assignments);

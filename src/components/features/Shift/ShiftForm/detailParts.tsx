@@ -1,10 +1,9 @@
 import { Box, chakra, Flex, Icon, Text } from "@chakra-ui/react";
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import { createContext, type ReactNode, useContext, useMemo } from "react";
-import { LuCoffee, LuSettings2 } from "react-icons/lu";
-import { Button } from "@/src/components/ui/Button";
+import { LuCoffee } from "react-icons/lu";
 import { getEffectiveBreaks } from "@/src/domains/shift/breaks";
-import { isPositionsUnsplit, resolveDefaultPosition } from "@/src/domains/shift/operations";
+import { isPositionsUnsplit } from "@/src/domains/shift/operations";
 import { formatShiftClockTimeRange } from "@/src/domains/shift/time";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { formatStaffWorkTotal } from "@/src/domains/shift/workTotals";
@@ -18,7 +17,6 @@ import {
   nextWorkPositionAtom,
   paintsPositionColorAtom,
   rememberWorkPositionAtom,
-  selectedPositionIdAtom,
   shiftConfigAtom,
   staffWorkTotalsAtom,
   usesPositionColorsAtom,
@@ -39,7 +37,7 @@ export type ShiftFormDayStaffingActions = {
 };
 
 export type ShiftFormDetailActions = {
-  /** 「シフト作成の設定」を開く。渡さない場合は導線を出さない。 */
+  /** 「必要人数設定」を開く。渡さない場合は導線を出さない。 */
   onOpenSetup?: () => void;
   /** その日の必要人数を変える操作。渡さない場合は、テンプレートの名前だけを出す。 */
   dayStaffingActions?: ShiftFormDayStaffingActions;
@@ -65,152 +63,8 @@ export const ShiftFormDetailActionsProvider = ({
 export const useShiftFormDetailActions = () => useContext(ShiftFormDetailActionsContext);
 
 // ==========================================
-// 入れるもの（ポジションまたは休憩）の選択
+// ポジションの凡例と、入れるものの選択
 // ==========================================
-const toolChipBaseStyle = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: "6px",
-  h: "32px",
-  px: 3,
-  borderRadius: "full",
-  borderWidth: "1px",
-  textStyle: "xs",
-  fontWeight: 600,
-  whiteSpace: "nowrap",
-  flexShrink: 0,
-  cursor: "pointer",
-  position: "relative",
-  transitionProperty: "colors",
-  transitionDuration: "faster",
-  // 見た目は小さく保ち、押せる範囲だけを高さ44pxまで広げる。
-  _after: { content: '""', position: "absolute", insetX: 0, insetY: "-6px" },
-  _focusVisible: { outline: "2px solid", outlineColor: "teal.600", outlineOffset: "2px" },
-} as const;
-
-/**
- * くわしく表示の編集中に、これから入れるポジションまたは休憩を選ぶ。
- * `inline`は、パターン選択のPCの日別表示の日付の見出しへ置く形で、選択肢だけを出す。行を1つ減らすためである。
- * 時間指定のPCの日別表示は、勤務のバーの範囲を選んでから入れるため、代わりに`RangeAssignPalette`を置く。
- * `row`は、それ以外の表示で使う、ヘッダーの下の1行である。
- */
-export const ToolPalette = ({ variant = "row" }: { variant?: "row" | "inline" }) => {
-  const isActive = useAtomValue(isToolPaletteActiveAtom);
-  const isPositionSelectable = useAtomValue(isPositionSelectableAtom);
-  const isBreakTool = useAtomValue(isBreakToolActiveAtom);
-  const config = useAtomValue(shiftConfigAtom);
-  const [selectedPositionId, setSelectedPositionId] = useAtom(selectedPositionIdAtom);
-  const setBreakTool = useSetAtom(breakToolActiveAtom);
-  const { onOpenSetup } = useShiftFormDetailActions();
-
-  if (!isActive || config.positions.length === 0) return null;
-
-  const defaultPosition = resolveDefaultPosition(config.positions);
-  const activePositionId = selectedPositionId ?? defaultPosition.id;
-  // ポジションを分けていない店舗では、仮の名前「シフト」を出さず、休憩だけを出す。休憩は押すたびに入り切りする。
-  const isUnsplit = isPositionsUnsplit(config.positions);
-  // ポジションが1つだけの店舗では、勤務と休憩の2つだけを選ばせる。
-  const positions = isUnsplit ? [] : isPositionSelectable ? config.positions : [defaultPosition];
-
-  const choices = (
-    <Flex
-      role={isUnsplit ? "group" : "radiogroup"}
-      aria-label="入れるもの"
-      gap={2}
-      overflowX="auto"
-      flex={variant === "row" ? 1 : undefined}
-      minW={0}
-      py="6px"
-      my="-6px"
-    >
-      {positions.map((position) => {
-        const checked = !isBreakTool && activePositionId === position.id;
-        return (
-          <chakra.button
-            key={position.id}
-            type="button"
-            role="radio"
-            aria-checked={checked}
-            onClick={() => {
-              setSelectedPositionId(position.id);
-              setBreakTool(false);
-            }}
-            css={toolChipBaseStyle}
-            bg={checked ? position.color : "white"}
-            color={checked ? "white" : "gray.700"}
-            borderColor={checked ? position.color : "gray.300"}
-            _active={checked ? undefined : { bg: "gray.100", transitionDuration: "0ms" }}
-          >
-            <Box boxSize="10px" borderRadius="full" bg={checked ? "white" : position.color} flexShrink={0} />
-            {position.name}
-          </chakra.button>
-        );
-      })}
-      <chakra.button
-        type="button"
-        role={isUnsplit ? undefined : "radio"}
-        aria-checked={isUnsplit ? undefined : isBreakTool}
-        aria-pressed={isUnsplit ? isBreakTool : undefined}
-        onClick={() => setBreakTool(isUnsplit ? !isBreakTool : true)}
-        css={toolChipBaseStyle}
-        bg={isBreakTool ? "teal.600" : "white"}
-        color={isBreakTool ? "white" : "gray.700"}
-        borderColor={isBreakTool ? "teal.600" : "gray.300"}
-        borderStyle={isBreakTool ? "solid" : "dashed"}
-        _active={isBreakTool ? undefined : { bg: "gray.100", transitionDuration: "0ms" }}
-      >
-        <Icon boxSize={3.5} aria-hidden>
-          <LuCoffee />
-        </Icon>
-        休憩
-      </chakra.button>
-    </Flex>
-  );
-  if (variant === "inline") return choices;
-
-  return (
-    <Flex
-      align="center"
-      gap={2}
-      px={{ base: 3, lg: 5 }}
-      py={2}
-      bg="white"
-      borderBottomWidth="1px"
-      borderColor="gray.200"
-      flexShrink={0}
-      minW={0}
-    >
-      <Text textStyle="xs" color="gray.600" flexShrink={0} display={{ base: "none", lg: "block" }}>
-        入れるもの
-      </Text>
-      {choices}
-      {onOpenSetup && (
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          h="32px"
-          px={2}
-          gap={1}
-          flexShrink={0}
-          color="gray.700"
-          onClick={onOpenSetup}
-        >
-          <Icon boxSize={4} aria-hidden>
-            <LuSettings2 />
-          </Icon>
-          <Box as="span" display={{ base: "none", lg: "inline" }}>
-            シフト作成の設定
-          </Box>
-          <Box as="span" display={{ base: "inline", lg: "none" }}>
-            設定
-          </Box>
-        </Button>
-      )}
-    </Flex>
-  );
-};
-
 const PositionLegendItem = ({ position }: { position: { name: string; color: string } }) => (
   <Flex as="li" align="center" gap="6px" textStyle="xs" color="gray.700" fontWeight={600} whiteSpace="nowrap">
     <Box boxSize="10px" borderRadius="full" flexShrink={0} style={{ background: position.color }} aria-hidden />
@@ -334,7 +188,7 @@ export const RangeAssignPalette = () => {
 
 /**
  * ポジションの色の凡例。閲覧専用の表示で、色がどのポジションを表すかを示す。
- * 編集できる表示では「入れるもの」が凡例を兼ねるため出さない。
+ * 編集できる表示では、日付や週の見出しに置く凡例か「入れるもの」が色を示すため出さない。
  */
 export const PositionLegend = () => {
   const usesPositionColors = useAtomValue(usesPositionColorsAtom);
@@ -444,6 +298,26 @@ export const BreakMark = ({ shift, compact = false }: { shift: ShiftData | undef
 // ==========================================
 // スタッフ名に添える印（仮の勤務、合計）
 // ==========================================
+/** 前回の勤務を仮で入れた勤務があることを、スタッフ名に添えて示す。 */
+export const ProvisionalBadge = () => (
+  <Box
+    as="span"
+    px="6px"
+    py="0"
+    borderRadius="full"
+    borderWidth="1px"
+    borderStyle="dashed"
+    borderColor="gray.500"
+    color="gray.700"
+    textStyle="2xs"
+    fontWeight={700}
+    flexShrink={0}
+    title="前回の勤務を仮で入れています"
+  >
+    仮
+  </Box>
+);
+
 /**
  * くわしく表示のときだけ、スタッフ名に添える印を出す。
  * `shift`には、表示中の日の勤務を渡す。週や期間を並べる表では渡さない。
@@ -470,23 +344,7 @@ export const StaffMeta = ({
 
   return (
     <Flex align="center" gap={1} minW={0} flexWrap="nowrap">
-      {shift?.isProvisional && (
-        <Box
-          px="6px"
-          py="0"
-          borderRadius="full"
-          borderWidth="1px"
-          borderStyle="dashed"
-          borderColor="gray.500"
-          color="gray.700"
-          textStyle="2xs"
-          fontWeight={700}
-          flexShrink={0}
-          title="前回の勤務を仮で入れています"
-        >
-          仮
-        </Box>
-      )}
+      {shift?.isProvisional && <ProvisionalBadge />}
       {showTotal && total && (
         <Text textStyle="2xs" color="gray.600" fontVariantNumeric="tabular-nums" whiteSpace="nowrap">
           計 {formatStaffWorkTotal(total)}

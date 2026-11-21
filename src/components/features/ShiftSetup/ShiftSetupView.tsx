@@ -49,11 +49,11 @@ export function ShiftSetupView({
       minH={canWrite ? AUTHENTICATED_APP_PAGE_CONTENT_HEIGHT : undefined}
       pb={canWrite ? 0 : { base: 10, md: 16 }}
     >
-      <DetailPageHeader title="シフト作成の設定" onBack={onBack} icon={LuSlidersHorizontal} />
+      <DetailPageHeader title="必要人数設定" onBack={onBack} icon={LuSlidersHorizontal} />
 
       {!canWrite && (
         <ReadOnlyNotice
-          title="シフト作成の設定は閲覧のみです"
+          title="必要人数設定は閲覧のみです"
           description={getShiftSetupReadOnlyReason(setup.businessWriteBlockReason)}
         />
       )}

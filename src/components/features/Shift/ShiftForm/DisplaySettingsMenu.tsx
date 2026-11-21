@@ -16,7 +16,12 @@ const DETAIL_MODE_OPTIONS = [
  * 日付見出しの右端に置く、シフト表の見え方を切り替えるメニュー。
  * 「シンプル / くわしく」は、PCとスマートフォンのどちらも、このメニューだけで切り替える。
  */
-export function DisplaySettingsMenu() {
+export function DisplaySettingsMenu({
+  showsDateNotesToggle = true,
+}: {
+  /** 「連絡事項を表示」を出すか。連絡事項を名前の横のアイコンだけで示す画面（パターン選択の日別）では出さない。 */
+  showsDateNotesToggle?: boolean;
+} = {}) {
   const descriptionId = useId();
   const { isVisible, setVisible } = useShiftDateNotesVisibility();
   const [detailMode, setDetailMode] = useAtom(detailModeAtom);
@@ -28,6 +33,9 @@ export function DisplaySettingsMenu() {
     if (requestDetailModeChange) requestDetailModeChange(isDetailMode);
     else setDetailMode(isDetailMode);
   };
+
+  // 出す項目が1つもない場合は、ボタンごと出さない。
+  if (!showsDateNotesToggle && !showDetailToggle) return null;
 
   return (
     <Menu.Root positioning={{ placement: "bottom-end", gutter: 8 }}>
@@ -53,28 +61,30 @@ export function DisplaySettingsMenu() {
       <Portal>
         <Menu.Positioner>
           <Menu.Content w="min(240px, calc(100vw - 24px))">
-            <Menu.CheckboxItem
-              value="staff-notes"
-              checked={isVisible}
-              onCheckedChange={setVisible}
-              cursor="pointer"
-              ps={8}
-              pe={3}
-              py={2.5}
-            >
-              <Menu.ItemIndicator color="teal.600">
-                <LuCheck aria-hidden />
-              </Menu.ItemIndicator>
-              <Icon boxSize={4} color="gray.600" aria-hidden>
-                <LuMessageSquare />
-              </Icon>
-              <Menu.ItemText fontSize="sm" fontWeight="medium">
-                連絡事項を表示
-              </Menu.ItemText>
-            </Menu.CheckboxItem>
+            {showsDateNotesToggle && (
+              <Menu.CheckboxItem
+                value="staff-notes"
+                checked={isVisible}
+                onCheckedChange={setVisible}
+                cursor="pointer"
+                ps={8}
+                pe={3}
+                py={2.5}
+              >
+                <Menu.ItemIndicator color="teal.600">
+                  <LuCheck aria-hidden />
+                </Menu.ItemIndicator>
+                <Icon boxSize={4} color="gray.600" aria-hidden>
+                  <LuMessageSquare />
+                </Icon>
+                <Menu.ItemText fontSize="sm" fontWeight="medium">
+                  連絡事項を表示
+                </Menu.ItemText>
+              </Menu.CheckboxItem>
+            )}
             {showDetailToggle && (
               <>
-                <Menu.Separator />
+                {showsDateNotesToggle && <Menu.Separator />}
                 <Menu.RadioItemGroup
                   value={detailMode ? "detail" : "simple"}
                   onValueChange={({ value }) => handleDetailModeSelect(value === "detail")}

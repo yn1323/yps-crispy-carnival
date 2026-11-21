@@ -1178,7 +1178,7 @@ export const DetailUnsetDayMenuInteractive: Story = {
     );
 
     const menu = await openTemplateMenu(canvasElement, "未設定");
-    await userEvent.click(await menu.findByRole("menuitem", { name: "シフト作成の設定を開く" }));
+    await userEvent.click(await menu.findByRole("menuitem", { name: "必要人数設定を開く" }));
 
     await expect(await readStaffingCalls(canvasElement)).toEqual({ calls: [], setupOpenCount: 1 });
   },

@@ -236,7 +236,7 @@ export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
     capacity: 2,
   },
 
-  // シフト作成の設定のAIサポート: userId+shopId 単位。
+  // 「必要人数設定」のAIサポート: userId+shopId 単位。
   // 下書きを見比べるための数回の作り直しは許し、外部のAIへつないだ後の連打を抑える。
   shiftSetupAssistShort: {
     kind: "token bucket",

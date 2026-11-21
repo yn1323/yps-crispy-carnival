@@ -391,7 +391,7 @@ export const ShiftSetupNavigationBehavior: Story = {
   render: () => <InteractionHarness />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "シフト作成の設定を開く" }));
+    await userEvent.click(canvas.getByRole("button", { name: "必要人数設定を開く" }));
     await expect(await canvas.findByLabelText("操作結果")).toHaveTextContent("open:shift-setup");
   },
 };

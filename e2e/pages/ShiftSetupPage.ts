@@ -3,7 +3,7 @@ import { expectAppHydrated } from "../helpers/appReadiness";
 
 const SHIFT_SETUP_DATA_TIMEOUT = 20_000;
 
-/** 店舗ごとの「シフト作成の設定」ページ。 */
+/** 店舗ごとの「必要人数設定」ページ。 */
 export class ShiftSetupPage {
   constructor(private page: Page) {}
 
@@ -13,7 +13,7 @@ export class ShiftSetupPage {
       { waitUntil: "domcontentloaded" },
     );
     await expectAppHydrated(this.page);
-    await expect(this.page.getByRole("heading", { name: "シフト作成の設定", exact: true })).toBeVisible({
+    await expect(this.page.getByRole("heading", { name: "必要人数設定", exact: true })).toBeVisible({
       timeout: SHIFT_SETUP_DATA_TIMEOUT,
     });
   }

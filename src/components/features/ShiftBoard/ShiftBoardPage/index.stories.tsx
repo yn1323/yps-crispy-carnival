@@ -566,6 +566,8 @@ export const DynamicReadOnlyTransition: Story = {
     const canvas = within(canvasElement);
     const screen = within(canvasElement.ownerDocument.body);
 
+    // 希望のない鈴木さんは「希望なし」にたたまれているため、開いてから入れる。
+    await userEvent.click(await canvas.findByRole("button", { name: /^希望なし \d+人/ }));
     const userDraftCell = await canvas.findByRole("button", { name: /鈴木太郎 1\/20.*勤務なし/ });
     await userEvent.click(userDraftCell);
     await expect(await canvas.findByRole("button", { name: /鈴木太郎 1\/20.*勤務あり/ })).toBeInTheDocument();
@@ -581,6 +583,8 @@ export const DynamicReadOnlyTransition: Story = {
     canvas.getByRole("button", { name: "閲覧のみに切り替える", hidden: true }).click();
 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    // 閲覧のみへ切り替わると、入れた勤務は破棄され、鈴木さんは「希望なし」へ戻る。開いて、押せないことを確かめる。
+    await userEvent.click(await canvas.findByRole("button", { name: /^希望なし \d+人/ }));
     await expect(await canvas.findByRole("button", { name: /鈴木太郎 1\/20.*勤務なし/ })).toHaveAttribute(
       "aria-disabled",
       "true",
@@ -600,6 +604,7 @@ export const DynamicReadOnlyClearsNavigationBlocker: Story = {
     const canvas = within(canvasElement);
     const screen = within(canvasElement.ownerDocument.body);
 
+    await userEvent.click(await canvas.findByRole("button", { name: /^希望なし \d+人/ }));
     await userEvent.click(await canvas.findByRole("button", { name: /鈴木太郎 1\/20.*勤務なし/ }));
     await userEvent.click(canvas.getByRole("link", { name: "戻る" }));
     await expect(await screen.findByRole("alertdialog", { name: "保存していない変更があります" })).toBeInTheDocument();
@@ -607,6 +612,7 @@ export const DynamicReadOnlyClearsNavigationBlocker: Story = {
     canvas.getByRole("button", { name: "閲覧のみに切り替える", hidden: true }).click();
 
     await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    await userEvent.click(await canvas.findByRole("button", { name: /^希望なし \d+人/ }));
     await expect(await canvas.findByRole("button", { name: /鈴木太郎 1\/20.*勤務なし/ })).toHaveAttribute(
       "aria-disabled",
       "true",

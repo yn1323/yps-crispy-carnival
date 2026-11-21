@@ -900,7 +900,7 @@ const schema = defineSchema({
     .index("by_shopId_isDeleted", ["shopId", "isDeleted"]),
 
   // ========================================
-  // シフト作成の設定（必要人数のテンプレート）
+  // 「必要人数設定」（必要人数のテンプレート）
   // ========================================
   // 名前を付けた1日分の必要人数。使う日は曜日と祝日で決める。
   // 件数はSHIFT_DAY_TEMPLATE_LIMIT、バーはSHIFT_DAY_TEMPLATE_BAR_LIMIT、人数はPOSITION_ACTIVE_LIMITで上限を持つ。

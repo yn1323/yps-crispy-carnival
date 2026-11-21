@@ -6,7 +6,7 @@ type Props = {
   onOpen: () => void;
 };
 
-/** 「シフト作成の設定」ページへ進む導線。設定の中身はこの画面に持たない。 */
+/** 「必要人数設定」ページへ進む導線。設定の中身はこの画面に持たない。 */
 export function ShopShiftSetupSection({ onOpen }: Props) {
   return (
     <Stack as="section" gap={3} aria-labelledby="shop-detail-shift-setup-heading">
@@ -22,8 +22,8 @@ export function ShopShiftSetupSection({ onOpen }: Props) {
       </Text>
       <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" overflow="hidden">
         <DrilldownRow
-          ariaLabel="シフト作成の設定を開く"
-          title="シフト作成の設定"
+          ariaLabel="必要人数設定を開く"
+          title="必要人数設定"
           secondary={
             <Text fontSize="sm" color="fg.muted" lineHeight="short">
               ポジション、必要人数、休憩の決まり、スタッフの条件

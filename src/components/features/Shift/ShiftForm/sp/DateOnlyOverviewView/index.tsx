@@ -3,7 +3,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useMemo, useState } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
 import { IssueCountBadge } from "../../components";
-import { BreakMark, PositionMark, StaffMeta } from "../../detailParts";
+import { PositionMark, StaffMeta } from "../../detailParts";
 import {
   detailModeAtom,
   selectDateWithDailyStaffOrderAtom,
@@ -201,7 +201,7 @@ const DayStaffList = ({ rows }: { rows: DateOnlyOverviewStaffRowViewModel[] }) =
     );
   }
 
-  // くわしく表示: 名前の横に熟練度、右端にポジションと休憩の印を出す。
+  // くわしく表示: 右端にポジションを出す。
   return (
     <Stack gap="6px">
       {rows.map((staff) => (
@@ -212,8 +212,6 @@ const DayStaffList = ({ rows }: { rows: DateOnlyOverviewStaffRowViewModel[] }) =
             </Text>
             <StaffMeta staff={staff.staff} showTotal={false} />
           </Flex>
-          {/* ポジションの右端をそろえるため、休憩の印はポジションの左に置く。 */}
-          <BreakMark shift={staff.shift} compact />
           <Box as="span" color="gray.700" minW={0}>
             <PositionMark segment={staff.segment} />
           </Box>

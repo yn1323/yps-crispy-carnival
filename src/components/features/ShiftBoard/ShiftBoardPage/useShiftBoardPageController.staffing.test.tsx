@@ -190,6 +190,27 @@ describe("店舗の設定をシフト表へ渡す", () => {
     });
   });
 
+  it.each([
+    [
+      "パターン選択",
+      {
+        kind: "shiftType",
+        options: [{ id: "early", name: "早番", startTime: "09:00", endTime: "17:00", sortOrder: 0 }],
+      },
+    ],
+    ["日付選択", { kind: "dateOnly" }],
+  ] satisfies Array<[string, ShiftBoardData["submissionPattern"]]>)(
+    "%sは休憩を扱わないため、店舗に休憩の決まりがあっても渡さない",
+    (_label, submissionPattern) => {
+      const { result } = renderController({
+        data: { ...data, submissionPattern },
+        staffing: { ...emptyStaffing, breakRule: { minWorkMinutes: 360, breakMinutes: 60 } },
+      });
+
+      expect(result.current.viewModel.shiftForm.staffing?.breakRule).toBeNull();
+    },
+  );
+
   it("何も設定していない店舗の設定は、未設定の日と、空のテンプレートの一覧と、決まりなしで渡す", () => {
     const { result } = renderController({ staffing: emptyStaffing });
 
@@ -524,8 +545,8 @@ describe("前回の勤務を仮で入れる", () => {
     breaks: [{ startTime: "13:00", endTime: "14:00" }],
   };
 
-  function renderWithApply() {
-    const hook = renderInitialized({ staffing: withPrevious });
+  function renderWithApply(currentData: ShiftBoardData = data) {
+    const hook = renderInitialized({ data: currentData, staffing: withPrevious });
     const apply = vi.fn<(update: (current: ShiftData[]) => ShiftData[]) => void>();
     hook.result.current.viewModel.shiftForm.applyShiftsRef.current = apply;
     return { ...hook, apply };
@@ -574,6 +595,21 @@ describe("前回の勤務を仮で入れる", () => {
     ]);
     expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "前回の勤務を1日分、仮で入れました" });
     expect(mocks.save).not.toHaveBeenCalled();
+  });
+
+  it("日付選択は休憩を扱わないため、前回の勤務の休憩を引き継がずに仮で入れる", async () => {
+    mocks.convexQuery.mockResolvedValue([candidate]);
+    const { result, apply } = renderWithApply({ ...data, submissionPattern: { kind: "dateOnly" } });
+    const initialShifts = result.current.viewModel.shiftForm.initialShifts;
+
+    await insert(result);
+
+    expect(apply).toHaveBeenCalledTimes(1);
+    const inserted = apply.mock.calls[0][0](initialShifts).filter((shift) => shift.isProvisional);
+    expect(inserted).toHaveLength(1);
+    expect(inserted[0].staffId).toBe(unsubmittedStaffId);
+    expect(inserted[0].positions.map((position) => position.positionId)).toEqual([hallId]);
+    expect(Object.hasOwn(inserted[0], "breaks")).toBe(false);
   });
 
   it("画面で編集したあとの勤務を基準にし、勤務を入れた日には仮の勤務を入れない", async () => {
@@ -835,7 +871,7 @@ describe("その日の必要人数の変更と設定ページへの導線", () =
     expect(Object.keys(result.current.viewModel.shiftForm.detailActions)).toEqual(["onOpenSetup"]);
   });
 
-  it("設定ページへの導線は、この店舗の「シフト作成の設定」を組織を指定して開く", () => {
+  it("設定ページへの導線は、この店舗の「必要人数設定」を組織を指定して開く", () => {
     const { result } = renderController({ staffing: emptyStaffing });
 
     act(() => result.current.viewModel.shiftForm.detailActions.onOpenSetup?.());

@@ -53,7 +53,7 @@ const shiftSetupValidator = v.object({
   assistAvailable: v.boolean(),
 });
 
-/** 「シフト作成の設定」ページへ、店舗の設定とシフト対象スタッフの属性を返す。 */
+/** 「必要人数設定」ページへ、店舗の設定とシフト対象スタッフの属性を返す。 */
 export const getShiftSetup = managerQuery({
   args: {},
   returns: v.union(shiftSetupValidator, v.null()),

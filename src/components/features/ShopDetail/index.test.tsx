@@ -28,7 +28,7 @@ vi.mock("./ShopDetailView", () => ({
         スタッフ詳細を開く
       </button>
       <button type="button" onClick={onOpenShiftSetup}>
-        シフト作成の設定を開く
+        必要人数設定を開く
       </button>
     </>
   ),
@@ -91,10 +91,10 @@ describe("店舗詳細のapp navigation", () => {
     });
   });
 
-  it("シフト作成の設定を、表示中の店舗と同じcanonical組織scopeで開く", () => {
+  it("「必要人数設定」を、表示中の店舗と同じcanonical組織scopeで開く", () => {
     render(<ShopDetail shop={shop} people={[]} organizationId={organizationId} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "シフト作成の設定を開く" }));
+    fireEvent.click(screen.getByRole("button", { name: "必要人数設定を開く" }));
 
     expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({
       to: "/manage/shops/$shopId/shift-setup",
