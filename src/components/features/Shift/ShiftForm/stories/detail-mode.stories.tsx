@@ -161,14 +161,6 @@ export const ToolPaletteHiddenOnOverviewDesktop: Story = {
   play: async ({ canvasElement }) => expectToolPaletteOnlyOnDaily(canvasElement),
 };
 
-/** スマートフォンでも、一覧では「入れるもの」を出さない。 */
-export const ToolPaletteHiddenOnOverviewMobile: Story = {
-  name: "Tool Palette Hidden On Overview Mobile",
-  args: { ...toggleArgs, initialDetailMode: true },
-  globals: mobileGlobals,
-  play: async ({ canvasElement }) => expectToolPaletteOnlyOnDaily(canvasElement),
-};
-
 /** スマートフォンでは「表示設定」の「シンプル」「くわしく」で切り替え、切り替えるたびに通知する。 */
 export const ToggleOnMobileNotifies: Story = {
   name: "Toggle On Mobile Notifies",
@@ -176,18 +168,13 @@ export const ToggleOnMobileNotifies: Story = {
   globals: mobileGlobals,
   tags: ["vrt-mobile2"],
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
     const notification = await findNotification(canvasElement);
-    await expect(canvas.queryByRole("radiogroup", { name: "入れるもの" })).not.toBeInTheDocument();
 
     await selectDetailModeFromDisplaySettings(canvasElement, "くわしく");
     await waitFor(() => expect(notification).toHaveTextContent(/^通知：1回（true）$/));
-    await expect(await canvas.findByRole("radiogroup", { name: "入れるもの" })).toBeInTheDocument();
 
     await selectDetailModeFromDisplaySettings(canvasElement, "シンプル");
     await waitFor(() => expect(notification).toHaveTextContent(/^通知：2回（true、false）$/));
-    // 入れるものの行は、上へ戻りきってから消える。
-    await waitFor(() => expect(canvas.queryByRole("radiogroup", { name: "入れるもの" })).not.toBeInTheDocument());
   },
 };
 
@@ -199,8 +186,6 @@ export const InitialDetailDoesNotNotifyOnMobile: Story = {
   tags: ["vrt-mobile2"],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(await canvas.findByRole("radiogroup", { name: "入れるもの" })).toBeInTheDocument();
-
     await waitForInitialSync();
     await expect(await findNotification(canvasElement)).toHaveTextContent(/^通知：0回$/);
 

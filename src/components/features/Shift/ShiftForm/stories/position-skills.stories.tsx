@@ -162,12 +162,21 @@ export const NewcomerOnlyBandFollowsPositionOnDesktop: Story = {
 // ==========================================
 // スマートフォン
 // ==========================================
-export const NameMarkFollowsToolOnMobile: Story = {
-  name: "Name Mark Follows Tool On Mobile",
+/** スマートフォンには「入れるもの」がないため、名前の横の担当外の印は、既定のポジション（ホール）での値を出す。 */
+export const NameMarkUsesDefaultPositionOnMobile: Story = {
+  name: "Name Mark Uses Default Position On Mobile",
   args: timeDetailArgs,
   globals: mobileGlobals,
   tags: ["vrt-mobile2"],
-  play: async ({ canvasElement }) => expectNameMarkFollowsTool(canvasElement),
+  play: async ({ canvasElement }) => {
+    const rowA = await findRow(canvasElement, "staff1");
+    const rowD = await findRow(canvasElement, "staff4");
+    const rowE = await findRow(canvasElement, "staff5");
+
+    await expect(await rowE.findByText("担当外")).toHaveAttribute("title", "ホールは担当外です");
+    await expect([rowA, rowD].map(nameBadges)).toEqual([[], []]);
+    await expectNoLeaderMarks(canvasElement);
+  },
 };
 
 /** 「表示設定」でシンプル表示へ切り替えると、名前の横の担当外の印が消える。 */

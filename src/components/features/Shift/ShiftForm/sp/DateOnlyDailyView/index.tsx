@@ -22,6 +22,7 @@ import {
   dailySortedStaffsAtom,
   detailModeAtom,
   issueCountByDateAtom,
+  paintsPositionColorAtom,
   selectDateWithDailyStaffOrderAtom,
   selectedDateAtom,
   shiftConfigAtom,
@@ -279,8 +280,11 @@ const StaffToggleRow = ({
 }) => {
   const detailMode = useAtomValue(detailModeAtom);
   const usesPositionColors = useAtomValue(usesPositionColorsAtom);
-  // ポジションを塗り分ける表示では、入っているポジションの色と名前をボタンに出す。
-  const positionSegment = usesPositionColors ? row.assignedSegment : undefined;
+  const paintsPositionColor = useAtomValue(paintsPositionColorAtom);
+  // くわしく表示で、名前を付けたポジションがある店舗では、ボタンを入っているポジションの色で塗る。
+  const coloredSegment = paintsPositionColor ? row.assignedSegment : undefined;
+  // ポジションを塗り分ける表示では、名前もボタンに出す。ポジションが1つの店舗では、色だけにする。
+  const positionSegment = usesPositionColors ? coloredSegment : undefined;
 
   return (
     <Box bg="white" borderWidth="1px" borderColor="gray.200" borderRadius="md" px={3} py={3}>
@@ -292,7 +296,7 @@ const StaffToggleRow = ({
           </Text>
           <Flex mt={1} align="center" gap={2} flexWrap={detailMode ? "wrap" : undefined}>
             <StatusBadge tone={row.statusTone}>{row.statusLabel}</StatusBadge>
-            <StaffMeta staff={row.staff} shift={row.shift} />
+            <StaffMeta staff={row.staff} shift={row.shift} showTotal={false} />
             <BreakMark shift={row.shift} />
           </Flex>
         </Box>
@@ -309,9 +313,7 @@ const StaffToggleRow = ({
           {...(positionSegment
             ? { minW: "56px", maxW: "104px", h: "44px", px: 2, lineHeight: 1 }
             : { w: "56px", h: "40px" })}
-          style={
-            positionSegment ? { background: positionSegment.color, borderColor: positionSegment.color } : undefined
-          }
+          style={coloredSegment ? { background: coloredSegment.color, borderColor: coloredSegment.color } : undefined}
           flexShrink={0}
           borderRadius="md"
           borderWidth="1px"

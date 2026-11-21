@@ -221,11 +221,11 @@ export const useShiftBoardPageController = (
         hasStaffProfiles: positionSkillsByStaffId.size > 0,
       }),
   );
-  // シンプル表示は休憩を見せないため、シンプルで開いた場合は、希望から作る勤務の候補に休憩の初期値を入れない。
-  const initialBreakRule = initialDetailMode ? breakRule : null;
+  // 「くわしく」は勤務にポジションを持たせるため、希望から勤務の候補を作らず空で開く。
+  // 候補に既定のポジションを入れると、全員が同じポジションに見えるためである。
   const initialShifts = useMemo(
-    () => buildShiftData(data, staffs, dates, { breakRule: initialBreakRule }),
-    [data, staffs, dates, initialBreakRule],
+    () => buildShiftData(data, staffs, dates, { createsRequestCandidates: !initialDetailMode }),
+    [data, staffs, dates, initialDetailMode],
   );
 
   const shiftsRef = useRef<ShiftData[]>(initialShifts);
@@ -565,7 +565,7 @@ export const useShiftBoardPageController = (
     );
   }, [buildSaveAssignments, isReadOnly]);
 
-  // 離脱時（アプリ内の戻る・ブラウザバック）に未保存の変更があれば確認ダイアログを表示し、
+  // 離脱時（アプリ内の戻る、メニューや設定への移動、ブラウザバック）に未保存の変更があれば確認ダイアログを表示し、
   // 「保存する」「保存しない」を選ばせる。ダイアログを閉じた場合はその場に留まる
   const blocker = useBlocker({
     shouldBlockFn: () => hasUnsavedChanges(),
@@ -703,14 +703,14 @@ export const useShiftBoardPageController = (
   const hasSavedDraft = data.recruitment.draftSavedAt !== null;
   const requestDetailModeChange = useCallback(
     (isDetailMode: boolean) => {
-      // 削除するシフトがなければ、確認せずに切り替える。
-      if (!hasSavedDraft && !hasUnsavedChanges()) {
+      // 下書き保存されたシフトがなければ、保存していない編集があっても確認せずに切り替える。
+      if (!hasSavedDraft) {
         void runSwitchDetailMode(isDetailMode);
         return;
       }
       setPendingDetailMode(isDetailMode);
     },
-    [hasSavedDraft, hasUnsavedChanges, runSwitchDetailMode],
+    [hasSavedDraft, runSwitchDetailMode],
   );
   const confirmDetailModeSwitch = useCallback(() => {
     if (pendingDetailMode !== null) void runSwitchDetailMode(pendingDetailMode);

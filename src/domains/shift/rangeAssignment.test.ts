@@ -265,8 +265,11 @@ describe("assignPositionToRange", () => {
     ]);
   });
 
-  it("休憩をまたいで選ぶと、休憩を残してポジションだけを変える", () => {
-    const breaks = [{ start: "13:00", end: "14:00" }];
+  it("休憩をまたいで選ぶと、ポジションを変え、範囲の中の休憩を外す。範囲の外の休憩は残す", () => {
+    const breaks = [
+      { start: "13:00", end: "14:00" },
+      { start: "17:00", end: "17:30" },
+    ];
     const result = assign(day([segment(hall, "10:00", "18:00")], breaks), "12:00", "16:00");
 
     expect(toWork(result?.positions)).toEqual([
@@ -274,7 +277,13 @@ describe("assignPositionToRange", () => {
       ["キッチン", "12:00", "16:00"],
       ["ホール", "16:00", "18:00"],
     ]);
-    expect(result?.breaks).toEqual(breaks);
+    expect(result?.breaks).toEqual([{ start: "17:00", end: "17:30" }]);
+  });
+
+  it("休憩の途中までを選ぶと、範囲にかかる分だけ休憩を外す", () => {
+    const shift = day([segment(hall, "10:00", "18:00")], [{ start: "13:00", end: "14:00" }]);
+
+    expect(assign(shift, "12:00", "13:30")?.breaks).toEqual([{ start: "13:30", end: "14:00" }]);
   });
 
   it("休憩だけを選ぶと、その休憩を外して、選んだポジションの勤務にする", () => {
@@ -307,12 +316,20 @@ describe("assignPositionToRange", () => {
     ]);
   });
 
-  it("すでに同じポジションの範囲は、何も変えない", () => {
+  it("すでに同じポジションで、休憩のかからない範囲は、何も変えない", () => {
     const shift = day([segment(hall, "10:00", "18:00")], [{ start: "13:00", end: "14:00" }]);
 
     expect(assign(shift, "11:00", "12:00", hall)).toBeNull();
-    // 休憩をまたいでいても、休憩は外さない。
-    expect(assign(shift, "10:00", "18:00", hall)).toBeNull();
+    expect(assign(shift, "14:00", "18:00", hall)).toBeNull();
+  });
+
+  it("すでに同じポジションでも、休憩をまたいで選ぶと、範囲の中の休憩を外す", () => {
+    const shift = day([segment(hall, "10:00", "18:00")], [{ start: "13:00", end: "14:00" }]);
+
+    const result = assign(shift, "10:00", "18:00", hall);
+
+    expect(toWork(result?.positions)).toEqual([["ホール", "10:00", "18:00"]]);
+    expect(result?.breaks).toEqual([]);
   });
 
   it("勤務の間の空きにかかる部分は、選んだポジションの勤務で埋める", () => {
@@ -395,6 +412,22 @@ describe("restoreWorkInRange", () => {
       ["キッチン", "14:00", "18:00"],
     ]);
     expect(result.breaks).toEqual([]);
+  });
+
+  it("勤務と休憩が混ざる範囲は、範囲の中の休憩をすべて外し、範囲の外の休憩は残す", () => {
+    const shift = day(
+      [segment(hall, "10:00", "22:00")],
+      [
+        { start: "12:00", end: "13:00" },
+        { start: "17:30", end: "18:30" },
+        { start: "19:30", end: "20:30" },
+      ],
+    );
+
+    const result = restore(shift, "17:00", "21:00");
+
+    expect(toWork(result.positions)).toEqual([["ホール", "10:00", "22:00"]]);
+    expect(result.breaks).toEqual([{ start: "12:00", end: "13:00" }]);
   });
 
   it("勤務の間の空きを選んだ範囲は、直前の勤務と同じポジションで埋める", () => {

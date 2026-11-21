@@ -41,7 +41,7 @@ export const Detail: Story = {
   globals: mobileGlobals,
 };
 
-/** ポジションが1つの店舗では色分けせず、休憩だけを足す。必要人数のない日なので、充足は出ない。 */
+/** ポジションが1つの店舗では、勤務のバーをそのポジションの色にして、休憩を足す。ポジションの名前は出さない。必要人数のない日なので、充足は出ない。 */
 export const DetailSinglePosition: Story = {
   name: "Detail Single Position",
   args: {
@@ -153,46 +153,46 @@ export const OverlapErrorInteractive: Story = {
     await waitFor(() => expect(sheet.queryByRole("alert")).not.toBeInTheDocument());
     await userEvent.click(sheet.getByRole("button", { name: "変更する" }));
     // Aさんはホールでリーダーだが、シフト表にリーダーの印は出さない。ポジションの名前のすぐ後ろに時刻が続く。
+    // 12:00〜13:00の休憩でホールの時間を区切り、休憩も時刻の順に1項目として並べる。
     await waitFor(() =>
-      expect(canvas.getByRole("button", { name: "Aさんの勤務を編集" })).toHaveTextContent("ホール10:00〜13:00"),
+      expect(canvas.getByRole("button", { name: "Aさんの勤務を編集" })).toHaveTextContent(
+        "ホール10:00〜12:00休憩12:00〜13:00キッチン13:00〜18:00",
+      ),
     );
   },
 };
 
-/** 編集シートの「休憩を変更」は、シートを閉じてから休憩の編集を開く。入力中の勤務時間は先に反映する。 */
-export const EditBreaksFromSheetInteractive: Story = {
-  name: "Edit Breaks From Sheet Interactive",
-  args: timeDetailArgs,
-  globals: mobileGlobals,
-  parameters: { screenshot: { skip: true } },
-  play: async ({ canvasElement }) => {
-    const body = within(canvasElement.ownerDocument.body);
-    const sheet = await openEditSheet(canvasElement, "Bさん");
-
-    await selectTime(sheet, "勤務時間1の終了時間", "18:00");
-    await userEvent.click(sheet.getByRole("button", { name: "休憩を変更" }));
-
-    const breakDialog = await body.findByRole("dialog", { name: /^Bさんの休憩/ });
-    await expect(breakDialog).toHaveTextContent("勤務：11:00〜18:00");
-    await waitFor(() => expect(body.getAllByRole("dialog")).toHaveLength(1));
-  },
-};
-
-/** 休憩を選んでいる間は、カードを押すと編集シートではなく休憩の編集が開く。 */
-export const BreakToolInteractive: Story = {
-  name: "Break Tool Interactive",
+/**
+ * くわしく表示では、勤務時間と同じシートで休憩も入れる。誤った休憩は文言で伝えて保存せず、直すと勤務と一緒に保存する。
+ * Bさんの勤務は11:00〜19:00で、15:00〜15:30に休憩がある。
+ */
+export const EditBreaksInSheetInteractive: Story = {
+  name: "Edit Breaks In Sheet Interactive",
   args: timeDetailArgs,
   globals: mobileGlobals,
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const body = within(canvasElement.ownerDocument.body);
+    const sheet = await openEditSheet(canvasElement, "Bさん");
 
-    await userEvent.click(await canvas.findByRole("radio", { name: "休憩" }));
-    await userEvent.click(await canvas.findByRole("button", { name: "Aさんの勤務を編集" }));
+    await selectTime(sheet, "休憩1の終了時間", "14:00");
+    await userEvent.click(sheet.getByRole("button", { name: "変更する" }));
+    await expect(await sheet.findByRole("alert")).toHaveTextContent("休憩の終了時間は開始時間より後にしてください");
 
-    await expect(await body.findByRole("dialog", { name: /^Aさんの休憩/ })).toBeInTheDocument();
-    await expect(body.queryByRole("dialog", { name: /^Aさんのシフト/ })).not.toBeInTheDocument();
+    await selectTime(sheet, "休憩1の終了時間", "16:00");
+    await waitFor(() => expect(sheet.queryByRole("alert")).not.toBeInTheDocument());
+    await userEvent.click(sheet.getByRole("button", { name: "休憩を追加" }));
+    await selectTime(sheet, "休憩2の開始時間", "12:00");
+    await selectTime(sheet, "休憩2の終了時間", "12:30");
+    await userEvent.click(sheet.getByRole("button", { name: "変更する" }));
+
+    // 休憩の編集を別に開かず、このシートだけで済む。
+    await waitFor(() => expect(body.queryAllByRole("dialog")).toHaveLength(0));
+    // 休憩は、カードの内訳に時刻の順で1項目ずつ並ぶ。
+    await expect(await canvas.findByRole("button", { name: "Bさんの勤務を編集" })).toHaveTextContent(
+      /休憩12:00〜12:30.*休憩15:00〜16:00/,
+    );
   },
 };
 
@@ -340,8 +340,8 @@ export const FulfillmentInteractive: Story = {
 
     // 不足の人数は、幅のある区間にだけ出す。30分の区間は色だけになる。
     const kitchen = getBandSegments(section, "キッチン");
-    await expect(within(kitchen[0]).getByText("1")).toBeVisible();
-    await expect(within(kitchen[4]).getByText("1")).not.toBeVisible();
+    await expect(within(kitchen[0]).getByText("−1")).toBeVisible();
+    await expect(within(kitchen[4]).getByText("−1")).not.toBeVisible();
     // 多い、ちょうど、指定なしの区間には文字を出さない。
     await expect(kitchen.slice(5).map((segment) => segment.textContent)).toEqual(["", "", "", ""]);
 
@@ -412,12 +412,9 @@ const findScroller = (element: HTMLElement): HTMLElement => {
   throw new Error("スクロールしている入れ物が見つかりません");
 };
 
-/**
- * 閉じた1行は、上に置く入れるものの行と一緒に、一覧をスクロールしても上端に留まる。
- * 開いている間は留まらず、一覧と一緒に流れる。
- */
-export const FulfillmentStaysOnTopWhileClosedInteractive: Story = {
-  name: "Fulfillment Stays On Top While Closed Interactive",
+/** 充足は、閉じていても開いていても、一覧をスクロールすると日付の見出しのすぐ下に留まる。 */
+export const FulfillmentStaysOnTopInteractive: Story = {
+  name: "Fulfillment Stays On Top Interactive",
   args: timeDetailArgs,
   globals: mobileGlobals,
   parameters: { screenshot: { skip: true } },
@@ -429,21 +426,54 @@ export const FulfillmentStaysOnTopWhileClosedInteractive: Story = {
     frame.style.height = "480px";
     const scroller = await waitFor(() => findScroller(section));
     const topOf = (element: HTMLElement) => Math.round(element.getBoundingClientRect().top);
-    const palette = within(canvasElement).getByRole("radiogroup", { name: "入れるもの" });
-    // 入れるものの行は、充足のすぐ上にある。
-    await expect(palette.getBoundingClientRect().bottom).toBeLessThanOrEqual(section.getBoundingClientRect().top);
 
     scroller.scrollTop = scroller.scrollHeight;
-    // 入れるものの行が上端に留まり、充足はその下に留まる。
-    await waitFor(() => expect(topOf(palette)).toBeLessThan(topOf(section)));
-    await waitFor(() => expect(topOf(palette)).toBeGreaterThanOrEqual(topOf(scroller)));
+    // 閉じた充足は、一覧の下までスクロールしても、見える範囲に留まる。
+    await waitFor(() => expect(topOf(section)).toBeGreaterThanOrEqual(topOf(scroller)));
     await expect(section.getBoundingClientRect().bottom).toBeLessThan(scroller.getBoundingClientRect().bottom);
 
     scroller.scrollTop = 0;
     await userEvent.click(within(section).getByRole("button", { name: /^充足/ }));
     await within(section).findByRole("list", { name: "ホールの充足" });
     scroller.scrollTop = scroller.scrollHeight;
-    await waitFor(() => expect(topOf(section)).toBeLessThan(topOf(scroller)));
+    // 開いた充足も、帯ごと見える範囲に留まる。
+    await waitFor(() => expect(topOf(section)).toBeGreaterThanOrEqual(topOf(scroller)));
+    await expect(section.getBoundingClientRect().bottom).toBeLessThan(scroller.getBoundingClientRect().bottom);
+  },
+};
+
+/**
+ * 開いた充足の「不足｜必要」で「必要」を選ぶと、帯をPCと同じ必要人数の見せ方へ切り替える。必要人数が変わる時刻だけで区切る。
+ * 「不足」を選ぶと過不足の見せ方へ戻る。
+ */
+export const FulfillmentRequiredModeInteractive: Story = {
+  name: "Fulfillment Required Mode Interactive",
+  args: timeDetailArgs,
+  globals: mobileGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const section = await openFulfillment(canvasElement);
+    const describeRequired = (positionName: string) =>
+      within(within(section).getByRole("list", { name: `${positionName}の必要人数` }))
+        .getAllByRole("listitem")
+        .map((span) => span.getAttribute("aria-label"));
+
+    const modes = within(await within(section).findByRole("radiogroup", { name: "帯の見せ方" }));
+    await expect(modes.getByRole("radio", { name: "不足" })).toBeChecked();
+    await userEvent.click(modes.getByRole("radio", { name: "必要" }));
+    await expect(modes.getByRole("radio", { name: "必要" })).toBeChecked();
+
+    // 平日のテンプレート。人数が変わる時刻では区切らない。
+    await expect(describeRequired("ホール")).toEqual(["09:00〜13:00 必要2人", "13:00〜22:00 必要1人"]);
+    await expect(describeRequired("キッチン")).toEqual(["09:00〜13:00 必要1人", "13:00〜17:00 必要2人"]);
+    await expect(describeRequired("レジ")).toEqual(["13:00〜17:00 必要1人"]);
+    await expect(within(section).queryByRole("list", { name: "ホールの充足" })).not.toBeInTheDocument();
+
+    await userEvent.click(modes.getByRole("radio", { name: "不足" }));
+
+    await expect(modes.getByRole("radio", { name: "不足" })).toBeChecked();
+    await expect(describeBand(section, "ホール")[0]).toBe("09:00〜10:00 2人不足");
+    await expect(within(section).queryByRole("list", { name: "ホールの必要人数" })).not.toBeInTheDocument();
   },
 };
 

@@ -58,13 +58,13 @@ export type RangeAssignMenuViewModel = {
   /** いま範囲に入っているものの値。ポジションが混ざる範囲と、勤務と休憩が混ざる範囲ではnull。 */
   checkedValue: string | null;
   /**
-   * 勤務の選択肢。ポジションを塗り分ける表示ではポジション、塗り分けない表示（シンプル表示、ポジションが1つの店舗）では「勤務」の1つ。
-   * 「勤務」は、休憩を外して勤務へ戻すために選ぶ。
+   * 勤務の選択肢。ポジションを塗り分ける表示ではポジション、塗り分けない表示（シンプル表示、ポジションが1つの店舗）では1つだけ。
+   * 1つだけの選択肢は、選んだ範囲にかかる休憩を外して勤務へ戻すために選ぶ。名前は「勤務」で、くわしく表示のポジションが1つの店舗では、そのポジションの名前と色にする。
    */
   positions: Array<{
     value: string;
     name: string;
-    /** 色の丸。「勤務」には出さない（null）。 */
+    /** 色の丸。名前が「勤務」の選択肢には出さない（null）。 */
     color: string | null;
     /** この選択肢を選ぶ数字のキー。10番目以降はnull。 */
     shortcut: string | null;
@@ -81,7 +81,7 @@ export type RangeAssignMenuViewModel = {
 };
 
 export const RANGE_BREAK_VALUE = "break";
-/** ポジションを塗り分けない表示の「勤務」。休憩を選んだ範囲では、その休憩を外す。 */
+/** ポジションを塗り分けない表示の「勤務」。選んだ範囲にかかる休憩を外す。 */
 export const RANGE_WORK_VALUE = "work";
 const POSITION_VALUE_PREFIX = "position:";
 
@@ -119,12 +119,18 @@ export const buildRangeAssignMenuViewModel = ({
   range,
   positions,
   showsPositions,
+  solePosition = null,
 }: {
   shift: ShiftData;
   range: MinuteRange;
   positions: readonly PositionType[];
   /** ポジションを塗り分ける表示（くわしく表示で、ポジションが2つ以上）ではtrue。 */
   showsPositions: boolean;
+  /**
+   * 塗り分けない表示で、「勤務」の代わりに名前と色を出すポジション。くわしく表示の、ポジションが1つの店舗で渡す。
+   * 選んだときの動きは「勤務」と同じで、選んだ範囲にかかる休憩を外す。
+   */
+  solePosition?: Pick<PositionType, "name" | "color"> | null;
 }): RangeAssignMenuViewModel => {
   const timeRange = { start: minutesToTime(range.start), end: minutesToTime(range.end) };
   const current = resolveRangeAssignment(shift, range);
@@ -151,7 +157,7 @@ export const buildRangeAssignMenuViewModel = ({
         : null;
   const choices = showsPositions
     ? positions.map((position) => ({ value: toPositionValue(position.id), name: position.name, color: position.color }))
-    : [{ value: RANGE_WORK_VALUE, name: WORK_LABEL, color: null }];
+    : [{ value: RANGE_WORK_VALUE, name: solePosition?.name ?? WORK_LABEL, color: solePosition?.color ?? null }];
 
   return {
     timeLabel: formatShiftClockTimeRange(timeRange.start, timeRange.end),

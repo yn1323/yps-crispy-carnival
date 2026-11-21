@@ -13,6 +13,7 @@ import {
   detailModeAtom,
   issueCountByDateAtom,
   lockDailyStaffOrderAtom,
+  paintsPositionColorAtom,
   selectedDateAtom,
   shiftConfigAtom,
   shiftsAtom,
@@ -38,6 +39,7 @@ export const DateOnlyView = () => {
   const dateNotes = useShiftDateNotes();
   const detailMode = useAtomValue(detailModeAtom);
   const usesPositionColors = useAtomValue(usesPositionColorsAtom);
+  const paintsPositionColor = useAtomValue(paintsPositionColorAtom);
 
   const { dates, holidays, isReadOnly } = config;
   const isConfirmedDisplay = config.displayMode === "confirmed";
@@ -156,6 +158,7 @@ export const DateOnlyView = () => {
           isReadOnly={isReadOnly}
           detailMode={detailMode}
           usesPositionColors={usesPositionColors}
+          paintsPositionColor={paintsPositionColor}
           staffingByDate={staffingByDate}
           onSortDateSelect={handleSortDateSelect}
           onToggle={handleToggle}

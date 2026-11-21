@@ -8,6 +8,7 @@ import {
   assignShiftRangeAtom,
   breakEditorTargetAtom,
   deleteShiftPositionAtom,
+  paintsPositionColorAtom,
   shiftConfigAtom,
   usesPositionColorsAtom,
 } from "../../stores";
@@ -34,7 +35,7 @@ const itemStyle = { cursor: "pointer", ps: 8, pe: 3, py: 2 } as const;
 
 /**
  * 勤務のバーの上で選んだ範囲に、ポジションまたは休憩を入れるメニュー。シンプル表示とくわしく表示で、同じメニューを使う。
- * ポジションを塗り分けない表示では、ポジションの代わりに「勤務」を出す。
+ * ポジションを塗り分けない表示では、ポジションの代わりに「勤務」を出す。くわしく表示のポジションが1つの店舗では、「勤務」をそのポジションの名前と色で出す。
  * 勤務の削除と、時刻を指定して休憩を足し引きする編集を開く項目もここに置く。
  */
 export const RangeAssignMenu = ({ shift, range, anchorRef, boundaryRef, onClose }: RangeAssignMenuProps) => {
@@ -44,7 +45,10 @@ export const RangeAssignMenu = ({ shift, range, anchorRef, boundaryRef, onClose 
   const setBreakEditorTarget = useSetAtom(breakEditorTargetAtom);
   const contentRef = useRef<HTMLDivElement>(null);
   const showsPositions = useAtomValue(usesPositionColorsAtom);
-  const viewModel = buildRangeAssignMenuViewModel({ shift, range, positions, showsPositions });
+  const paintsPositionColor = useAtomValue(paintsPositionColorAtom);
+  // バーをポジションの色で塗っていて、塗り分けてはいない表示は、ポジションが1つの店舗のくわしく表示。
+  const solePosition = paintsPositionColor && !showsPositions ? (positions[0] ?? null) : null;
+  const viewModel = buildRangeAssignMenuViewModel({ shift, range, positions, showsPositions, solePosition });
 
   const assign = (value: string) => {
     assignShiftRange({
@@ -120,7 +124,7 @@ export const RangeAssignMenu = ({ shift, range, anchorRef, boundaryRef, onClose 
         <Menu.Positioner>
           <Menu.Content
             ref={contentRef}
-            aria-label={`${viewModel.timeLabel}の${showsPositions ? "ポジション" : "勤務"}と休憩`}
+            aria-label={`${viewModel.timeLabel}の${showsPositions || solePosition ? "ポジション" : "勤務"}と休憩`}
             w="min(240px, calc(100vw - 24px))"
           >
             <Menu.RadioItemGroup value={viewModel.checkedValue ?? ""}>

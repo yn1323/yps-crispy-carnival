@@ -1,6 +1,10 @@
 import { Box, Flex } from "@chakra-ui/react";
 import type { MinuteRange } from "@/src/domains/shift/breaks";
-import { type FulfillmentSegmentView, getFulfillmentSegmentStyle } from "./fulfillmentPresentation";
+import {
+  type FulfillmentRequiredSpanView,
+  type FulfillmentSegmentView,
+  getFulfillmentSegmentStyle,
+} from "./fulfillmentPresentation";
 import { minutesToTimelinePercent } from "./spTimelineScale";
 
 /** 帯の高さ（px）。 */
@@ -79,6 +83,83 @@ export const FulfillmentBand = ({ label, segments, range, timelineRange, minLabe
                   {segment.label}
                 </Box>
               )}
+            </Flex>
+          );
+        })}
+      </Box>
+    </Box>
+  );
+};
+
+// 「2人」の「人」を出す区間の幅の下限。これより狭い区間は数字だけにする（PCの帯と同じ）。
+const REQUIRED_UNIT_MIN_WIDTH_PX = 34;
+
+/**
+ * ポジション1つ分の、必要人数で見せる帯。PCの帯の「必要人数で表示」と同じく、必要人数が変わる時刻だけで区切り、
+ * ポジションの色を人数に合わせて濃くして「2人」のように出す。数字は狭い区間でも出す。
+ */
+export const FulfillmentRequiredBand = ({
+  label,
+  spans,
+  range,
+  timelineRange,
+}: {
+  /** 読み上げに使う帯の名前。「ホールの必要人数」 */
+  label: string;
+  spans: readonly FulfillmentRequiredSpanView[];
+  range: MinuteRange;
+  timelineRange: MinuteRange;
+}) => {
+  const bandLeft = minutesToTimelinePercent(range.start, timelineRange);
+  const bandWidth = minutesToTimelinePercent(range.end, timelineRange) - bandLeft;
+
+  return (
+    <Box position="relative" w="full" h={`${BAND_HEIGHT_PX}px`}>
+      <Box
+        role="list"
+        aria-label={label}
+        position="absolute"
+        top={0}
+        bottom={0}
+        left={`${bandLeft}%`}
+        w={`${bandWidth}%`}
+        borderRadius={`${BAND_RADIUS_PX}px`}
+        overflow="hidden"
+      >
+        {spans.map((span, index) => {
+          const left = minutesToTimelinePercent(span.startMinutes, range);
+          return (
+            <Flex
+              key={span.key}
+              role="listitem"
+              aria-label={span.description}
+              data-required-span={span.required}
+              position="absolute"
+              top={0}
+              bottom={0}
+              left={`${left}%`}
+              w={`${minutesToTimelinePercent(span.endMinutes, range) - left}%`}
+              align="center"
+              justify="center"
+              overflow="hidden"
+              color="gray.900"
+              style={{ background: span.background }}
+              boxShadow={index > 0 ? "inset 1px 0 0 white" : undefined}
+              containerType="inline-size"
+            >
+              <Box
+                as="span"
+                aria-hidden
+                fontSize="11px"
+                lineHeight="1"
+                fontWeight={700}
+                fontVariantNumeric="tabular-nums"
+              >
+                {span.required}
+                <Box as="span" css={{ [`@container (width < ${REQUIRED_UNIT_MIN_WIDTH_PX}px)`]: { display: "none" } }}>
+                  人
+                </Box>
+              </Box>
             </Flex>
           );
         })}

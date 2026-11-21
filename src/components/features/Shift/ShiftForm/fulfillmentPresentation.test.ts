@@ -107,7 +107,7 @@ describe("buildDayFulfillmentView", () => {
               endMinutes: 660,
               state: "shortage",
               shortageLevel: 3,
-              label: "4",
+              label: "−4",
               description: "10:00〜11:00 4人不足",
             },
             {
@@ -116,7 +116,7 @@ describe("buildDayFulfillmentView", () => {
               endMinutes: 780,
               state: "shortage",
               shortageLevel: 3,
-              label: "3",
+              label: "−3",
               description: "11:00〜13:00 3人不足",
             },
             {
@@ -134,8 +134,27 @@ describe("buildDayFulfillmentView", () => {
               endMinutes: 1200,
               state: "shortage",
               shortageLevel: 1,
-              label: "1",
+              label: "−1",
               description: "15:00〜20:00 1人不足",
+            },
+          ],
+          // 必要人数で見せる帯は、必要人数が変わる時刻だけで区切り、多い区間ほどポジションの色を濃くする。
+          requiredSpans: [
+            {
+              key: "600",
+              startMinutes: 600,
+              endMinutes: 780,
+              required: 4,
+              background: "color-mix(in srgb, #60a5fa 70%, white)",
+              description: "10:00〜13:00 必要4人",
+            },
+            {
+              key: "780",
+              startMinutes: 780,
+              endMinutes: 1200,
+              required: 1,
+              background: "color-mix(in srgb, #60a5fa 30%, white)",
+              description: "13:00〜20:00 必要1人",
             },
           ],
         },

@@ -1,7 +1,8 @@
 import { getEditableEndMinutes, getEditableStartMinutes } from "@/src/components/shared/ShiftTimeline/timelineGeometry";
+import { getSegmentBackground } from "@/src/components/shared/StaffingCountBandEditor/script";
 import type { MinuteRange } from "@/src/domains/shift/breaks";
 import { toStaffingDisplayPositions } from "@/src/domains/shift/operations";
-import { buildPositionStaffingBands } from "@/src/domains/shift/staffing";
+import { buildPositionStaffingBands, type PositionStaffingBandSegment } from "@/src/domains/shift/staffing";
 import {
   buildFulfillmentSegments,
   calculateFulfillmentPercent,
@@ -9,10 +10,10 @@ import {
   type FulfillmentState,
   getStaffingBarsRange,
 } from "@/src/domains/shift/staffingFulfillment";
-import { formatShiftClockTimeRange, minutesToTime } from "@/src/domains/shift/time";
+import { formatShiftClockTimeRange, minutesToTime, timeToMinutes } from "@/src/domains/shift/time";
 import type { PositionType, ShiftData, TimeRange } from "@/src/domains/shift/types";
 import { toSPTimelineRange } from "./spTimelineScale";
-import { toStaffingBars } from "./staffingPresentation";
+import { toRequiredSpans, toStaffingBars } from "./staffingPresentation";
 import type { ShiftFormStaffingDay } from "./types";
 
 // 時間指定の「充足の帯」と充足率を、画面へ出す形にまとめる。
@@ -51,9 +52,21 @@ export type FulfillmentSegmentView = {
   state: FulfillmentState;
   /** 不足の濃さ。不足でない区間はnull。 */
   shortageLevel: ShortageLevel | null;
-  /** 帯に出す文字。不足は足りない人数、それ以外はnull。幅が足りない区間では、帯の側で隠す。 */
+  /** 帯に出す文字。不足は足りない人数に「−」を付けて「−2」、それ以外はnull。幅が足りない区間では、帯の側で隠す。PCの帯と同じ記号。 */
   label: string | null;
   /** 読み上げに使う全文。「09:00〜10:00 2人不足」 */
+  description: string;
+};
+
+/** 必要人数で見せる帯の1区間。必要人数が変わる時刻だけで区切る。 */
+export type FulfillmentRequiredSpanView = {
+  key: string;
+  startMinutes: number;
+  endMinutes: number;
+  required: number;
+  /** 地色。PCの帯と同じく、必要人数が多い区間ほどポジションの色を濃くする。 */
+  background: string;
+  /** 読み上げに使う全文。「09:00〜11:00 必要1人」 */
   description: string;
 };
 
@@ -62,6 +75,7 @@ export type FulfillmentBandView = {
   name: string;
   color: string;
   segments: FulfillmentSegmentView[];
+  requiredSpans: FulfillmentRequiredSpanView[];
 };
 
 export type FulfillmentTick = {
@@ -124,9 +138,29 @@ const toSegmentView = (segment: FulfillmentSegment): FulfillmentSegmentView => {
     endMinutes: segment.end,
     state: segment.state,
     shortageLevel: shortage > 0 ? getShortageLevel(shortage) : null,
-    label: shortage > 0 ? `${shortage}` : null,
+    label: shortage > 0 ? `−${shortage}` : null,
     description: `${timeLabel} ${describeState(segment)}`,
   };
+};
+
+/** PCの帯の「必要人数で表示」と同じ区切りと濃さで、必要人数の区間を作る。 */
+const toRequiredSpanViews = (
+  segments: readonly PositionStaffingBandSegment[],
+  color: string,
+): FulfillmentRequiredSpanView[] => {
+  const spans = toRequiredSpans(
+    segments.map((segment) => ({
+      startMinutes: timeToMinutes(segment.start),
+      endMinutes: timeToMinutes(segment.end),
+      required: segment.required,
+    })),
+  );
+  const peak = Math.max(0, ...spans.map((span) => span.required));
+  return spans.map((span) => ({
+    ...span,
+    background: getSegmentBackground(color, span.required, peak),
+    description: `${formatShiftClockTimeRange(minutesToTime(span.startMinutes), minutesToTime(span.endMinutes))} 必要${span.required}人`,
+  }));
 };
 
 /**
@@ -178,6 +212,7 @@ export const buildDayFulfillmentView = (input: {
           name: position.name,
           color: position.color,
           segments: buildFulfillmentSegments(band.segments).map(toSegmentView),
+          requiredSpans: toRequiredSpanViews(band.segments, position.color),
         },
       ];
     }),

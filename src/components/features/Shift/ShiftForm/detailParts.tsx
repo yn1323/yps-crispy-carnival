@@ -18,6 +18,7 @@ import {
   isToolPaletteActiveAtom,
   nameSkillPositionAtom,
   nextWorkPositionAtom,
+  paintsPositionColorAtom,
   rememberWorkPositionAtom,
   selectedPositionIdAtom,
   shiftConfigAtom,
@@ -95,26 +96,11 @@ const toolChipBaseStyle = {
  * 時間指定のPCの日別表示は、勤務のバーの範囲を選んでから入れるため、代わりに`RangeAssignPalette`を置く。
  * `row`は、それ以外の表示で使う、ヘッダーの下の1行である。
  */
-export const ToolPalette = ({
-  variant = "row",
-  active,
-  leading,
-  hidesSetup = false,
-}: {
-  variant?: "row" | "inline";
-  /** 出すかどうかを置く側が決める場合に渡す。シンプル表示へ切り替えたあと、消えきるまで出し続けるために使う。 */
-  active?: boolean;
-  /** 行の左端、選択肢の前に置くもの。時間指定のスマートフォンでは、その日のテンプレートのメニューを置く。 */
-  leading?: ReactNode;
-  /** 行の右端の「設定」を出さない。 */
-  hidesSetup?: boolean;
-}) => {
-  const isActiveInStore = useAtomValue(isToolPaletteActiveAtom);
+export const ToolPalette = ({ variant = "row" }: { variant?: "row" | "inline" }) => {
+  const isActive = useAtomValue(isToolPaletteActiveAtom);
+  const isPositionSelectable = useAtomValue(isPositionSelectableAtom);
   const isBreakTool = useAtomValue(isBreakToolActiveAtom);
   const config = useAtomValue(shiftConfigAtom);
-  const isActive = active ?? isActiveInStore;
-  // isPositionSelectableAtomと同じ条件を、置く側が決めた出す・出さないで判定する。
-  const isPositionSelectable = isActive && config.positions.length >= 2;
   const [selectedPositionId, setSelectedPositionId] = useAtom(selectedPositionIdAtom);
   const setBreakTool = useSetAtom(breakToolActiveAtom);
   const { onOpenSetup } = useShiftFormDetailActions();
@@ -199,9 +185,8 @@ export const ToolPalette = ({
       <Text textStyle="xs" color="gray.600" flexShrink={0} display={{ base: "none", lg: "block" }}>
         入れるもの
       </Text>
-      {leading}
       {choices}
-      {onOpenSetup && !hidesSetup && (
+      {onOpenSetup && (
         <Button
           type="button"
           size="sm"
@@ -385,13 +370,13 @@ export const PositionLegend = () => {
 // ==========================================
 // 勤務の色
 // ==========================================
-/** 勤務を塗る色。くわしく表示でポジションが2つ以上ある場合だけ、ポジションの色を返す。 */
+/** 勤務のバーを塗る色。くわしく表示で、名前を付けたポジションがある店舗では、ポジションが1つでもポジションの色を返す。 */
 export const useWorkColor = () => {
-  const usesPositionColors = useAtomValue(usesPositionColorsAtom);
+  const paintsPositionColor = useAtomValue(paintsPositionColorAtom);
   return useMemo(
     () => (segment: { color: string } | undefined, fallback: string) =>
-      usesPositionColors && segment ? segment.color : fallback,
-    [usesPositionColors],
+      paintsPositionColor && segment ? segment.color : fallback,
+    [paintsPositionColor],
   );
 };
 

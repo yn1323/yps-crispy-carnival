@@ -10,7 +10,7 @@ import {
   mockStaffs,
   mockTimeRange,
 } from "../../stories/fixtures";
-import { detailPositions, timeDetailDate, timeDetailShifts, timeDetailStaffs } from "../detailStoryFixtures";
+import { detailPositions, hall, timeDetailDate, timeDetailShifts, timeDetailStaffs } from "../detailStoryFixtures";
 import { ShiftEditSheet } from "./ShiftEditSheet";
 
 const meta = {
@@ -136,7 +136,7 @@ const detailArgs = {
   onEditBreaks: () => {},
 };
 
-/** 勤務が1件。行ごとにポジションを選び、同じシートで休憩を確かめられる。 */
+/** 勤務が1件。行ごとにポジションを選び、同じシートで休憩も入れられる。 */
 export const DetailSingleRange: Story = {
   name: "Detail Single Range",
   args: { ...detailArgs, staff: detailStaffOf("staff2"), shift: detailShiftOf("staff2") },
@@ -148,6 +148,27 @@ export const DetailMultipleRanges: Story = {
   name: "Detail Multiple Ranges",
   args: { ...detailArgs, staff: detailStaffOf("staff1"), shift: detailShiftOf("staff1") },
   decorators: detailDecorators,
+};
+
+/** ポジションが1つの店舗。選び分けはないが、どのポジションで入るかを行ごとに出す。 */
+export const DetailSinglePosition: Story = {
+  name: "Detail Single Position",
+  args: { ...detailArgs, positions: [hall], staff: detailStaffOf("staff3"), shift: detailShiftOf("staff3") },
+  decorators: [
+    (StoryComponent) => (
+      <JotaiStoryWrapper
+        overrides={{
+          staffs: timeDetailStaffs,
+          positions: [hall],
+          initialShifts: timeDetailShifts,
+          dates: [timeDetailDate],
+          initialDetailMode: true,
+        }}
+      >
+        <StoryComponent />
+      </JotaiStoryWrapper>
+    ),
+  ],
 };
 
 /** 勤務がない日。時刻を入れるまで、休憩の欄は出さない。 */

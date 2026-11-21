@@ -118,6 +118,10 @@ export const resolveRangeAssignment = (shift: ShiftWork, range: MinuteRange): Ra
   return positionIds.size === 1 ? { kind: "position", positionId } : null;
 };
 
+/** 選んだ範囲に、休憩（勤務の間の空きを含む）が少しでもかかっているかを返す。 */
+export const hasBreakInRange = (shift: ShiftWork, range: MinuteRange): boolean =>
+  [...effectiveBreakRanges(shift), ...gapRanges(shift)].some((item) => isNotEmpty(clip(item, range)));
+
 const subtractRange = (ranges: readonly MinuteRange[], removed: MinuteRange): MinuteRange[] =>
   ranges
     .flatMap((range) => [
@@ -144,7 +148,7 @@ const isSameWork = (a: readonly PositionSegment[], b: readonly PositionSegment[]
  * 選んだ範囲を、指定したポジションの勤務にした結果を返す。
  * 区間は必要に応じて分け、隣り合う同じポジションの区間は1つにまとめる。
  * 勤務の間の空きにかかる部分は、そのポジションの勤務で埋める。最初の勤務より前と、最後の勤務より後は変えない。
- * 休憩だけを選んでいた場合は、その休憩を外す。休憩をまたいで選んでいた場合は、休憩を残してポジションだけを変える。
+ * 選んだ範囲にかかる休憩は外す。ポジションで休憩を上書きしたと見えるため、休憩をまたいで選んでいた場合も、範囲の中の休憩は残さない。
  * 何も変わらない場合はnullを返す。
  */
 export const assignPositionToRange = (params: {
@@ -174,15 +178,15 @@ export const assignPositionToRange = (params: {
   });
   const positions = mergeAdjacentPositions(painted.positions);
 
-  if (resolveRangeAssignment(shift, range)?.kind === "break") {
+  if (hasBreakInRange(shift, range)) {
     return { positions, breaks: removeBreakRange(shift, range) };
   }
   return isSameWork(mergeAdjacentPositions(shift.positions), positions) ? null : { positions, breaks: shift.breaks };
 };
 
 /**
- * 休憩だけを選んだ範囲を、勤務へ戻した結果を返す。ポジションを選ばない表示の「勤務」と、「休憩」をもう一度選んだときに使う。
- * 時刻で入れた休憩は外し、その下の勤務のポジションはそのままにする。
+ * 選んだ範囲にかかる休憩を外して、勤務へ戻した結果を返す。ポジションを選ばない表示の「勤務」と、「休憩」をもう一度選んだときに使う。
+ * 勤務と休憩が混ざる範囲でも、範囲の中の休憩をすべて外す。時刻で入れた休憩は外し、その下の勤務のポジションはそのままにする。
  * 勤務の間の空きは、直前の勤務と同じポジションの勤務で埋める。
  */
 export const restoreWorkInRange = (params: {

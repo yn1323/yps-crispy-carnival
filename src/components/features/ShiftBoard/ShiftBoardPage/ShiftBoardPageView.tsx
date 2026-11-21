@@ -211,9 +211,9 @@ export const ShiftBoardPageView = ({
         preventClose={detailModeSwitchDialog.isSwitching}
       >
         <Text fontSize="sm" lineHeight="tall">
-          切り替えると、この募集の下書きのシフトを削除します。
+          切り替えると下書き保存されたシフトが削除されます。
           <br />
-          ほかの募集のシフトはそのままです。
+          スタッフのシフト提出状況は残ります。
         </Text>
       </Dialog>
 

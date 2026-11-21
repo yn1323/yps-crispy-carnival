@@ -9,6 +9,8 @@ import { type DisplayIssue, toDisplayIssues } from "@/src/domains/shift/assignme
 import type { AssignmentWarning } from "@/src/domains/shift/assignmentWarnings";
 import type { NewcomerOnlyPeriod } from "@/src/domains/shift/staffing";
 import type { PositionType, ShiftData, SortMode, StaffType, TimeRange, ViewMode } from "@/src/domains/shift/types";
+import { AutoCreateDialog } from "./AutoCreateDialog";
+import { AutoCreateButton, AutoCreateEmptyNotice } from "./AutoCreateDialog/entrances";
 import { BreakEditorDialog } from "./BreakEditorDialog";
 import {
   ConfirmButton,
@@ -43,9 +45,11 @@ import { SPShiftTypeDailyView } from "./sp/ShiftTypeDailyView";
 import { SPShiftTypeOverviewView } from "./sp/ShiftTypeOverviewView";
 import {
   applyShiftDraftsAtom,
+  autoCreateDialogOpenAtom,
   chromeHiddenAtom,
   detailModeAtom,
   detailToggleEnabledAtom,
+  hasAnyWorkAtom,
   selectDateWithDailyStaffOrderAtom,
   selectedDateAtom,
   shiftsAtom,
@@ -414,7 +418,12 @@ const Shell = ({
 }: ShellProps) => {
   const detailMode = useAtomValue(detailModeAtom);
   const isChromeHidden = useAtomValue(chromeHiddenAtom);
+  const hasAnyWork = useAtomValue(hasAnyWorkAtom);
+  const [isAutoCreateOpen, setAutoCreateOpen] = useAtom(autoCreateDialogOpenAtom);
   const { provisionalAction } = useShiftFormDetailActions();
+  // 自動作成は、勤務にポジションを持たせる「くわしく」で、未確定の募集を編集できるときだけ出す。
+  const canAutoCreate = detailMode && !isReadOnly && !isConfirmed;
+  const openAutoCreate = () => setAutoCreateOpen(true);
   return (
     <Flex direction="column" h="100%" minH={0}>
       {header && compact && (
@@ -477,10 +486,12 @@ const Shell = ({
                     onSaveDraft={onSaveDraft}
                     onConfirm={onConfirm}
                     exportAction={exportAction}
+                    onAutoCreate={canAutoCreate ? openAutoCreate : undefined}
                   />
                 ) : (
                   <>
                     {exportAction && <ExportButton {...exportAction} />}
+                    {canAutoCreate && <AutoCreateButton onClick={openAutoCreate} />}
                     {!isReadOnly && (
                       <>
                         <SaveButton compact={compact} isSaving={isSavingDraft} onClick={onSaveDraft} />
@@ -502,6 +513,7 @@ const Shell = ({
         </Box>
       </Box>
 
+      {canAutoCreate && !hasAnyWork && <AutoCreateEmptyNotice onClick={openAutoCreate} compact={compact} />}
       {!hideToolPaletteRow && <ToolPalette />}
       <PositionLegend />
 
@@ -524,6 +536,13 @@ const Shell = ({
           reminderStatus={reminderStatus}
           onOpenDetails={onOpenUnsubmittedDetails}
           provisionalAction={detailMode ? provisionalAction : undefined}
+        />
+      )}
+      {canAutoCreate && (
+        <AutoCreateDialog
+          isOpen={isAutoCreateOpen}
+          onClose={() => setAutoCreateOpen(false)}
+          hasExistingWork={hasAnyWork}
         />
       )}
     </Flex>

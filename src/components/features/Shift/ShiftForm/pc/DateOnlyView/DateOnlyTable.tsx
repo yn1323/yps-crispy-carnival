@@ -51,8 +51,10 @@ type Props = {
   isReadOnly: boolean;
   /** くわしく表示かどうか。falseのときは従来の表と同じ内容を出す。 */
   detailMode: boolean;
-  /** ポジションを塗り分ける表示（くわしく表示で、ポジションが2つ以上）かどうか。 */
+  /** ポジションを塗り分ける表示（くわしく表示で、ポジションが2つ以上）かどうか。勤務のある日にポジションの名前を出す。 */
   usesPositionColors: boolean;
+  /** 勤務のある日をポジションの色で塗るかどうか。くわしく表示なら、ポジションが1つの店舗でも塗る。 */
+  paintsPositionColor: boolean;
   /** 日付ごとの人数と過不足。くわしく表示のときだけ渡す。 */
   staffingByDate: ReadonlyMap<string, DayStaffingView> | null;
   onSortDateSelect: (date: string) => void;
@@ -70,6 +72,7 @@ export const DateOnlyTable = ({
   isReadOnly,
   detailMode,
   usesPositionColors,
+  paintsPositionColor,
   staffingByDate,
   onSortDateSelect,
   onToggle,
@@ -174,7 +177,8 @@ export const DateOnlyTable = ({
                   isSortDate={cell.date.iso === sortDate}
                   isReadOnly={isReadOnly}
                   detailMode={detailMode}
-                  positionSegment={usesPositionColors ? cell.segment : undefined}
+                  positionSegment={paintsPositionColor ? cell.segment : undefined}
+                  showsPositionName={usesPositionColors}
                   breakShift={detailMode ? cell.breakShift : undefined}
                   isProvisional={detailMode && cell.isProvisional}
                   isNarrow={hasNotes}
@@ -476,6 +480,7 @@ const DateOnlyCell = ({
   isReadOnly,
   detailMode,
   positionSegment,
+  showsPositionName,
   breakShift,
   isProvisional,
   isNarrow,
@@ -490,8 +495,10 @@ const DateOnlyCell = ({
   isSortDate: boolean;
   isReadOnly: boolean;
   detailMode: boolean;
-  /** ポジションを塗り分ける表示のときだけ渡す、その日の勤務。 */
+  /** セルをポジションの色で塗る表示のときだけ渡す、その日の勤務。 */
   positionSegment?: PositionSegment;
+  /** ポジションの名前を出すかどうか。ポジションが1つの店舗では、色だけにして「○」のままにする。 */
+  showsPositionName: boolean;
   /** くわしく表示で、休憩のある勤務の日だけ渡す。 */
   breakShift?: ShiftData;
   /** くわしく表示で、前回の勤務を仮で入れた日だけtrueにする。 */
@@ -501,15 +508,16 @@ const DateOnlyCell = ({
   onToggle: () => void;
 }) => {
   const isAssignedCell = date.inRange && !isClosed && assigned;
-  // ポジションを塗り分ける表示では、勤務のあるセルをポジションの色で塗る。
+  // くわしく表示で、名前を付けたポジションがある店舗では、勤務のあるセルをポジションの色で塗る。
   const coloredSegment = isAssignedCell ? positionSegment : undefined;
+  const namedSegment = showsPositionName ? coloredSegment : undefined;
   const visibleBreakShift = isAssignedCell ? breakShift : undefined;
   const button = (
     <Box
       as="button"
       aria-label={`${staffName} ${formatDateWithWeekday(date.iso)} ${
         !date.inRange ? "期間外" : assigned ? "勤務あり" : "勤務なし"
-      }${coloredSegment ? `、${coloredSegment.positionName}` : ""}${visibleBreakShift ? "、休憩あり" : ""}${
+      }${namedSegment ? `、${namedSegment.positionName}` : ""}${visibleBreakShift ? "、休憩あり" : ""}${
         note ? "、連絡事項あり" : ""
       }`}
       position="relative"
@@ -564,11 +572,11 @@ const DateOnlyCell = ({
     >
       {detailMode && isAssignedCell ? (
         <Flex direction="column" align="center" justify="center" gap="2px" minW={0} maxW="100%" px="4px">
-          {coloredSegment ? (
+          {namedSegment ? (
             // セルをポジションの色で塗っているため、色の丸は添えず、名前だけを出す。
             <Flex as="span" align="center" maxW="100%" minW={0}>
               <Box as="span" minW={0} textStyle={isNarrow ? "2xs" : "xs"} fontWeight={700} truncate>
-                {coloredSegment.positionName}
+                {namedSegment.positionName}
               </Box>
             </Flex>
           ) : (

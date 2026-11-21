@@ -173,7 +173,7 @@ const toPosition =
     })),
   });
 
-/** ポジションが1つの店舗では、勤務のある日は今までの色と「○」のまま、人数と休憩だけを足す。 */
+/** ポジションが1つの店舗では、勤務のある日をそのポジションの色で塗り、「○」のまま、人数と休憩を足す。ポジションの名前は出さない。 */
 export const DetailSinglePosition: Story = {
   name: "Detail Single Position",
   args: {
@@ -189,6 +189,13 @@ export const DetailSinglePosition: Story = {
     }),
   },
   globals: desktopGlobals,
+  play: async ({ canvasElement }) => {
+    // 名前は読み上げにも出さないため、「勤務あり」だけのラベルで見つかる。
+    const cell = await findVisibleByLabelText(within(canvasElement), "山田 一郎 6/2(火) 勤務あり");
+    await expect(cell).toHaveStyle({ backgroundColor: "rgb(96, 165, 250)" });
+    await expect(cell).toHaveTextContent("○");
+    await expect(cell).not.toHaveTextContent(hall.name);
+  },
 };
 
 // 店舗を作ったときにできる、名前を付けていない最初のポジション。

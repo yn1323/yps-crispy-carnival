@@ -6,9 +6,10 @@ import {
   buildSPShiftEditResult,
   findSPShiftEditErrors,
   getAssignedRange,
-  getSPShiftEditBreakLabels,
+  getSPShiftEditInitialBreaks,
   getSPShiftEditLayout,
   getSPShiftEditRows,
+  getSPShiftEditWorkPositions,
   type SPShiftEditRow,
   timeToPercentage,
 } from "./script";
@@ -195,27 +196,34 @@ describe("findSPShiftEditErrors", () => {
   });
 });
 
-describe("getSPShiftEditBreakLabels", () => {
-  it("入力が済んだ行が1つもなければ、休憩を入れられないためnullを返す", () => {
-    expect(getSPShiftEditBreakLabels([row("new", "10:00", "")], [{ start: "12:00", end: "13:00" }])).toBeNull();
-    expect(getSPShiftEditBreakLabels([], undefined)).toBeNull();
+describe("getSPShiftEditWorkPositions", () => {
+  it("開始と終了が正しく入った行だけを、休憩の基準にする勤務として返す", () => {
+    expect(
+      getSPShiftEditWorkPositions([row("a", "10:00", "13:00"), row("b", "14:00", ""), row("c", "15:00", "14:00")]).map(
+        (position) => [position.id, position.start, position.end],
+      ),
+    ).toEqual([["a", "10:00", "13:00"]]);
+    expect(getSPShiftEditWorkPositions([])).toEqual([]);
+  });
+});
+
+describe("getSPShiftEditInitialBreaks", () => {
+  it("勤務の開始より後、終了より前にある休憩だけを返す", () => {
+    const shift = shiftOf([work("a", "10:00", "18:00")], {
+      breaks: [
+        { start: "12:00", end: "13:00" },
+        { start: "17:30", end: "18:30" },
+      ],
+    });
+
+    // 17:30〜18:30は勤務のお尻にかかり、休憩として扱わないため返さない。
+    expect(getSPShiftEditInitialBreaks(shift)).toEqual([{ start: "12:00", end: "13:00" }]);
   });
 
-  it("入力中の勤務の開始より後、終了より前にある休憩だけを返す", () => {
-    const breaks = [
-      { start: "12:00", end: "13:00" },
-      { start: "17:30", end: "18:30" },
-    ];
-
-    // 17:30〜18:30は、勤務のお尻からはみ出すため返さない。
-    expect(getSPShiftEditBreakLabels([row("a", "10:00", "18:00")], breaks)).toEqual(["12:00〜13:00"]);
-    expect(getSPShiftEditBreakLabels([row("a", "10:00", "19:00")], breaks)).toEqual(["12:00〜13:00", "17:30〜18:30"]);
-    // 勤務を12:30までに縮めると、12:00〜13:00は勤務のお尻に接するため返さない。
-    expect(getSPShiftEditBreakLabels([row("a", "10:00", "12:30")], breaks)).toEqual([]);
-  });
-
-  it("休憩がない日は空で返す", () => {
-    expect(getSPShiftEditBreakLabels([row("a", "10:00", "18:00")], undefined)).toEqual([]);
+  it("勤務のない日と、休憩のない日は空で返す", () => {
+    expect(getSPShiftEditInitialBreaks(undefined)).toEqual([]);
+    expect(getSPShiftEditInitialBreaks(shiftOf([], { breaks: [{ start: "12:00", end: "13:00" }] }))).toEqual([]);
+    expect(getSPShiftEditInitialBreaks(shiftOf([work("a", "10:00", "18:00")]))).toEqual([]);
   });
 });
 
@@ -363,6 +371,34 @@ describe("buildSPShiftEditResult", () => {
       },
     );
   });
+
+  it("休憩を渡すと、重なる休憩と隣り合う休憩を1つにまとめて置き換える", () => {
+    const shift = shiftOf([work("a", "10:00", "18:00")], { breaks: [{ start: "15:00", end: "15:30" }] });
+
+    const result = buildSPShiftEditResult({
+      shift,
+      rows: [row("a", "10:00", "18:00", "position-1")],
+      positions,
+      breaks: [
+        { start: "13:00", end: "13:30" },
+        { start: "12:00", end: "13:00" },
+      ],
+    });
+
+    expect(result.kind === "updated" && result.shift.breaks).toEqual([{ start: "12:00", end: "13:30" }]);
+  });
+
+  it("休憩を空で渡すと、その日の休憩を消す。渡さなければそのまま残す", () => {
+    const shift = shiftOf([work("a", "10:00", "18:00")], { breaks: [{ start: "12:00", end: "13:00" }] });
+    const rows = [row("a", "10:00", "18:00", "position-1")];
+
+    const cleared = buildSPShiftEditResult({ shift, rows, positions, breaks: [] });
+    const kept = buildSPShiftEditResult({ shift, rows, positions });
+
+    if (cleared.kind !== "updated" || kept.kind !== "updated") throw new Error("勤務が残るはず");
+    expect(Object.hasOwn(cleared.shift, "breaks")).toBe(false);
+    expect(kept.shift.breaks).toEqual([{ start: "12:00", end: "13:00" }]);
+  });
 });
 
 describe("getAssignedRange", () => {
@@ -453,7 +489,7 @@ describe("buildSPDailyCardViewModel", () => {
         positionId: "hall",
         color: "#111111",
         positionName: "ホール",
-        timeLabel: "09:00〜13:00",
+        edgeShape: "start",
       },
       {
         key: "work-2",
@@ -462,7 +498,7 @@ describe("buildSPDailyCardViewModel", () => {
         positionId: "kitchen",
         color: "#222222",
         positionName: "キッチン",
-        timeLabel: "13:00〜17:00",
+        edgeShape: "end",
       },
     ]);
     // 16:30〜17:30は、勤務のお尻からはみ出すため返さない。
@@ -490,5 +526,105 @@ describe("buildSPDailyCardViewModel", () => {
       { key: "09:00-13:00-0", leftPercentage: 0, widthPercentage: 50, label: "希望：09:00-13:00" },
     ]);
     expect(viewModel.workBars).toEqual([]);
+    expect(viewModel.detailItems).toEqual([]);
+  });
+});
+
+describe("buildSPDailyCardViewModel: 内訳とバーの角", () => {
+  const timeRange = { start: 9, end: 22, unit: 30 };
+  const makeShift = (positions: ShiftData["positions"], breaks?: ShiftData["breaks"]): ShiftData => ({
+    id: "shift-1",
+    staffId: "staff-1",
+    staffName: "田中",
+    date: "2026-06-01",
+    requestedTime: null,
+    positions,
+    ...(breaks ? { breaks } : {}),
+  });
+  const hall = { positionId: "hall", positionName: "ホール", color: "#111111" };
+  const kitchen = { positionId: "kitchen", positionName: "キッチン", color: "#222222" };
+  const toLabels = (items: ReturnType<typeof buildSPDailyCardViewModel>["detailItems"]) =>
+    items.map((item) => (item.kind === "break" ? `休憩 ${item.timeLabel}` : `${item.positionName} ${item.timeLabel}`));
+
+  it("時刻で入れた休憩でポジションの時間を区切り、休憩も1項目にして時刻の順に並べる", () => {
+    const viewModel = buildSPDailyCardViewModel(
+      makeShift(
+        [
+          { id: "w1", ...hall, start: "09:00", end: "17:00" },
+          { id: "w2", ...kitchen, start: "17:00", end: "19:30" },
+          { id: "w3", ...hall, start: "19:30", end: "20:30" },
+          { id: "w4", ...kitchen, start: "20:30", end: "21:30" },
+        ],
+        [
+          { start: "13:00", end: "14:45" },
+          { start: "15:30", end: "16:00" },
+        ],
+      ),
+      timeRange,
+    );
+
+    expect(toLabels(viewModel.detailItems)).toEqual([
+      "ホール 09:00〜13:00",
+      "休憩 13:00〜14:45",
+      "ホール 14:45〜15:30",
+      "休憩 15:30〜16:00",
+      "ホール 16:00〜17:00",
+      "キッチン 17:00〜19:30",
+      "ホール 19:30〜20:30",
+      "キッチン 20:30〜21:30",
+    ]);
+  });
+
+  it("勤務の間の空きも休憩の1項目にする", () => {
+    const viewModel = buildSPDailyCardViewModel(
+      makeShift([
+        { id: "w1", ...hall, start: "09:00", end: "12:00" },
+        { id: "w2", ...kitchen, start: "13:00", end: "17:00" },
+      ]),
+      timeRange,
+    );
+
+    expect(toLabels(viewModel.detailItems)).toEqual([
+      "ホール 09:00〜12:00",
+      "休憩 12:00〜13:00",
+      "キッチン 13:00〜17:00",
+    ]);
+  });
+
+  it("隣り合う同じポジションの区間は1項目にまとめる", () => {
+    const viewModel = buildSPDailyCardViewModel(
+      makeShift([
+        { id: "w1", ...hall, start: "09:00", end: "12:00" },
+        { id: "w2", ...hall, start: "12:00", end: "15:00" },
+      ]),
+      timeRange,
+    );
+
+    expect(toLabels(viewModel.detailItems)).toEqual(["ホール 09:00〜15:00"]);
+  });
+
+  it.each([
+    ["勤務が1つ", [{ id: "w1", ...hall, start: "09:00", end: "17:00" }], ["isolated"]],
+    [
+      "隣り合う勤務が3つ",
+      [
+        { id: "w1", ...hall, start: "09:00", end: "12:00" },
+        { id: "w2", ...kitchen, start: "12:00", end: "15:00" },
+        { id: "w3", ...hall, start: "15:00", end: "17:00" },
+      ],
+      ["start", "middle", "end"],
+    ],
+    [
+      "休憩の空きをはさむ勤務が2つ",
+      [
+        { id: "w1", ...hall, start: "09:00", end: "12:00" },
+        { id: "w2", ...kitchen, start: "13:00", end: "17:00" },
+      ],
+      ["start", "end"],
+    ],
+  ])("%sの場合、その日の最初の左端と最後の右端だけを丸める", (_label, positions, expected) => {
+    const viewModel = buildSPDailyCardViewModel(makeShift(positions), timeRange);
+
+    expect(viewModel.workBars.map((bar) => bar.edgeShape)).toEqual(expected);
   });
 });

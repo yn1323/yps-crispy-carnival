@@ -6,14 +6,14 @@ import { issueCountByDate } from "@/src/domains/shift/assignmentIssues";
 import type { AssignmentWarning } from "@/src/domains/shift/assignmentWarnings";
 import { applyBreakRange, type MinuteRange, withInitialBreak } from "@/src/domains/shift/breaks";
 import { toggleDateOnlyAssignment } from "@/src/domains/shift/dateOnlyAssignments";
-import { mergeAdjacentPositions, resolveDefaultPosition } from "@/src/domains/shift/operations";
+import { isPositionsUnsplit, mergeAdjacentPositions, resolveDefaultPosition } from "@/src/domains/shift/operations";
 import { collectNewcomerStaffIdsByPositionId } from "@/src/domains/shift/positionSkills";
 import { isCanonicalWorkPosition } from "@/src/domains/shift/positions";
 import {
   assignPositionToRange,
   closeGapsWithBreaks,
+  hasBreakInRange,
   type RangeAssignment,
-  resolveRangeAssignment,
   restoreWorkInRange,
 } from "@/src/domains/shift/rangeAssignment";
 import { indexShiftsByStaffId } from "@/src/domains/shift/shiftLookup";
@@ -259,8 +259,8 @@ export const assignShiftRangeAtom = atom(
 
     let next: Pick<ShiftData, "positions" | "breaks"> | null;
     if (assignment.kind === "removeBreak") {
-      next =
-        resolveRangeAssignment(shift, range)?.kind === "break" ? restoreWorkInRange({ shift, range, segmentId }) : null;
+      // 勤務と休憩が混ざる範囲でも、範囲にかかる休憩をすべて外す。休憩のない範囲は何も変えない。
+      next = hasBreakInRange(shift, range) ? restoreWorkInRange({ shift, range, segmentId }) : null;
     } else if (assignment.kind === "break") {
       next = applyBreakRange(shift, { start: minutesToTime(range.start), end: minutesToTime(range.end) });
     } else {
@@ -316,6 +316,16 @@ export const detailToggleEnabledAtom = atom<boolean>(false);
 export const chromeHiddenAtom = atom<boolean>(false);
 
 // ==========================================
+// 自動作成
+// ==========================================
+// 自動作成のダイアログを開いている間はtrue。上の行のボタン、スマートフォンのメニュー、空のときの案内から開く。
+export const autoCreateDialogOpenAtom = atom<boolean>(false);
+// 期間のどこかに勤務が1つでもあるか。空のときの案内と、置き換えの注意に使う。
+export const hasAnyWorkAtom = atom((get) =>
+  get(shiftsAtom).some((shift) => shift.positions.some(isCanonicalWorkPosition)),
+);
+
+// ==========================================
 // 入れるものの選択（ポジションまたは休憩）
 // ==========================================
 // 時間指定のPCの日別表示には選ぶ場所がなく、勤務のバーのメニューで最後に選んだポジションが入る。
@@ -351,8 +361,13 @@ export const isPositionSelectableAtom = atom(
   (get) => get(isToolPaletteActiveAtom) && get(shiftConfigAtom).positions.length >= 2,
 );
 
-// ポジションの色で勤務を塗り分けるかどうか。閲覧専用でも、くわしく表示なら色分けする。
+// ポジションごとに勤務を見分けて示すかどうか。名前の表示と、ポジションの境目での区切りに使う。閲覧専用でも、くわしく表示なら見分ける。
 export const usesPositionColorsAtom = atom((get) => get(detailModeAtom) && get(shiftConfigAtom).positions.length >= 2);
+
+// 時間指定の勤務のバーと、日付選択の勤務のある日を、ポジションの色で塗るかどうか。くわしく表示で、名前を付けたポジションがある店舗なら、ポジションが1つでも塗る。
+export const paintsPositionColorAtom = atom(
+  (get) => get(detailModeAtom) && !isPositionsUnsplit(get(shiftConfigAtom).positions),
+);
 
 export const selectedPositionAtom = atom((get) => {
   if (!get(isPositionSelectableAtom)) return null;

@@ -1,7 +1,7 @@
 import { Box, chakra, Flex, Icon, Menu, Portal, Text } from "@chakra-ui/react";
 import { useAtomValue } from "jotai";
 import { type ReactNode, useState } from "react";
-import { LuCheck, LuChevronDown, LuTriangleAlert } from "react-icons/lu";
+import { LuChartGantt, LuCheck, LuChevronDown, LuTriangleAlert } from "react-icons/lu";
 import { NO_DAY_TEMPLATE } from "@/convex/shiftSetup/dayTemplates";
 import { Button } from "@/src/components/ui/Button";
 import { useShiftFormDetailActions } from "./detailParts";
@@ -163,7 +163,7 @@ export const DayTemplateMenuItems = ({ date, view }: { date: string; view: DaySt
 
 /**
  * その日のテンプレートの名前と、テンプレートを変えるメニュー。
- * 時間指定のPCは人数の帯の見出し、時間指定のスマートフォンは入れるものの行の左端、パターン選択のPCは日付の見出し、
+ * 時間指定のPCは人数の帯の見出し、時間指定のスマートフォンは日付の見出し、パターン選択のPCは日付の見出し、
  * パターン選択と日付選択のスマートフォンは人数のカードに1つだけ置く。
  * 閲覧専用と確定済みでは、名前だけを出す。
  * `shrinks`を渡すと、置いた行の幅が足りないときに、名前を省略して縮む。
@@ -211,9 +211,15 @@ export const DayTemplateMenu = ({
           {...sizeProps}
           aria-label={`この日のテンプレート: ${label}`}
         >
-          <Box as="span" truncate>
-            {label}
-          </Box>
+          {/* 時間帯の横棒のアイコンで、時間帯ごとの必要人数のテンプレートだと分かるようにする。名前が先に縮む。 */}
+          <Flex as="span" align="center" gap={1} minW={0}>
+            <Icon boxSize={3.5} flexShrink={0} color="gray.600" aria-hidden>
+              <LuChartGantt />
+            </Icon>
+            <Box as="span" truncate>
+              {label}
+            </Box>
+          </Flex>
           <LuChevronDown aria-hidden />
         </Button>
       </Menu.Trigger>

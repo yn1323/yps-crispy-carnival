@@ -255,13 +255,13 @@ const StaffShiftTypeCard = ({
       <Flex align="center" gap={2}>
         <Avatar staff={card.staff} size={26} />
         {detailMode ? (
-          // くわしく表示: 名前の下に、熟練度・仮・合計と休憩の印を添える。
+          // くわしく表示: 名前の下に、熟練度・仮と休憩の印を添える。期間の合計は日別では出さない。
           <Box flex={1} minW={0}>
             <Text textStyle="sm" fontWeight={600} color={card.isNameMuted ? "gray.500" : "gray.800"} truncate>
               {card.staff.name}
             </Text>
             <Flex align="center" columnGap={2} rowGap="2px" flexWrap="wrap">
-              <StaffMeta staff={card.staff} shift={card.shift} />
+              <StaffMeta staff={card.staff} shift={card.shift} showTotal={false} />
               <BreakMark shift={card.shift} />
             </Flex>
           </Box>

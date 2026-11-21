@@ -245,20 +245,34 @@ describe("店舗の設定をシフト表へ渡す", () => {
     ]);
   });
 
-  it("休憩の決まりを、希望から作った勤務の候補へ当てる", () => {
+  it("くわしくで開くと、希望から勤務の候補を作らず、希望の時間だけを持つ", () => {
     const { result } = renderController({
       staffing: { ...emptyStaffing, breakRule: { minWorkMinutes: 360, breakMinutes: 60 } },
     });
+    const { shiftForm } = result.current.viewModel;
 
+    expect(shiftForm.initialDetailMode).toBe(true);
     expect(
-      result.current.viewModel.shiftForm.initialShifts.map((shift) => [
+      shiftForm.initialShifts.map((shift) => [shift.staffId, shift.positions, shift.requestedTime, shift.breaks]),
+    ).toEqual([
+      [submittedStaffId, [], { start: "10:00", end: "18:00" }, undefined],
+      [unsubmittedStaffId, [], null, undefined],
+    ]);
+  });
+
+  it("シンプルで開くと、希望から勤務の候補を作る", () => {
+    const { result } = renderController({ staffing: emptyStaffing });
+    const { shiftForm } = result.current.viewModel;
+
+    expect(shiftForm.initialDetailMode).toBe(false);
+    expect(
+      shiftForm.initialShifts.map((shift) => [
         shift.staffId,
         shift.positions.map((position) => [position.start, position.end]),
-        shift.breaks,
       ]),
     ).toEqual([
-      [submittedStaffId, [["10:00", "18:00"]], [{ start: "13:30", end: "14:30" }]],
-      [unsubmittedStaffId, [], undefined],
+      [submittedStaffId, [["10:00", "18:00"]]],
+      [unsubmittedStaffId, []],
     ]);
   });
 
@@ -391,12 +405,22 @@ describe("表示の切り替え", () => {
     expect(mocks.switchShiftDetailMode).not.toHaveBeenCalled();
   });
 
-  it("未保存の編集があれば、確認を出し、切り替えると選んだ表示で処理を呼ぶ", async () => {
+  it("保存済みの下書きがなければ、未保存の編集があっても確認せずに切り替える", async () => {
     const { result } = renderInitialized({ staffing: emptyStaffing });
     act(() => result.current.intents.onShiftsChange(editedShift(result.current.viewModel.shiftForm.initialShifts)));
 
     await act(async () => result.current.viewModel.shiftForm.detailActions.requestDetailModeChange?.(true));
-    expect(result.current.viewModel.detailModeSwitchDialog.isOpen).toBe(true);
+
+    expect(result.current.viewModel.detailModeSwitchDialog.isOpen).toBe(false);
+    expect(mocks.switchShiftDetailMode.mock.calls).toEqual([
+      [{ recruitmentId, expectedEditVersion: 0, isDetailMode: true }],
+    ]);
+  });
+
+  it("保存済みの下書きがあれば、確認で切り替えると選んだ表示で処理を呼ぶ", async () => {
+    const { result } = renderInitialized({ data: savedDraftData, staffing: emptyStaffing });
+
+    await act(async () => result.current.viewModel.shiftForm.detailActions.requestDetailModeChange?.(true));
     expect(mocks.switchShiftDetailMode).not.toHaveBeenCalled();
 
     await act(async () => result.current.intents.onConfirmDetailModeSwitch());

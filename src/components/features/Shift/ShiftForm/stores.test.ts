@@ -19,6 +19,7 @@ import {
   newcomerOnlyPeriodsAtom,
   nextWorkPositionAtom,
   openBreakEditorForToolAtom,
+  paintsPositionColorAtom,
   rememberWorkPositionAtom,
   replaceShiftDraftsAtom,
   restoreRememberedWorkPositionAtom,
@@ -270,6 +271,22 @@ describe("入れるポジションの選択", () => {
       store.set(toggleShiftTypeAssignmentAtom, { staff, date, option: earlyOption });
 
       expect(positionIdsOf(store.get(shiftsAtom))).toEqual([[]]);
+    });
+  });
+
+  describe("勤務をポジションの色で塗るか（paintsPositionColorAtom）", () => {
+    it("くわしく表示では、名前を付けたポジションが1つの店舗でも塗る", () => {
+      expect(createDetailStore({ positions: [position] }).get(paintsPositionColorAtom)).toBe(true);
+      expect(createDetailStore().get(paintsPositionColorAtom)).toBe(true);
+    });
+
+    it("シンプル表示と、ポジションを分けていない店舗では塗らない", () => {
+      const unnamed: PositionType = { id: "position-0", name: "シフト", color: "#60a5fa", isDefault: true };
+
+      expect(createDetailStore({ positions: [position] }, { detailMode: false }).get(paintsPositionColorAtom)).toBe(
+        false,
+      );
+      expect(createDetailStore({ positions: [unnamed] }).get(paintsPositionColorAtom)).toBe(false);
     });
   });
 
@@ -770,6 +787,39 @@ describe("勤務の範囲へのポジションと休憩の割当（assignShiftRa
     expect(assign(store, "12:00", "13:00", { kind: "removeBreak" }, shift.id)).toBe("changed");
 
     expect(store.get(shiftsAtom)).toStrictEqual([{ ...shift, breaks: [{ start: "15:00", end: "15:30" }] }]);
+  });
+
+  it("勤務と休憩が混ざる範囲から、範囲にかかる休憩をすべて外す。範囲の外の休憩は残す", () => {
+    const store = createDetailStore();
+    const shift = worked({
+      breaks: [
+        { start: "10:00", end: "10:30" },
+        { start: "12:00", end: "13:00" },
+        { start: "15:00", end: "15:30" },
+      ],
+    });
+    store.set(replaceShiftDraftsAtom, [shift]);
+
+    expect(assign(store, "11:00", "16:00", { kind: "removeBreak" }, shift.id)).toBe("changed");
+
+    expect(store.get(shiftsAtom)).toStrictEqual([{ ...shift, breaks: [{ start: "10:00", end: "10:30" }] }]);
+  });
+
+  it("休憩をまたぐ範囲をポジションにすると、範囲の中の休憩を外す", () => {
+    const store = createDetailStore();
+    const shift = worked({ breaks: [{ start: "12:00", end: "13:00" }] });
+    store.set(replaceShiftDraftsAtom, [shift]);
+
+    expect(assign(store, "11:00", "14:00", { kind: "position", positionId: kitchen.id }, shift.id)).toBe("changed");
+
+    expect(workOf(store.get(shiftsAtom))).toEqual([
+      [
+        ["ホール", "09:00", "11:00"],
+        ["キッチン", "11:00", "14:00"],
+        ["ホール", "14:00", "18:00"],
+      ],
+    ]);
+    expect(store.get(shiftsAtom)[0]?.breaks).toBeUndefined();
   });
 
   it("すでに休憩の範囲へ休憩を入れても、休憩は外れない", () => {

@@ -1,10 +1,10 @@
 import type { Id } from "@/convex/_generated/dataModel";
-import { mergeBreaks, withInitialBreak } from "@/src/domains/shift/breaks";
+import { mergeBreaks } from "@/src/domains/shift/breaks";
 import { canonicalizeTimeAssignments } from "@/src/domains/shift/buildAssignments";
 import { DEFAULT_POSITION } from "@/src/domains/shift/constants";
 import { resolveDisplayShiftLine } from "@/src/domains/shift/resolveDisplayShiftLine";
 import { minutesToTime } from "@/src/domains/shift/time";
-import type { ShiftBreakRule, ShiftData, ShiftTimeRange, StaffType } from "@/src/domains/shift/types";
+import type { ShiftData, ShiftTimeRange, StaffType } from "@/src/domains/shift/types";
 import type { ShiftBoardData } from "../types";
 
 type ShiftRequestRange = { startTime: string; endTime: string; optionId: string | null };
@@ -49,13 +49,17 @@ const getShiftTypeOptionIdForRange = (
   return options.find((option) => option.startTime === request.startTime && option.endTime === request.endTime)?.id;
 };
 
-/** ConvexデータをShiftForm用の表示データへ決定的に変換する。 */
+/**
+ * ConvexデータをShiftForm用の表示データへ決定的に変換する。
+ * `createsRequestCandidates`がfalseのときは、希望から勤務の候補を作らず、希望は点線の枠だけで示す。
+ */
 export const buildShiftData = (
   data: ShiftBoardData,
   staffs: StaffType[],
   dates: string[],
-  options: { breakRule?: ShiftBreakRule | null } = {},
+  options: { createsRequestCandidates?: boolean } = {},
 ): ShiftData[] => {
+  const createsRequestCandidates = options.createsRequestCandidates ?? true;
   const shopClosedDateSet = new Set(data.recruitment.shopClosedDates);
   const positions = data.positions;
   const defaultPosition = positions.find((position) => position.isDefault);
@@ -181,43 +185,45 @@ export const buildShiftData = (
                 shiftTypeOptionId,
               };
             })
-          : isShiftTypePattern && displayLine.type === "request" && requests.length > 0
-            ? requests.flatMap((request, index) => {
-                const shiftTypeOptionId = getShiftTypeOptionIdForRange(request, shiftTypeOptions);
-                if (!shiftTypeOptionId) return [];
-                return [
-                  {
+          : !createsRequestCandidates
+            ? []
+            : isShiftTypePattern && displayLine.type === "request" && requests.length > 0
+              ? requests.flatMap((request, index) => {
+                  const shiftTypeOptionId = getShiftTypeOptionIdForRange(request, shiftTypeOptions);
+                  if (!shiftTypeOptionId) return [];
+                  return [
+                    {
+                      id: `seg-${staff.id}-${date}-${index}`,
+                      positionId: fallbackPosition.id,
+                      positionName: fallbackPosition.name,
+                      color: fallbackPosition.color,
+                      start: request.startTime,
+                      end: request.endTime,
+                      shiftTypeOptionId,
+                    },
+                  ];
+                })
+              : !isShiftTypePattern && displayLine.type === "request" && requests.length > 0
+                ? requests.map((request, index) => ({
                     id: `seg-${staff.id}-${date}-${index}`,
                     positionId: fallbackPosition.id,
                     positionName: fallbackPosition.name,
                     color: fallbackPosition.color,
                     start: request.startTime,
                     end: request.endTime,
-                    shiftTypeOptionId,
-                  },
-                ];
-              })
-            : !isShiftTypePattern && displayLine.type === "request" && requests.length > 0
-              ? requests.map((request, index) => ({
-                  id: `seg-${staff.id}-${date}-${index}`,
-                  positionId: fallbackPosition.id,
-                  positionName: fallbackPosition.name,
-                  color: fallbackPosition.color,
-                  start: request.startTime,
-                  end: request.endTime,
-                }))
-              : !isShiftTypePattern && displayLine.type !== "none"
-                ? [
-                    {
-                      id: `seg-${staff.id}-${date}`,
-                      positionId: fallbackPosition.id,
-                      positionName: fallbackPosition.name,
-                      color: fallbackPosition.color,
-                      start: displayLine.start,
-                      end: displayLine.end,
-                    },
-                  ]
-                : [];
+                  }))
+                : !isShiftTypePattern && displayLine.type !== "none"
+                  ? [
+                      {
+                        id: `seg-${staff.id}-${date}`,
+                        positionId: fallbackPosition.id,
+                        positionName: fallbackPosition.name,
+                        color: fallbackPosition.color,
+                        start: displayLine.start,
+                        end: displayLine.end,
+                      },
+                    ]
+                  : [];
 
       const savedBreaks = mergeBreaks(assignments.flatMap((assignment) => assignment.breaks));
       const shift: ShiftData = {
@@ -234,12 +240,7 @@ export const buildShiftData = (
           ? { isProvisional: true }
           : {}),
       };
-      // 保存済みの勤務は保存された休憩を正とする。希望から作った勤務の候補にだけ、店舗の休憩の決まりを当てる。
-      shifts.push(
-        assignments.length === 0 && data.submissionPattern.kind !== "dateOnly"
-          ? withInitialBreak(shift, options.breakRule)
-          : shift,
-      );
+      shifts.push(shift);
     }
   }
 

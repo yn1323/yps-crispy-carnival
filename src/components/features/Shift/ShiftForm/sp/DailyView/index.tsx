@@ -9,13 +9,10 @@ import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
 import { SP_LIST_PADDING_X_PX } from "../../spTimelineScale";
 import { DayTemplateMenu, useDayStaffingView } from "../../staffingParts";
 import {
-  breakEditorTargetAtom,
   clearShiftDraftPositionsAtom,
   dailySortedStaffsAtom,
   issueCountByDateAtom,
   issueStaffIdSetForSelectedDateAtom,
-  isToolPaletteActiveAtom,
-  openBreakEditorForToolAtom,
   selectDateWithDailyStaffOrderAtom,
   selectedDateAtom,
   shiftByStaffIdForSelectedDateAtom,
@@ -47,9 +44,6 @@ export const SPDailyView = () => {
   const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
   // その日のテンプレートを出す日（くわしく表示の営業日）だけ値が入る。
   const staffingView = useDayStaffingView(selectedDate);
-  const isToolPaletteActive = useAtomValue(isToolPaletteActiveAtom);
-  const openBreakEditorForTool = useSetAtom(openBreakEditorForToolAtom);
-  const setBreakEditorTarget = useSetAtom(breakEditorTargetAtom);
   // カード下段の本文と名前の右のアイコンは、表示設定に応じてどちらか一方だけが出る。
   const dateNotes = useAllShiftDateNotes();
 
@@ -99,13 +93,11 @@ export const SPDailyView = () => {
   const handleCardTap = useCallback(
     (staffId: string) => {
       if (isShopClosedDate) return;
-      // 休憩を選んでいる間は、編集シートを開かずに休憩の編集を開く。
-      if (openBreakEditorForTool({ staffId, date: selectedDate })) return;
       setSelectedStaffId(staffId);
       if (isReadOnly) detailDialog.open();
       else editDialog.open();
     },
-    [isShopClosedDate, isReadOnly, detailDialog, editDialog, openBreakEditorForTool, selectedDate],
+    [isShopClosedDate, isReadOnly, detailDialog, editDialog],
   );
 
   const handleStaffDialogOpenChange = useCallback(
@@ -122,14 +114,6 @@ export const SPDailyView = () => {
     (staffId: string) => clearShiftPositions({ staffId, date: selectedDate }),
     [clearShiftPositions, selectedDate],
   );
-
-  // 休憩の編集は共通のDialogに任せる。Dialogを重ねないよう、編集シートを閉じてから開く。
-  const handleEditBreaks = useCallback(() => {
-    if (!selectedStaffId) return;
-    setBreakEditorTarget({ staffId: selectedStaffId, date: selectedDate });
-    editDialog.close();
-    setSelectedStaffId(null);
-  }, [selectedStaffId, selectedDate, setBreakEditorTarget, editDialog]);
 
   const renderDailyCard = ({ staff, shift, viewModel }: (typeof rows)[number]) => (
     <SPDailyCard
@@ -172,15 +156,10 @@ export const SPDailyView = () => {
         warningCounts={warningCounts}
         dateStripRef={dateStripRef}
         onSelect={selectDate}
-        // テンプレートは、入れるものの行の左端に置く。入れるものの行がない画面（閲覧専用など）だけ、日付の見出しに置く。
-        headingAction={
-          staffingView &&
-          (!isToolPaletteActive || positions.length === 0) && (
-            <DayTemplateMenu date={selectedDate} view={staffingView} shrinks />
-          )
-        }
+        // テンプレートは、日付と表示設定の間に置く。
+        headingAction={staffingView && <DayTemplateMenu date={selectedDate} view={staffingView} shrinks />}
       />
-      {/* 入れるものの行と充足。充足の上に入れるものを置き、閉じた充足と一緒に上端に留める。 */}
+      {/* 充足。閉じている間は、日付の見出しの下に留める。 */}
       <DetailControls />
       <Box
         flex={1}
@@ -289,7 +268,6 @@ export const SPDailyView = () => {
           onOpenChange={handleStaffDialogOpenChange}
           onShiftUpdate={handleShiftUpdate}
           onShiftDelete={handleShiftDelete}
-          onEditBreaks={isToolPaletteActive ? handleEditBreaks : undefined}
         />
       )}
     </Flex>

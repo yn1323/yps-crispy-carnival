@@ -176,6 +176,19 @@ describe("buildRangeAssignMenuViewModel", () => {
       ]);
     });
 
+    it("くわしく表示のポジションが1つの店舗では、「勤務」をそのポジションの名前と色で出し、選んだときの動きは変えない", () => {
+      const viewModel = buildRangeAssignMenuViewModel({
+        shift,
+        range: { start: timeToMinutes("10:00"), end: timeToMinutes("11:00") },
+        positions: [hall],
+        showsPositions: false,
+        solePosition: hall,
+      });
+
+      expect(viewModel.positions).toEqual([{ value: "work", name: "ホール", color: "#60a5fa", shortcut: "1" }]);
+      expect(viewModel.checkedValue).toBe("work");
+    });
+
     it("ポジションが混ざっていても、勤務だけの範囲は「勤務」にチェックを出す", () => {
       expect(buildWithoutPositions("13:00", "15:00").checkedValue).toBe("work");
     });

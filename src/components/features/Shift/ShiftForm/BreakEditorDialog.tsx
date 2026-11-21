@@ -87,7 +87,8 @@ export const findBreakEditorError = (
   return isInsideWork ? null : "休憩は勤務の開始より後、終了より前にしてください";
 };
 
-const buildNewBreak = (range: { startMinutes: number; endMinutes: number }): ShiftTimeRange => {
+/** 休憩を足したときの初期値。入れられる範囲の真ん中に、1時間（範囲が短ければその長さ）で入れる。 */
+export const buildNewBreak = (range: { startMinutes: number; endMinutes: number }): ShiftTimeRange => {
   const length = Math.min(
     DEFAULT_BREAK_MINUTES,
     Math.max(BREAK_TIME_UNIT_MINUTES, range.endMinutes - range.startMinutes),
@@ -99,6 +100,7 @@ const buildNewBreak = (range: { startMinutes: number; endMinutes: number }): Shi
 
 /**
  * 選んだ日の休憩を編集するDialog。「入れるもの」で休憩を選び、勤務を押すと開く。
+ * 時間指定のスマートフォンでは開かず、勤務の編集シートの中で休憩も編集する。
  * 時間指定のPCの日別表示では、勤務のバーの範囲を選んで開くメニューの「休憩を追加」（休憩を選んでいる間は「休憩を変更」）から開く。
  */
 export const BreakEditorDialog = () => {

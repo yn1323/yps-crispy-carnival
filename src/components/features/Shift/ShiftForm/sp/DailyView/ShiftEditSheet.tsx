@@ -7,18 +7,21 @@ import { Button, IconButton } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
 import type { SelectItemType } from "@/src/components/ui/Select";
 import { Select } from "@/src/components/ui/Select";
+import { BREAK_TIME_UNIT_MINUTES } from "@/src/domains/shift/breaks";
 import { formatDateWithWeekday } from "@/src/domains/shift/date";
-import { resolveDefaultPosition } from "@/src/domains/shift/operations";
+import { isPositionsUnsplit, resolveDefaultPosition } from "@/src/domains/shift/operations";
 import { formatShiftClockTimeRange, generateShiftTimeOptions, timeToMinutes } from "@/src/domains/shift/time";
 import type { PositionType, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
-import { detailModeAtom, isPositionSelectableAtom, selectedPositionAtom } from "../../stores";
+import { buildNewBreak, findBreakEditorError, getBreakEditorRange } from "../../BreakEditorDialog";
+import { detailModeAtom, isToolPaletteActiveAtom, selectedPositionAtom } from "../../stores";
 import {
   buildSPShiftEditNewRow,
   buildSPShiftEditResult,
   findSPShiftEditErrors,
-  getSPShiftEditBreakLabels,
+  getSPShiftEditInitialBreaks,
   getSPShiftEditLayout,
   getSPShiftEditRows,
+  getSPShiftEditWorkPositions,
   type SPShiftEditErrors,
   type SPShiftEditRow,
 } from "./script";
@@ -33,8 +36,6 @@ type ShiftEditSheetProps = {
   onOpenChange: (details: { open: boolean }) => void;
   onShiftUpdate: (updatedShift: ShiftData) => void;
   onShiftDelete: (staffId: string) => void;
-  /** 休憩の編集を開く。くわしく表示で編集できる場合だけ渡す。呼ぶ側でこのシートを閉じる。 */
-  onEditBreaks?: () => void;
 };
 
 export const generateTimeOptions = (timeRange: TimeRange) => {
@@ -51,17 +52,8 @@ const getStartOptions = (allOptions: SelectItemType[], endTime: string) =>
 const getEndOptions = (allOptions: SelectItemType[], startTime: string) =>
   startTime ? allOptions.filter((opt) => timeToMinutes(opt.value) > timeToMinutes(startTime)) : allOptions;
 
-const isSameRows = (a: readonly SPShiftEditRow[], b: readonly SPShiftEditRow[]): boolean =>
-  a.length === b.length &&
-  a.every((row, index) => {
-    const other = b[index];
-    return (
-      row.key === other.key &&
-      row.startTime === other.startTime &&
-      row.endTime === other.endTime &&
-      row.positionId === other.positionId
-    );
-  });
+type BreakRow = { key: number; start: string; end: string };
+type BreakRowPatch = Partial<Pick<BreakRow, "start" | "end">>;
 
 type RowPatch = Partial<Pick<SPShiftEditRow, "startTime" | "endTime" | "positionId">>;
 
@@ -75,10 +67,12 @@ export const ShiftEditSheet = ({
   onOpenChange,
   onShiftUpdate,
   onShiftDelete,
-  onEditBreaks,
 }: ShiftEditSheetProps) => {
   const detailMode = useAtomValue(detailModeAtom);
-  const isPositionSelectable = useAtomValue(isPositionSelectableAtom);
+  // くわしく表示で編集できるときは、休憩も同じシートで編集する。
+  const editsDetail = useAtomValue(isToolPaletteActiveAtom);
+  // ポジションは、ポジションが1つでも行ごとに出す。ポジションを分けていない店舗では出さない。
+  const showsPositions = editsDetail && !isPositionsUnsplit(positions);
   const selectedPosition = useAtomValue(selectedPositionAtom);
   // 新しい行には、「入れるもの」で選んでいるポジションを使う。選んでいなければ既定のポジション。
   const newRowPositionId = (selectedPosition ?? resolveDefaultPosition(positions)).id;
@@ -90,10 +84,12 @@ export const ShiftEditSheet = ({
 
   const timeOptions = useMemo(() => generateTimeOptions(timeRange), [timeRange]);
   // 開いたときの勤務から入力を作る。開くたびに作り直すため、呼ぶ側は閉じたときにこのシートを外す。
-  const [initialRows] = useState<SPShiftEditRow[]>(() =>
+  const [rows, setRows] = useState<SPShiftEditRow[]>(() =>
     getSPShiftEditRows(shift, { key: createRowKey(), positionId: newRowPositionId }),
   );
-  const [rows, setRows] = useState(initialRows);
+  const [breakRows, setBreakRows] = useState<BreakRow[]>(() =>
+    getSPShiftEditInitialBreaks(shift).map((range, index) => ({ key: index, start: range.start, end: range.end })),
+  );
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [hasAddedRow, setHasAddedRow] = useState(false);
   // 勤務が2件以上ある日と、行を足したあとは、シンプル表示でも複数行で編集する。
@@ -124,7 +120,13 @@ export const ShiftEditSheet = ({
       },
     [selectedDate, shift, staff.id, staff.name],
   );
-  const breakLabels = useMemo(() => getSPShiftEditBreakLabels(rows, shift?.breaks), [rows, shift?.breaks]);
+  // 休憩は、入力中の勤務時間を基準に、入れられる範囲と正しさを決める。勤務時間が入るまでは休憩を入れられない。
+  const workPositions = useMemo(() => getSPShiftEditWorkPositions(rows), [rows]);
+  const breakRange = useMemo(() => getBreakEditorRange({ positions: workPositions }, false), [workPositions]);
+  const breakError =
+    hasSubmitted && editsDetail && breakRange
+      ? findBreakEditorError(breakRows, { positions: workPositions }, false)
+      : null;
 
   const close = () => onOpenChange({ open: false });
 
@@ -150,30 +152,41 @@ export const ShiftEditSheet = ({
     close();
   };
 
-  /** 入力を検証し、通った場合だけその日の勤務を返す。 */
-  const buildResult = () => {
-    setHasSubmitted(true);
-    if (findSPShiftEditErrors(rows)) return null;
-    return buildSPShiftEditResult({ shift: currentShift, rows, positions });
+  const updateBreakRow = (key: number, patch: BreakRowPatch) => {
+    setBreakRows((current) => current.map((row) => (row.key === key ? { ...row, ...patch } : row)));
   };
 
-  // 確定時にstoreへ反映
+  const handleAddBreak = () => {
+    if (!breakRange) return;
+    const next = buildNewBreak(breakRange);
+    setBreakRows((current) => [
+      ...current,
+      { key: Math.max(-1, ...current.map((row) => row.key)) + 1, start: next.start, end: next.end },
+    ]);
+  };
+
+  // 確定時にstoreへ反映。勤務時間と休憩をまとめて検証し、どちらかに誤りがあれば反映しない。
   const handleConfirm = () => {
-    const result = buildResult();
-    if (!result) return;
+    setHasSubmitted(true);
+    if (findSPShiftEditErrors(rows)) return;
+    // 勤務時間をすべて消す場合は、休憩も一緒に消えるため確かめない。
+    const nextWorkPositions = getSPShiftEditWorkPositions(rows);
+    if (
+      editsDetail &&
+      nextWorkPositions.length > 0 &&
+      findBreakEditorError(breakRows, { positions: nextWorkPositions }, false)
+    ) {
+      return;
+    }
+    const result = buildSPShiftEditResult({
+      shift: currentShift,
+      rows,
+      positions,
+      breaks: editsDetail ? breakRows : undefined,
+    });
     if (result.kind === "updated") onShiftUpdate(result.shift);
     else if (currentShift.positions.length > 0) onShiftDelete(staff.id);
     close();
-  };
-
-  // 休憩の編集は別のDialogに任せる。入力中の勤務時間を失わないよう、変えていれば先に反映する。
-  const handleEditBreaks = () => {
-    if (!isSameRows(rows, initialRows)) {
-      const result = buildResult();
-      if (result?.kind !== "updated") return;
-      onShiftUpdate(result.shift);
-    }
-    onEditBreaks?.();
   };
 
   return (
@@ -210,7 +223,7 @@ export const ShiftEditSheet = ({
             rows={rows}
             errors={errors}
             timeOptions={timeOptions}
-            positions={isPositionSelectable ? positions : null}
+            positions={showsPositions ? positions : null}
             onChange={updateRow}
             onDelete={(key) => setRows((current) => current.filter((row) => row.key !== key))}
             onAdd={handleAddRow}
@@ -218,15 +231,15 @@ export const ShiftEditSheet = ({
         )}
 
         {/* 休憩（くわしく表示で、勤務時間が入っているときだけ） */}
-        {detailMode && onEditBreaks && breakLabels !== null && (
-          <Flex align="center" justify="space-between" gap={2} pt={3} borderTopWidth="1px" borderColor="gray.100">
-            <Text fontSize="sm" color="gray.700">
-              {breakLabels.length > 0 ? `休憩：${breakLabels.join(" / ")}` : "休憩：なし"}
-            </Text>
-            <Button type="button" size="sm" variant="outline" minH="44px" flexShrink={0} onClick={handleEditBreaks}>
-              休憩を変更
-            </Button>
-          </Flex>
+        {editsDetail && breakRange && (
+          <BreakFields
+            rows={breakRows}
+            range={breakRange}
+            error={breakError}
+            onChange={updateBreakRow}
+            onDelete={(key) => setBreakRows((current) => current.filter((row) => row.key !== key))}
+            onAdd={handleAddBreak}
+          />
         )}
 
         {layout === "single" && currentShift.positions.length > 0 && (
@@ -471,6 +484,110 @@ const MultipleRangeFields = ({
       )}
       <Flex>
         <AddRowButton onClick={onAdd} />
+      </Flex>
+    </VStack>
+  );
+};
+
+/** 勤務時間の内側に入れる休憩を、行ごとに編集する。くわしく表示で、勤務時間が入っているときだけ出す。 */
+const BreakFields = ({
+  rows,
+  range,
+  error,
+  onChange,
+  onDelete,
+  onAdd,
+}: {
+  rows: BreakRow[];
+  range: { startMinutes: number; endMinutes: number };
+  error: string | null;
+  onChange: (key: number, patch: BreakRowPatch) => void;
+  onDelete: (key: number) => void;
+  onAdd: () => void;
+}) => {
+  const labelId = useId();
+  const timeOptions = useMemo<SelectItemType[]>(
+    () =>
+      generateShiftTimeOptions({
+        startMinutes: range.startMinutes,
+        endMinutes: range.endMinutes,
+        stepMinutes: BREAK_TIME_UNIT_MINUTES,
+      }),
+    [range],
+  );
+
+  return (
+    <VStack
+      role="group"
+      aria-labelledby={labelId}
+      gap={3}
+      align="stretch"
+      pt={4}
+      borderTopWidth="1px"
+      borderColor="gray.100"
+    >
+      <Text id={labelId} textStyle="sm" fontWeight="medium" color="gray.700">
+        休憩
+      </Text>
+      {rows.map((row, index) => {
+        const rowLabel = `休憩${index + 1}`;
+        return (
+          <HStack key={row.key} role="group" aria-label={rowLabel} gap={2} align="center">
+            <Field.Root flex={1} minW={0}>
+              <Field.Label>
+                <VisuallyHidden>{rowLabel}の開始時間</VisuallyHidden>
+              </Field.Label>
+              <Select
+                items={timeOptions}
+                value={row.start}
+                onChange={(value) => onChange(row.key, { start: value })}
+                size="lg"
+                usePortal={false}
+                invalid={!!error}
+              />
+            </Field.Root>
+            <Text fontSize="sm" color="gray.400">
+              ~
+            </Text>
+            <Field.Root flex={1} minW={0}>
+              <Field.Label>
+                <VisuallyHidden>{rowLabel}の終了時間</VisuallyHidden>
+              </Field.Label>
+              <Select
+                items={timeOptions}
+                value={row.end}
+                onChange={(value) => onChange(row.key, { end: value })}
+                size="lg"
+                usePortal={false}
+                invalid={!!error}
+              />
+            </Field.Root>
+            <IconButton
+              aria-label={`${rowLabel}を削除`}
+              size="sm"
+              variant="ghost"
+              colorPalette="red"
+              minW="44px"
+              h="44px"
+              mr="-8px"
+              flexShrink={0}
+              onClick={() => onDelete(row.key)}
+            >
+              <LuTrash2 />
+            </IconButton>
+          </HStack>
+        );
+      })}
+      {error && (
+        <Text role="alert" fontSize="sm" color="red.600">
+          {error}
+        </Text>
+      )}
+      <Flex>
+        <Button type="button" size="sm" variant="outline" minH="44px" onClick={onAdd}>
+          <LuPlus aria-hidden />
+          休憩を追加
+        </Button>
       </Flex>
     </VStack>
   );

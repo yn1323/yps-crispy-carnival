@@ -4,24 +4,59 @@ import type { ReactNode } from "react";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { IssueDot, issueToneEmphasis, resolveIssueTone, StaffWarningIcon } from "../../components";
 import { ShiftDateNoteBlock, ShiftStaffNoteIcon } from "../../dateNotes";
-import { BreakMark, PositionMark, StaffMeta } from "../../detailParts";
+import { PositionMark, StaffMeta } from "../../detailParts";
 import { getSPCardPaddingXPx, SP_CARD_BORDER_PX } from "../../spTimelineScale";
-import { detailModeAtom, usesPositionColorsAtom } from "../../stores";
-import type { SPDailyCardViewModel } from "./script";
+import { detailModeAtom, paintsPositionColorAtom, usesPositionColorsAtom } from "../../stores";
+import type { SPDailyCardViewModel, SPDailyDetailItem } from "./script";
 
 const STRIPE_STYLE = {
   backgroundImage: "repeating-linear-gradient(45deg, #9CA3AF, #9CA3AF 3px, transparent 3px, transparent 6px)",
 };
-// 時刻で入れた休憩。ポジションの色の上でも見えるよう、白の斜線を重ねる（PCの日別表示と同じ）。
+// 時刻で入れた休憩。休憩はポジションではないため、ポジションの色を隠し、勤務の間の空きと同じ灰色の斜線にする（PCの日別表示と同じ）。
 const EXPLICIT_BREAK_STYLE = {
-  backgroundColor: "rgba(255,255,255,0.55)",
+  backgroundColor: "#f9fafb",
   backgroundImage:
-    "repeating-linear-gradient(45deg, rgba(55,65,81,0.55), rgba(55,65,81,0.55) 2px, transparent 2px, transparent 6px)",
+    "repeating-linear-gradient(45deg, rgba(156,163,175,0.6), rgba(156,163,175,0.6) 3px, transparent 3px, transparent 6px)",
 };
 // 仮の勤務は、点線の枠で確定前の候補であることを示す。
 const PROVISIONAL_BAR_PROPS = { outline: "1.5px dashed rgba(255,255,255,0.9)", outlineOffset: "-3px" };
+// その日の最初と最後の端だけを丸め、勤務と勤務、勤務と休憩の境目は角を付けない。
+const WORK_BAR_RADIUS_PROPS = {
+  isolated: { borderRadius: "sm" },
+  start: { borderLeftRadius: "sm", borderRightRadius: "0" },
+  middle: { borderRadius: "0" },
+  end: { borderLeftRadius: "0", borderRightRadius: "sm" },
+} as const;
 
-/** スタッフ名。くわしく表示のときだけ、名前の下に熟練度・仮・合計の印を添える。 */
+/** 内訳の1項目。ポジションは色の丸と名前、休憩はバーと同じ斜線の四角と「休憩」を、時刻の前に置く。 */
+const DetailItem = ({ item, showsTime }: { item: SPDailyDetailItem; showsTime: boolean }) => (
+  <Flex align="center" gap="6px" minW={0}>
+    {item.kind === "position" ? (
+      <PositionMark segment={item} />
+    ) : (
+      <Flex as="span" align="center" gap="4px" textStyle="2xs" fontWeight={600} lineHeight={1.2}>
+        <Box
+          as="span"
+          boxSize="8px"
+          borderRadius="2px"
+          borderWidth="1px"
+          borderColor="gray.400"
+          flexShrink={0}
+          style={EXPLICIT_BREAK_STYLE}
+          aria-hidden
+        />
+        休憩
+      </Flex>
+    )}
+    {showsTime && (
+      <Box textStyle="2xs" color="gray.600" fontVariantNumeric="tabular-nums" flexShrink={0}>
+        {item.timeLabel}
+      </Box>
+    )}
+  </Flex>
+);
+
+/** スタッフ名。くわしく表示のときだけ、名前の下に熟練度と仮の印を添える。期間の合計は日別のカードでは出さない（その日の合計に見えるため）。 */
 const StaffNameBlock = ({
   staff,
   shift,
@@ -37,7 +72,7 @@ const StaffNameBlock = ({
   return (
     <Flex direction="column" gap="2px" flex={1} minW={0}>
       {children({})}
-      <StaffMeta staff={staff} shift={shift} />
+      <StaffMeta staff={staff} shift={shift} showTotal={false} />
     </Flex>
   );
 };
@@ -106,12 +141,18 @@ export const SPDailyCard = ({
 }: DailyCardProps) => {
   const detailMode = useAtomValue(detailModeAtom);
   const usesPositionColors = useAtomValue(usesPositionColorsAtom);
+  const paintsPositionColor = useAtomValue(paintsPositionColorAtom);
   const tone = resolveIssueTone(hasError, false);
   const emphasis = issueToneEmphasis(tone);
   const cardBorderPx = emphasis ? 2 : SP_CARD_BORDER_PX;
   const explicitBreakBars = detailMode ? viewModel.explicitBreakBars : [];
-  // バーの下に、ポジションの名前と休憩の時刻を文字で出す。色だけに頼らないようにする。
-  const showDetailLine = detailMode && viewModel.hasAssignment && (usesPositionColors || explicitBreakBars.length > 0);
+  // バーの下に、ポジションと休憩を左から右の順に、時刻つきの文字で出す。色だけに頼らないようにする。
+  // ポジションを塗り分けない店舗では、休憩だけを出す。
+  const detailItems = usesPositionColors
+    ? viewModel.detailItems
+    : viewModel.detailItems.filter((item) => item.kind === "break");
+  const hasBreakItem = detailItems.some((item) => item.kind === "break");
+  const showDetailLine = detailMode && viewModel.hasAssignment && detailItems.length > 0;
 
   return (
     <Box
@@ -203,8 +244,8 @@ export const SPDailyCard = ({
             left={`${bar.leftPercentage}%`}
             w={`${bar.widthPercentage}%`}
             bg="teal.500"
-            borderRadius="sm"
-            style={usesPositionColors ? { background: bar.color } : undefined}
+            {...WORK_BAR_RADIUS_PROPS[bar.edgeShape]}
+            style={paintsPositionColor ? { background: bar.color } : undefined}
             {...(detailMode && shift?.isProvisional ? PROVISIONAL_BAR_PROPS : undefined)}
           />
         ))}
@@ -234,18 +275,10 @@ export const SPDailyCard = ({
       </Box>
       {showDetailLine && (
         <Flex mt="6px" columnGap={3} rowGap="2px" flexWrap="wrap" align="center" color="gray.700">
-          {usesPositionColors &&
-            viewModel.workBars.map((bar) => (
-              <Flex key={bar.key} align="center" gap="6px" minW={0}>
-                <PositionMark segment={bar} />
-                {viewModel.workBars.length > 1 && (
-                  <Box textStyle="2xs" color="gray.600" fontVariantNumeric="tabular-nums" flexShrink={0}>
-                    {bar.timeLabel}
-                  </Box>
-                )}
-              </Flex>
-            ))}
-          <BreakMark shift={shift} />
+          {detailItems.map((item) => (
+            // ポジションが1つだけで休憩もない日は、時刻を右上の勤務時間と重ねて出さない。
+            <DetailItem key={item.key} item={item} showsTime={detailItems.length > 1 || hasBreakItem} />
+          ))}
         </Flex>
       )}
       {note && <ShiftDateNoteBlock note={note} />}
