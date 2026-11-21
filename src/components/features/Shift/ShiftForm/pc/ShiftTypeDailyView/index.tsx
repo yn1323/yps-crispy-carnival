@@ -1,76 +1,155 @@
 import { Box, chakra, Flex, Text } from "@chakra-ui/react";
 import { useAtomValue, useSetAtom } from "jotai";
-import type { ReactNode } from "react";
-import { useMemo } from "react";
-import type { ShiftTypeOptionLike } from "@/src/domains/shift/shiftTypeAssignments";
-import type { StaffType } from "@/src/domains/shift/types";
-import { Avatar, StaffWarningIcon } from "../../components";
-import { ShiftDateNoteText, ShiftStaffNoteIcon, useAllShiftDateNotes, useShiftDateNotes } from "../../dateNotes";
+import { useEffect, useMemo, useState } from "react";
+import { indexShiftsByStaffId } from "@/src/domains/shift/shiftLookup";
+import { AssignmentPill, FoldedStaffGroupToggle, PositionStaffingCount } from "../../assignmentCellParts";
+import { Avatar } from "../../components";
+import { ShiftStaffNoteIcon, useAllShiftDateNotes } from "../../dateNotes";
+import { StaffMeta } from "../../detailParts";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
-import type { ShiftTypeOptionColor } from "../../shiftTypeOptionStyles";
 import {
+  buildShiftTypeDailyPresentation,
+  buildShiftTypeStaffingPresentation,
+  type ShiftTypeDailyCellPresentation,
+  type ShiftTypeDailyOptionPresentation,
+  type ShiftTypeDailyRowPresentation,
+  type ShiftTypeStaffingPresentation,
+} from "../../shiftTypeDailyPresentation";
+import { useDayStaffingView } from "../../staffingParts";
+import {
+  assignShiftTypeAtom,
+  changeShiftTypePositionAtom,
   dailySortedStaffsAtom,
+  detailModeAtom,
+  isPositionSelectableAtom,
   issueCountByDateAtom,
+  removeShiftTypeAssignmentAtom,
+  restoreRememberedWorkPositionAtom,
   selectDateWithDailyStaffOrderAtom,
   selectedDateAtom,
   shiftConfigAtom,
   shiftsForSelectedDateAtom,
-  toggleShiftTypeAssignmentAtom,
+  usesPositionColorsAtom,
   warningCountByDateAtom,
-  warningMessagesByStaffIdForSelectedDateAtom,
 } from "../../stores";
 import { DateRail } from "../DailyView/DateRail";
 import { DayTitle } from "../DailyView/DayTitle";
-import {
-  buildShiftTypeDailyViewModel,
-  type ShiftTypeDailyAssignmentCellViewModel,
-  type ShiftTypeDailyRequestBadgeViewModel,
-  type ShiftTypeDailyRowViewModel,
-} from "./script";
+import { PositionMenuCell } from "../PositionMenuCell";
+
+const STAFF_COLUMN_WIDTH = 220;
+const OPTION_COLUMN_MIN_WIDTH = 140;
+// 割り当ての前後で行の高さを変えないよう、行の高さを決めておく。
+const ROW_HEIGHT = "52px";
 
 export const ShiftTypeDailyView = () => {
   const config = useAtomValue(shiftConfigAtom);
   const shiftsForDate = useAtomValue(shiftsForSelectedDateAtom);
-  const toggleAssignment = useSetAtom(toggleShiftTypeAssignmentAtom);
   const sortedStaffs = useAtomValue(dailySortedStaffsAtom);
   const selectedDate = useAtomValue(selectedDateAtom);
   const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const issueCounts = useAtomValue(issueCountByDateAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
-  const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
-  const dateNotes = useShiftDateNotes();
   const allDateNotes = useAllShiftDateNotes();
+  const detailMode = useAtomValue(detailModeAtom);
+  const usesPositionColors = useAtomValue(usesPositionColorsAtom);
+  const isPositionSelectable = useAtomValue(isPositionSelectableAtom);
+  const assign = useSetAtom(assignShiftTypeAtom);
+  const changePosition = useSetAtom(changeShiftTypePositionAtom);
+  const removeAssignment = useSetAtom(removeShiftTypeAssignmentAtom);
+  // くわしく表示のときだけ値を持つ。シンプル表示、定休日、スタッフ向けの確定シフトではnullになる。
+  const staffingView = useDayStaffingView(selectedDate);
 
-  const { dates, holidays, isReadOnly, submissionPattern } = config;
+  const { dates, holidays, isReadOnly, submissionPattern, shopId, positions } = config;
   const isConfirmedDisplay = config.displayMode === "confirmed";
-  const viewModel = useMemo(
+  const isShopClosedDate = holidays.includes(selectedDate);
+
+  // 前にこの店舗で最後に選んだポジションを、次に入れるポジションへ戻す。店舗とポジションが読み込まれてから行う。
+  const restoreRememberedWorkPosition = useSetAtom(restoreRememberedWorkPositionAtom);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 店舗かポジションが変わったときに戻し直すため、値の変化を見る。
+  useEffect(() => {
+    restoreRememberedWorkPosition();
+  }, [restoreRememberedWorkPosition, shopId, positions]);
+  useLockedDailyStaffOrder(selectedDate);
+
+  const presentation = useMemo(
     () =>
-      buildShiftTypeDailyViewModel({
+      buildShiftTypeDailyPresentation({
         submissionPattern,
         shifts: shiftsForDate,
         staffs: sortedStaffs,
-        selectedDate,
-        holidays,
+        shiftByStaffId: indexShiftsByStaffId(shiftsForDate),
         isConfirmedDisplay,
-        warningMessagesByStaffId,
-        hasDateNotes: dateNotes.hasNotes,
+        usesPositionColors,
       }),
-    [
-      dateNotes.hasNotes,
-      holidays,
-      isConfirmedDisplay,
-      selectedDate,
-      shiftsForDate,
-      sortedStaffs,
-      submissionPattern,
-      warningMessagesByStaffId,
-    ],
+    [isConfirmedDisplay, shiftsForDate, sortedStaffs, submissionPattern, usesPositionColors],
   );
-  useLockedDailyStaffOrder(selectedDate);
+  const staffing = useMemo(
+    () =>
+      staffingView
+        ? buildShiftTypeStaffingPresentation(
+            staffingView,
+            presentation.options.map(({ option }) => option),
+          )
+        : null,
+    [presentation.options, staffingView],
+  );
+  // 充足率は、必要人数が1つでもある日にだけ出す。
+  const fulfillment =
+    staffing && staffing.percent !== null ? { percent: staffing.percent, isFulfilled: staffing.isFulfilled } : null;
+  // テンプレートの選択は、必要人数のない日でも、店舗にテンプレートがあれば出す。その日にテンプレートを当てられるようにするためである。
+  const showsTemplate =
+    staffingView !== null && (staffingView.hasRequirements || (config.staffing?.templates.length ?? 0) > 0);
 
-  const handleToggle = (staff: StaffType, option: ShiftTypeOptionLike) => {
-    toggleAssignment({ staff, date: selectedDate, option });
+  // 休み希望のまとまりは、日付を変えるたびに閉じた状態へ戻す。
+  const [openRestDate, setOpenRestDate] = useState<string | null>(null);
+  const isRestOpen = openRestDate === selectedDate;
+
+  const renderCell = (row: ShiftTypeDailyRowPresentation, cell: ShiftTypeDailyCellPresentation) => {
+    if (isReadOnly) return <AssignmentPill cell={cell} size="pc" isInteractive={false} showsNoticeTooltip />;
+    if (!cell.assigned) {
+      return (
+        <AssignmentPill
+          cell={cell}
+          size="pc"
+          isInteractive
+          showsNoticeTooltip
+          onClick={() => assign({ staff: row.staff, date: selectedDate, option: cell.option })}
+        />
+      );
+    }
+    const remove = () => removeAssignment({ staffId: row.staff.id, date: selectedDate, optionId: cell.option.id });
+    // ポジションを選び分けない表示（シンプル表示、ポジションが1つ以下の店舗）では、押すたびに付け外しする。
+    if (!isPositionSelectable) {
+      return <AssignmentPill cell={cell} size="pc" isInteractive showsNoticeTooltip onClick={remove} />;
+    }
+    return (
+      <PositionMenuCell
+        cell={cell}
+        size="pc"
+        positions={positions}
+        onChangePosition={(positionId) =>
+          changePosition({ staff: row.staff, date: selectedDate, option: cell.option, positionId })
+        }
+        onRemove={remove}
+      />
+    );
   };
+
+  const renderRow = (row: ShiftTypeDailyRowPresentation) => (
+    <Box as="tr" key={row.key} h={ROW_HEIGHT} borderTopWidth="1px" borderColor="gray.100">
+      <StaffCell
+        row={row}
+        note={allDateNotes.getNote(row.staff.id, selectedDate)}
+        date={selectedDate}
+        detailMode={detailMode}
+      />
+      {row.cells.map((cell) => (
+        <Box as="td" key={cell.key} px={2} py={0}>
+          <Flex justify="center">{renderCell(row, cell)}</Flex>
+        </Box>
+      ))}
+    </Box>
+  );
 
   return (
     <Flex flex={1} minH={0} overflow="hidden">
@@ -83,8 +162,15 @@ export const ShiftTypeDailyView = () => {
         warningCounts={warningCounts}
       />
       <Flex direction="column" minW={0} minH={0} flex={1} overflow="hidden">
-        <DayTitle date={selectedDate} holidays={holidays} />
-        {viewModel.isShopClosedDate ? (
+        <DayTitle
+          date={selectedDate}
+          holidays={holidays}
+          positionControl="legend"
+          showsTemplate={showsTemplate}
+          templateLabel="必要人数"
+          fulfillment={fulfillment}
+        />
+        {isShopClosedDate ? (
           <Flex flex={1} minH={0} bg="gray.50" align="center" justify="center" direction="column" gap={2} px={6}>
             <Text fontSize="md" fontWeight="bold" color="gray.700">
               定休日
@@ -95,69 +181,45 @@ export const ShiftTypeDailyView = () => {
           </Flex>
         ) : (
           <Box flex={1} minH={0} overflow="auto" bg="gray.50">
-            <Box minW={`${viewModel.minimumTableWidth}px`} bg="white" overflow="hidden">
+            {/* 見出しの行を上端に留めるため、内側で切り取らない。 */}
+            <Box minW={`${STAFF_COLUMN_WIDTH + presentation.options.length * OPTION_COLUMN_MIN_WIDTH}px`} bg="white">
               <Box as="table" w="100%" style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>
                 <Box as="colgroup">
-                  <Box as="col" style={{ width: viewModel.columnWidths.staff }} />
-                  <Box as="col" style={{ width: viewModel.columnWidths.request }} />
-                  {viewModel.columnWidths.note !== null && (
-                    <Box as="col" style={{ width: viewModel.columnWidths.note }} />
-                  )}
-                  {viewModel.optionColumns.map((option) => (
-                    <Box as="col" key={option.key} style={{ width: viewModel.columnWidths.option }} />
+                  <Box as="col" style={{ width: STAFF_COLUMN_WIDTH }} />
+                  {/* 勤務パターンの列は幅を決めず、残りの横幅を等分する。 */}
+                  {presentation.options.map((option) => (
+                    <Box as="col" key={option.key} />
                   ))}
                 </Box>
-                <Box as="thead">
-                  <Box as="tr" bg="gray.50">
-                    {/* 人数の行には勤務パターンごとの人数だけを置き、左の見出しは2行分を結合する。 */}
-                    <HeaderCell rowSpan={2}>スタッフ</HeaderCell>
-                    <HeaderCell rowSpan={2}>{viewModel.requestHeaderLabel}</HeaderCell>
-                    {dateNotes.hasNotes && <HeaderCell rowSpan={2}>連絡事項</HeaderCell>}
-                    {viewModel.optionColumns.map((option) => (
-                      <HeaderCell key={option.key} optionColor={option.color}>
-                        <Box fontWeight={700}>{option.name}</Box>
-                        <Box textStyle="2xs" color={option.color.accent} mt="2px" fontVariantNumeric="tabular-nums">
-                          {option.timeLabel}
-                        </Box>
-                      </HeaderCell>
-                    ))}
-                  </Box>
+                <Box as="thead" position="sticky" top={0} zIndex={3} bg="white" boxShadow="0 1px 0 #e5e7eb">
                   <Box as="tr">
-                    {viewModel.optionColumns.map((option) => (
-                      <HeaderCell key={option.key} optionColor={option.color} tone="count">
-                        <Text color={option.color.accent} fontWeight={700}>
-                          {option.countLabel}
-                        </Text>
-                      </HeaderCell>
+                    <chakra.th px={4} py={2} textAlign="left" verticalAlign="bottom" textStyle="xs" fontWeight={600}>
+                      <Text color="gray.600">スタッフ</Text>
+                    </chakra.th>
+                    {presentation.options.map((option) => (
+                      <OptionHeader
+                        key={option.key}
+                        option={option}
+                        staffing={staffing}
+                        showsDot={usesPositionColors}
+                      />
                     ))}
                   </Box>
                 </Box>
                 <Box as="tbody">
-                  {viewModel.rows.map((row) => (
-                    <Box as="tr" key={row.key} borderTopWidth="1px" borderColor="gray.100">
-                      <StaffCell
-                        row={row}
-                        note={allDateNotes.getNote(row.staff.id, selectedDate)}
-                        date={selectedDate}
-                      />
-                      <RequestCell badges={row.requestBadges} />
-                      {dateNotes.hasNotes && (
-                        <NoteCell
-                          note={dateNotes.getNote(row.staff.id, selectedDate)}
-                          staffName={row.staffName}
-                          date={selectedDate}
+                  {presentation.rows.map(renderRow)}
+                  {presentation.restGroup && (
+                    <Box as="tr" borderTopWidth="1px" borderColor="gray.100">
+                      <chakra.td colSpan={presentation.options.length + 1} p={0}>
+                        <FoldedStaffGroupToggle
+                          group={presentation.restGroup}
+                          isOpen={isRestOpen}
+                          onToggle={() => setOpenRestDate(isRestOpen ? null : selectedDate)}
                         />
-                      )}
-                      {row.cells.map((cell) => (
-                        <ShiftTypeCell
-                          key={cell.key}
-                          cell={cell}
-                          isReadOnly={isReadOnly}
-                          onToggle={() => handleToggle(row.staff, cell.option)}
-                        />
-                      ))}
+                      </chakra.td>
                     </Box>
-                  ))}
+                  )}
+                  {isRestOpen && presentation.restGroup?.rows.map(renderRow)}
                 </Box>
               </Box>
             </Box>
@@ -168,149 +230,73 @@ export const ShiftTypeDailyView = () => {
   );
 };
 
-const HeaderCell = ({
-  children,
-  optionColor,
-  tone = "header",
-  rowSpan,
+/**
+ * 勤務パターンの見出し。名前と時間の下に、シンプル表示では人数、くわしく表示ではポジションごとの「配置/必要」を出す。
+ * 列ごとの色は付けない。色は、ポジションと、足りない・多いの状態だけに使う。
+ */
+const OptionHeader = ({
+  option,
+  staffing,
+  showsDot,
 }: {
-  children?: ReactNode;
-  optionColor?: ShiftTypeOptionColor;
-  tone?: "header" | "count";
-  rowSpan?: number;
-}) => (
-  <chakra.th
-    rowSpan={rowSpan}
-    px={4}
-    py={2}
-    textAlign="center"
-    borderRightWidth="1px"
-    borderColor="gray.200"
-    bg={optionColor ? (tone === "count" ? optionColor.countBg : optionColor.headerBg) : undefined}
-    color={optionColor ? optionColor.accent : "gray.800"}
-    textStyle="xs"
-    fontWeight={600}
-    _last={{ borderRightWidth: 0 }}
-  >
-    {children}
-  </chakra.th>
-);
+  option: ShiftTypeDailyOptionPresentation;
+  staffing: ShiftTypeStaffingPresentation | null;
+  /** 色の丸を出すか。ポジションを塗り分けない表示では、凡例がないため出さない。 */
+  showsDot: boolean;
+}) => {
+  // 文字を持たないポジションも、同じ幅の空きとして並べる。1人目が入っても、ほかの分数の位置を動かさないためである。
+  const counts = staffing?.countsByOptionId.get(option.key) ?? [];
+  return (
+    <chakra.th px={2} py={2} textAlign="center" verticalAlign="top" fontWeight={600}>
+      <Box textStyle="sm" fontWeight={700} color="gray.800">
+        {option.name}
+      </Box>
+      <Box textStyle="xs" color="gray.600" mt="2px" fontVariantNumeric="tabular-nums">
+        {option.timeLabel}
+      </Box>
+      {staffing ? (
+        // 出すポジションがない勤務パターンでも、行の高さを残して見出しの高さをそろえる。
+        <Flex mt={1} minH="22px" align="center" justify="center" columnGap={3} rowGap={1} flexWrap="wrap">
+          {counts.map((count) => (
+            <PositionStaffingCount key={count.positionId} count={count} showsDot={showsDot} />
+          ))}
+        </Flex>
+      ) : (
+        <Box mt={1} textStyle="xs" fontWeight={700} color="gray.700" fontVariantNumeric="tabular-nums">
+          {option.countLabel}
+        </Box>
+      )}
+    </chakra.th>
+  );
+};
 
-const StaffCell = ({ row, note, date }: { row: ShiftTypeDailyRowViewModel; note?: string; date: string }) => (
-  <Box as="td" px={4} py={2} borderRightWidth="1px" borderColor="gray.100">
+const StaffCell = ({
+  row,
+  note,
+  date,
+  detailMode,
+}: {
+  row: ShiftTypeDailyRowPresentation;
+  note?: string;
+  date: string;
+  detailMode: boolean;
+}) => (
+  <Box as="td" px={4} py={0}>
     <Flex align="center" gap={3} minW={0}>
       <Avatar staff={row.staff} size={24} />
-      <Text textStyle="sm" fontWeight={500} color={row.isStaffNameMuted ? "gray.500" : "gray.800"} flex={1} truncate>
-        {row.staffName}
-      </Text>
-      <StaffWarningIcon messages={row.warningMessages} />
-      {note && <ShiftStaffNoteIcon notes={[{ date, note }]} />}
+      <Flex direction="column" justify="center" gap="2px" flex={1} minW={0}>
+        <Text textStyle="sm" fontWeight={500} color={row.isNameMuted ? "gray.500" : "gray.800"} truncate>
+          {row.staffName}
+        </Text>
+        {/* 仮の勤務は、名前の下の「仮」だけで示す。点線は希望の輪に使うためである。 */}
+        {detailMode && <StaffMeta staff={row.staff} shift={row.shift} showTotal={false} />}
+      </Flex>
+      {row.isUnsubmitted && (
+        <Text textStyle="2xs" fontWeight={600} flexShrink={0} style={{ color: "#b45309" }}>
+          未提出
+        </Text>
+      )}
+      {note && <ShiftStaffNoteIcon notes={[{ date, note }]} hasNoteColumn={false} />}
     </Flex>
-  </Box>
-);
-
-const RequestCell = ({ badges }: { badges: ShiftTypeDailyRequestBadgeViewModel[] }) => (
-  <Box as="td" px={4} py={2} borderRightWidth="1px" borderColor="gray.100">
-    <Flex align="center" gap={1} minW={0} wrap="wrap">
-      {badges.map((badge) => (
-        <RequestBadge key={badge.key} bg={badge.bg} color={badge.color}>
-          {badge.label}
-        </RequestBadge>
-      ))}
-    </Flex>
-  </Box>
-);
-
-/** 時間指定の日別表示のメモ列と同じく、上下の余白を詰めて2行まで表示する。 */
-const NoteCell = ({ note, staffName, date }: { note?: string; staffName: string; date: string }) => (
-  <Box as="td" px={3} py="4px" borderRightWidth="1px" borderColor="gray.100">
-    {note && <ShiftDateNoteText staffName={staffName} date={date} note={note} lineClamp={2} />}
-  </Box>
-);
-
-const RequestBadge = ({ bg, color, children }: { bg: string; color: string; children: ReactNode }) => (
-  <Box
-    flexShrink={0}
-    px={2}
-    py="2px"
-    borderRadius="full"
-    textStyle="2xs"
-    fontWeight={600}
-    style={{ color, background: bg }}
-  >
-    {children}
-  </Box>
-);
-
-const ShiftTypeCell = ({
-  cell,
-  isReadOnly,
-  onToggle,
-}: {
-  cell: ShiftTypeDailyAssignmentCellViewModel;
-  isReadOnly: boolean;
-  onToggle: () => void;
-}) => (
-  <Box as="td" p={0} borderRightWidth="1px" borderColor="gray.100" _last={{ borderRightWidth: 0 }}>
-    <Box
-      as="button"
-      aria-label={cell.ariaLabel}
-      aria-disabled={isReadOnly}
-      onClick={isReadOnly ? undefined : onToggle}
-      w="calc(100% - 8px)"
-      minH="32px"
-      m="4px"
-      display="flex"
-      alignItems="center"
-      justifyContent="center"
-      bg={cell.assigned ? cell.color.assignedBg : "white"}
-      borderWidth="1px"
-      borderColor={cell.assigned ? cell.color.accent : "gray.200"}
-      borderRadius="md"
-      color={cell.assigned ? cell.color.accent : "gray.400"}
-      fontSize="xl"
-      fontWeight={cell.assigned ? 700 : 500}
-      cursor={isReadOnly ? "default" : "pointer"}
-      position="relative"
-      isolation="isolate"
-      overflow="hidden"
-      transitionProperty="colors"
-      transitionDuration="faster"
-      _before={
-        cell.assigned
-          ? {
-              content: '""',
-              position: "absolute",
-              inset: 0,
-              zIndex: -1,
-              borderRadius: "inherit",
-              bg: "blackAlpha.200",
-              opacity: 0,
-              pointerEvents: "none",
-              transitionProperty: "opacity",
-              transitionDuration: "faster",
-            }
-          : undefined
-      }
-      _hover={
-        isReadOnly
-          ? undefined
-          : {
-              bg: cell.assigned ? cell.color.headerBg : "gray.50",
-              borderColor: cell.assigned ? cell.color.accent : "gray.400",
-              color: cell.assigned ? cell.color.accent : "gray.500",
-            }
-      }
-      _active={
-        isReadOnly
-          ? undefined
-          : cell.assigned
-            ? { _before: { opacity: 1, transitionDuration: "0ms" } }
-            : { bg: "gray.100", transitionDuration: "0ms" }
-      }
-      _focusVisible={{ outline: "2px solid", outlineColor: cell.color.accent, outlineOffset: "1px" }}
-    >
-      {cell.symbol}
-    </Box>
   </Box>
 );

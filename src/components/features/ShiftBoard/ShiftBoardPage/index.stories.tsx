@@ -10,7 +10,7 @@ import {
 import { Button } from "@/src/components/ui/Button";
 import { Toaster, toaster } from "@/src/components/ui/toaster";
 import { ManagerShopScopeProvider } from "@/src/providers/ManagerShopScopeProvider";
-import type { ShiftBoardData } from "../types";
+import type { ShiftBoardData, ShiftBoardStaffingData } from "../types";
 import { ShiftBoardPage } from "./index";
 
 const mockData: ShiftBoardData = {
@@ -80,7 +80,7 @@ const mockData: ShiftBoardData = {
   ],
   requestedDates: [],
   shiftAssignments: [],
-  positions: [{ _id: "position-1" as Id<"positions">, name: "シフト", color: "#3b82f6", isDefault: true }],
+  positions: [{ _id: "position-1" as Id<"positions">, name: "シフト", color: "#60a5fa", isDefault: true }],
   timeRange: { start: 9, end: 22, unit: 30 },
 };
 
@@ -200,6 +200,78 @@ export const PCWithInitialWarnings: Story = {
   },
 };
 
+// 見習いの鈴木さんが10:00〜18:00、一人前の佐藤さんが11:00〜14:00に入る。佐藤さんがいない時間は見習いだけになる。
+// 過去の募集は確定できないため、先の日付にする。2099-01-21は水曜日。
+const newcomerOnlyData: ShiftBoardData = {
+  ...mockData,
+  recruitment: {
+    ...mockData.recruitment,
+    periodStart: "2099-01-20",
+    periodEnd: "2099-01-26",
+    deadline: "2099-01-17",
+  },
+  staffs: mockData.staffs.slice(0, 2),
+  requestedSlots: [
+    { staffId: "s1" as Id<"staffs">, date: "2099-01-21", startTime: "10:00", endTime: "18:00" },
+    { staffId: "s2" as Id<"staffs">, date: "2099-01-21", startTime: "11:00", endTime: "14:00" },
+  ],
+  shiftAssignments: [
+    {
+      staffId: "s1" as Id<"staffs">,
+      date: "2099-01-21",
+      startTime: "10:00",
+      endTime: "18:00",
+      positionId: "position-1" as Id<"positions">,
+    },
+    {
+      staffId: "s2" as Id<"staffs">,
+      date: "2099-01-21",
+      startTime: "11:00",
+      endTime: "14:00",
+      positionId: "position-1" as Id<"positions">,
+    },
+  ],
+};
+const newcomerOnlyStaffing: ShiftBoardStaffingData = {
+  breakRule: null,
+  staffProfiles: [
+    {
+      staffId: "s1" as Id<"staffs">,
+      positionSkills: [{ positionId: "position-1" as Id<"positions">, level: "newcomer" }],
+    },
+  ],
+  hasPreviousConfirmedRecruitment: false,
+  isLocked: false,
+  templates: [],
+  days: [],
+};
+
+/** 確定の前の確認に、見習いだけの時間帯が、日と時間帯の単位で出る。確定は止めない。 */
+export const PCNewcomerOnlyConfirm: Story = {
+  name: "PC Newcomer Only Confirm",
+  args: {
+    data: newcomerOnlyData,
+    staffing: newcomerOnlyStaffing,
+  },
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const screen = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(await canvas.findByRole("button", { name: "確定" }));
+
+    const dialog = within(await screen.findByRole("dialog", { name: "シフトを確定しますか？" }));
+    const list = await dialog.findByRole("list", { name: "見習いだけの時間帯" });
+    // ポジションが1つの店舗では、ポジション名を省く。
+    await expect(
+      within(list)
+        .getAllByRole("listitem")
+        .map((item) => item.textContent),
+    ).toEqual(["1/21(水) 10:00〜11:00", "1/21(水) 14:00〜18:00"]);
+    await expect(dialog.getByRole("button", { name: "確定する" })).toBeEnabled();
+  },
+};
+
 export const ConfirmedWithInitialWarningsHidden: Story = {
   name: "Confirmed With Initial Warnings Hidden",
   args: {
@@ -284,8 +356,50 @@ export const AppOrganizationScopedDesktop: Story = {
     const saveButton = await canvas.findByRole("button", { name: "下書き保存" });
 
     await expect(exportButton).toBeEnabled();
-    await expect(exportButton.nextElementSibling).toBe(saveButton);
+    // 下書き保存のすぐ右に、PDF・Excelを置く。
+    await expect(saveButton.nextElementSibling).toBe(exportButton);
     await expect(within(exportButton).getByText("PDF・Excel")).toBeVisible();
+  },
+};
+
+/**
+ * 下書きを保存した募集で「表示設定」から表示を切り替えようとすると、下書きを削除する前の確認が出る。
+ * キャンセルすると、確認を閉じて、いまの表示のまま残る。
+ */
+export const DetailModeSwitchConfirm: Story = {
+  name: "Detail Mode Switch Confirm",
+  args: { data: mockDataWithInitialWarnings },
+  parameters: { vrt: { releaseFixedHeader: true } },
+  render: renderAppShiftBoard,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const screen = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(await canvas.findByRole("button", { name: "表示設定" }));
+    await userEvent.click(await screen.findByRole("menuitemradio", { name: "くわしく" }));
+
+    // 開くアニメーションが終わるまで待つ。
+    const dialog = await screen.findByRole("alertdialog", { name: "表示を切り替えますか？" });
+    await waitFor(() => expect(dialog).toBeVisible());
+  },
+};
+
+export const DetailModeSwitchCancelBehavior: Story = {
+  ...DetailModeSwitchConfirm,
+  name: "Behavior: 表示の切り替えの確認をキャンセルすると、いまの表示のまま残る",
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const screen = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await canvas.findByRole("button", { name: "表示設定" }));
+    await userEvent.click(await screen.findByRole("menuitemradio", { name: "くわしく" }));
+    const dialog = await screen.findByRole("alertdialog", { name: "表示を切り替えますか？" });
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "キャンセル" }));
+
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    // シンプルのままなので、くわしく表示の「入れるもの」は出ない。
+    await expect(canvas.queryByRole("radiogroup", { name: "入れるもの" })).not.toBeInTheDocument();
   },
 };
 
@@ -452,6 +566,8 @@ export const DynamicReadOnlyTransition: Story = {
     const canvas = within(canvasElement);
     const screen = within(canvasElement.ownerDocument.body);
 
+    // 希望のない鈴木さんは「希望なし」にたたまれているため、開いてから入れる。
+    await userEvent.click(await canvas.findByRole("button", { name: /^希望なし \d+人/ }));
     const userDraftCell = await canvas.findByRole("button", { name: /鈴木太郎 1\/20.*勤務なし/ });
     await userEvent.click(userDraftCell);
     await expect(await canvas.findByRole("button", { name: /鈴木太郎 1\/20.*勤務あり/ })).toBeInTheDocument();
@@ -460,13 +576,15 @@ export const DynamicReadOnlyTransition: Story = {
     await expect(canvas.getByRole("button", { name: /鈴木太郎 1\/20.*勤務あり/ })).toBeInTheDocument();
     await expect(canvas.getByRole("button", { name: /佐藤花子 1\/20.*勤務なし/ })).toBeInTheDocument();
 
-    await userEvent.click(canvas.getByRole("button", { name: "シフトを確定して通知" }));
+    await userEvent.click(canvas.getByRole("button", { name: "確定" }));
     await expect(await screen.findByRole("dialog")).toBeInTheDocument();
 
     // modal表示中の外部状態更新を再現するため、DOM eventを直接発火する。
     canvas.getByRole("button", { name: "閲覧のみに切り替える", hidden: true }).click();
 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    // 閲覧のみへ切り替わると、入れた勤務は破棄され、鈴木さんは「希望なし」へ戻る。開いて、押せないことを確かめる。
+    await userEvent.click(await canvas.findByRole("button", { name: /^希望なし \d+人/ }));
     await expect(await canvas.findByRole("button", { name: /鈴木太郎 1\/20.*勤務なし/ })).toHaveAttribute(
       "aria-disabled",
       "true",
@@ -486,6 +604,7 @@ export const DynamicReadOnlyClearsNavigationBlocker: Story = {
     const canvas = within(canvasElement);
     const screen = within(canvasElement.ownerDocument.body);
 
+    await userEvent.click(await canvas.findByRole("button", { name: /^希望なし \d+人/ }));
     await userEvent.click(await canvas.findByRole("button", { name: /鈴木太郎 1\/20.*勤務なし/ }));
     await userEvent.click(canvas.getByRole("link", { name: "戻る" }));
     await expect(await screen.findByRole("alertdialog", { name: "保存していない変更があります" })).toBeInTheDocument();
@@ -493,6 +612,7 @@ export const DynamicReadOnlyClearsNavigationBlocker: Story = {
     canvas.getByRole("button", { name: "閲覧のみに切り替える", hidden: true }).click();
 
     await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    await userEvent.click(await canvas.findByRole("button", { name: /^希望なし \d+人/ }));
     await expect(await canvas.findByRole("button", { name: /鈴木太郎 1\/20.*勤務なし/ })).toHaveAttribute(
       "aria-disabled",
       "true",

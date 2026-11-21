@@ -1,4 +1,5 @@
 import type { Id } from "@/convex/_generated/dataModel";
+import { mergeBreaks } from "@/src/domains/shift/breaks";
 import { canonicalizeTimeAssignments } from "@/src/domains/shift/buildAssignments";
 import { DEFAULT_POSITION } from "@/src/domains/shift/constants";
 import { resolveDisplayShiftLine } from "@/src/domains/shift/resolveDisplayShiftLine";
@@ -48,8 +49,17 @@ const getShiftTypeOptionIdForRange = (
   return options.find((option) => option.startTime === request.startTime && option.endTime === request.endTime)?.id;
 };
 
-/** ConvexデータをShiftForm用の表示データへ決定的に変換する。 */
-export const buildShiftData = (data: ShiftBoardData, staffs: StaffType[], dates: string[]): ShiftData[] => {
+/**
+ * ConvexデータをShiftForm用の表示データへ決定的に変換する。
+ * `createsRequestCandidates`がfalseのときは、希望から勤務の候補を作らず、希望は点線の枠だけで示す。
+ */
+export const buildShiftData = (
+  data: ShiftBoardData,
+  staffs: StaffType[],
+  dates: string[],
+  options: { createsRequestCandidates?: boolean } = {},
+): ShiftData[] => {
+  const createsRequestCandidates = options.createsRequestCandidates ?? true;
   const shopClosedDateSet = new Set(data.recruitment.shopClosedDates);
   const positions = data.positions;
   const defaultPosition = positions.find((position) => position.isDefault);
@@ -80,7 +90,14 @@ export const buildShiftData = (data: ShiftBoardData, staffs: StaffType[], dates:
 
   const assignmentMap = new Map<
     string,
-    Array<{ startTime: string; endTime: string; positionId: Id<"positions">; optionId: string | null }>
+    Array<{
+      startTime: string;
+      endTime: string;
+      positionId: Id<"positions">;
+      optionId: string | null;
+      breaks: ShiftTimeRange[];
+      isProvisional: boolean;
+    }>
   >();
   const displayAssignments =
     data.submissionPattern.kind === "time"
@@ -94,6 +111,12 @@ export const buildShiftData = (data: ShiftBoardData, staffs: StaffType[], dates:
       endTime: assignment.endTime,
       positionId: assignment.positionId,
       optionId: assignment.optionId ?? null,
+      // 休憩を扱うのは時間指定だけである。パターン選択と日付選択は、保存済みの休憩が残っていても、画面へ読み込まない。
+      breaks:
+        data.submissionPattern.kind === "time"
+          ? (assignment.breaks ?? []).map((item) => ({ start: item.startTime, end: item.endTime }))
+          : [],
+      isProvisional: assignment.isProvisional === true,
     });
     assignmentMap.set(key, assignments);
   }
@@ -166,45 +189,48 @@ export const buildShiftData = (data: ShiftBoardData, staffs: StaffType[], dates:
                 shiftTypeOptionId,
               };
             })
-          : isShiftTypePattern && displayLine.type === "request" && requests.length > 0
-            ? requests.flatMap((request, index) => {
-                const shiftTypeOptionId = getShiftTypeOptionIdForRange(request, shiftTypeOptions);
-                if (!shiftTypeOptionId) return [];
-                return [
-                  {
+          : !createsRequestCandidates
+            ? []
+            : isShiftTypePattern && displayLine.type === "request" && requests.length > 0
+              ? requests.flatMap((request, index) => {
+                  const shiftTypeOptionId = getShiftTypeOptionIdForRange(request, shiftTypeOptions);
+                  if (!shiftTypeOptionId) return [];
+                  return [
+                    {
+                      id: `seg-${staff.id}-${date}-${index}`,
+                      positionId: fallbackPosition.id,
+                      positionName: fallbackPosition.name,
+                      color: fallbackPosition.color,
+                      start: request.startTime,
+                      end: request.endTime,
+                      shiftTypeOptionId,
+                    },
+                  ];
+                })
+              : !isShiftTypePattern && displayLine.type === "request" && requests.length > 0
+                ? requests.map((request, index) => ({
                     id: `seg-${staff.id}-${date}-${index}`,
                     positionId: fallbackPosition.id,
                     positionName: fallbackPosition.name,
                     color: fallbackPosition.color,
                     start: request.startTime,
                     end: request.endTime,
-                    shiftTypeOptionId,
-                  },
-                ];
-              })
-            : !isShiftTypePattern && displayLine.type === "request" && requests.length > 0
-              ? requests.map((request, index) => ({
-                  id: `seg-${staff.id}-${date}-${index}`,
-                  positionId: fallbackPosition.id,
-                  positionName: fallbackPosition.name,
-                  color: fallbackPosition.color,
-                  start: request.startTime,
-                  end: request.endTime,
-                }))
-              : !isShiftTypePattern && displayLine.type !== "none"
-                ? [
-                    {
-                      id: `seg-${staff.id}-${date}`,
-                      positionId: fallbackPosition.id,
-                      positionName: fallbackPosition.name,
-                      color: fallbackPosition.color,
-                      start: displayLine.start,
-                      end: displayLine.end,
-                    },
-                  ]
-                : [];
+                  }))
+                : !isShiftTypePattern && displayLine.type !== "none"
+                  ? [
+                      {
+                        id: `seg-${staff.id}-${date}`,
+                        positionId: fallbackPosition.id,
+                        positionName: fallbackPosition.name,
+                        color: fallbackPosition.color,
+                        start: displayLine.start,
+                        end: displayLine.end,
+                      },
+                    ]
+                  : [];
 
-      shifts.push({
+      const savedBreaks = mergeBreaks(assignments.flatMap((assignment) => assignment.breaks));
+      const shift: ShiftData = {
         id: `shift-${staff.id}-${date}`,
         staffId: staff.id,
         staffName: staff.name,
@@ -213,7 +239,12 @@ export const buildShiftData = (data: ShiftBoardData, staffs: StaffType[], dates:
         requestedTimes,
         requestedShiftTypeOptionIds,
         positions: positionSegments,
-      });
+        ...(savedBreaks.length > 0 ? { breaks: savedBreaks } : {}),
+        ...(assignments.length > 0 && assignments.every((assignment) => assignment.isProvisional)
+          ? { isProvisional: true }
+          : {}),
+      };
+      shifts.push(shift);
     }
   }
 

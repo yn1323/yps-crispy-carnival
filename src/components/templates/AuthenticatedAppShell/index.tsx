@@ -9,11 +9,18 @@ import {
 } from "@/src/components/features/AuthenticatedApp/AppPrimaryNavigation";
 import { AppFeatureRequestAction, type AppFeatureRequestScope } from "@/src/components/features/FeatureRequestDialog";
 import { AUTHENTICATED_APP_HEADER_HEIGHT, Header } from "@/src/components/templates/Header";
+import { AppHeaderVisibilityProvider, useAppHeaderVisibility } from "@/src/providers/AppHeaderVisibilityProvider";
 
 export const AUTHENTICATED_APP_CONTENT_HEIGHT = {
   base: `calc(100dvh - ${AUTHENTICATED_APP_HEADER_HEIGHT.base} - ${MOBILE_APP_NAVIGATION_HEIGHT} - env(safe-area-inset-bottom))`,
   md: `calc(100dvh - ${AUTHENTICATED_APP_HEADER_HEIGHT.md} - ${MOBILE_APP_NAVIGATION_HEIGHT} - env(safe-area-inset-bottom))`,
   lg: `calc(100dvh - ${AUTHENTICATED_APP_HEADER_HEIGHT.md})`,
+} as const;
+
+/** スマートフォンの下部メニューが覆う、画面の下端からの高さ。下端に留める操作は、この分だけ上へ置く。 */
+export const AUTHENTICATED_APP_BOTTOM_INSET = {
+  base: `calc(${MOBILE_APP_NAVIGATION_HEIGHT} + env(safe-area-inset-bottom))`,
+  lg: "0px",
 } as const;
 
 const UserMenu = lazy(() =>
@@ -32,7 +39,16 @@ type Props = {
   children: ReactNode;
 };
 
-export function AuthenticatedAppShell({
+export function AuthenticatedAppShell(props: Props) {
+  return (
+    // 画面の内側でスクロールする画面が、ヘッダーを隠す・表示するを伝えられるようにする。
+    <AppHeaderVisibilityProvider>
+      <AuthenticatedAppShellContent {...props} />
+    </AppHeaderVisibilityProvider>
+  );
+}
+
+function AuthenticatedAppShellContent({
   activeKey,
   activeOrganizationId,
   showPrimaryNavigation = true,
@@ -40,9 +56,11 @@ export function AuthenticatedAppShell({
   featureRequest,
   children,
 }: Props) {
+  const { isHiddenByContent } = useAppHeaderVisibility();
   return (
     <Box w="full" minH="100dvh" bg="gray.50">
       <Header
+        hidden={isHiddenByContent}
         brandTo="/dashboard"
         brandSearch={activeOrganizationId ? { org: activeOrganizationId } : undefined}
         brandAriaLabel="ホームへ"
@@ -63,11 +81,7 @@ export function AuthenticatedAppShell({
       />
       <Box
         pt={AUTHENTICATED_APP_HEADER_HEIGHT}
-        pb={
-          showPrimaryNavigation
-            ? { base: `calc(${MOBILE_APP_NAVIGATION_HEIGHT} + env(safe-area-inset-bottom))`, lg: 0 }
-            : 0
-        }
+        pb={showPrimaryNavigation ? AUTHENTICATED_APP_BOTTOM_INSET : 0}
         minH="100dvh"
       >
         {children}

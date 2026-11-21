@@ -1,10 +1,13 @@
 import { Box, Flex } from "@chakra-ui/react";
 import dayjs from "dayjs";
-import type { RefObject } from "react";
+import type { ReactNode, RefObject } from "react";
 import { getWeekdayLabel } from "@/src/domains/shift/date";
 import { DateIssueBadge, dateIssueBorderColor } from "../../components";
 import { DisplaySettingsMenu } from "../../DisplaySettingsMenu";
 import { getShiftWeekdayColor } from "../../weekdayPresentation";
+
+/** 日付の見出しの行の高さ（px）。見出しを上端に留め、その下に入れるものの行と充足を留めるために使う。 */
+export const SP_DATE_HEADING_HEIGHT_PX = 52;
 
 type Props = {
   dates: string[];
@@ -14,6 +17,8 @@ type Props = {
   warningCounts: ReadonlyMap<string, number>;
   dateStripRef: RefObject<HTMLDivElement | null>;
   onSelect: (date: string) => void;
+  /** 日付の見出しの右に置く操作。表示設定のボタンの左に並べる。 */
+  headingAction?: ReactNode;
 };
 
 export const DateRail = ({
@@ -24,6 +29,7 @@ export const DateRail = ({
   warningCounts,
   dateStripRef,
   onSelect,
+  headingAction,
 }: Props) => {
   const selected = selectedDate ? dayjs(selectedDate) : null;
   const isShopClosedDate = holidays.includes(selectedDate);
@@ -103,9 +109,13 @@ export const DateRail = ({
         </Flex>
       </Box>
       {selected && (
+        // 日付の一覧はスクロールで上へ流し、この見出しは上端に留める。
         <Flex
+          position="sticky"
+          top={0}
+          zIndex={3}
+          h={`${SP_DATE_HEADING_HEIGHT_PX}px`}
           px={4}
-          py={3}
           bg="white"
           borderBottomWidth="1px"
           borderColor="gray.200"
@@ -114,7 +124,7 @@ export const DateRail = ({
           justify="space-between"
           gap={3}
         >
-          <Flex align="baseline" gap={2} minW={0}>
+          <Flex align="baseline" gap={2} flexShrink={0}>
             <Box textStyle="xl" fontWeight={700} color="gray.800" fontVariantNumeric="tabular-nums">
               {selected.month() + 1}月{selected.date()}日
             </Box>
@@ -127,7 +137,10 @@ export const DateRail = ({
               </Box>
             )}
           </Flex>
-          <DisplaySettingsMenu />
+          <Flex align="center" gap={2} minW={0}>
+            {headingAction}
+            <DisplaySettingsMenu />
+          </Flex>
         </Flex>
       )}
     </>

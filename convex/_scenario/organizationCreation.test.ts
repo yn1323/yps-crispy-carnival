@@ -169,7 +169,7 @@ describe("組織追加作成シナリオ", () => {
       version: invitation.version,
       signingSecret: SIGNING_SECRET,
     });
-    const accepted = await asManager.acceptManagerInvitation(token, new Set(["limit@example.com"]));
+    const accepted = await asManager.acceptManagerInvitation(token);
     expect(accepted).toEqual({
       status: "linked",
       organizationId: invitation.organizationId,

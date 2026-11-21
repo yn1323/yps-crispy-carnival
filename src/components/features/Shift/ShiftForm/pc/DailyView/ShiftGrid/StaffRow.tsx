@@ -1,8 +1,10 @@
 import { Box, Flex, Text } from "@chakra-ui/react";
-import { type MutableRefObject, memo } from "react";
+import { memo, type RefObject } from "react";
+import type { MinuteRange } from "@/src/domains/shift/breaks";
 import type { DragMode, LinkedResizeTarget, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
 import { Avatar, IssueDot, issueToneEmphasis, resolveIssueTone, StaffWarningIcon } from "../../../components";
 import { ShiftDateNoteText, ShiftStaffNoteIcon } from "../../../dateNotes";
+import { StaffMeta } from "../../../detailParts";
 import { DragPreview } from "./DragPreview";
 import { GridLines } from "./GridLines";
 import { NonEditableTimeOverlay } from "./NonEditableTimeOverlay";
@@ -27,12 +29,15 @@ type StaffRowProps = {
   onShiftClick: (shiftId: string, positionId: string | null, e: React.MouseEvent) => void;
   onStaffNameClick: (staffId: string) => void;
   dragPreview: DragPreviewState;
+  /** 選び終えた範囲。メニューを開いている間、この行のバーの上に示す。 */
+  selectionRange: MinuteRange | null;
+  selectionAnchorRef: RefObject<HTMLDivElement | null>;
   isDragging: boolean;
   cursorStyle: string;
   resizeCurrentMinutes?: number;
   linkedTarget: LinkedResizeTarget | null;
-  paintClickAnchorRef: MutableRefObject<DOMRect | null>;
-  onMouseUpOnRow: (staffId: string) => void;
+  /** 休憩の端をつまんで動かしている間の、動かす前の休憩と、動かしている途中の休憩。 */
+  breakResize: { from: MinuteRange; to: MinuteRange } | null;
   dataTour?: string;
   hasError?: boolean;
   warningMessages?: string[];
@@ -58,12 +63,13 @@ export const StaffRow = memo(function StaffRow({
   onShiftClick,
   onStaffNameClick,
   dragPreview,
+  selectionRange,
+  selectionAnchorRef,
   isDragging,
   cursorStyle,
   resizeCurrentMinutes,
   linkedTarget,
-  paintClickAnchorRef,
-  onMouseUpOnRow,
+  breakResize,
   dataTour,
   hasError = false,
   warningMessages = [],
@@ -120,9 +126,12 @@ export const StaffRow = memo(function StaffRow({
           _hover={isReadOnly ? undefined : { color: "teal.600" }}
           onClick={isReadOnly ? undefined : () => onStaffNameClick(staff.id)}
         >
-          <Text textStyle="sm" fontWeight={500} color={status === "not_submitted" ? "gray.500" : "gray.800"} truncate>
-            {staff.name}
-          </Text>
+          <Flex direction="column" minW={0} justify="center" lineHeight={1.2}>
+            <Text textStyle="sm" fontWeight={500} color={status === "not_submitted" ? "gray.500" : "gray.800"} truncate>
+              {staff.name}
+            </Text>
+            <StaffMeta staff={staff} shift={shift} showTotal={false} />
+          </Flex>
           <Flex align="center" gap={1} ml="auto" flexShrink={0}>
             {!isReadOnly && status === "no_request" && (
               <Text color="gray.400" textStyle="2xs" fontWeight={600}>
@@ -161,16 +170,8 @@ export const StaffRow = memo(function StaffRow({
         bg={emphasis?.bg ?? "transparent"}
         boxShadow={emphasis ? `inset 0 0 0 2px var(--chakra-colors-${emphasis.borderColorToken})` : undefined}
         overflow="hidden"
-        onMouseDown={
-          isReadOnly
-            ? undefined
-            : (e) => {
-                paintClickAnchorRef.current = (e.target as HTMLElement).getBoundingClientRect();
-                onRowMouseDown(e, staff.id);
-              }
-        }
+        onMouseDown={isReadOnly ? undefined : (e) => onRowMouseDown(e, staff.id)}
         onMouseMove={isReadOnly ? undefined : (e) => onRowMouseMoveForCursor(e, staff.id)}
-        onMouseUp={isReadOnly ? undefined : () => onMouseUpOnRow(staff.id)}
         cursor={cursorStyle}
         userSelect="none"
       >
@@ -188,6 +189,7 @@ export const StaffRow = memo(function StaffRow({
             isReadOnly={isReadOnly}
             currentMinutes={resizeCurrentMinutes}
             linkedTarget={linkedTarget}
+            breakResize={breakResize}
           />
         )}
 
@@ -198,6 +200,16 @@ export const StaffRow = memo(function StaffRow({
             currentMinutes={dragPreview.currentMinutes}
             timeRange={timeRange}
             positionColor={dragPreview.positionColor}
+          />
+        )}
+
+        {selectionRange && (
+          <DragPreview
+            mode="select"
+            startMinutes={selectionRange.start}
+            currentMinutes={selectionRange.end}
+            timeRange={timeRange}
+            anchorRef={selectionAnchorRef}
           />
         )}
       </Box>

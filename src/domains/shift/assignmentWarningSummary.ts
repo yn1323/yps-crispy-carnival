@@ -1,4 +1,9 @@
-export type WarningSummaryCategoryCode = "OFF_REQUEST" | "OUTSIDE_REQUESTED_TIME" | "NOT_SUBMITTED" | "OTHER";
+export type WarningSummaryCategoryCode =
+  | "OFF_REQUEST"
+  | "OUTSIDE_REQUESTED_TIME"
+  | "NOT_SUBMITTED"
+  | "POSITION_UNAVAILABLE"
+  | "OTHER";
 
 export type WarningSummaryItem = {
   code: WarningSummaryCategoryCode;
@@ -9,6 +14,7 @@ const WARNING_SUMMARY_CATEGORY_CODES = [
   "OFF_REQUEST",
   "OUTSIDE_REQUESTED_TIME",
   "NOT_SUBMITTED",
+  "POSITION_UNAVAILABLE",
 ] as const satisfies ReadonlyArray<Exclude<WarningSummaryCategoryCode, "OTHER">>;
 
 export const summarizeAssignmentWarnings = (warnings: Array<{ code: string }>): WarningSummaryItem[] => {

@@ -8,6 +8,28 @@ import type { LinkedResizeTarget, PositionSegment, PositionType, ShiftData } fro
 export const resolveDefaultPosition = (positions: readonly PositionType[]): PositionType =>
   positions.find((position) => position.isDefault) ?? DEFAULT_POSITION;
 
+/**
+ * 店舗を作ったときにできる最初のポジションで、名前をまだ付けていないかを返す。
+ * 「シフト」は、ポジションを分けていない店舗の勤務を入れておくための仮の名前で、利用者が付けた名前として扱わない。
+ */
+export const isUnnamedDefaultPosition = (position: { name: string; isDefault: boolean }): boolean =>
+  position.isDefault && position.name === DEFAULT_POSITION.name;
+
+/** ポジションを分けていない店舗かを返す。ポジションがないか、名前を付けていない最初のポジションだけの店舗。 */
+export const isPositionsUnsplit = (positions: ReadonlyArray<{ name: string; isDefault: boolean }>): boolean =>
+  positions.length === 0 || (positions.length === 1 && isUnnamedDefaultPosition(positions[0]));
+
+/** ポジションを分けていない店舗で、ポジションの名前の代わりに出す言葉。 */
+export const UNSPLIT_POSITION_LABEL = "全体";
+
+/** 人数の表示に使うポジション。分けていない店舗では、仮の名前を見せず、店全体の人数として出す。 */
+export const toStaffingDisplayPositions = <Position extends { name: string; isDefault: boolean }>(
+  positions: readonly Position[],
+): Position[] =>
+  isPositionsUnsplit(positions)
+    ? positions.map((position) => ({ ...position, name: UNSPLIT_POSITION_LABEL }))
+    : [...positions];
+
 // === シフト検索ユーティリティ ===
 
 // 指定位置のシフトを検索（希望シフト時間内かどうかに関わらず、スタッフのシフトを返す）

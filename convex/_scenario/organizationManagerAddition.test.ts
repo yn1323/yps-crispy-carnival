@@ -192,7 +192,7 @@ describe("Free管理者追加シナリオ", () => {
       version: invitation.version,
       signingSecret: SIGNING_SECRET,
     });
-    await expect(addedManager.acceptManagerInvitation(token, new Set(["added-manager@example.com"]))).resolves.toEqual({
+    await expect(addedManager.acceptManagerInvitation(token)).resolves.toEqual({
       status: "linked",
       organizationId: seeded.organizationId,
       shopId: seeded.shopId,
@@ -269,6 +269,7 @@ describe("Free管理者追加シナリオ", () => {
             organizationId: job.organizationId,
             purpose: job.purpose,
             status: job.status,
+            subject: job.payload.subject,
             to: job.payload.to,
             userId: job.userId,
           },
@@ -282,6 +283,7 @@ describe("Free管理者追加シナリオ", () => {
         organizationId: seeded.organizationId,
         purpose: "business",
         status: "pending",
+        subject: "【シフトリ：Free管理者追加対象店舗事業者】追加対象スタッフさんが管理者として参加しました",
         to: "owner@example.com",
         userId: seeded.userId,
       },
@@ -291,6 +293,7 @@ describe("Free管理者追加シナリオ", () => {
         organizationId: seeded.organizationId,
         purpose: "business",
         status: "pending",
+        subject: "【シフトリ：Free管理者追加対象店舗事業者】追加対象スタッフさんが管理者として参加しました",
         to: "added-manager@example.com",
         userId: addedManagerMember.userId,
       },
@@ -396,9 +399,7 @@ describe("Free管理者追加シナリオ", () => {
       version: invitation.version,
       signingSecret: SIGNING_SECRET,
     });
-    await expect(
-      addedManager.acceptManagerInvitation(token, new Set(["excluded-added-manager@example.com"])),
-    ).resolves.toMatchObject({ status: "linked" });
+    await expect(addedManager.acceptManagerInvitation(token)).resolves.toMatchObject({ status: "linked" });
     expect(await t.run((ctx) => ctx.db.get(seeded.ownerStaffId))).toEqual(ownerStaffBefore);
     expect(ownerStaffBefore?.excludedFromShift).toBe(true);
 

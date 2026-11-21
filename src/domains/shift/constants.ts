@@ -1,7 +1,7 @@
 export const DEFAULT_POSITION = {
   id: "default",
   name: "シフト",
-  color: "#3b82f6", // blue-500
+  color: "#60a5fa", // blue-400
   isDefault: true,
 } as const;
 

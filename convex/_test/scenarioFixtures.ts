@@ -2,7 +2,6 @@ import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { todayJST } from "../_lib/dateFormat";
 import { generateUUID } from "../_lib/uuid";
-import { runInvitationAcceptance } from "../organizationInvitation/acceptanceActions";
 import type { ScenarioTest } from "./scenarioBuilders";
 
 type ManagerIdentity =
@@ -41,12 +40,30 @@ type ShiftAssignment = ShiftRequest & {
   staffId: Id<"staffs">;
   positionId?: Id<"positions">;
   optionId?: string;
+  breaks?: Array<{ startTime: string; endTime: string }>;
+  isProvisional?: boolean;
 };
 
 type ShiftSubmissionPattern =
   | { kind: "time"; startTime: string; endTime: string }
   | { kind: "dateOnly" }
   | { kind: "shiftType"; options: ShiftTypeOption[] };
+
+type DayRequirementsInput =
+  | { kind: "time"; bars: Array<{ positionId: Id<"positions">; startTime: string; endTime: string }> }
+  | {
+      kind: "shiftType";
+      options: Array<{ optionId: string; counts: Array<{ positionId: Id<"positions">; count: number }> }>;
+    }
+  | { kind: "dateOnly"; counts: Array<{ positionId: Id<"positions">; count: number }> };
+
+type DayTemplateInput = {
+  id?: Id<"shiftDayTemplates">;
+  name: string;
+  weekdays: Array<"sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat">;
+  appliesToHolidays: boolean;
+  requirements: DayRequirementsInput;
+};
 
 type ShopSettingsInput = {
   shopName: string;
@@ -207,24 +224,8 @@ export function createScenario(t: ScenarioTest) {
             requestId: generateUUID(),
           });
         },
-        acceptManagerInvitation(token: string, verifiedEmails: ReadonlySet<string>) {
-          return asManager.action(
-            async (ctx) =>
-              await runInvitationAcceptance(
-                ctx,
-                {
-                  assertReady: async () => undefined,
-                  getVerifiedEmails: async () => verifiedEmails,
-                },
-                {
-                  appOrigin: "https://app.example.test",
-                  secretKey: "sk_test_scenario",
-                  publishableKey: "pk_test_scenario",
-                  expectedIssuer: "https://convex.test",
-                },
-                token,
-              ),
-          );
+        acceptManagerInvitation(token: string) {
+          return asManager.action(api.organizationInvitation.acceptanceActions.accept, { token });
         },
         async removeManagerRole(personId: Id<"organizationPeople">) {
           return asManager.mutation(api.organization.mutations.removeManagerRoleForOrganization, {
@@ -336,6 +337,47 @@ export function createScenario(t: ScenarioTest) {
         },
         async getShiftBoardDateNotes(recruitmentId: Id<"recruitments">) {
           return asManager.query(api.shiftBoard.queries.getShiftBoardDateNotes, {
+            recruitmentId,
+            ...(await getSelectedManagerScope()),
+          });
+        },
+        async getShiftBoardStaffing(recruitmentId: Id<"recruitments">) {
+          return asManager.query(api.shiftBoard.queries.getShiftBoardStaffing, {
+            recruitmentId,
+            ...(await getSelectedManagerScope()),
+          });
+        },
+        async getShiftSetup() {
+          return asManager.query(api.shiftSetup.queries.getShiftSetup, await getSelectedManagerScope());
+        },
+        async saveDayTemplates(templates: DayTemplateInput[]) {
+          return asManager.mutation(api.shiftSetup.mutations.saveDayTemplates, {
+            templates,
+            ...(await getSelectedManagerScope()),
+          });
+        },
+        async applyDayTemplateToDates(args: {
+          recruitmentId: Id<"recruitments">;
+          dates: string[];
+          templateId: Id<"shiftDayTemplates"> | null;
+        }) {
+          return asManager.mutation(api.shiftSetup.mutations.applyDayTemplateToDates, {
+            ...args,
+            ...(await getSelectedManagerScope()),
+          });
+        },
+        async saveDayCustomRequirements(args: {
+          recruitmentId: Id<"recruitments">;
+          date: string;
+          requirements: DayRequirementsInput;
+        }) {
+          return asManager.mutation(api.shiftSetup.mutations.saveDayCustomRequirements, {
+            ...args,
+            ...(await getSelectedManagerScope()),
+          });
+        },
+        async getProvisionalAssignments(recruitmentId: Id<"recruitments">) {
+          return asManager.query(api.shiftBoard.queries.getProvisionalAssignments, {
             recruitmentId,
             ...(await getSelectedManagerScope()),
           });

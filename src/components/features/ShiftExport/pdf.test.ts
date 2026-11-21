@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
-import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
+import { getDocument, OPS } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { createExportFixture } from "./fixtures";
+import { createDailyExportFixture, createExportFixture } from "./fixtures";
 import { createShiftPdf } from "./pdf";
 import { buildExportSchedule } from "./script";
 
@@ -188,6 +188,92 @@ describe("PDFの実ファイル", () => {
       expect(texts[1]).toContain("2026/08/01~08/31 シフトリ駅前店 連絡事項");
       expect(texts[1]).toContain("17時以降なら入れます");
       expect(texts[1]).toContain("2 / 2");
+    } finally {
+      await document.loadingTask.destroy();
+    }
+  });
+
+  it("日別は勤務のある日を1日1ページのA4横にし、バーの文字と人数を収め、連絡事項を最後に置く", async () => {
+    const fixture = createDailyExportFixture({
+      dateNotes: [{ staffId: "staff-1", date: "2026-08-01", note: "17時以降なら入れます" }],
+    });
+    const blob = await createShiftPdf(buildExportSchedule(fixture, false, true, "daily"));
+    const document = await getDocument({
+      data: new Uint8Array(await blob.arrayBuffer()),
+      useSystemFonts: false,
+      standardFontDataUrl: `${process.cwd()}/node_modules/pdfjs-dist/standard_fonts/`,
+    }).promise;
+    try {
+      expect(document.numPages).toBe(3);
+      const pages: string[][] = [];
+      for (let number = 1; number <= document.numPages; number++) {
+        const page = await document.getPage(number);
+        const viewport = page.getViewport({ scale: 1 });
+        expect(viewport.width).toBeCloseTo(841.89, 1);
+        expect(viewport.height).toBeCloseTo(595.28, 1);
+        const items = (await page.getTextContent()).items.filter((item) => "str" in item);
+        for (const item of items) {
+          expect(item.transform[4]).toBeGreaterThanOrEqual(23);
+          expect(item.transform[4] + item.width).toBeLessThanOrEqual(viewport.width - 23);
+          expect(item.transform[5]).toBeGreaterThanOrEqual(23);
+          expect(item.transform[5]).toBeLessThanOrEqual(viewport.height - 23);
+        }
+        pages.push(items.map((item) => item.str).filter((text) => text.trim() !== ""));
+      }
+      const [first, second, notes] = pages.map((items) => items.join("|"));
+      expect(first).toContain("2026/08/01(土) シフトリ駅前店");
+      expect(first).toContain("出勤 5人");
+      expect(
+        pages[0].filter((text) => /^.+ .+$/.test(text) && !text.includes("/") && !text.startsWith("出勤")),
+      ).toEqual(["佐藤 一郎", "鈴木 太郎", "高橋 美咲", "田中 花子", "伊藤 健"]);
+      expect(pages[0].filter((text) => /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(text))).toEqual([
+        "09:00-17:00",
+        "10:00-15:00",
+        "11:00-20:00",
+        "17:00-22:00",
+        "17:00-22:00",
+      ]);
+      // バーの中のポジション名（ホール3本、キッチン5本）と、人数の行の見出し（1つずつ）。
+      expect(pages[0].filter((text) => text === "ホール")).toHaveLength(4);
+      expect(pages[0].filter((text) => text === "キッチン")).toHaveLength(6);
+      // 休憩の区間（佐藤の12時台、高橋の16時から30分）には「休」と書く。
+      expect(pages[0].filter((text) => text === "休")).toHaveLength(2);
+      // 時刻の数字（9〜21）と、人数の数字（ホール5区間、キッチン7区間）。
+      expect(pages[0].filter((text) => /^\d{1,2}$/.test(text))).toEqual([
+        ...["9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21"],
+        ...["1", "2", "1", "0", "1"],
+        ...["1", "0", "1", "2", "1", "2", "1"],
+      ]);
+      expect(first).toContain("1 / 3");
+      expect(first).not.toContain("山本 さくら");
+      expect(second).toContain("2026/08/03(月) シフトリ駅前店");
+      expect(second).toContain("出勤 1人");
+      expect(second).toContain("山本 さくら");
+      expect(second).toContain("2 / 3");
+      expect(notes).toContain("連絡事項");
+      expect(notes).toContain("17時以降なら入れます");
+      expect(notes).toContain("3 / 3");
+    } finally {
+      await document.loadingTask.destroy();
+    }
+  });
+
+  it("日別は勤務のバーを、ポジションの色を薄めた色で塗り、文字を黒にする", async () => {
+    const blob = await createShiftPdf(buildExportSchedule(createDailyExportFixture(), false, false, "daily"));
+    const document = await getDocument({
+      data: new Uint8Array(await blob.arrayBuffer()),
+      useSystemFonts: false,
+      standardFontDataUrl: `${process.cwd()}/node_modules/pdfjs-dist/standard_fonts/`,
+    }).promise;
+    try {
+      const operators = await (await document.getPage(1)).getOperatorList();
+      const fills = new Set(
+        operators.fnArray.flatMap((fn, index) =>
+          fn === OPS.setFillRGBColor ? [String(operators.argsArray[index]?.[0]).toLowerCase()] : [],
+        ),
+      );
+      // ホール（#60a5fa）とキッチン（#fb923c）を薄めた色、1時間ごとの縦線の灰色、休憩と「休」の白、文字の黒だけを塗りに使う。
+      expect([...fills].sort()).toEqual(["#000000", "#bfdbfd", "#c8c8c8", "#fdd3b1", "#ffffff"]);
     } finally {
       await document.loadingTask.destroy();
     }

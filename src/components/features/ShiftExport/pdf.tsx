@@ -1,4 +1,6 @@
+import { getExportDailyPages } from "./dailyLayout";
 import { fitExportText, getExportNotePages, getExportPages } from "./layout";
+import { createDailyPdfPages } from "./pdfDaily";
 import { getExportNotesTitle, getExportTitle } from "./script";
 import type { ExportSchedule } from "./types";
 
@@ -29,12 +31,16 @@ export const createShiftPdf = async (schedule: ExportSchedule): Promise<Blob> =>
   const renderer = await import("@react-pdf/renderer");
   await loadJapaneseFont(renderer);
   const { Document, Page, View, Text, pdf } = renderer;
-  const pages = getExportPages(schedule);
+  const daily = schedule.view === "daily" ? schedule.daily : null;
+  const pages = daily ? [] : getExportPages(schedule);
   const notePages = getExportNotePages(schedule);
-  const totalPageCount = pages.length + notePages.length;
+  const dailyPageCount = daily ? getExportDailyPages(daily).length : 0;
+  const bodyPageCount = pages.length + dailyPageCount;
+  const totalPageCount = bodyPageCount + notePages.length;
 
   return pdf(
     <Document title={getExportTitle(schedule)} author="シフトリ" language="ja">
+      {daily && createDailyPdfPages(renderer, daily, totalPageCount, FONT_FAMILY)}
       {pages.map(({ period, layout, rows: staffs, isFirstPage }, pageIndex) => {
         const cellStyle = {
           borderRightWidth: 0.5,
@@ -226,7 +232,7 @@ export const createShiftPdf = async (schedule: ExportSchedule): Promise<Blob> =>
                 textAlign: "center",
               }}
             >
-              {pages.length + notePageIndex + 1} / {totalPageCount}
+              {bodyPageCount + notePageIndex + 1} / {totalPageCount}
             </Text>
           </Page>
         );

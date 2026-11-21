@@ -1,0 +1,53 @@
+import type { Id } from "@/convex/_generated/dataModel";
+import { NO_DAY_TEMPLATE } from "@/convex/shiftSetup/dayTemplates";
+import type { ShiftFormStaffing } from "@/src/components/features/Shift/ShiftForm";
+import type { ShiftBreakRule, StaffPositionSkill } from "@/src/domains/shift/types";
+import type { ShiftBoardStaffingData } from "../types";
+
+// シフト表のqueryとmutationの形を、ShiftFormが受け渡す形へ直す境界。
+
+/**
+ * サーバーが解決した日ごとの必要人数を、ShiftFormへ渡す形にする。
+ * 日ごとの必要人数はそのまま渡し、テンプレートのIDだけをShiftFormの名前へ直す。
+ * 休憩の決まりは、値が同じ間は同じ参照を保つため、呼び出し元でまとめたものを受け取る。
+ */
+export const toShiftFormStaffing = (
+  staffing: Pick<ShiftBoardStaffingData, "isLocked" | "templates" | "days">,
+  breakRule: ShiftBreakRule | null,
+): ShiftFormStaffing => ({
+  breakRule,
+  isLocked: staffing.isLocked,
+  templates: staffing.templates.map((template) => ({ id: template._id, name: template.name })),
+  days: staffing.days.map((day) => ({
+    date: day.date,
+    source: day.source,
+    templateId: day.templateId,
+    templateName: day.templateName,
+    requirements: day.requirements,
+  })),
+});
+
+/**
+ * スタッフごとの、ポジションの値（担当外、見習い、リーダー）を、staffIdから引ける形にする。
+ * 値を1つも持たないスタッフは、結果に含めない。
+ */
+export const toPositionSkillsByStaffId = (
+  staffProfiles: ShiftBoardStaffingData["staffProfiles"] | undefined,
+): Map<string, StaffPositionSkill[]> =>
+  new Map(
+    (staffProfiles ?? [])
+      .filter((profile) => profile.positionSkills.length > 0)
+      .map((profile) => [
+        profile.staffId,
+        profile.positionSkills.map((skill) => ({ positionId: skill.positionId, level: skill.level })),
+      ]),
+  );
+
+/**
+ * ShiftFormが返すテンプレートのIDを、mutationの引数へ直す。
+ * nullは、その日だけの指定を消すことを表す。NO_DAY_TEMPLATEは、その日にテンプレートを当てないことを表す。
+ */
+export const toDayTemplateIdArg = (
+  templateId: string | null,
+): Id<"shiftDayTemplates"> | null | typeof NO_DAY_TEMPLATE =>
+  templateId === NO_DAY_TEMPLATE ? NO_DAY_TEMPLATE : (templateId as Id<"shiftDayTemplates"> | null);

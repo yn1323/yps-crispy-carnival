@@ -18,7 +18,8 @@
 
 | 計画 | 状態 | 次に必要な判断 | 現在の正本 |
 |---|---|---|---|
-| [人数が多い店舗のシフト作成方針](2026-11-14_人数が多い店舗のシフト作成_方針.md) | `reviewing` | 足す要素の範囲は決定済み。要素を入れる順番、未提出者の仮の勤務の決め方、設定の初期値の出し方を決める。UIは未着手 | 現行のシフト作成は[シフト表](../features/shift-board.md)、設定は[店舗設定](../features/shop-settings.md) |
+| [シフトの自動作成の方針](2026-11-21_シフトの自動作成_方針.md) | `reviewing` | ボタン、メニュー項目、作り方を選ぶダイアログだけを実装済み。必要人数がない店舗と日の扱い、AIの回数の単位、個人情報のヘルプ、ポジションを分けない店舗への案内を、「作成する」の処理を作るときに決める | [シフト表](../features/shift-board.md)の「自動作成」 |
+| [人数が多い店舗のシフト作成方針](2026-11-14_人数が多い店舗のシフト作成_方針.md) | `reviewing` | 「必要」とした要素は[実装計画](2026-11-16_人数が多い店舗のシフト作成_実装計画.md)で実装済み。勤務の型、通知せずに確定する機能、実績がない店舗の初回設定の負担、店舗の要望の確かめ方を決める | 現行のシフト作成は[シフト表](../features/shift-board.md)、設定は[店舗設定](../features/shop-settings.md) |
 | [Analytics分析用JSONの仮名化出力](2026-11-09_Analytics分析用JSONの仮名化出力_設計.md) | `reviewing` | 組織・店舗・スタッフ・ユーザーはDBのIDで出力すると決定済み。対応表を画面だけに出すか、募集8件・利用日90日の範囲で足りるかを決める | [分析KPI可視化アプリ](../features/analytics-dashboard.md) |
 | [GA4計測基盤とSkill整備](2026-08-12_GA4計測基盤とSkill整備_実装計画.md) | `partially superseded` | アプリ側safe coreは監査残件実装計画へ移管済み。`ga4-measurement` Skillを別途作成するかだけを決める | [公開Web計測](../features/web-measurement.md)、[GA4・GTM運用](../manual/ga4-gtm.md) |
 | [AIシフト下書き機能 詳細設計](2026-07-03_AIシフト下書き機能.md) | `reviewing` | 機能を採用するか、誰が再検討するかを決める | 現行のシフト作成は[シフト表](../features/shift-board.md) |
@@ -30,6 +31,13 @@
 
 | 計画 | 状態 | 未完了条件 | 現在の正本 |
 |---|---|---|---|
+| [パターン選択の表示と操作を整理](2026-11-22_パターン選択の表示と操作を整理.md) | `implemented locally` | 実装とローカルの検証は完了。依頼者が画面で確かめ、Pull Requestで見た目の差分（VRT）を確認する | [シフト表](../features/shift-board.md)の「パターン選択の日別」 |
+| [日付選択の表示と操作を整理](2026-11-22_日付選択の表示と操作を整理.md) | `implemented locally` | 実装とローカルの検証は完了。依頼者が画面で確かめ、Pull Requestで見た目の差分（VRT）を確認する | [シフト表](../features/shift-board.md)の「日付選択の表」 |
+| [充足度表示を時間軸の帯に変更](2026-11-20_充足度表示を時間軸の帯に変更.md) | `repository implemented` | 時間指定のスマートフォンの「くわしく」表示で、人数のカードを充足率の1行と充足の帯に変え、ローカルのlint・型検査・Logic・Behaviorは成功。PCの帯を同じ形へそろえること、VRT基準画像の承認、CI、実環境への反映が残る | [シフト表](../features/shift-board.md) |
+| [ポジション割当を範囲選択方式に変更](2026-11-19_ポジション割当を範囲選択方式に変更.md) | `repository implemented` | 時間指定のPCの日別表示で、勤務のバーの範囲を選んでからメニューでポジションか休憩を入れる形を実装し、ローカルのlint・型検査・Logic・Behaviorは成功。スマートフォン、パターン選択、日付選択への展開、VRT基準画像の承認、CI、実環境への反映が残る | [シフト表](../features/shift-board.md) |
+| [管理者招待の参加確認](2026-11-18_管理者招待の参加確認_実装計画.md) | `repository implemented` | 招待先メールアドレスの確認の廃止、「参加する」による受諾、ログイン中の全状態のログアウト、参加完了メールへの氏名の記載を実装し、ローカルのlint・型検査・全テスト・buildは成功。確認の画面と参加できない画面の実画面での確認、E2Eの実行、VRT基準画像の承認、CI、実環境への反映が残る | [グループ課金、複数店舗、複数管理者](../features/organization-billing.md)、[認証画面](../features/auth-pages.md)、[課金業務フロー](../specs/organization-billing-business-flow.md) |
+| [人数が多い店舗のシフト作成](2026-11-16_人数が多い店舗のシフト作成_実装計画.md) | `repository implemented` | 13要素、設定ページ、仮の処理のAIサポート、PDF・Excel出力への反映、core E2Eの1契約を実装し、ローカルの検証は成功。実際のAIへの接続、ヘルプの追加、VRT基準画像の承認、CI、実環境への反映が残る | 方針は[人数が多い店舗のシフト作成方針](2026-11-14_人数が多い店舗のシフト作成_方針.md)。現行のシフト作成は[シフト表](../features/shift-board.md)、設定は[店舗設定](../features/shop-settings.md) |
+| [必要人数のバー入力と型の当て方](2026-11-16_必要人数のバー入力と型の当て方_実装計画.md) | `repository implemented` | 2026-11-16に承認され、実装とローカルの検証（lint、型、Logic、Convex、Behavior、build）が成功。E2Eの実行、VRT基準画像の承認、CI、実環境への反映、本番の祝日の表の投入が残る | 初版は[人数が多い店舗のシフト作成](2026-11-16_人数が多い店舗のシフト作成_実装計画.md)。現行の設定は[シフト作成の設定](../features/shift-setup.md) |
 | [希望シフトの日付メモ](2026-10-04_希望シフトの日付メモ_実装計画.md) | `repository implemented` | 提出画面、シフト表（PC・SP）、PDF・Excelのメモ一覧、プライバシーポリシー更新を実装し、ローカルのlint・型検査・全テスト・buildは成功。仮決定の項目（文字数、再同意、閲覧のみ、常時有効、保持期間、メモ一覧の初期状態）とポリシー文言の法務確認、VRT基準画像の承認、CI、実環境への反映とClarity設定の確認が残る | [希望シフト提出](../features/shift-submission.md)、[シフト表](../features/shift-board.md) |
 | [LINE連携トークンの使い回し](2026-10-31_LINE連携トークン使い回し_実装計画.md) | `repository implemented` | メール経由の発行での使い回し、メール変更時の失効、主担当テスト、機能文書の更新を実装し、lint・型検査・Logic/Convex/Scenario testは成功。UI testはローカル環境でブラウザを起動できず未実行。CI・自動レビューと実環境への反映が残る | [LINE通知連携](../features/line-notification.md) |
 | [トライアル終了前のDashboard案内](2026-10-17_トライアル終了前のDashboard案内_実装計画.md) | `repository implemented` | 未契約Trialへ終了14日前・7日前・最終日の段階的な案内をDashboardに実装し、ローカルの検証は成功。表示と押下の計測、VRT基準画像の承認、CI、実環境への反映が残る | [Dashboardの課金案内](../features/trial-ending-dashboard-callout.md) |

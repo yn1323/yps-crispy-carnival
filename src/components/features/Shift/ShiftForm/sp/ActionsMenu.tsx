@@ -1,6 +1,6 @@
 import { Menu, Portal, Stack, Text } from "@chakra-ui/react";
 import { useId, useRef } from "react";
-import { LuChevronDown, LuFileDown, LuSave, LuSend } from "react-icons/lu";
+import { LuChevronDown, LuFileDown, LuSave, LuSend, LuSparkles } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
 import type { ShiftFormExportAction } from "../components";
 
@@ -11,9 +11,19 @@ type Props = {
   onSaveDraft?: () => void;
   onConfirm?: () => void;
   exportAction?: ShiftFormExportAction;
+  /** 渡した場合だけ、メニューの先頭に自動作成を出す。 */
+  onAutoCreate?: () => void;
 };
 
-export function ActionsMenu({ isConfirmed, isSavingDraft, isConfirming, onSaveDraft, onConfirm, exportAction }: Props) {
+export function ActionsMenu({
+  isConfirmed,
+  isSavingDraft,
+  isConfirming,
+  onSaveDraft,
+  onConfirm,
+  exportAction,
+  onAutoCreate,
+}: Props) {
   const descriptionId = useId();
   const isBusy = isSavingDraft || isConfirming;
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -58,6 +68,30 @@ export function ActionsMenu({ isConfirmed, isSavingDraft, isConfirming, onSaveDr
       <Portal>
         <Menu.Positioner>
           <Menu.Content w="min(320px, calc(100vw - 24px))" maxH="calc(100dvh - 96px)" overflowY="auto">
+            {onAutoCreate && (
+              <>
+                <Menu.Item
+                  value="auto-create"
+                  aria-label="シフトを自動作成"
+                  aria-describedby={`${descriptionId}-auto-create`}
+                  disabled={isBusy}
+                  onClick={isBusy ? undefined : onAutoCreate}
+                  gap={3}
+                  px={3}
+                  py={3}
+                  cursor="pointer"
+                >
+                  <LuSparkles aria-hidden />
+                  <Stack gap={1} minW={0}>
+                    <Menu.ItemText fontWeight="semibold">シフトを自動作成</Menu.ItemText>
+                    <Text id={`${descriptionId}-auto-create`} fontSize="xs" color="fg.muted" whiteSpace="normal">
+                      ルールかAIを選んで、期間の勤務を作ります
+                    </Text>
+                  </Stack>
+                </Menu.Item>
+                <Menu.Separator />
+              </>
+            )}
             <Menu.Item
               value="save-draft"
               aria-label="下書きを保存"

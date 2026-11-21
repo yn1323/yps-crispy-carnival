@@ -6,17 +6,12 @@ import type { AssignmentWarning } from "@/src/domains/shift/assignmentWarnings";
 import { resolveInitialSelectedDate } from "@/src/domains/shift/date";
 import { indexShiftsByStaffId } from "@/src/domains/shift/shiftLookup";
 import { sortDailyStaffs } from "@/src/domains/shift/sortStaffs";
-import type {
-  PositionType,
-  RequiredStaffingData,
-  ShiftData,
-  SortMode,
-  StaffType,
-  TimeRange,
-  ViewMode,
-} from "@/src/domains/shift/types";
+import type { NewcomerOnlyPeriod } from "@/src/domains/shift/staffing";
+import type { PositionType, ShiftData, SortMode, StaffType, TimeRange, ViewMode } from "@/src/domains/shift/types";
 import {
+  detailModeAtom,
   lockedDailyStaffOrderAtom,
+  newcomerOnlyPeriodsAtom,
   replaceShiftDraftsAtom,
   selectedDateAtom,
   shiftConfigAtom,
@@ -25,6 +20,7 @@ import {
   validationWarningsAtom,
   viewModeAtom,
 } from "../stores";
+import type { ShiftFormStaffing } from "../types";
 
 type UseShiftFormInitParams = {
   shopId: string;
@@ -37,14 +33,16 @@ type UseShiftFormInitParams = {
   isReadOnly?: boolean;
   currentStaffId?: string;
   allShifts?: ShiftData[];
-  requiredStaffing?: RequiredStaffingData[];
+  staffing?: ShiftFormStaffing;
   submissionPattern: ShiftSubmissionPattern;
   displayMode?: "request" | "confirmed";
   defaultToToday?: boolean;
   initialViewMode?: ViewMode;
   initialSortMode?: SortMode;
+  initialDetailMode?: boolean;
   validationIssues?: AssignmentIssue[];
   validationWarnings?: AssignmentWarning[];
+  newcomerOnlyPeriods?: NewcomerOnlyPeriod[];
 };
 
 export const useShiftFormInit = ({
@@ -58,14 +56,16 @@ export const useShiftFormInit = ({
   isReadOnly = false,
   currentStaffId,
   allShifts,
-  requiredStaffing,
+  staffing,
   submissionPattern,
   displayMode = "request",
   defaultToToday = false,
   initialViewMode,
   initialSortMode,
+  initialDetailMode,
   validationIssues,
   validationWarnings,
+  newcomerOnlyPeriods,
 }: UseShiftFormInitParams) => {
   const setConfig = useSetAtom(shiftConfigAtom);
   const setShifts = useSetAtom(replaceShiftDraftsAtom);
@@ -73,8 +73,10 @@ export const useShiftFormInit = ({
   const setLockedDailyStaffOrder = useSetAtom(lockedDailyStaffOrderAtom);
   const setViewMode = useSetAtom(viewModeAtom);
   const setSortMode = useSetAtom(sortModeAtom);
+  const setDetailMode = useSetAtom(detailModeAtom);
   const setValidationIssues = useSetAtom(validationIssuesAtom);
   const setValidationWarnings = useSetAtom(validationWarningsAtom);
+  const setNewcomerOnlyPeriods = useSetAtom(newcomerOnlyPeriodsAtom);
   const isInitialized = useRef(false);
 
   // 初回マウント時: シフトデータ初期化 + 選択日を設定
@@ -103,6 +105,9 @@ export const useShiftFormInit = ({
     if (initialSortMode) {
       setSortMode(initialSortMode);
     }
+    if (initialDetailMode) {
+      setDetailMode(true);
+    }
   }, [
     initialShifts,
     dates,
@@ -116,6 +121,8 @@ export const useShiftFormInit = ({
     setViewMode,
     initialSortMode,
     setSortMode,
+    initialDetailMode,
+    setDetailMode,
   ]);
 
   // 外部設定の同期（props変更時に shiftConfigAtom を更新）
@@ -130,7 +137,7 @@ export const useShiftFormInit = ({
       isReadOnly,
       currentStaffId,
       allShifts,
-      requiredStaffing,
+      staffing,
       submissionPattern,
       displayMode,
     });
@@ -144,7 +151,7 @@ export const useShiftFormInit = ({
     isReadOnly,
     currentStaffId,
     allShifts,
-    requiredStaffing,
+    staffing,
     submissionPattern,
     displayMode,
     setConfig,
@@ -159,4 +166,9 @@ export const useShiftFormInit = ({
   useEffect(() => {
     setValidationWarnings(validationWarnings ?? []);
   }, [validationWarnings, setValidationWarnings]);
+
+  // 見習いだけの時間帯（確認事項）の同期
+  useEffect(() => {
+    setNewcomerOnlyPeriods(newcomerOnlyPeriods ?? []);
+  }, [newcomerOnlyPeriods, setNewcomerOnlyPeriods]);
 };

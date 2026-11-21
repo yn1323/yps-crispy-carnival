@@ -42,54 +42,20 @@ const strictInvitationIssueResultValidator = v.object({
   invitationId: v.id("organizationInvitations"),
 });
 
-const linkAccountResultValidator = v.union(
+const acceptInvitationResultValidator = v.union(
   v.object({ status: v.literal("linked"), organizationId: v.id("organizations"), shopId: v.optional(v.id("shops")) }),
   v.object({ status: v.literal("invalid") }),
   v.object({ status: v.literal("expired") }),
   v.object({ status: v.literal("revoked") }),
   v.object({ status: v.literal("used") }),
   v.object({ status: v.literal("unavailable") }),
-  v.object({ status: v.literal("conflict") }),
+  // accountAlreadyRegisteredは操作者自身の状態だけを表す。招待先の人物がアカウントを持つかは返さない。
+  v.object({ status: v.literal("conflict"), accountAlreadyRegistered: v.boolean() }),
 );
-
-const prepareAcceptanceResultValidator = v.union(
-  v.object({
-    status: v.literal("ready"),
-    invitationId: v.id("organizationInvitations"),
-    expectedVersion: v.number(),
-    tokenDigest: v.string(),
-    emailNormalized: v.string(),
-    requiresVerifiedEmail: v.boolean(),
-  }),
-  v.object({ status: v.literal("invalid") }),
-  v.object({ status: v.literal("expired") }),
-  v.object({ status: v.literal("revoked") }),
-  v.object({ status: v.literal("used") }),
-  v.object({ status: v.literal("unavailable") }),
-  v.object({ status: v.literal("conflict") }),
-);
-
-const acceptanceProofValidator = v.object({
-  actorTokenIdentifier: v.string(),
-  actorSubject: v.string(),
-  invitationId: v.id("organizationInvitations"),
-  expectedVersion: v.number(),
-  tokenDigest: v.string(),
-  verifiedEmailNormalized: v.optional(v.string()),
-});
 
 type OrganizationInvitationLinkCtx = MutationCtx & {
   identity: UserIdentity;
   user: Doc<"users"> | null;
-};
-
-type OrganizationInvitationAcceptanceProof = {
-  actorTokenIdentifier: string;
-  actorSubject: string;
-  invitationId: Id<"organizationInvitations">;
-  expectedVersion: number;
-  tokenDigest: string;
-  verifiedEmailNormalized?: string;
 };
 
 async function invitationRateKey(organizationId: Id<"organizations">, emailNormalized: string) {
@@ -887,119 +853,15 @@ async function findInvitationTargetPeople(ctx: MutationCtx, invitation: Doc<"org
   return resolution.kind === "active" || resolution.kind === "removed" ? [resolution.person] : [];
 }
 
-export const prepareAcceptance = internalMutation({
-  args: { token: v.string() },
-  returns: prepareAcceptanceResultValidator,
-  handler: async (ctx, { token }) => {
-    if (token.length !== 43) return { status: "invalid" as const };
-
-    const actor = await resolveInvitationActor(ctx);
-    if (!actor) return { status: "unavailable" as const };
-    if (actor.user && (actor.user.isDeleted || actor.user.accountDeletionRequestedAt !== undefined)) {
-      return { status: "unavailable" as const };
-    }
-
-    const actorLimit = await rateLimit(ctx, {
-      name: "organizationManagerInviteAcceptActor",
-      key: await invitationAcceptActorRateKey(actor.identity),
-    });
-    if (!actorLimit.ok) return { status: "unavailable" as const };
-
-    const tokenDigest = await digestInvitationToken(token);
-    const tokenLimit = await rateLimit(ctx, {
-      name: "organizationManagerInviteAccept",
-      key: invitationRateLimitKey(tokenDigest),
-    });
-    if (!tokenLimit.ok) return { status: "unavailable" as const };
-
-    const invitations = await ctx.db
-      .query("organizationInvitations")
-      .withIndex("by_tokenDigest", (q) => q.eq("tokenDigest", tokenDigest))
-      .take(2);
-    if (invitations.length !== 1) return { status: "invalid" as const };
-    const invitation = invitations[0];
-    const organization = await ctx.db.get(invitation.organizationId);
-    if (!organization || organization.isDeleted) return { status: "unavailable" as const };
-
-    if (isOrganizationInvitationLinked(invitation)) {
-      const linkedByPersonId = getOrganizationInvitationLinkedByPersonId(invitation);
-      const linkedPerson = linkedByPersonId ? await ctx.db.get(linkedByPersonId) : null;
-      if (!actor.user || !linkedPerson || linkedPerson.userId !== actor.user._id) {
-        return { status: "used" as const };
-      }
-      return {
-        status: "ready" as const,
-        invitationId: invitation._id,
-        expectedVersion: invitation.version,
-        tokenDigest,
-        emailNormalized: invitation.emailNormalized,
-        requiresVerifiedEmail: false,
-      };
-    }
-    if (invitation.status === "revoked") return { status: "revoked" as const };
-    if (!isOrganizationInvitationIssued(invitation) || invitation.expiresAt <= Date.now()) {
-      return { status: "expired" as const };
-    }
-    if (!(await resolveOrganizationInvitationEligibility(ctx, invitation))) {
-      return { status: "unavailable" as const };
-    }
-
-    const people = await findInvitationTargetPeople(ctx, invitation);
-    if (people.length > 1) return { status: "conflict" as const };
-    if (people[0]?.userId && people[0].userId !== actor.user?._id) return { status: "conflict" as const };
-
-    if (actor.user) {
-      const actorUserId = actor.user._id;
-      const peopleForActor = await ctx.db
-        .query("organizationPeople")
-        .withIndex("by_organizationId_and_userId", (q) =>
-          q.eq("organizationId", invitation.organizationId).eq("userId", actorUserId),
-        )
-        .take(2);
-      if (peopleForActor.length > 1 || (peopleForActor[0] && peopleForActor[0]._id !== people[0]?._id)) {
-        return { status: "conflict" as const };
-      }
-    }
-
-    return {
-      status: "ready" as const,
-      invitationId: invitation._id,
-      expectedVersion: invitation.version,
-      tokenDigest,
-      emailNormalized: invitation.emailNormalized,
-      requiresVerifiedEmail: !(invitation.targetPersonId && people[0]?.userId),
-    };
-  },
-});
-
-async function linkAccountWithToken(
-  ctx: OrganizationInvitationLinkCtx,
-  args: { token: string },
-  proof: OrganizationInvitationAcceptanceProof,
-) {
-  if (args.token.length !== 43) return { status: "invalid" as const };
-  const tokenDigest = await digestInvitationToken(args.token);
-  if (
-    proof.actorTokenIdentifier !== ctx.identity.tokenIdentifier ||
-    proof.actorSubject !== ctx.identity.subject ||
-    proof.tokenDigest !== tokenDigest
-  ) {
-    return { status: "conflict" as const };
-  }
+async function linkAccountWithToken(ctx: OrganizationInvitationLinkCtx, tokenDigest: string) {
   const invitations = await ctx.db
     .query("organizationInvitations")
     .withIndex("by_tokenDigest", (q) => q.eq("tokenDigest", tokenDigest))
     .take(2);
   if (invitations.length !== 1) return { status: "invalid" as const };
   const invitation = invitations[0];
-  if (proof.invitationId !== invitation._id || proof.expectedVersion !== invitation.version) {
-    return { status: "conflict" as const };
-  }
   const organization = await ctx.db.get(invitation.organizationId);
   if (!organization || organization.isDeleted) return { status: "unavailable" as const };
-  if (ctx.user && (ctx.user.isDeleted || ctx.user.accountDeletionRequestedAt !== undefined)) {
-    return { status: "unavailable" as const };
-  }
   if (isOrganizationInvitationLinked(invitation)) {
     const linkedByPersonId = getOrganizationInvitationLinkedByPersonId(invitation);
     const linkedPerson = linkedByPersonId ? await ctx.db.get(linkedByPersonId) : null;
@@ -1035,13 +897,9 @@ async function linkAccountWithToken(
   const { inviter } = eligibility;
 
   const people = await findInvitationTargetPeople(ctx, invitation);
-  if (people.length > 1) return { status: "conflict" as const };
-  if (people[0]?.userId && people[0].userId !== ctx.user?._id) return { status: "conflict" as const };
-  const linkedTargetMatchesActor = Boolean(invitation.targetPersonId && ctx.user && people[0]?.userId === ctx.user._id);
-  const verifiedEmail = proof.verifiedEmailNormalized;
-  if (!linkedTargetMatchesActor && verifiedEmail !== invitation.emailNormalized) {
-    return { status: "conflict" as const };
-  }
+  if (people.length > 1) return { status: "conflict" as const, accountAlreadyRegistered: false };
+
+  // 操作者がこの組織に別の人物として登録済みなら、同じアカウントを二重に登録させない。
   const authenticatedUserId = ctx.user?._id;
   const peopleForUser = authenticatedUserId
     ? await ctx.db
@@ -1052,7 +910,12 @@ async function linkAccountWithToken(
         .take(2)
     : [];
   if (peopleForUser.length > 1 || (peopleForUser[0] && peopleForUser[0]._id !== people[0]?._id)) {
-    return { status: "conflict" as const };
+    return { status: "conflict" as const, accountAlreadyRegistered: true };
+  }
+  // 招待先の人物がアカウントへ接続済みなら、そのアカウントの本人だけが受諾できる。
+  // 未接続の人物と新しい人物は、招待URLの所持とログインだけを受諾の条件にする。
+  if (people[0]?.userId && people[0].userId !== ctx.user?._id) {
+    return { status: "conflict" as const, accountAlreadyRegistered: false };
   }
   const existingMembers = people[0]
     ? await ctx.db
@@ -1062,12 +925,12 @@ async function linkAccountWithToken(
         )
         .take(2)
     : [];
-  if (existingMembers.length > 1) return { status: "conflict" as const };
+  if (existingMembers.length > 1) return { status: "conflict" as const, accountAlreadyRegistered: false };
   if (existingMembers[0]?.status === "active") {
-    return { status: "conflict" as const };
+    return { status: "conflict" as const, accountAlreadyRegistered: false };
   }
   if (existingMembers[0]?.userId && existingMembers[0].userId !== ctx.user?._id) {
-    return { status: "conflict" as const };
+    return { status: "conflict" as const, accountAlreadyRegistered: false };
   }
   const existingPersonCounts = people[0]
     ? await organizationPersonCountsTowardPeopleLimit(ctx, invitation.organizationId, people[0]._id)
@@ -1191,12 +1054,31 @@ async function linkAccountWithToken(
     : { status: "linked" as const, organizationId: invitation.organizationId };
 }
 
-export const finalizeAcceptance = internalMutation({
-  args: { token: v.string(), proof: acceptanceProofValidator },
-  returns: linkAccountResultValidator,
-  handler: async (ctx, { token, proof }) => {
+export const acceptWithToken = internalMutation({
+  args: { token: v.string() },
+  returns: acceptInvitationResultValidator,
+  handler: async (ctx, { token }) => {
+    if (token.length !== 43) return { status: "invalid" as const };
+
     const actor = await resolveInvitationActor(ctx);
     if (!actor) return { status: "unavailable" as const };
-    return await linkAccountWithToken({ ...ctx, ...actor }, { token }, proof);
+    if (actor.user && (actor.user.isDeleted || actor.user.accountDeletionRequestedAt !== undefined)) {
+      return { status: "unavailable" as const };
+    }
+
+    const actorLimit = await rateLimit(ctx, {
+      name: "organizationManagerInviteAcceptActor",
+      key: await invitationAcceptActorRateKey(actor.identity),
+    });
+    if (!actorLimit.ok) return { status: "unavailable" as const };
+
+    const tokenDigest = await digestInvitationToken(token);
+    const tokenLimit = await rateLimit(ctx, {
+      name: "organizationManagerInviteAccept",
+      key: invitationRateLimitKey(tokenDigest),
+    });
+    if (!tokenLimit.ok) return { status: "unavailable" as const };
+
+    return await linkAccountWithToken({ ...ctx, ...actor }, tokenDigest);
   },
 });

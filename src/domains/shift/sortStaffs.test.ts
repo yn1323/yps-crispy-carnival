@@ -124,7 +124,7 @@ describe("sortDailyStaffs", () => {
     { id: "staff-f", name: "F", isSubmitted: false, displayOrder: 60 },
   ] satisfies StaffType[];
 
-  test("時間自由入力は勤務ありを開始・終了が早い順にし、休み希望、その他休み、未提出を後ろに並べる", () => {
+  test("時間自由入力は勤務ありを開始・終了が早い順にし、勤務のない出勤の希望、休み希望、未提出を後ろに並べる", () => {
     const shiftByStaffId = indexShiftsByStaffIdForDate(
       [
         shift({
@@ -161,10 +161,57 @@ describe("sortDailyStaffs", () => {
       "staff-b",
       "staff-c",
       "staff-a",
-      "staff-d",
       "staff-e",
+      "staff-d",
       "staff-f",
     ]);
+  });
+
+  test("勤務がまだない日は、出勤の希望を開始・終了が早い順に上へ並べ、休み希望、未提出を後ろに並べる", () => {
+    const shiftByStaffId = indexShiftsByStaffIdForDate(
+      [
+        shift({ staffId: "staff-a", date: "2026-06-01" }),
+        shift({ staffId: "staff-b", date: "2026-06-01", requestedTime: { start: "16:00", end: "21:30" } }),
+        shift({ staffId: "staff-c", date: "2026-06-01", requestedTime: { start: "09:00", end: "15:00" } }),
+        shift({ staffId: "staff-d", date: "2026-06-01", requestedTime: { start: "09:00", end: "13:00" } }),
+        shift({
+          staffId: "staff-e",
+          date: "2026-06-01",
+          requestedTime: { start: "08:00", end: "20:00" },
+          requestedTimes: [
+            { start: "13:00", end: "15:00" },
+            { start: "08:00", end: "10:00" },
+          ],
+        }),
+        shift({ staffId: "staff-f", date: "2026-06-01" }),
+      ],
+      "2026-06-01",
+    );
+
+    expect(sortDailyStaffs({ staffs: dailyStaffs, shiftByStaffId, mode: "time" }).map((staff) => staff.id)).toEqual([
+      "staff-e",
+      "staff-d",
+      "staff-c",
+      "staff-b",
+      "staff-a",
+      "staff-f",
+    ]);
+  });
+
+  test("日付選択は時刻を比べず、出勤の希望を休み希望より上に、元の順で並べる", () => {
+    const shiftByStaffId = indexShiftsByStaffIdForDate(
+      [
+        shift({ staffId: "staff-a", date: "2026-06-01" }),
+        shift({ staffId: "staff-b", date: "2026-06-01", requestedTime: { start: "05:30", end: "22:30" } }),
+        shift({ staffId: "staff-c", date: "2026-06-01" }),
+        shift({ staffId: "staff-d", date: "2026-06-01", requestedTime: { start: "05:30", end: "22:30" } }),
+      ],
+      "2026-06-01",
+    );
+
+    expect(sortDailyStaffs({ staffs: dailyStaffs, shiftByStaffId, mode: "dateOnly" }).map((staff) => staff.id)).toEqual(
+      ["staff-b", "staff-d", "staff-a", "staff-c", "staff-e", "staff-f"],
+    );
   });
 
   test("勤務パターンの複数勤務は最も早い開始時刻と、その開始時刻に紐づく早い終了時刻で比較する", () => {

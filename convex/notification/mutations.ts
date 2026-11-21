@@ -235,6 +235,7 @@ export const upsertConfirmationSnapshot = internalMutation({
       endTime: assignment.endTime,
       positionId: assignment.positionId,
       ...(assignment.optionId !== undefined ? { optionId: assignment.optionId } : {}),
+      ...(assignment.breaks ? { breaks: assignment.breaks } : {}),
     }));
     const canonicalizeTime = recruitment.submissionPattern.kind === "time";
     if (!confirmationSnapshotMatchesAssignments(suppliedSnapshot, currentSnapshotAssignments, canonicalizeTime)) {

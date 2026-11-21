@@ -1,6 +1,7 @@
 import { buildWeeklyGrid, formatDateShort, formatDateWithWeekday, getWeekdayLabel } from "@/src/domains/shift/date";
 import { hasDateOnlyAssignment } from "@/src/domains/shift/dateOnlyAssignments";
-import type { ShiftData, StaffType } from "@/src/domains/shift/types";
+import { isCanonicalWorkPosition } from "@/src/domains/shift/positions";
+import type { PositionSegment, ShiftData, StaffType } from "@/src/domains/shift/types";
 import { getShiftWeekdayTone, type ShiftWeekdayTone } from "../../weekdayPresentation";
 
 export type DateOnlyOverviewWeekdayTone = ShiftWeekdayTone;
@@ -8,6 +9,10 @@ export type DateOnlyOverviewWeekdayTone = ShiftWeekdayTone;
 export type DateOnlyOverviewStaffRowViewModel = {
   key: string;
   name: string;
+  // 以下は、くわしく表示の印（熟練度、ポジション、休憩）に使う。
+  staff: StaffType;
+  shift: ShiftData;
+  segment: PositionSegment | undefined;
 };
 
 export type DateOnlyOverviewDayRowViewModel = {
@@ -66,11 +71,20 @@ export const buildDateOnlyOverviewViewModel = ({
           const isClosed = date.inRange && holidaySet.has(date.iso);
           const staffRows =
             date.inRange && !isClosed
-              ? staffs.flatMap((staff): DateOnlyOverviewStaffRowViewModel[] =>
-                  hasDateOnlyAssignment(shiftByStaffDate.get(`${staff.id}-${date.iso}`))
-                    ? [{ key: staff.id, name: staff.name }]
-                    : [],
-                )
+              ? staffs.flatMap((staff): DateOnlyOverviewStaffRowViewModel[] => {
+                  const shift = shiftByStaffDate.get(`${staff.id}-${date.iso}`);
+                  return shift && hasDateOnlyAssignment(shift)
+                    ? [
+                        {
+                          key: staff.id,
+                          name: staff.name,
+                          staff,
+                          shift,
+                          segment: shift.positions.find(isCanonicalWorkPosition),
+                        },
+                      ]
+                    : [];
+                })
               : [];
           const canOpenDaily = !isReadOnly && date.inRange && !isClosed;
           const statusLabel = !date.inRange

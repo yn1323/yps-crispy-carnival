@@ -11,8 +11,14 @@ import { RemindUnsubmittedContent } from "../RemindUnsubmittedContent";
 import { UnsavedChangesDialog } from "../UnsavedChangesDialog";
 import type { ShiftBoardPageViewProps } from "./types";
 
-export const ShiftBoardPageView = ({ viewModel, intents, layout = "legacy", header }: ShiftBoardPageViewProps) => {
-  const { shiftForm, confirmDialog, unsubmittedDialog, unsavedChangesDialog } = viewModel;
+export const ShiftBoardPageView = ({
+  viewModel,
+  intents,
+  layout = "legacy",
+  header,
+  onChromeHiddenChange,
+}: ShiftBoardPageViewProps) => {
+  const { shiftForm, confirmDialog, unsubmittedDialog, unsavedChangesDialog, detailModeSwitchDialog } = viewModel;
   if (viewModel.isRecruitmentChanged) {
     return <RecruitmentChangedNotice onReload={intents.onReload ?? (() => window.location.reload())} />;
   }
@@ -137,7 +143,15 @@ export const ShiftBoardPageView = ({ viewModel, intents, layout = "legacy", head
           onOpenUnsubmittedDetails={intents.onOpenUnsubmittedDetails}
           validationIssues={shiftForm.validationIssues}
           validationWarnings={shiftForm.validationWarnings}
+          newcomerOnlyPeriods={shiftForm.newcomerOnlyPeriods}
           dateNotes={shiftForm.dateNotes}
+          staffing={shiftForm.staffing}
+          initialDetailMode={shiftForm.initialDetailMode}
+          // 切り替えを出さない画面（確定済み、変更できない画面）では、表示の通知を渡さない。
+          onDetailModeChange={shiftForm.canSwitchDetailMode ? intents.onDetailModeChange : undefined}
+          detailActions={shiftForm.detailActions}
+          applyShiftsRef={shiftForm.applyShiftsRef}
+          onChromeHiddenChange={onChromeHiddenChange}
           onDismissValidationIssues={intents.onDismissValidationIssues}
           header={layout === "app" ? header : undefined}
           exportAction={
@@ -162,6 +176,7 @@ export const ShiftBoardPageView = ({ viewModel, intents, layout = "legacy", head
           staffCount={confirmDialog.staffCount}
           periodLabel={viewModel.periodLabel}
           warnings={confirmDialog.warnings}
+          newcomerOnlyItems={confirmDialog.newcomerOnlyItems}
           unsubmittedNames={confirmDialog.unsubmittedNames}
           hasUnsubmittedManager={confirmDialog.hasUnsubmittedManager}
           isResend={viewModel.isConfirmed}
@@ -179,6 +194,27 @@ export const ShiftBoardPageView = ({ viewModel, intents, layout = "legacy", head
         maxH={{ md: "85dvh" }}
       >
         <RemindUnsubmittedContent unsubmittedNames={unsubmittedDialog.names} deadline={unsubmittedDialog.deadline} />
+      </Dialog>
+
+      <Dialog
+        title="表示を切り替えますか？"
+        isOpen={detailModeSwitchDialog.isOpen}
+        onOpenChange={({ open }) => {
+          if (!open) intents.onCancelDetailModeSwitch();
+        }}
+        role="alertdialog"
+        onSubmit={intents.onConfirmDetailModeSwitch}
+        submitLabel="切り替える"
+        submitColorPalette="red"
+        onClose={intents.onCancelDetailModeSwitch}
+        isLoading={detailModeSwitchDialog.isSwitching}
+        preventClose={detailModeSwitchDialog.isSwitching}
+      >
+        <Text fontSize="sm" lineHeight="tall">
+          切り替えると下書き保存されたシフトが削除されます。
+          <br />
+          スタッフのシフト提出状況は残ります。
+        </Text>
       </Dialog>
 
       <UnsavedChangesDialog

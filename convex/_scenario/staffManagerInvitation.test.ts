@@ -84,7 +84,7 @@ describe("既存スタッフの管理者招待シナリオ", () => {
       version: invitation.version,
       signingSecret: SIGNING_SECRET,
     });
-    await expect(target.acceptManagerInvitation(token, new Set(["target@example.com"]))).resolves.toEqual({
+    await expect(target.acceptManagerInvitation(token)).resolves.toEqual({
       status: "linked",
       organizationId: seeded.organizationId,
       shopId: seeded.shopId,
@@ -169,7 +169,7 @@ describe("既存スタッフの管理者招待シナリオ", () => {
       version: invitation.version,
       signingSecret: SIGNING_SECRET,
     });
-    await expect(target.acceptManagerInvitation(token, new Set(["target@example.com"]))).resolves.toEqual({
+    await expect(target.acceptManagerInvitation(token)).resolves.toEqual({
       status: "linked",
       organizationId: seeded.organizationId,
       shopId: seeded.shopId,

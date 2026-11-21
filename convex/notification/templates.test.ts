@@ -10,6 +10,8 @@ import {
   buildNotificationFailureReminderLineFlexMessage,
   buildNotificationFailureReminderLineText,
   buildOrganizationBillingEmailHtml,
+  buildOrganizationManagerInvitationAcceptedHeading,
+  buildOrganizationManagerInvitationAcceptedSubject,
   buildOrganizationManagerInvitationEmailHtml,
   buildOrganizationManagerInvitationLineText,
   buildRecruitmentEmailHtml,
@@ -37,8 +39,6 @@ import {
   buildStaffRegistrationOwnerDigestLineText,
   type NotificationLineFlexMessage,
   ORGANIZATION_MANAGER_INVITATION_ACCEPTED_CTA,
-  ORGANIZATION_MANAGER_INVITATION_ACCEPTED_HEADING,
-  ORGANIZATION_MANAGER_INVITATION_ACCEPTED_SUBJECT,
   SHOP_ACTIVATION_REMINDER_SUBJECT,
   STAFF_LEGAL_CONSENT_SUBJECT,
   STAFF_REGISTRATION_OWNER_DIGEST_SUBJECT,
@@ -284,23 +284,25 @@ describe("notification/templates", () => {
     );
   });
 
-  it("管理者連携完了メールは完了文を通常サイズで表示し、補足文を表示しない", () => {
+  it("管理者の参加完了メールは、参加した人の氏名を件名と通常サイズの見出しに書き、補足文を表示しない", () => {
+    const heading = buildOrganizationManagerInvitationAcceptedHeading("鈴木 花子");
     const html = buildOrganizationBillingEmailHtml({
       recipientName: "佐藤 店長",
       organizationName: "さくらフードサービス",
-      heading: ORGANIZATION_MANAGER_INVITATION_ACCEPTED_HEADING,
+      heading,
       headingSize: "normal",
       paragraphs: [],
       action: { label: ORGANIZATION_MANAGER_INVITATION_ACCEPTED_CTA, url: "https://shiftori.app/manage/managers" },
     });
 
-    expect(html).toContain(
-      `font-size:15px;font-weight:700;color:#1a202c;">${ORGANIZATION_MANAGER_INVITATION_ACCEPTED_HEADING}</p>`,
+    expect(buildOrganizationManagerInvitationAcceptedSubject("鈴木 花子")).toBe(
+      "鈴木 花子さんが管理者として参加しました",
     );
+    expect(heading).toBe("鈴木 花子さんが管理者として参加しました。");
+    expect(html).toContain(`font-size:15px;font-weight:700;color:#1a202c;">${heading}</p>`);
     expect(html).not.toContain('font-size:18px;font-weight:700;color:#1a202c;">');
     expect(html).not.toContain("新しい管理者のアカウントが組織に連携されました。");
     expect(html).toContain(`>${ORGANIZATION_MANAGER_INVITATION_ACCEPTED_CTA}</a>`);
-    expect(ORGANIZATION_MANAGER_INVITATION_ACCEPTED_SUBJECT).toBe("管理者アカウント連携が完了しました");
   });
 
   it("募集開始と未提出リマインダーの件名は本番とPreviewで共有できる文言を返す", () => {

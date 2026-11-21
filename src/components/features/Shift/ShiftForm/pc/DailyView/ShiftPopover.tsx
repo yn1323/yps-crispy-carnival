@@ -1,36 +1,37 @@
-import { Badge, Box, Flex, Portal, Text } from "@chakra-ui/react";
-import { useEffect } from "react";
-import { LuTrash2, LuX } from "react-icons/lu";
+import { Box, Flex, Portal, Text } from "@chakra-ui/react";
+import { useAtomValue } from "jotai";
+import { useEffect, useRef } from "react";
+import { LuX } from "react-icons/lu";
 import { IconButton } from "@/src/components/ui/Button";
 import type { ShiftData } from "@/src/domains/shift/types";
+import { usesPositionColorsAtom } from "../../stores";
 import { buildShiftPopoverViewModel } from "./script";
 
 type ShiftPopoverProps = {
   shift: ShiftData | null;
   anchorRect: DOMRect | null;
   isOpen: boolean;
-  isStaffSubmitted: boolean;
   onClose: () => void;
-  onDeletePosition: (positionId: string) => void;
-  isReadOnly?: boolean;
 };
 
 const POPOVER_WIDTH = 280;
 const POPOVER_HALF_WIDTH = POPOVER_WIDTH / 2;
 const EDGE_MARGIN = 16;
 
-export const ShiftPopover = ({
-  shift,
-  anchorRect,
-  isOpen,
-  isStaffSubmitted,
-  onClose,
-  onDeletePosition,
-  isReadOnly = false,
-}: ShiftPopoverProps) => {
+/**
+ * 閲覧専用の表示で、勤務のバーを押して開く欄。その日の勤務時間と休憩を読める。
+ * 編集できる表示では、代わりに範囲を選ぶメニュー（`RangeAssignMenu`）を開く。
+ */
+export const ShiftPopover = ({ shift, anchorRect, isOpen, onClose }: ShiftPopoverProps) => {
+  const usesPositionColors = useAtomValue(usesPositionColorsAtom);
+  const contentRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!isOpen) return;
-    const handleScroll = () => onClose();
+    // 表がスクロールすると勤務のバーから離れるため閉じる。欄の中の一覧のスクロールでは閉じない。
+    const handleScroll = (event: Event) => {
+      if (event.target instanceof Node && contentRef.current?.contains(event.target)) return;
+      onClose();
+    };
     window.addEventListener("scroll", handleScroll, true);
     return () => window.removeEventListener("scroll", handleScroll, true);
   }, [isOpen, onClose]);
@@ -64,13 +65,14 @@ export const ShiftPopover = ({
 
   const top = showBelow ? anchorRect.bottom + 8 : anchorRect.top - 8;
   const transform = showBelow ? adjustedTransform : `${adjustedTransform} translateY(-100%)`;
-  const viewModel = buildShiftPopoverViewModel({ shift, isStaffSubmitted, isReadOnly });
+  const viewModel = buildShiftPopoverViewModel({ shift, mergesAcrossPositions: !usesPositionColors });
 
   return (
     <Portal>
       {/* オーバーレイ: クリックで閉じる */}
       <Box position="fixed" inset={0} zIndex={10099} onClick={onClose} style={{ background: "transparent" }} />
       <Box
+        ref={contentRef}
         position="fixed"
         left={`${adjustedLeft}px`}
         top={`${top}px`}
@@ -84,44 +86,33 @@ export const ShiftPopover = ({
         style={{ transform }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* 希望時間（readonly時は非表示） */}
-        {viewModel.requestLabel && (
-          <Box p={3} borderBottom="1px solid" borderColor="gray.100">
-            <Flex align="center" gap={2} pr={8}>
-              <Text fontWeight="bold" fontSize="sm" color="gray.700">
-                {viewModel.requestLabel}
-              </Text>
-              {viewModel.showUnsubmittedBadge && (
-                <Badge colorPalette="orange" size="sm">
-                  未提出
-                </Badge>
-              )}
-            </Flex>
-          </Box>
-        )}
-
-        {/* ポジション一覧 */}
+        {/* 勤務時間の一覧 */}
         {viewModel.segments.length > 0 && (
-          <Box p={3} maxH="200px" overflowY="auto">
+          <Box p={3} pr={10} maxH="200px" overflowY="auto">
             {viewModel.segments.map((segment) => (
-              <Flex key={segment.id} align="center" justify="space-between" mb={2} _last={{ mb: 0 }}>
+              <Flex key={segment.id} align="center" gap={2} minW={0} mb={2} _last={{ mb: 0 }}>
+                {usesPositionColors && (
+                  <Box boxSize="10px" borderRadius="full" flexShrink={0} style={{ background: segment.color }} />
+                )}
                 <Text fontSize="sm" color="gray.700">
                   {segment.timeLabel}
                 </Text>
-                {viewModel.showDeleteActions && (
-                  <IconButton
-                    size="xs"
-                    variant="ghost"
-                    colorPalette="gray"
-                    aria-label="時間帯を削除"
-                    onClick={() => onDeletePosition(segment.id)}
-                    _hover={{ color: "red.500" }}
-                  >
-                    <LuTrash2 />
-                  </IconButton>
+                {usesPositionColors && (
+                  <Text fontSize="xs" color="gray.600" truncate>
+                    {segment.positionName}
+                  </Text>
                 )}
               </Flex>
             ))}
+          </Box>
+        )}
+
+        {/* 休憩 */}
+        {viewModel.segments.length > 0 && viewModel.breakLabels.length > 0 && (
+          <Box p={3} borderTop="1px solid" borderColor="gray.100">
+            <Text fontSize="sm" color="gray.700">
+              休憩：{viewModel.breakLabels.join(" / ")}
+            </Text>
           </Box>
         )}
 

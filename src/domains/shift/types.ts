@@ -18,6 +18,10 @@ export type ShiftData = {
   requestedTimes?: ShiftTimeRange[]; // パターン選択では同じ日に複数の希望時間帯を持てる
   requestedShiftTypeOptionIds?: string[]; // パターン選択で希望されたパターンID
   positions: PositionSegment[];
+  // その日の休憩。勤務区間とは独立に持ち、保存と集計のときに勤務時間の内側へ切り詰める。
+  breaks?: ShiftTimeRange[];
+  // 未提出者へ前回確定の勤務を引き継いだ「仮の勤務」
+  isProvisional?: boolean;
 };
 
 // ポジション色セグメント
@@ -25,7 +29,7 @@ export type PositionSegment = {
   id: string;
   positionId: string;
   positionName: string;
-  color: string; // "#3b82f6"
+  color: string; // "#60a5fa"
   start: string; // "10:00"
   end: string; // "14:00"
   shiftTypeOptionId?: string; // パターン選択の募集で選択されたパターンID
@@ -47,6 +51,22 @@ export type StaffType = {
   isRemoved?: boolean;
   displayOrder?: number;
   createdAt?: number;
+  // ポジションごとの値（担当外、見習い、リーダー）。ここにないポジションは一人前。
+  positionSkills?: StaffPositionSkill[];
+};
+
+// そのポジションが担当外（unavailable）か、担当できる場合の熟練度（newcomer、lead）。一人前は持たない。
+export type PositionSkillLevel = "unavailable" | "newcomer" | "lead";
+
+export type StaffPositionSkill = {
+  positionId: string;
+  level: PositionSkillLevel;
+};
+
+// 店舗の休憩の決まり（何分以上の勤務に何分）
+export type ShiftBreakRule = {
+  minWorkMinutes: number;
+  breakMinutes: number;
 };
 
 // 時間範囲
@@ -66,7 +86,17 @@ export type TimeRange = {
 export type ViewMode = "daily" | "overview";
 
 // ドラッグモード（希望シフトバーは編集不可のため、ポジション関連のみ）
-export type DragMode = "position-resize-start" | "position-resize-end" | "paint" | null;
+// select は、勤務のバーの上で範囲を選ぶ操作。break は、休憩を選んでいる間に、なぞった範囲を休憩にする操作。
+// break-resize-* は、休憩の開始か終了をつまんで動かす操作。
+export type DragMode =
+  | "position-resize-start"
+  | "position-resize-end"
+  | "paint"
+  | "select"
+  | "break"
+  | "break-resize-start"
+  | "break-resize-end"
+  | null;
 
 // スタッフソートモード
 export type SortMode = "default" | "request" | "startTime";
@@ -86,24 +116,27 @@ export type LinkedResizeTarget = {
 };
 
 // ==========================================
-// 一覧ビュー型
+// 必要人数
 // ==========================================
 
-// ピーク帯定義
-export type PeakBand = {
-  startTime: string; // "11:00"
-  endTime: string; // "14:00"
-  requiredCount: number; // 必要人数
+// 人数を数える区切り。パターン選択は勤務パターン、日付選択は終日になる。
+// 時間指定は区切りを持たず、バー（StaffingBar）から人数が変わる時刻で区切る。
+export type StaffingSlotKey = { kind: "shiftType"; optionId: string } | { kind: "allDay" };
+
+export type StaffingRequirement = {
+  positionId: string;
+  count: number;
 };
 
-// 必要人員設定データ（convex/requiredStaffing テーブルの1レコードに対応）
-export type RequiredStaffingData = {
-  dayOfWeek: number; // 0=日, 1=月, ..., 6=土
-  slots: {
-    hour: number; // 0-23
-    position: string;
-    requiredCount: number;
-  }[];
-  peakBands?: PeakBand[];
-  minimumStaff?: number;
+// その日の区切りと必要人数
+export type StaffingSlot = {
+  key: StaffingSlotKey;
+  requirements: StaffingRequirement[];
+};
+
+// 時間指定の必要人数のバー。1本が1人分で、ある時刻の必要人数は、その時刻に重なるバーの本数になる。
+export type StaffingBar = {
+  positionId: string;
+  start: string; // "11:00"
+  end: string; // "14:00"
 };

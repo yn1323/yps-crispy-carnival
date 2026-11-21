@@ -213,7 +213,7 @@ async function insertShopGraph(
         await writer.insert("positions", {
           shopId,
           name: "[SEED] 通常",
-          color: "#64748b",
+          color: "#94a3b8",
           sortOrder: 0,
           isDefault: true,
           isDeleted: false,
@@ -224,7 +224,7 @@ async function insertShopGraph(
           await writer.insert("positions", {
             shopId,
             name: "[SEED] リーダー",
-            color: "#0f766e",
+            color: "#14b8a6",
             sortOrder: 1,
             isDefault: false,
             isDeleted: false,

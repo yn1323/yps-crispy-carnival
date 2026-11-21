@@ -14,7 +14,7 @@ import {
 } from "./catalog";
 
 describe("development seed catalog", () => {
-  it("schemaの全60 tableを理由付きで完全分類する", () => {
+  it("schemaの全64 tableを理由付きで完全分類する", () => {
     expect(Object.keys(DEVELOPMENT_SEED_TABLE_COVERAGE).sort()).toEqual(Object.keys(schema.tables).sort());
     expect(Object.keys(schema.tables)).toHaveLength(DEVELOPMENT_SEED_EXPECTED_TABLE_COUNT);
     expect(DEVELOPMENT_SEED_TABLE_COVERAGE.notificationResendDelayedFailureDeadlines).toMatchObject({
@@ -28,8 +28,8 @@ describe("development seed catalog", () => {
 
   it("CLIとdeployment backendを削除前に照合する固定契約を持つ", () => {
     expect(DEVELOPMENT_SEED_CONTRACT_VERSION).toBe("development-seed-v8");
-    expect(DEVELOPMENT_SEED_CONTRACT_FINGERPRINT).toBe("af125a7b");
-    expect(DEVELOPMENT_SEED_EXPECTED_TABLE_COUNT).toBe(60);
+    expect(DEVELOPMENT_SEED_CONTRACT_FINGERPRINT).toBe("3fb6a68d");
+    expect(DEVELOPMENT_SEED_EXPECTED_TABLE_COUNT).toBe(64);
   });
 
   it("固定9 scenarioを重複なく持つ", () => {

@@ -54,6 +54,66 @@ describe("buildExportSchedule", () => {
     data.assignments[0].optionId = "missing";
     expect(() => buildExportSchedule(data)).toThrow("勤務パターン");
   });
+  describe("ポジションと休憩のある勤務", () => {
+    const positions = [
+      { id: "hall", name: "ホール" },
+      { id: "kitchen", name: "キッチン" },
+    ];
+
+    it("時間指定は勤務の開始と終了だけを出し、ポジションの違う隣の勤務を1つにまとめる", () => {
+      const data = createExportFixture({ positions });
+      data.assignments = [
+        {
+          ...data.assignments[0],
+          startTime: "09:00",
+          endTime: "13:00",
+          positionId: "hall",
+          breaks: [{ startTime: "11:00", endTime: "11:30" }],
+        },
+        { ...data.assignments[0], startTime: "13:00", endTime: "17:00", positionId: "kitchen" },
+      ];
+      const result = buildExportSchedule(data);
+      expect(result.rows[0].cells[0].lines).toEqual(["09:00", "17:00"]);
+      expect(result.bodyLineCount).toBe(2);
+    });
+
+    it("日付選択は○だけ、パターン選択はパターン名だけを出す", () => {
+      const dateOnly = createExportFixture({ positions });
+      dateOnly.recruitment.submissionPattern = { kind: "dateOnly" };
+      dateOnly.assignments = [
+        { ...dateOnly.assignments[0], positionId: "kitchen", breaks: [{ startTime: "14:00", endTime: "15:00" }] },
+      ];
+      expect(buildExportSchedule(dateOnly).rows[0].cells[0].lines).toEqual(["○"]);
+
+      const shiftType = createExportFixture({ positions });
+      shiftType.recruitment.submissionPattern = {
+        kind: "shiftType",
+        options: [
+          { id: "early", name: "早番", startTime: "09:00", endTime: "17:00", sortOrder: 1 },
+          { id: "late", name: "遅番", startTime: "17:00", endTime: "22:00", sortOrder: 2 },
+        ],
+      };
+      shiftType.assignments = [
+        { ...shiftType.assignments[0], optionId: "late", startTime: "17:00", endTime: "22:00", positionId: "kitchen" },
+        {
+          ...shiftType.assignments[0],
+          optionId: "early",
+          positionId: "hall",
+          breaks: [{ startTime: "12:00", endTime: "13:00" }],
+        },
+      ];
+      const result = buildExportSchedule(shiftType);
+      expect(result.rows[0].cells[0].lines).toEqual(["早番", "遅番"]);
+      expect(result.bodyLineCount).toBe(2);
+    });
+
+    it("休憩の時刻が正しくない場合は帳票を作らない", () => {
+      const data = createExportFixture({ positions });
+      data.assignments = [{ ...data.assignments[0], breaks: [{ startTime: "13:00", endTime: "12:00" }] }];
+      expect(() => buildExportSchedule(data)).toThrowError("休憩時間");
+    });
+  });
+
   it("月をまたぐ1日から31日を扱い、範囲外と出力ブロックを拒否する", () => {
     const data = createExportFixture({ assignments: [] });
     data.recruitment.periodStart = "2026-08-31";
@@ -73,6 +133,20 @@ describe("buildExportSchedule", () => {
     );
     expect(getExportFileName(schedule, "xlsx")).toBe("=店舗_本店__シフト表_2026-08-01_2026-08-31.xlsx");
     expect(schedule.rows[0].staffName).toBe("=SUM(1,2)");
+  });
+  it("日別を選ぶと、PDFのファイル名にだけ日別と付け、一覧の内容は変えない", () => {
+    const data = createExportFixture();
+    const overview = buildExportSchedule(data);
+    const daily = buildExportSchedule(data, false, false, "daily");
+
+    expect(overview.view).toBe("overview");
+    expect(daily.view).toBe("daily");
+    expect(daily.daily?.sheets.map(({ date }) => date)).toEqual(["2026-08-01"]);
+    expect({ ...daily, view: "overview" }).toEqual(overview);
+    expect(getExportFileName(daily, "pdf")).toBe("シフトリ駅前店_シフト表_日別_2026-08-01_2026-08-31.pdf");
+    // Excelは日別を選んでいても一覧を出す。
+    expect(getExportFileName(daily, "xlsx")).toBe("シフトリ駅前店_シフト表_2026-08-01_2026-08-31.xlsx");
+    expect(getExportFileName(overview, "pdf")).toBe("シフトリ駅前店_シフト表_2026-08-01_2026-08-31.pdf");
   });
   it.each([
     ["同じ", "2026-08-01", "2026-08-31", "2026/08/01~08/31 シフトリ駅前店"],

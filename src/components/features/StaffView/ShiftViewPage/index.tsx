@@ -16,6 +16,7 @@ type Assignment = {
   endTime: string;
   positionId: Id<"positions">;
   optionId?: string | null;
+  breaks?: Array<{ startTime: string; endTime: string }>;
 };
 
 type Props = {
@@ -76,6 +77,9 @@ function buildShiftData(
         };
       });
       const requestedTimes = assignment.map((item) => ({ start: item.startTime, end: item.endTime }));
+      const breaks = assignment.flatMap((item) =>
+        (item.breaks ?? []).map((range) => ({ start: range.startTime, end: range.endTime })),
+      );
       const requestedShiftTypeOptionIds =
         submissionPattern.kind === "shiftType"
           ? positionSegments
@@ -93,6 +97,7 @@ function buildShiftData(
         requestedTimes: mirrorsAssignmentAsRequest ? requestedTimes : undefined,
         requestedShiftTypeOptionIds,
         positions: positionSegments,
+        ...(breaks.length > 0 ? { breaks } : {}),
       });
     }
   }
@@ -135,6 +140,13 @@ export function ShiftViewPage({
     [staffTypes, dates, assignments, positions, submissionPattern],
   );
 
+  // ポジションが2つ以上ある店舗と、休憩を入れた店舗では、スタッフにもポジションと休憩を見せる。
+  // どちらもない店舗では、従来の表示のままにする。
+  const showsShiftDetails = useMemo(
+    () => positions.length >= 2 || assignments.some((assignment) => (assignment.breaks?.length ?? 0) > 0),
+    [positions, assignments],
+  );
+
   return (
     <Flex direction="column" h="full" minH={0}>
       <Box px={4} py={3}>
@@ -156,6 +168,7 @@ export function ShiftViewPage({
           displayMode="confirmed"
           defaultToToday
           isReadOnly
+          initialDetailMode={showsShiftDetails}
         />
       </Box>
     </Flex>

@@ -1,0 +1,302 @@
+import type { TestConvex } from "convex-test";
+import { convexTest } from "convex-test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { api } from "../_generated/api";
+import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
+import { seedManagerShop, seedOrganizationManagerShop } from "../_test/seed";
+import { modules, schema } from "../_test/setup.test-helper";
+import { SHIFT_SETUP_ASSIST_SHORT_LIMIT, SHIFT_SETUP_ASSIST_SITUATION_MAX_LENGTH } from "../constants";
+import { buildEmptyDayRequirements, type DayRequirements, findDayTemplateIssue } from "./dayTemplates";
+
+const MANAGER_SUBJECT = "shift_setup_assist_manager";
+const OTHER_MANAGER_SUBJECT = "shift_setup_assist_other_manager";
+const SITUATION = "平日は昼が混み、週末は夜まで忙しい居酒屋です。";
+
+const SHIFT_TYPE_PATTERN: ShiftSubmissionPattern = {
+  kind: "shiftType",
+  options: [
+    { id: "early", name: "早番", startTime: "09:00", endTime: "15:00", sortOrder: 0 },
+    { id: "late", name: "遅番", startTime: "15:00", endTime: "22:00", sortOrder: 1 },
+  ],
+};
+
+type Test = TestConvex<typeof schema>;
+type Weekday = "sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat";
+
+async function seedAssistShop(
+  t: Test,
+  options?: { submissionPattern?: ShiftSubmissionPattern; regularClosedDays?: Weekday[] },
+) {
+  return await t.run(async (ctx) => {
+    const actor = await seedManagerShop(ctx, { subject: MANAGER_SUBJECT, shopName: "AIサポート店舗" });
+    const other = await seedOrganizationManagerShop(ctx, { subject: OTHER_MANAGER_SUBJECT, shopName: "別組織店舗" });
+    await ctx.db.patch(actor.shopId, {
+      ...(options?.submissionPattern ? { submissionPattern: options.submissionPattern } : {}),
+      regularClosedDays: options?.regularClosedDays ?? [],
+    });
+    const insertPosition = (position: { name: string; sortOrder: number; isDefault?: boolean; isDeleted?: boolean }) =>
+      ctx.db.insert("positions", {
+        shopId: actor.shopId,
+        name: position.name,
+        color: "#3b82f6",
+        sortOrder: position.sortOrder,
+        isDefault: position.isDefault ?? false,
+        isDeleted: position.isDeleted ?? false,
+      });
+    const kitchenPositionId = await insertPosition({ name: "キッチン", sortOrder: 2 });
+    await insertPosition({ name: "削除済みポジション", sortOrder: 3, isDeleted: true });
+    const defaultPositionId = await insertPosition({ name: "シフト", sortOrder: 0, isDefault: true });
+    const hallPositionId = await insertPosition({ name: "ホール", sortOrder: 1 });
+    await ctx.db.insert("positions", {
+      shopId: other.shopId,
+      name: "別組織のポジション",
+      color: "#3b82f6",
+      sortOrder: 0,
+      isDefault: true,
+      isDeleted: false,
+    });
+    await ctx.db.insert("shiftDayTemplates", {
+      shopId: actor.shopId,
+      name: "保存済みのテンプレート",
+      weekdays: ["mon"],
+      sortOrder: 0,
+      appliesToHolidays: false,
+      requirements: buildEmptyDayRequirements(options?.submissionPattern?.kind ?? "time"),
+    });
+    return {
+      scope: { shopId: actor.shopId, expectedOrganizationId: actor.organizationId },
+      organizationId: actor.organizationId,
+      otherShopId: other.shopId,
+      // 下書きの必要人数は、有効なポジションを設定の並び順で持つ。
+      activePositionIds: [defaultPositionId, hallPositionId, kitchenPositionId],
+    };
+  });
+}
+
+/**
+ * 下書きの必要人数から、ランダムに決まる本数と人数を除いた形を作る。
+ * 時間指定は、ポジションごとに「受付時間いっぱいのバーの本数」と「足したバーの時間帯」を残す。
+ */
+function toRequirementsShape(requirements: DayRequirements) {
+  if (requirements.kind === "time") {
+    // バーは時刻順に並ぶため、ポジションはIDの順にそろえて比べる。
+    const positionIds = [...new Set(requirements.bars.map((bar) => bar.positionId))].sort();
+    return {
+      kind: "time" as const,
+      positions: positionIds.map((positionId) => {
+        const bars = requirements.bars.filter((bar) => bar.positionId === positionId);
+        const isFullDay = (bar: { startTime: string; endTime: string }) =>
+          bar.startTime === "09:00" && bar.endTime === "22:00";
+        return {
+          positionId,
+          fullDayBarCount: bars.filter(isFullDay).length,
+          extraBands: [
+            ...new Set(bars.filter((bar) => !isFullDay(bar)).map((bar) => `${bar.startTime}-${bar.endTime}`)),
+          ].sort(),
+        };
+      }),
+    };
+  }
+  const toCountShape = (counts: ReadonlyArray<{ positionId: string; count: number }>) =>
+    counts.map((entry) => ({
+      positionId: entry.positionId,
+      isPositiveInteger: Number.isInteger(entry.count) && entry.count >= 1,
+    }));
+  if (requirements.kind === "shiftType") {
+    return {
+      kind: "shiftType" as const,
+      options: requirements.options.map((option) => ({
+        optionId: option.optionId,
+        counts: toCountShape(option.counts),
+      })),
+    };
+  }
+  return { kind: "dateOnly" as const, counts: toCountShape(requirements.counts) };
+}
+
+function expectedRequirementsShape(pattern: ShiftSubmissionPattern, positionIds: readonly string[]) {
+  const counts = positionIds.map((positionId) => ({ positionId, isPositiveInteger: true }));
+  if (pattern.kind === "time") {
+    return {
+      kind: "time",
+      positions: [...positionIds].sort().map((positionId) => ({
+        positionId,
+        fullDayBarCount: 1,
+        // 足すバーは0本のこともあるため、時間帯は「昼と夜の範囲に収まること」を別に確かめる。
+        extraBands: expect.toSatisfy((bands: string[]) =>
+          bands.every((band) => band === "11:00-14:00" || band === "17:00-21:00"),
+        ),
+      })),
+    };
+  }
+  if (pattern.kind === "shiftType") {
+    return { kind: "shiftType", options: pattern.options.map((option) => ({ optionId: option.id, counts })) };
+  }
+  return { kind: "dateOnly", counts };
+}
+
+/** 下書きの作成が書き換えてはならない設定と、rate limitの消費を読む。 */
+async function readState(t: Test) {
+  return await t.run(async (ctx) => ({
+    settings: {
+      dayTemplates: await ctx.db.query("shiftDayTemplates").collect(),
+      dayTemplateOverrides: await ctx.db.query("shiftDayTemplateOverrides").collect(),
+      positions: await ctx.db.query("positions").collect(),
+      shops: await ctx.db.query("shops").collect(),
+      staffs: await ctx.db.query("staffs").collect(),
+    },
+    rateLimits: await ctx.db.query("rateLimits").collect(),
+  }));
+}
+
+describe("shiftSetup/actions", () => {
+  describe("suggestShiftSetup", () => {
+    beforeEach(() => {
+      // ローカルの環境変数に左右されないよう、未設定の状態を明示する。
+      vi.stubEnv("SHIFT_SETUP_ASSIST_MODE", "");
+    });
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("AIサポートが無効な環境では、下書きを返さず、設定もrate limitも変えない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedAssistShop(t);
+      const before = await readState(t);
+
+      const result = await t
+        .withIdentity({ subject: MANAGER_SUBJECT })
+        .action(api.shiftSetup.actions.suggestShiftSetup, { ...ids.scope, situation: SITUATION });
+
+      expect(result).toEqual({ status: "unavailable" });
+      expect(await readState(t)).toEqual(before);
+    });
+
+    it.each([
+      { name: "時間指定", pattern: { kind: "time" as const, startTime: "09:00", endTime: "22:00" } },
+      { name: "パターン選択", pattern: SHIFT_TYPE_PATTERN },
+      { name: "日付選択", pattern: { kind: "dateOnly" as const } },
+    ])("$name の店舗では、集め方に合う必要人数を持つ下書きを返し、設定を変えない", async ({ pattern }) => {
+      vi.stubEnv("SHIFT_SETUP_ASSIST_MODE", "random");
+      const t = convexTest(schema, modules);
+      const ids = await seedAssistShop(t, { submissionPattern: pattern, regularClosedDays: ["wed", "sun"] });
+      const before = await readState(t);
+
+      const result = await t
+        .withIdentity({ subject: MANAGER_SUBJECT })
+        .action(api.shiftSetup.actions.suggestShiftSetup, { ...ids.scope, situation: SITUATION });
+
+      if (result.status !== "ok") throw new Error(`expected an ok draft but received ${result.status}`);
+      // 本数と人数だけがランダムなので、それ以外の形は完全一致で確かめる。定休日（水・日）はテンプレートに入らない。
+      expect(
+        result.templates.map((template) => ({ ...template, requirements: toRequirementsShape(template.requirements) })),
+      ).toEqual(
+        [
+          { name: "平日", weekdays: ["mon", "tue", "thu"] },
+          { name: "週末", weekdays: ["fri", "sat"] },
+        ].map((template) => ({
+          ...template,
+          appliesToHolidays: false,
+          requirements: expectedRequirementsShape(pattern, ids.activePositionIds),
+        })),
+      );
+      // 下書きは、そのまま保存しても検証を通る形である。
+      expect(findDayTemplateIssue({ templates: result.templates, pattern })).toBeNull();
+      expect((await readState(t)).settings).toEqual(before.settings);
+    });
+
+    it("未認証は拒否し、設定もrate limitも変えない", async () => {
+      vi.stubEnv("SHIFT_SETUP_ASSIST_MODE", "random");
+      const t = convexTest(schema, modules);
+      const ids = await seedAssistShop(t);
+      const before = await readState(t);
+
+      await expect(
+        t.action(api.shiftSetup.actions.suggestShiftSetup, { ...ids.scope, situation: SITUATION }),
+      ).rejects.toThrowError("Unauthenticated");
+
+      expect(await readState(t)).toEqual(before);
+    });
+
+    it("別組織の管理者と、別組織の店舗の指定は Not found で拒否し、rate limitを消費しない", async () => {
+      vi.stubEnv("SHIFT_SETUP_ASSIST_MODE", "random");
+      const t = convexTest(schema, modules);
+      const ids = await seedAssistShop(t);
+      const before = await readState(t);
+
+      await expect(
+        t
+          .withIdentity({ subject: OTHER_MANAGER_SUBJECT })
+          .action(api.shiftSetup.actions.suggestShiftSetup, { ...ids.scope, situation: SITUATION }),
+      ).rejects.toThrowError("Not found");
+      await expect(
+        t.withIdentity({ subject: MANAGER_SUBJECT }).action(api.shiftSetup.actions.suggestShiftSetup, {
+          shopId: ids.otherShopId,
+          expectedOrganizationId: ids.organizationId,
+          situation: SITUATION,
+        }),
+      ).rejects.toThrowError("Not found");
+
+      expect(await readState(t)).toEqual(before);
+    });
+
+    it("短時間の連打は上限の回数まで下書きを返し、超えた分はrateLimitedを返す", async () => {
+      vi.stubEnv("SHIFT_SETUP_ASSIST_MODE", "random");
+      const t = convexTest(schema, modules);
+      const ids = await seedAssistShop(t);
+      const asManager = t.withIdentity({ subject: MANAGER_SUBJECT });
+      const before = await readState(t);
+
+      const statuses: string[] = [];
+      for (let count = 0; count < SHIFT_SETUP_ASSIST_SHORT_LIMIT + 2; count += 1) {
+        const result = await asManager.action(api.shiftSetup.actions.suggestShiftSetup, {
+          ...ids.scope,
+          situation: SITUATION,
+        });
+        statuses.push(result.status);
+      }
+
+      expect(SHIFT_SETUP_ASSIST_SHORT_LIMIT).toBe(5);
+      expect(statuses).toEqual(["ok", "ok", "ok", "ok", "ok", "rateLimited", "rateLimited"]);
+      expect((await readState(t)).settings).toEqual(before.settings);
+    });
+
+    it.each([
+      { name: "空文字", situation: "", message: "店の状況を入力してください" },
+      { name: "空白だけ", situation: " \n　", message: "店の状況を入力してください" },
+      {
+        name: "上限を超える長さ",
+        situation: "あ".repeat(SHIFT_SETUP_ASSIST_SITUATION_MAX_LENGTH + 1),
+        message: "500文字以内で入力してください",
+      },
+    ])("$name の文章は拒否し、rate limitを消費しない", async ({ situation, message }) => {
+      vi.stubEnv("SHIFT_SETUP_ASSIST_MODE", "random");
+      const t = convexTest(schema, modules);
+      const ids = await seedAssistShop(t);
+      const before = await readState(t);
+
+      await expect(
+        t
+          .withIdentity({ subject: MANAGER_SUBJECT })
+          .action(api.shiftSetup.actions.suggestShiftSetup, { ...ids.scope, situation }),
+      ).rejects.toThrowError(message);
+
+      expect(await readState(t)).toEqual(before);
+    });
+
+    it("上限ちょうどの長さの文章は受け付ける", async () => {
+      vi.stubEnv("SHIFT_SETUP_ASSIST_MODE", "random");
+      const t = convexTest(schema, modules);
+      const ids = await seedAssistShop(t);
+
+      const result = await t
+        .withIdentity({ subject: MANAGER_SUBJECT })
+        .action(api.shiftSetup.actions.suggestShiftSetup, {
+          ...ids.scope,
+          situation: "あ".repeat(SHIFT_SETUP_ASSIST_SITUATION_MAX_LENGTH),
+        });
+
+      expect(result.status).toBe("ok");
+    });
+  });
+});

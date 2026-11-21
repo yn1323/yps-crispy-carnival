@@ -86,12 +86,16 @@ describe("buildShiftTypeOverviewViewModel", () => {
       {
         key: "early-staff",
         name: "早番スタッフ",
-        optionChips: [{ key: "early", label: "早番", colorIndex: 0 }],
+        optionChips: [{ key: "early", label: "早番", colorIndex: 0, segment: shifts[1].positions[0] }],
+        staff: staffs[1],
+        shift: shifts[1],
       },
       {
         key: "late-staff",
         name: "遅番スタッフ",
-        optionChips: [{ key: "late", label: "遅番", colorIndex: 1 }],
+        optionChips: [{ key: "late", label: "遅番", colorIndex: 1, segment: shifts[0].positions[0] }],
+        staff: staffs[0],
+        shift: shifts[0],
       },
     ]);
     expect(viewModel.weeks[0].rows[3]).toMatchObject({

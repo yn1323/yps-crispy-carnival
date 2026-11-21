@@ -8,9 +8,15 @@ import {
   isValidIsoDateString,
 } from "@/src/domains/shift/date";
 import { isSupportedShiftTime, minutesToTime, timeToMinutes } from "@/src/domains/shift/time";
-import type { ExportNoteRow, ExportSchedule, ShiftExportData } from "./types";
+import { buildExportDaily } from "./daily";
+import type { ExportNoteRow, ExportSchedule, ExportView, ShiftExportData } from "./types";
 
-export function buildExportSchedule(data: ShiftExportData, splitPeriod = false, includeNotes = false): ExportSchedule {
+export function buildExportSchedule(
+  data: ShiftExportData,
+  splitPeriod = false,
+  includeNotes = false,
+  view: ExportView = "overview",
+): ExportSchedule {
   const { recruitment } = data;
   const count = getInclusiveDateCount(recruitment.periodStart, recruitment.periodEnd);
   if (
@@ -48,6 +54,19 @@ export function buildExportSchedule(data: ShiftExportData, splitPeriod = false, 
       ? [...pattern.options].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id))
       : [];
   const optionIds = new Set(options.map((option) => option.id));
+  // 休憩は一覧に出さないが、日別のバーに使うため、時刻をここで確かめる。
+  if (
+    data.assignments.some((assignment) =>
+      (assignment.breaks ?? []).some(
+        ({ startTime, endTime }) =>
+          !isSupportedShiftTime(startTime) ||
+          !isSupportedShiftTime(endTime) ||
+          timeToMinutes(startTime) >= timeToMinutes(endTime),
+      ),
+    )
+  ) {
+    throw new Error("休憩時間を確認できませんでした。");
+  }
   let bodyLineCount = pattern.kind === "time" ? 2 : 1;
   const rows = data.staffs.map((staff) => ({
     staffId: staff.id,
@@ -55,6 +74,7 @@ export function buildExportSchedule(data: ShiftExportData, splitPeriod = false, 
     cells: dates.map(({ date, isClosed }) => {
       const assignments = byStaffDate.get(`${staff.id}:${date}`) ?? [];
       if (isClosed || assignments.length === 0) return { lines: ["-"] };
+      // 一覧には勤務の開始と終了だけを出す。ポジションと休憩は日別のバーで出す。
       if (pattern.kind === "dateOnly") return { lines: ["○"] };
       if (pattern.kind === "time") {
         if (
@@ -69,7 +89,7 @@ export function buildExportSchedule(data: ShiftExportData, splitPeriod = false, 
         const intervals = assignments
           .map(({ startTime, endTime }) => ({ start: timeToMinutes(startTime), end: timeToMinutes(endTime) }))
           .sort((a, b) => a.start - b.start || a.end - b.end);
-        const merged: { start: number; end: number }[] = [];
+        const merged: typeof intervals = [];
         for (const interval of intervals) {
           const previous = merged.at(-1);
           if (previous && interval.start <= previous.end) previous.end = Math.max(previous.end, interval.end);
@@ -89,6 +109,8 @@ export function buildExportSchedule(data: ShiftExportData, splitPeriod = false, 
   }));
   if (bodyLineCount > 36) throw new Error("1日の勤務区間が多すぎるため、帳票へ収まりません。");
   const noteRows = buildExportNoteRows(data, dateSet);
+  // 一覧を出すときも作る。出力画面を開く時点で、日別にできない勤務を検出するためである。
+  const daily = buildExportDaily(data, dates);
   return {
     shopName: data.shopName,
     periodStart: recruitment.periodStart,
@@ -100,6 +122,8 @@ export function buildExportSchedule(data: ShiftExportData, splitPeriod = false, 
     rows,
     hasDateNotes: noteRows.length > 0,
     noteRows: includeNotes ? noteRows : [],
+    view: daily && view === "daily" ? "daily" : "overview",
+    daily,
   };
 }
 
@@ -147,7 +171,9 @@ export function getExportFileName(schedule: ExportSchedule, format: "pdf" | "xls
       .replace(/[\\/:*?"<>|\p{Cc}\p{Cf}]/gu, "_")
       .trim()
       .slice(0, 60) || "店舗";
-  return `${shopName}_シフト表_${schedule.periodStart}_${schedule.periodEnd}.${format}`;
+  // Excelは常に一覧を出すため、日別の名前はPDFにだけ付ける。
+  const view = schedule.view === "daily" && format === "pdf" ? "_日別" : "";
+  return `${shopName}_シフト表${view}_${schedule.periodStart}_${schedule.periodEnd}.${format}`;
 }
 
 export function getExportTitle(schedule: ExportSchedule): string {

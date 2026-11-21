@@ -81,6 +81,7 @@ import { Route as AuthAppManageManagersInviteNewRouteImport } from './routes/_au
 import { Route as AuthAppManageManagersInviteStaffRouteImport } from './routes/_auth/app_.manage_.managers_.invite-staff'
 import { Route as AuthAppManageShopsShopIdRouteImport } from './routes/_auth/app_.manage_.shops.$shopId'
 import { Route as AuthAppShiftsRecruitmentIdBoardRouteImport } from './routes/_auth/app_.shifts_.$recruitmentId_.board'
+import { Route as AuthManageShopsShopIdShiftSetupRouteImport } from './routes/_auth/manage_.shops.$shopId_.shift-setup'
 import { Route as AuthStaffPersonIdShopsShopIdRouteImport } from './routes/_auth/staff_.$personId_.shops.$shopId'
 import { Route as AuthAppStaffPersonIdShopsShopIdRouteImport } from './routes/_auth/app_.staff_.$personId_.shops.$shopId'
 
@@ -461,6 +462,12 @@ const AuthAppShiftsRecruitmentIdBoardRoute =
     path: '/app/shifts/$recruitmentId/board',
     getParentRoute: () => AuthRoute,
   } as any)
+const AuthManageShopsShopIdShiftSetupRoute =
+  AuthManageShopsShopIdShiftSetupRouteImport.update({
+    id: '/manage_/shops/$shopId_/shift-setup',
+    path: '/manage/shops/$shopId/shift-setup',
+    getParentRoute: () => AuthRoute,
+  } as any)
 const AuthStaffPersonIdShopsShopIdRoute =
   AuthStaffPersonIdShopsShopIdRouteImport.update({
     id: '/staff_/$personId_/shops/$shopId',
@@ -545,6 +552,7 @@ export interface FileRoutesByFullPath {
   '/app/manage/managers/invite-staff': typeof AuthAppManageManagersInviteStaffRoute
   '/app/manage/shops/$shopId': typeof AuthAppManageShopsShopIdRoute
   '/app/shifts/$recruitmentId/board': typeof AuthAppShiftsRecruitmentIdBoardRoute
+  '/manage/shops/$shopId/shift-setup': typeof AuthManageShopsShopIdShiftSetupRoute
   '/staff/$personId/shops/$shopId': typeof AuthStaffPersonIdShopsShopIdRoute
   '/app/staff/$personId/shops/$shopId': typeof AuthAppStaffPersonIdShopsShopIdRoute
 }
@@ -616,6 +624,7 @@ export interface FileRoutesByTo {
   '/app/manage/managers/invite-staff': typeof AuthAppManageManagersInviteStaffRoute
   '/app/manage/shops/$shopId': typeof AuthAppManageShopsShopIdRoute
   '/app/shifts/$recruitmentId/board': typeof AuthAppShiftsRecruitmentIdBoardRoute
+  '/manage/shops/$shopId/shift-setup': typeof AuthManageShopsShopIdShiftSetupRoute
   '/staff/$personId/shops/$shopId': typeof AuthStaffPersonIdShopsShopIdRoute
   '/app/staff/$personId/shops/$shopId': typeof AuthAppStaffPersonIdShopsShopIdRoute
 }
@@ -693,6 +702,7 @@ export interface FileRoutesById {
   '/_auth/app_/manage_/managers_/invite-staff': typeof AuthAppManageManagersInviteStaffRoute
   '/_auth/app_/manage_/shops/$shopId': typeof AuthAppManageShopsShopIdRoute
   '/_auth/app_/shifts_/$recruitmentId_/board': typeof AuthAppShiftsRecruitmentIdBoardRoute
+  '/_auth/manage_/shops/$shopId_/shift-setup': typeof AuthManageShopsShopIdShiftSetupRoute
   '/_auth/staff_/$personId_/shops/$shopId': typeof AuthStaffPersonIdShopsShopIdRoute
   '/_auth/app_/staff_/$personId_/shops/$shopId': typeof AuthAppStaffPersonIdShopsShopIdRoute
 }
@@ -769,6 +779,7 @@ export interface FileRouteTypes {
     | '/app/manage/managers/invite-staff'
     | '/app/manage/shops/$shopId'
     | '/app/shifts/$recruitmentId/board'
+    | '/manage/shops/$shopId/shift-setup'
     | '/staff/$personId/shops/$shopId'
     | '/app/staff/$personId/shops/$shopId'
   fileRoutesByTo: FileRoutesByTo
@@ -840,6 +851,7 @@ export interface FileRouteTypes {
     | '/app/manage/managers/invite-staff'
     | '/app/manage/shops/$shopId'
     | '/app/shifts/$recruitmentId/board'
+    | '/manage/shops/$shopId/shift-setup'
     | '/staff/$personId/shops/$shopId'
     | '/app/staff/$personId/shops/$shopId'
   id:
@@ -916,6 +928,7 @@ export interface FileRouteTypes {
     | '/_auth/app_/manage_/managers_/invite-staff'
     | '/_auth/app_/manage_/shops/$shopId'
     | '/_auth/app_/shifts_/$recruitmentId_/board'
+    | '/_auth/manage_/shops/$shopId_/shift-setup'
     | '/_auth/staff_/$personId_/shops/$shopId'
     | '/_auth/app_/staff_/$personId_/shops/$shopId'
   fileRoutesById: FileRoutesById
@@ -1452,6 +1465,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthAppShiftsRecruitmentIdBoardRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_auth/manage_/shops/$shopId_/shift-setup': {
+      id: '/_auth/manage_/shops/$shopId_/shift-setup'
+      path: '/manage/shops/$shopId/shift-setup'
+      fullPath: '/manage/shops/$shopId/shift-setup'
+      preLoaderRoute: typeof AuthManageShopsShopIdShiftSetupRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_auth/staff_/$personId_/shops/$shopId': {
       id: '/_auth/staff_/$personId_/shops/$shopId'
       path: '/staff/$personId/shops/$shopId'
@@ -1500,6 +1520,7 @@ interface AuthRouteChildren {
   AuthAppManageManagersInviteStaffRoute: typeof AuthAppManageManagersInviteStaffRoute
   AuthAppManageShopsShopIdRoute: typeof AuthAppManageShopsShopIdRoute
   AuthAppShiftsRecruitmentIdBoardRoute: typeof AuthAppShiftsRecruitmentIdBoardRoute
+  AuthManageShopsShopIdShiftSetupRoute: typeof AuthManageShopsShopIdShiftSetupRoute
   AuthStaffPersonIdShopsShopIdRoute: typeof AuthStaffPersonIdShopsShopIdRoute
   AuthAppStaffPersonIdShopsShopIdRoute: typeof AuthAppStaffPersonIdShopsShopIdRoute
 }
@@ -1535,6 +1556,7 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthAppManageManagersInviteStaffRoute: AuthAppManageManagersInviteStaffRoute,
   AuthAppManageShopsShopIdRoute: AuthAppManageShopsShopIdRoute,
   AuthAppShiftsRecruitmentIdBoardRoute: AuthAppShiftsRecruitmentIdBoardRoute,
+  AuthManageShopsShopIdShiftSetupRoute: AuthManageShopsShopIdShiftSetupRoute,
   AuthStaffPersonIdShopsShopIdRoute: AuthStaffPersonIdShopsShopIdRoute,
   AuthAppStaffPersonIdShopsShopIdRoute: AuthAppStaffPersonIdShopsShopIdRoute,
 }

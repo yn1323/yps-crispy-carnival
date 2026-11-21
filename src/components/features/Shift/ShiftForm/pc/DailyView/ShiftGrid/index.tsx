@@ -1,11 +1,12 @@
 import { Box, Flex, Text } from "@chakra-ui/react";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { ShiftData, StaffType } from "@/src/domains/shift/types";
+import type { StaffType } from "@/src/domains/shift/types";
 import { TIME_AXIS_PADDING_PX } from "../../../constants";
 import { useAllShiftDateNotes, useShiftDateNotes } from "../../../dateNotes";
 import {
   dailySortedStaffsAtom,
+  detailModeAtom,
   hourWidthAtom,
   issueStaffIdSetForSelectedDateAtom,
   selectedDateAtom,
@@ -15,7 +16,10 @@ import {
   warningMessagesByStaffIdForSelectedDateAtom,
 } from "../../../stores";
 import { useDrag } from "../hooks/useDrag";
+import { RangeAssignMenu } from "../RangeAssignMenu";
 import { TimeHeader } from "../TimeHeader";
+import { POSITION_REVEAL_DURATION_MS } from "./ShiftBar";
+import { StaffingBand } from "./StaffingBand";
 import { StaffRow } from "./StaffRow";
 
 const STAFF_COL_WIDTH = 200;
@@ -25,10 +29,9 @@ const EMPTY_WARNING_MESSAGES: string[] = [];
 type ShiftGridProps = {
   onShiftClick: (shiftId: string, positionId: string | null, e: React.MouseEvent) => void;
   onStaffNameClick: (staffId: string) => void;
-  onPaintClickPopover: (shift: ShiftData, anchorRect: DOMRect) => void;
 };
 
-export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover }: ShiftGridProps) => {
+export const ShiftGrid = ({ onShiftClick, onStaffNameClick }: ShiftGridProps) => {
   const config = useAtomValue(shiftConfigAtom);
   const shiftsForSelectedDate = useAtomValue(shiftsForSelectedDateAtom);
   const shiftByStaffId = useAtomValue(shiftByStaffIdForSelectedDateAtom);
@@ -37,20 +40,29 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
   const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
   const setHourWidth = useSetAtom(hourWidthAtom);
   const selectedDate = useAtomValue(selectedDateAtom);
+  const isRevealingPositions = usePositionReveal();
   const dateNotes = useShiftDateNotes();
   const allDateNotes = useAllShiftDateNotes();
   const { timeRange, isReadOnly, currentStaffId } = config;
 
-  const { dragState, isDragging, handleMouseDown, handleMouseMove, handleMouseUp, getCursor } = useDrag();
+  const {
+    dragState,
+    isDragging,
+    selection,
+    clearSelection,
+    handleMouseDown,
+    handleMouseMove,
+    handleMouseUp,
+    getCursor,
+  } = useDrag();
+  // 選んだあとで勤務が消えた場合は、選択を出さない。
+  const selectedShift = selection ? shiftsForSelectedDate.find((shift) => shift.id === selection.shiftId) : undefined;
+  const selectionAnchorRef = useRef<HTMLDivElement | null>(null);
 
   const dragRowRectRef = useRef<DOMRect | null>(null);
-  const dragStateRef = useRef(dragState);
-  const paintClickAnchorRef = useRef<DOMRect | null>(null);
   const timelineMeasureRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    dragStateRef.current = dragState;
-  }, [dragState]);
+  // 範囲を選んだときのメニューを、この入れ物の中に収める。
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   // タイムラインコンテナ幅に応じて hourWidth を動的計算
   useLayoutEffect(() => {
@@ -95,31 +107,6 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
     [getCursor, isDragging],
   );
 
-  const handleMouseUpOnRow = useCallback(
-    (_staffId: string) => {
-      const currentDragState = dragStateRef.current;
-      if (
-        currentDragState.mode === "paint" &&
-        currentDragState.targetShiftId &&
-        Math.abs(currentDragState.currentMinutes - currentDragState.startMinutes) < timeRange.unit
-      ) {
-        const targetShift = shiftsForSelectedDate.find((s) => s.id === currentDragState.targetShiftId);
-        if (targetShift) {
-          const minutes = currentDragState.startMinutes;
-          const hasExistingPosition = targetShift.positions.some((pos) => {
-            const [sh, sm] = pos.start.split(":").map(Number);
-            const [eh, em] = pos.end.split(":").map(Number);
-            return minutes >= sh * 60 + sm && minutes < eh * 60 + em;
-          });
-          if (hasExistingPosition && paintClickAnchorRef.current) {
-            onPaintClickPopover(targetShift, paintClickAnchorRef.current);
-          }
-        }
-      }
-    },
-    [shiftsForSelectedDate, timeRange.unit, onPaintClickPopover],
-  );
-
   useEffect(() => {
     const handleDocumentMouseMove = (e: MouseEvent) => {
       if (isDragging && dragRowRectRef.current) {
@@ -143,9 +130,16 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
   return (
-    <Flex direction="column" h="100%" minH={0} bg="gray.50" data-tour="shift-grid">
-      <Box flex={1} minH={0} overflowY="auto" overflowX="hidden">
-        <Box w="100%">
+    <Flex
+      direction="column"
+      h="100%"
+      minH={0}
+      bg="gray.50"
+      data-tour="shift-grid"
+      data-position-reveal={isRevealingPositions || undefined}
+    >
+      <Box ref={scrollContainerRef} flex={1} minH={0} overflowY="auto" overflowX="hidden">
+        <Flex direction="column" w="100%" minH="100%">
           {/* Sticky header */}
           <Flex
             position="sticky"
@@ -183,13 +177,23 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
             const dragPreview =
               isDragging &&
               dragState.staffId === staff.id &&
-              dragState.mode !== "position-resize-start" &&
-              dragState.mode !== "position-resize-end"
+              (dragState.mode === "paint" || dragState.mode === "select" || dragState.mode === "break")
                 ? {
                     mode: dragState.mode,
                     startMinutes: dragState.startMinutes,
                     currentMinutes: dragState.currentMinutes,
                     positionColor: dragState.positionColor,
+                  }
+                : null;
+            // 休憩の端をつまんで動かしている間は、その休憩を、動かしている途中の時刻で描く。
+            const breakResize =
+              isTargetShift && dragState.targetBreak
+                ? {
+                    from: dragState.targetBreak,
+                    to:
+                      dragState.mode === "break-resize-start"
+                        ? { start: dragState.currentMinutes, end: dragState.targetBreak.end }
+                        : { start: dragState.targetBreak.start, end: dragState.currentMinutes },
                   }
                 : null;
             return (
@@ -209,12 +213,13 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
                 onShiftClick={onShiftClick}
                 onStaffNameClick={onStaffNameClick}
                 dragPreview={dragPreview}
+                selectionRange={selection && selectedShift?.staffId === staff.id ? selection.range : null}
+                selectionAnchorRef={selectionAnchorRef}
                 isDragging={isDragging}
                 cursorStyle={cursorStyles[staff.id] ?? "default"}
                 resizeCurrentMinutes={isTargetShift ? dragState.currentMinutes : undefined}
                 linkedTarget={isTargetShift ? dragState.linkedTarget : null}
-                paintClickAnchorRef={paintClickAnchorRef}
-                onMouseUpOnRow={handleMouseUpOnRow}
+                breakResize={breakResize}
                 noteColumnWidth={dateNotes.hasNotes ? NOTE_COL_WIDTH : undefined}
                 note={dateNotes.getNote(staff.id, selectedDate)}
                 noteDate={selectedDate}
@@ -222,8 +227,39 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
               />
             );
           })}
-        </Box>
+          <StaffingBand leftWidth={STAFF_COL_WIDTH + (dateNotes.hasNotes ? NOTE_COL_WIDTH : 0)} />
+        </Flex>
       </Box>
+      {selection && selectedShift && (
+        <RangeAssignMenu
+          key={`${selection.shiftId}-${selection.range.start}-${selection.range.end}`}
+          shift={selectedShift}
+          range={selection.range}
+          anchorRef={selectionAnchorRef}
+          boundaryRef={scrollContainerRef}
+          onClose={clearSelection}
+        />
+      )}
     </Flex>
   );
+};
+
+/**
+ * くわしく表示へ切り替えた直後だけtrueを返す。勤務のバーは、この間にポジションの色をにじませて出す。
+ * 開いた時点でくわしく表示の画面と、日付を変えたときには動かさない。
+ */
+const usePositionReveal = () => {
+  const detailMode = useAtomValue(detailModeAtom);
+  const previousDetailModeRef = useRef(detailMode);
+  const [isRevealing, setRevealing] = useState(false);
+  // 色が変わった最初の描画から重ねるため、描画の前に切り替える。
+  useLayoutEffect(() => {
+    if (previousDetailModeRef.current === detailMode) return;
+    previousDetailModeRef.current = detailMode;
+    setRevealing(detailMode);
+    if (!detailMode) return;
+    const timer = setTimeout(() => setRevealing(false), POSITION_REVEAL_DURATION_MS);
+    return () => clearTimeout(timer);
+  }, [detailMode]);
+  return isRevealing;
 };

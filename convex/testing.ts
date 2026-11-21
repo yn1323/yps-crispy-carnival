@@ -170,7 +170,7 @@ async function seedLegalConsentState(
 }
 
 async function deleteRecruitmentGraph(ctx: MutationCtx, recruitmentId: Id<"recruitments">) {
-  const [slots, dates, dateNotes, submissions, assignments, snapshots, stats] = await Promise.all([
+  const [slots, dates, dateNotes, submissions, assignments, snapshots, staffingSnapshots, stats] = await Promise.all([
     ctx.db
       .query("shiftSubmissionSlots")
       .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
@@ -196,12 +196,25 @@ async function deleteRecruitmentGraph(ctx: MutationCtx, recruitmentId: Id<"recru
       .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
       .collect(),
     ctx.db
+      .query("recruitmentStaffingSnapshots")
+      .withIndex("by_recruitmentId_and_date", (q) => q.eq("recruitmentId", recruitmentId))
+      .collect(),
+    ctx.db
       .query("recruitmentStats")
       .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
       .collect(),
   ]);
 
-  for (const doc of [...slots, ...dates, ...dateNotes, ...submissions, ...assignments, ...snapshots, ...stats]) {
+  for (const doc of [
+    ...slots,
+    ...dates,
+    ...dateNotes,
+    ...submissions,
+    ...assignments,
+    ...snapshots,
+    ...staffingSnapshots,
+    ...stats,
+  ]) {
     await ctx.db.delete(doc._id);
   }
 }
@@ -454,6 +467,21 @@ async function deleteShopGraph(
     .collect();
   for (const position of positions) {
     await ctx.db.delete(position._id);
+  }
+
+  const dayTemplates = await ctx.db
+    .query("shiftDayTemplates")
+    .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
+    .collect();
+  for (const template of dayTemplates) {
+    await ctx.db.delete(template._id);
+  }
+  const dayTemplateOverrides = await ctx.db
+    .query("shiftDayTemplateOverrides")
+    .withIndex("by_shopId_and_date", (q) => q.eq("shopId", shopId))
+    .collect();
+  for (const override of dayTemplateOverrides) {
+    await ctx.db.delete(override._id);
   }
 
   await ctx.db.delete(shopId);

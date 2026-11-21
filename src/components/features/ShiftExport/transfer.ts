@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { SHIFT_BOARD_DATE_NOTE_LIMIT, SHIFT_DATE_NOTE_MAX_LENGTH } from "@/convex/constants";
+import {
+  POSITION_NAME_MAX_LENGTH,
+  SHIFT_ASSIGNMENT_BREAK_LIMIT,
+  SHIFT_BOARD_DATE_NOTE_LIMIT,
+  SHIFT_DATE_NOTE_MAX_LENGTH,
+} from "@/convex/constants";
 import { shiftSubmissionPatternSchema } from "@/convex/shop/schemas";
 import { buildExportSchedule } from "./script";
 import type { ShiftExportData } from "./types";
@@ -8,6 +13,10 @@ export const TRANSFER_TIMEOUT_MS = 30_000;
 export const SNAPSHOT_LIFETIME_MS = 24 * 60 * 60 * 1000;
 const STORAGE_KEY = "shift-export-snapshot";
 const idSchema = z.string().min(1).max(200);
+// 既存の読み手はポジションを50件の窓で読む。
+const POSITION_READ_WINDOW = 50;
+// 隣り合う勤務をまとめた結果、1件の勤務が複数の勤務の休憩を持つことがある。
+const SHIFT_ASSIGNMENT_BREAK_MERGE_FACTOR = 8;
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const dataSchema = z.object({
   shopName: z.string().min(1).max(200),
@@ -29,9 +38,26 @@ const dataSchema = z.object({
         startTime: z.string().max(5),
         endTime: z.string().max(5),
         optionId: idSchema.nullable(),
+        // デプロイ前に保存した一時データにはないため、省略を許す。
+        positionId: idSchema.nullable().optional(),
+        breaks: z
+          .array(z.object({ startTime: z.string().max(5), endTime: z.string().max(5) }))
+          .max(SHIFT_ASSIGNMENT_BREAK_LIMIT * SHIFT_ASSIGNMENT_BREAK_MERGE_FACTOR)
+          .optional(),
       }),
     )
     .max(2000),
+  positions: z
+    .array(
+      z.object({
+        id: idSchema,
+        name: z.string().min(1).max(POSITION_NAME_MAX_LENGTH),
+        // デプロイ前に保存した一時データにはないため、省略を許す。値は描く側で確かめ、色でなければ灰色にする。
+        color: z.string().max(20).optional(),
+      }),
+    )
+    .max(POSITION_READ_WINDOW)
+    .default([]),
   // デプロイ前に保存した一時データにはないため、空の一覧として読む。
   dateNotes: z
     .array(

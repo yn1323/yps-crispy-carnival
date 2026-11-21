@@ -1,7 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
-import { mockShifts, mockShiftsAllPatterns, mockStaffs } from "../../stories/fixtures";
+import { JotaiStoryWrapper, mockShifts, mockShiftsAllPatterns, mockStaffs } from "../../stories/fixtures";
+import { detailPositions, timeDetailDate, timeDetailShifts, timeDetailStaffs } from "../detailStoryFixtures";
 import { ShiftDetailSheet } from "./ShiftDetailSheet";
 
 const meta = {
@@ -49,6 +50,33 @@ export const UnsubmittedStaffNoPositions: Story = {
     staff: unsubmittedStaff,
     shift: emptyUnsubmittedShift,
   },
+};
+
+/** くわしく表示では、時間帯ごとのポジションと休憩も出す。 */
+export const DetailWithPositionsAndBreaks: Story = {
+  name: "Detail With Positions And Breaks",
+  args: {
+    ...baseArgs,
+    staff: timeDetailStaffs[0],
+    shift: timeDetailShifts.find((shift) => shift.staffId === timeDetailStaffs[0].id && shift.date === timeDetailDate),
+    selectedDate: timeDetailDate,
+  },
+  decorators: [
+    (StoryComponent) => (
+      <JotaiStoryWrapper
+        overrides={{
+          staffs: timeDetailStaffs,
+          positions: detailPositions,
+          initialShifts: timeDetailShifts,
+          dates: [timeDetailDate],
+          isReadOnly: true,
+          initialDetailMode: true,
+        }}
+      >
+        <StoryComponent />
+      </JotaiStoryWrapper>
+    ),
+  ],
 };
 
 export const FooterCloseBehavior: Story = {

@@ -86,7 +86,12 @@ export function HelpShiftExport() {
                 プレビューで、店舗名・期間・スタッフの勤務内容を確認します。スタッフはダッシュボードと同じ順に並びます。
               </List.Item>
               <List.Item lineHeight="1.8">
+                1日ごとの勤務を時間のバーで出す場合は、<strong>日別</strong>を選択します。<strong>日別</strong>
+                は時間指定とパターン選択のシフトで選べます。
+              </List.Item>
+              <List.Item lineHeight="1.8">
                 印刷用なら<strong>PDF</strong>、表を編集して使うなら<strong>Excel</strong>を選択して保存します。
+                <strong>日別</strong>はPDFだけで保存できます。
               </List.Item>
             </List.Root>
           </Stack>

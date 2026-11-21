@@ -1,14 +1,14 @@
 import { Box } from "@chakra-ui/react";
 import { useAtomValue } from "jotai";
-import type { TimeRange } from "@/src/domains/shift/types";
-import { hourWidthAtom } from "../../../stores";
 import {
   getDisplayEndMinutes,
   getDisplayStartMinutes,
   getEditableEndMinutes,
   getEditableStartMinutes,
   minutesToPixel,
-} from "../../../timelineGeometry";
+} from "@/src/components/shared/ShiftTimeline/timelineGeometry";
+import type { TimeRange } from "@/src/domains/shift/types";
+import { hourWidthAtom } from "../../../stores";
 
 type NonEditableTimeOverlayProps = {
   timeRange: TimeRange;

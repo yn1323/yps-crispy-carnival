@@ -6,6 +6,8 @@ import type { ShiftData } from "@/src/domains/shift/types";
 import { useAllShiftDateNotes } from "../../dateNotes";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
+import { SP_LIST_PADDING_X_PX } from "../../spTimelineScale";
+import { DayTemplateMenu, useDayStaffingView } from "../../staffingParts";
 import {
   clearShiftDraftPositionsAtom,
   dailySortedStaffsAtom,
@@ -15,11 +17,12 @@ import {
   selectedDateAtom,
   shiftByStaffIdForSelectedDateAtom,
   shiftConfigAtom,
+  staffWarningCountByDateAtom,
   upsertShiftDraftAtom,
-  warningCountByDateAtom,
   warningMessagesByStaffIdForSelectedDateAtom,
 } from "../../stores";
 import { DateRail } from "./DateRail";
+import { DetailControls } from "./DetailControls";
 import { ShiftDetailSheet } from "./ShiftDetailSheet";
 import { ShiftEditSheet } from "./ShiftEditSheet";
 import { SectionHeader, SPDailyCard, SPOffCard } from "./StaffCards";
@@ -37,8 +40,10 @@ export const SPDailyView = () => {
   const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const issueCounts = useAtomValue(issueCountByDateAtom);
   const issueStaffIds = useAtomValue(issueStaffIdSetForSelectedDateAtom);
-  const warningCounts = useAtomValue(warningCountByDateAtom);
+  const warningCounts = useAtomValue(staffWarningCountByDateAtom);
   const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
+  // その日のテンプレートを出す日（くわしく表示の営業日）だけ値が入る。
+  const staffingView = useDayStaffingView(selectedDate);
   // カード下段の本文と名前の右のアイコンは、表示設定に応じてどちらか一方だけが出る。
   const dateNotes = useAllShiftDateNotes();
 
@@ -110,11 +115,13 @@ export const SPDailyView = () => {
     [clearShiftPositions, selectedDate],
   );
 
-  const renderDailyCard = ({ staff, viewModel }: (typeof rows)[number]) => (
+  const renderDailyCard = ({ staff, shift, viewModel }: (typeof rows)[number]) => (
     <SPDailyCard
       key={staff.id}
       staffId={staff.id}
       staffName={staff.name}
+      staff={staff}
+      shift={shift}
       viewModel={viewModel}
       onTap={() => handleCardTap(staff.id)}
       hasError={issueStaffIds.has(staff.id)}
@@ -149,8 +156,21 @@ export const SPDailyView = () => {
         warningCounts={warningCounts}
         dateStripRef={dateStripRef}
         onSelect={selectDate}
+        // テンプレートは、日付と表示設定の間に置く。
+        headingAction={staffingView && <DayTemplateMenu date={selectedDate} view={staffingView} shrinks />}
       />
-      <Box flex={1} minH={0} overflow="auto" bg="gray.50" px={3} py={3} data-tour="shift-grid">
+      {/* 充足。閉じている間は、日付の見出しの下に留める。 */}
+      <DetailControls />
+      <Box
+        flex={1}
+        minH={0}
+        overflow="auto"
+        bg="gray.50"
+        // カードのバーの両端を、充足の帯と時刻の軸にそろえるため、物差しと同じ余白を使う。
+        px={`${SP_LIST_PADDING_X_PX}px`}
+        py={3}
+        data-tour="shift-grid"
+      >
         {isShopClosedDate ? (
           <Flex minH="240px" align="center" justify="center" direction="column" gap={2} px={4}>
             <Box textStyle="md" fontWeight={700} color="gray.700">
@@ -183,6 +203,7 @@ export const SPDailyView = () => {
                       key={staff.id}
                       staffId={staff.id}
                       staffName={staff.name}
+                      staff={staff}
                       label={isReadOnly ? "休み" : "休み希望"}
                       labelTone="muted"
                       onTap={() => handleCardTap(staff.id)}
@@ -209,6 +230,7 @@ export const SPDailyView = () => {
                       key={staff.id}
                       staffId={staff.id}
                       staffName={staff.name}
+                      staff={staff}
                       label="未提出"
                       labelTone="warning"
                       onTap={() => handleCardTap(staff.id)}
@@ -236,6 +258,7 @@ export const SPDailyView = () => {
       )}
       {!isReadOnly && selectedStaff && (
         <ShiftEditSheet
+          key={`${selectedStaff.id}-${selectedDate}`}
           staff={selectedStaff}
           shift={selectedShift}
           positions={positions}

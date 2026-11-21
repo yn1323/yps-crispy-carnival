@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { minutesToPixel } from "@/src/components/shared/ShiftTimeline/timelineGeometry";
 import type { PositionSegment, ShiftData, TimeRange } from "@/src/domains/shift/types";
-import { detectLinkedResizeEdge } from "./hitTesting";
+import { detectBreakResizeEdge, detectLinkedResizeEdge } from "./hitTesting";
 
 const timeRange: TimeRange = { start: 9, end: 18, unit: 30 };
 const hourWidth = 60;
@@ -116,5 +117,41 @@ describe("detectLinkedResizeEdge", () => {
   it("対象シフトが空またはポジションが空なら検出しない", () => {
     expect(detect({ shifts: [] })).toBeNull();
     expect(detect({ shifts: [shift({ positions: [] })] })).toBeNull();
+  });
+});
+
+describe("detectBreakResizeEdge", () => {
+  // 10:00〜18:00の勤務。12:00〜13:00の休憩と、15:00〜15:15の短い休憩がある。
+  const worked = {
+    positions: [position({ id: "work", start: "10:00", end: "18:00" })],
+    breaks: [
+      { start: "12:00", end: "13:00" },
+      { start: "15:00", end: "15:15" },
+    ],
+  };
+  const xOf = (minutes: number) => minutesToPixel(minutes, timeRange, hourWidth);
+  const detect = (x: number) => detectBreakResizeEdge({ shift: worked, x, timeRange, threshold, hourWidth });
+
+  it("休憩の開始と終了の近くでは、その休憩と、どちらの端かを返す", () => {
+    expect(detect(xOf(12 * 60) + 5)).toEqual({ range: { start: 720, end: 780 }, edge: "start" });
+    expect(detect(xOf(13 * 60) - 5)).toEqual({ range: { start: 720, end: 780 }, edge: "end" });
+  });
+
+  it("休憩の中央と、休憩のない場所ではnullを返す", () => {
+    expect(detect(xOf(12 * 60 + 30))).toBeNull();
+    expect(detect(xOf(11 * 60))).toBeNull();
+  });
+
+  it("短い休憩は、中央を押して選べるよう、端の当たり判定を休憩の幅の3分の1までにする", () => {
+    // 15分の休憩は幅15px。端から5pxまでが端、中央は端にしない。
+    expect(detect(xOf(15 * 60) + 4)).toEqual({ range: { start: 900, end: 915 }, edge: "start" });
+    expect(detect(xOf(15 * 60) + 7.5)).toBeNull();
+    expect(detect(xOf(15 * 60 + 15) - 4)).toEqual({ range: { start: 900, end: 915 }, edge: "end" });
+  });
+
+  it("勤務の頭かお尻にかかって休憩として扱っていない休憩は、つまめない", () => {
+    const stale = { ...worked, breaks: [{ start: "17:00", end: "18:00" }] };
+
+    expect(detectBreakResizeEdge({ shift: stale, x: xOf(17 * 60), timeRange, threshold, hourWidth })).toBeNull();
   });
 });

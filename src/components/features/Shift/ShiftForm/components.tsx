@@ -1,6 +1,6 @@
 import { Box, chakra, Flex, Icon, Popover, Portal, Stack, type SystemStyleObject, Text } from "@chakra-ui/react";
 import type { KeyboardEvent, ReactNode, SyntheticEvent } from "react";
-import { LuFileDown, LuSave, LuTriangleAlert } from "react-icons/lu";
+import { LuCircleCheck, LuFileDown, LuSave, LuSend, LuTriangleAlert } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
 import { Tooltip } from "@/src/components/ui/tooltip";
 import type { StaffType, ViewMode } from "@/src/domains/shift/types";
@@ -290,7 +290,26 @@ type UnsubmittedStripProps = {
   names: string[];
   reminderStatus: ReminderStatus;
   onOpenDetails?: () => void;
+  /** 未提出者へ前回の勤務を仮で入れる操作。くわしく表示で、前回確定した募集がある場合だけ渡す。 */
+  provisionalAction?: { onInsert: () => void; isLoading: boolean };
 };
+
+const ProvisionalInsertButton = ({ onInsert, isLoading }: { onInsert: () => void; isLoading: boolean }) => (
+  <Button
+    type="button"
+    size="xs"
+    variant="outline"
+    bg="white"
+    h="32px"
+    px={3}
+    flexShrink={0}
+    loading={isLoading}
+    disabled={isLoading}
+    onClick={onInsert}
+  >
+    前回の勤務を仮で入れる
+  </Button>
+);
 
 export type ReminderStatus =
   | {
@@ -299,7 +318,12 @@ export type ReminderStatus =
     }
   | { kind: "unconfirmed" };
 
-export const UnsubmittedStrip = ({ names, reminderStatus, onOpenDetails }: UnsubmittedStripProps) => {
+export const UnsubmittedStrip = ({
+  names,
+  reminderStatus,
+  onOpenDetails,
+  provisionalAction,
+}: UnsubmittedStripProps) => {
   const statusColor =
     reminderStatus.kind === "sent" ? "#047857" : reminderStatus.kind === "scheduled" ? "#92400e" : "#78716c";
   return (
@@ -340,8 +364,14 @@ export const UnsubmittedStrip = ({ names, reminderStatus, onOpenDetails }: Unsub
             {reminderStatus.label}
           </Box>
         )}
+        {provisionalAction && <ProvisionalInsertButton {...provisionalAction} />}
       </Flex>
       <Box display={{ base: "block", lg: "none" }} flexShrink={0}>
+        {provisionalAction && (
+          <Flex justify="flex-end" px={4} pt={2} bg="#fffbeb" borderTop="1px solid #fde68a">
+            <ProvisionalInsertButton {...provisionalAction} />
+          </Flex>
+        )}
         <chakra.button
           type="button"
           onClick={onOpenDetails}
@@ -352,7 +382,7 @@ export const UnsubmittedStrip = ({ names, reminderStatus, onOpenDetails }: Unsub
           p="12px 16px"
           textAlign="left"
           bg="#fffbeb"
-          borderTop="1px solid #fde68a"
+          borderTop={provisionalAction ? "none" : "1px solid #fde68a"}
           borderLeft="none"
           borderRight="none"
           borderBottom="none"
@@ -431,10 +461,11 @@ export const SaveButton = ({ compact = false, isSaving = false, onClick }: SaveB
       fontFamily: "inherit",
       display: "inline-flex",
       alignItems: "center",
-      gap: 4,
+      gap: compact ? 4 : 6,
     }}
   >
-    {compact ? <LuSave size={14} /> : isSaving ? "保存中" : "下書き保存"}
+    <LuSave size={compact ? 14 : 16} aria-hidden="true" focusable="false" />
+    {!compact && (isSaving ? "保存中" : "下書き保存")}
   </chakra.button>
 );
 
@@ -461,7 +492,9 @@ export const ConfirmButton = ({
         : "確定"
       : isConfirmed
         ? "もう一度通知"
-        : "シフトを確定して通知";
+        : "確定";
+  // 確定済みの募集では、確定ではなく通知を送り直すため、送るアイコンにする。
+  const LabelIcon = isConfirmed ? LuSend : LuCircleCheck;
   return (
     <chakra.button
       type="button"
@@ -484,8 +517,12 @@ export const ConfirmButton = ({
         fontWeight: 600,
         fontFamily: "inherit",
         boxShadow: isConfirmed ? "none" : "0 1px 2px rgba(13,148,136,0.25)",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: compact ? 4 : 6,
       }}
     >
+      <LabelIcon size={compact ? 14 : 16} aria-hidden="true" focusable="false" />
       {label}
     </chakra.button>
   );

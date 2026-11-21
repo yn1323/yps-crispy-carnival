@@ -57,7 +57,9 @@ describe("buildDateOnlyOverviewViewModel", () => {
       canOpenDaily: true,
       actionAriaLabel: "6/3(水)の日別を表示",
     });
-    expect(viewModel.weeks[0].rows[2].staffRows).toEqual([{ key: "staff-1", name: "田中" }]);
+    expect(viewModel.weeks[0].rows[2].staffRows).toEqual([
+      { key: "staff-1", name: "田中", staff: staffs[0], shift: shifts[0], segment: shifts[0].positions[0] },
+    ]);
     expect(viewModel.weeks[0].rows[3]).toMatchObject({
       iso: "2026-06-04",
       statusLabel: "定休日",

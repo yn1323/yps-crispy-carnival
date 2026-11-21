@@ -2,9 +2,9 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, userEvent, within } from "storybook/test";
 import {
+  type ManagerInvitationAcceptanceAccount,
   ManagerInvitationAcceptanceView,
   type ManagerInvitationAcceptanceViewProps,
-  type ManagerInvitationAcceptanceViewState,
 } from ".";
 
 const noop = () => {};
@@ -13,21 +13,14 @@ const actions: ManagerInvitationAcceptanceViewProps["actions"] = {
   onAccept: noop,
   onLogin: noop,
   onSignup: noop,
-  onStartVerification: noop,
-  onVerifyCode: noop,
-  onResendCode: noop,
-  onBackToVerificationInput: noop,
   onLogout: noop,
   onGoToDashboard: noop,
 };
 
-const verificationEmailAlreadyRegisteredState: ManagerInvitationAcceptanceViewState = {
-  kind: "verificationRequired",
-  step: "input",
-  errorMessage:
-    "このメールアドレスはすでに登録されています。\n一度ログアウトしてから招待リンクを再度クリックしてください。",
-  requiresLogout: true,
-  isBusy: false,
+const account: ManagerInvitationAcceptanceAccount = {
+  email: "suzuki.hanako@example.com",
+  errorMessage: null,
+  isLoggingOut: false,
 };
 
 const meta = {
@@ -42,6 +35,7 @@ const meta = {
       isSignedIn: true,
       isAccepting: false,
     },
+    account,
     actions,
   },
 } satisfies Meta<typeof ManagerInvitationAcceptanceView>;
@@ -50,6 +44,26 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const ReadySignedIn: Story = {};
+
+export const ReadySignedInAccepting: Story = {
+  args: {
+    state: {
+      kind: "ready",
+      organizationName: "株式会社さくらダイニング",
+      expiresAtLabel: "2026年7月23日 18:00",
+      isSignedIn: true,
+      isAccepting: true,
+    },
+  },
+};
+
+export const ReadySignedInMobile: Story = {
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+  args: {
+    account: { ...account, email: "very.long.account.name.for.wrapping.check@subdomain.example.co.jp" },
+  },
+};
 
 export const ReadySignedOut: Story = {
   args: {
@@ -60,57 +74,27 @@ export const ReadySignedOut: Story = {
       isSignedIn: false,
       isAccepting: false,
     },
+    account: null,
   },
 };
 
 export const Loading: Story = { args: { state: { kind: "loading" } } };
 export const Expired: Story = { args: { state: { kind: "expired" } } };
+export const ExpiredSignedOut: Story = { args: { state: { kind: "expired" }, account: null } };
 export const Revoked: Story = { args: { state: { kind: "revoked" } } };
 export const Used: Story = { args: { state: { kind: "used" } } };
 export const Unavailable: Story = { args: { state: { kind: "unavailable" } } };
 export const Invalid: Story = { args: { state: { kind: "invalid" } } };
-export const VerificationRequired: Story = {
+export const Conflict: Story = { args: { state: { kind: "conflict" } } };
+export const AccountAlreadyRegistered: Story = {
+  args: { state: { kind: "accountAlreadyRegistered", organizationName: "株式会社さくらダイニング" } },
+};
+export const LogoutFailed: Story = {
   args: {
-    state: {
-      kind: "verificationRequired",
-      step: "input",
-      errorMessage: null,
-      requiresLogout: false,
-      isBusy: false,
-    },
+    state: { kind: "conflict" },
+    account: { ...account, errorMessage: "ログアウトできませんでした。もう一度お試しください。" },
   },
 };
-export const VerificationEmailAlreadyRegistered: Story = {
-  args: {
-    state: verificationEmailAlreadyRegisteredState,
-  },
-};
-export const VerificationCode: Story = {
-  args: {
-    state: {
-      kind: "verificationRequired",
-      step: "code",
-      maskedEmail: "in***@example.com",
-      errorMessage: null,
-      infoMessage: null,
-      isBusy: false,
-    },
-  },
-};
-export const VerificationRequiredMobile: Story = {
-  tags: ["vrt-mobile2"],
-  globals: { viewport: { value: "mobile2", isRotated: false } },
-  args: {
-    state: {
-      kind: "verificationRequired",
-      step: "input",
-      errorMessage: null,
-      requiresLogout: false,
-      isBusy: false,
-    },
-  },
-};
-export const Conflict: Story = { args: { state: { kind: "conflict", isAccepting: false } } };
 export const RetryableError: Story = {
   args: { state: { kind: "retryableError", isRetrying: false } },
 };
@@ -136,31 +120,56 @@ export const AcceptedWithoutDestination: Story = {
   },
 };
 
-function VerificationEmailAlreadyRegisteredBehaviorStory({
+function SignedInBehaviorStory({
+  state,
+  account: storyAccount,
   actions: storyActions,
 }: ManagerInvitationAcceptanceViewProps) {
-  const [didRequestLogout, setDidRequestLogout] = useState(false);
+  const [requested, setRequested] = useState<string | null>(null);
 
   return (
     <>
       <ManagerInvitationAcceptanceView
-        state={verificationEmailAlreadyRegisteredState}
-        actions={{ ...storyActions, onLogout: () => setDidRequestLogout(true) }}
+        state={state}
+        account={storyAccount}
+        actions={{
+          ...storyActions,
+          onAccept: () => setRequested("参加を要求しました"),
+          onLogout: () => setRequested("ログアウトを要求しました"),
+        }}
       />
-      {didRequestLogout && <output>ログアウトを要求しました</output>}
+      {requested && <output>{requested}</output>}
     </>
   );
 }
 
-export const VerificationEmailAlreadyRegisteredBehavior: Story = {
+export const AcceptBehavior: Story = {
   parameters: { screenshot: { skip: true } },
-  render: (args) => <VerificationEmailAlreadyRegisteredBehaviorStory {...args} />,
+  render: (args) => <SignedInBehaviorStory {...args} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "参加する" }));
+    await expect(canvas.getByText("参加を要求しました")).toBeInTheDocument();
+  },
+};
 
-    await expect(canvas.queryByRole("textbox", { name: "メールアドレス" })).not.toBeInTheDocument();
-    await expect(canvas.queryByRole("button", { name: "確認コードを送信" })).not.toBeInTheDocument();
-    await userEvent.click(canvas.getByRole("button", { name: "ログアウトする" }));
+export const LogoutBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: (args) => <SignedInBehaviorStory {...args} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "ログアウト" }));
+    await expect(canvas.getByText("ログアウトを要求しました")).toBeInTheDocument();
+  },
+};
+
+export const SwitchAccountBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  args: { state: { kind: "accountAlreadyRegistered", organizationName: "株式会社さくらダイニング" } },
+  render: (args) => <SignedInBehaviorStory {...args} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "別のアカウントでログインする" }));
     await expect(canvas.getByText("ログアウトを要求しました")).toBeInTheDocument();
   },
 };
@@ -171,6 +180,7 @@ function RetryBehaviorStory({ actions: storyActions }: ManagerInvitationAcceptan
     <>
       <ManagerInvitationAcceptanceView
         state={{ kind: "retryableError", isRetrying: false }}
+        account={account}
         actions={{ ...storyActions, onAccept: () => setDidRetry(true) }}
       />
       {didRetry && <output>招待の再確認を要求しました</output>}
@@ -199,6 +209,7 @@ function AcceptedWithoutDestinationBehaviorStory({ actions: storyActions }: Mana
           isPreparingDestination: false,
           hasDestination: false,
         }}
+        account={account}
         actions={{ ...storyActions, onGoToDashboard: () => setDidRequestDashboard(true) }}
       />
       {didRequestDashboard && <output>ダッシュボードへの遷移を要求しました</output>}
@@ -216,59 +227,6 @@ export const AcceptedWithoutDestinationBehavior: Story = {
   },
 };
 
-function VerificationFlowStory({ actions: storyActions }: ManagerInvitationAcceptanceViewProps) {
-  const [state, setState] = useState<ManagerInvitationAcceptanceViewState>({
-    kind: "verificationRequired",
-    step: "input",
-    errorMessage: null,
-    requiresLogout: false,
-    isBusy: false,
-  });
-
-  return (
-    <ManagerInvitationAcceptanceView
-      state={state}
-      actions={{
-        ...storyActions,
-        onStartVerification: () => {
-          setState({
-            kind: "verificationRequired",
-            step: "code",
-            maskedEmail: "in***@example.com",
-            errorMessage: null,
-            infoMessage: null,
-            isBusy: false,
-          });
-        },
-        onVerifyCode: () => {
-          setState({
-            kind: "accepted",
-            organizationName: "株式会社さくらダイニング",
-            isPreparingDestination: false,
-            hasDestination: false,
-          });
-        },
-      }}
-    />
-  );
-}
-
-export const VerificationFlowBehavior: Story = {
-  parameters: { screenshot: { skip: true } },
-  render: (args) => <VerificationFlowStory {...args} />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.type(canvas.getByRole("textbox", { name: "メールアドレス" }), "invite@example.com");
-    await userEvent.click(canvas.getByRole("button", { name: "確認コードを送信" }));
-    await expect(await canvas.findByRole("textbox", { name: "確認コード" })).toBeInTheDocument();
-    await expect(canvas.queryByText("invite@example.com", { exact: false })).not.toBeInTheDocument();
-
-    await userEvent.type(canvas.getByRole("textbox", { name: "確認コード" }), "123456");
-    await userEvent.click(canvas.getByRole("button", { name: "確認して参加する" }));
-    await expect(await canvas.findByRole("heading", { name: "管理者として参加しました" })).toBeInTheDocument();
-  },
-};
-
 function LoginBehaviorStory({ state, actions: storyActions }: ManagerInvitationAcceptanceViewProps) {
   const [didRequestLogin, setDidRequestLogin] = useState(false);
 
@@ -276,6 +234,7 @@ function LoginBehaviorStory({ state, actions: storyActions }: ManagerInvitationA
     <>
       <ManagerInvitationAcceptanceView
         state={state}
+        account={null}
         actions={{ ...storyActions, onLogin: () => setDidRequestLogin(true) }}
       />
       {didRequestLogin && <output>ログイン画面への遷移を要求しました</output>}

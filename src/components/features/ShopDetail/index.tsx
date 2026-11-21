@@ -43,6 +43,13 @@ export function ShopDetail({ shop, people, organizationId }: Props) {
           search: { org: organizationId },
         })
       }
+      onOpenShiftSetup={() =>
+        void navigate({
+          to: "/manage/shops/$shopId/shift-setup",
+          params: { shopId: shop.id },
+          search: { org: organizationId },
+        })
+      }
       onUpdateSettings={settings.updateSettings}
       onDelete={deletion.deleteShop}
       expectedOrganizationId={organizationId}

@@ -121,33 +121,50 @@ const hasWorkRequest = (shift: ShiftData | undefined, mode: DailyStaffSortMode):
   return !!shift.requestedTime || (shift.requestedTimes?.length ?? 0) > 0;
 };
 
+// 希望のうち最も早い時間帯（分）。開始が同じなら終了が早いほうを使う。
+const getEarliestRequestRange = (shift: ShiftData | undefined): { startMinutes: number; endMinutes: number } | null => {
+  if (!shift) return null;
+  const requests = shift.requestedTimes ?? (shift.requestedTime ? [shift.requestedTime] : []);
+  const ranges = requests
+    .map((request) => ({ startMinutes: timeToMinutes(request.start), endMinutes: timeToMinutes(request.end) }))
+    .sort((a, b) => a.startMinutes - b.startMinutes || a.endMinutes - b.endMinutes);
+  return ranges[0] ?? null;
+};
+
+const compareRanges = (
+  a: { startMinutes: number; endMinutes: number } | null,
+  b: { startMinutes: number; endMinutes: number } | null,
+): number => {
+  if (!a || !b) return 0;
+  return a.startMinutes - b.startMinutes || a.endMinutes - b.endMinutes;
+};
+
+// 日別の並びのまとまり: 勤務あり → 出勤の希望あり → 休み → 未提出。
+// 勤務がまだない日（「くわしく」で開いた直後など）も、希望のある人が上に来る。
+const getDailyGroup = (staff: StaffType, shift: ShiftData | undefined, mode: DailyStaffSortMode): number => {
+  if (getEarliestAssignedWorkRange(shift)) return 0;
+  if (!staff.isSubmitted) return 3;
+  return hasWorkRequest(shift, mode) ? 1 : 2;
+};
+
 export const sortDailyStaffs = ({ staffs, shiftByStaffId, mode }: SortDailyStaffsParams): StaffType[] =>
   [...staffs].sort((a, b) => {
     const aShift = shiftByStaffId?.get(a.id);
     const bShift = shiftByStaffId?.get(b.id);
-    const aWorkRange = getEarliestAssignedWorkRange(aShift);
-    const bWorkRange = getEarliestAssignedWorkRange(bShift);
-    const aGroup = aWorkRange ? 0 : a.isSubmitted ? 1 : 2;
-    const bGroup = bWorkRange ? 0 : b.isSubmitted ? 1 : 2;
+    const aGroup = getDailyGroup(a, aShift, mode);
+    const bGroup = getDailyGroup(b, bShift, mode);
 
     if (aGroup !== bGroup) return aGroup - bGroup;
 
-    if (aGroup === 0) {
-      if (mode !== "dateOnly" && aWorkRange && bWorkRange) {
-        if (aWorkRange.startMinutes !== bWorkRange.startMinutes) {
-          return aWorkRange.startMinutes - bWorkRange.startMinutes;
-        }
-        if (aWorkRange.endMinutes !== bWorkRange.endMinutes) {
-          return aWorkRange.endMinutes - bWorkRange.endMinutes;
-        }
-      }
-      return compareDefaultStaffOrder(a, b);
-    }
-
-    if (aGroup === 1) {
-      const aRestGroup = hasWorkRequest(aShift, mode) ? 1 : 0;
-      const bRestGroup = hasWorkRequest(bShift, mode) ? 1 : 0;
-      if (aRestGroup !== bRestGroup) return aRestGroup - bRestGroup;
+    // 勤務は勤務の時刻、希望は希望の時刻で、開始と終了が早い順にする。日付選択は時刻を持たないため比べない。
+    if (mode !== "dateOnly") {
+      const byTime =
+        aGroup === 0
+          ? compareRanges(getEarliestAssignedWorkRange(aShift), getEarliestAssignedWorkRange(bShift))
+          : aGroup === 1
+            ? compareRanges(getEarliestRequestRange(aShift), getEarliestRequestRange(bShift))
+            : 0;
+      if (byTime !== 0) return byTime;
     }
 
     return compareDefaultStaffOrder(a, b);
