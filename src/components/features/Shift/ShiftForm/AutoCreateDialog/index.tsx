@@ -1,4 +1,4 @@
-import { Box, RadioCard, Stack, Text } from "@chakra-ui/react";
+import { Badge, Link, RadioCard, Stack, Text } from "@chakra-ui/react";
 import { useState } from "react";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog, DialogActionArea } from "@/src/components/ui/Dialog";
@@ -8,26 +8,23 @@ export type AutoCreateMethod = "rule" | "ai";
 type AutoCreateDialogProps = {
   isOpen: boolean;
   onClose: () => void;
-  /** 期間に勤務が1つでも入っているか。入っている場合は、作った勤務に置き換わることを伝える。 */
-  hasExistingWork: boolean;
-  /** AIで作れる残りの回数。分からない間は省略し、上限があることだけを伝える。 */
+  /** AIで作れる残りの回数。分からない間は省略し、回数に制限があることだけを伝える。 */
   aiRemainingCount?: number;
+  /** AIを使うときの個人情報の扱いを説明するヘルプのURL。ヘルプができるまでは省略する。 */
+  aiPrivacyHelpHref?: string;
   /** 「作成する」を押したときに呼ぶ。作成の処理はまだないため、省略した場合は閉じるだけにする。 */
   onCreate?: (method: AutoCreateMethod) => void;
 };
 
-const describeAiLimit = (remaining: number | undefined) => {
-  if (remaining === undefined) return "使える回数に上限があります。";
-  if (remaining <= 0) return "今月の回数を使い切りました。";
-  return `今月はあと${remaining}回使えます。`;
-};
+const describeAiLimit = (remaining: number | undefined) =>
+  remaining === undefined ? "回数制限あり" : `残り${Math.max(remaining, 0)}回`;
 
 /** 募集期間の勤務を自動で作る前に、ルールで作るかAIで作るかを選ぶ。 */
 export const AutoCreateDialog = ({
   isOpen,
   onClose,
-  hasExistingWork,
   aiRemainingCount,
+  aiPrivacyHelpHref,
   onCreate,
 }: AutoCreateDialogProps) => {
   const [method, setMethod] = useState<AutoCreateMethod>("rule");
@@ -37,17 +34,19 @@ export const AutoCreateDialog = ({
     setMethod("rule");
     onClose();
   };
-  const options: { value: AutoCreateMethod; title: string; description: string; disabled: boolean }[] = [
+  const options: { value: AutoCreateMethod; title: string; limit: string; description: string; disabled: boolean }[] = [
     {
       value: "rule",
-      title: "ルールで作る",
-      description: "希望と必要人数をもとに、決まった手順で作ります。何回でも使えます。",
+      title: "希望シフトから自動で作成する",
+      limit: "使用制限なし",
+      description: "希望、必要人数、過去シフト、メモをもとに自動生成します。",
       disabled: false,
     },
     {
       value: "ai",
-      title: "AIで作る",
-      description: `希望と必要人数をもとに、AIが作ります。${describeAiLimit(aiRemainingCount)}`,
+      title: "AIで作成する",
+      limit: describeAiLimit(aiRemainingCount),
+      description: "希望、必要人数、過去シフト、メモをもとにAIで自動生成します。",
       disabled: isAiExhausted,
     },
   ];
@@ -83,23 +82,10 @@ export const AutoCreateDialog = ({
     >
       <Stack gap={4}>
         <Text fontSize="sm" lineHeight="tall" color="gray.800">
-          募集期間のすべての日の勤務を作ります。
+          この期間のシフトを自動で生成します。
+          <br />
+          現在の下書きに上書きします。
         </Text>
-        {hasExistingWork && (
-          <Box
-            role="note"
-            px={3}
-            py={2}
-            borderRadius="md"
-            bg="orange.50"
-            borderWidth="1px"
-            borderColor="orange.200"
-            fontSize="sm"
-            color="orange.900"
-          >
-            いま入っている勤務は、作った勤務に置き換わります。
-          </Box>
-        )}
         <RadioCard.Root
           value={method}
           colorPalette="teal"
@@ -130,11 +116,23 @@ export const AutoCreateDialog = ({
                       {option.description}
                     </RadioCard.ItemDescription>
                   </RadioCard.ItemContent>
+                  {/* 使える回数は、カードの右上に置く。 */}
+                  <Badge colorPalette="gray" size="sm" flexShrink={0} ms="auto">
+                    {option.limit}
+                  </Badge>
                 </RadioCard.ItemControl>
               </RadioCard.Item>
             ))}
           </Stack>
         </RadioCard.Root>
+        <Text fontSize="xs" lineHeight="tall" color="gray.600">
+          ※AI利用時の個人情報の扱いは
+          {/* ヘルプができるまではURLがないため、リンクの見た目だけを置く。 */}
+          <Link href={aiPrivacyHelpHref} color="teal.700" textDecoration="underline">
+            こちら
+          </Link>
+          をご確認ください。
+        </Text>
       </Stack>
     </Dialog>
   );

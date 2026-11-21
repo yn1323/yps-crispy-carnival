@@ -33,9 +33,7 @@ export const StaffTotalsInteractive: Story = {
     const totals = await within(canvasElement).findByRole("region", { name: "人ごとの合計" });
     await userEvent.click(within(totals).getByRole("button", { name: "人ごとの合計" }));
     await within(totals).findByText("田中 太郎");
-    // 熟練度の印は、「入れるもの」で選んでいるポジション（選ぶ前はホール）での値を出す。
-    await expect(totals).toHaveTextContent(
-      "田中 太郎2日佐藤 花子1日吉田 三郎-山田 一郎2日鈴木 次郎ホール：担当外-中村 五郎1日",
-    );
+    // 名前の横に熟練度の印は出さない。
+    await expect(totals).toHaveTextContent("田中 太郎2日佐藤 花子1日吉田 三郎-山田 一郎2日鈴木 次郎-中村 五郎1日");
   },
 };

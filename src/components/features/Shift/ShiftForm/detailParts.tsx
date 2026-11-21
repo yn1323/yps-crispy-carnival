@@ -8,7 +8,6 @@ import { isPositionsUnsplit, resolveDefaultPosition } from "@/src/domains/shift/
 import { formatShiftClockTimeRange } from "@/src/domains/shift/time";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { formatStaffWorkTotal } from "@/src/domains/shift/workTotals";
-import { buildNameSkillMark, type NameSkillMarkView, UNAVAILABLE_MARK_COLORS } from "./skillPresentation";
 import {
   breakToolActiveAtom,
   detailModeAtom,
@@ -16,7 +15,6 @@ import {
   isPositionSelectableAtom,
   isRangeAssignHintDismissedAtom,
   isToolPaletteActiveAtom,
-  nameSkillPositionAtom,
   nextWorkPositionAtom,
   paintsPositionColorAtom,
   rememberWorkPositionAtom,
@@ -444,41 +442,8 @@ export const BreakMark = ({ shift, compact = false }: { shift: ShiftData | undef
 };
 
 // ==========================================
-// スタッフ名に添える印（熟練度、仮の勤務、合計）
+// スタッフ名に添える印（仮の勤務、合計）
 // ==========================================
-/** 名前の横の担当外の印。ポジションが2つ以上の店舗では、どのポジションでの値かを色の丸で添える。 */
-const NameSkillBadge = ({ mark }: { mark: NameSkillMarkView }) => (
-  <Flex
-    as="span"
-    align="center"
-    gap="4px"
-    px="6px"
-    py="1px"
-    borderRadius="full"
-    textStyle="2xs"
-    fontWeight={700}
-    flexShrink={0}
-    title={mark.title ?? undefined}
-    data-skill-badge={mark.level}
-    {...UNAVAILABLE_MARK_COLORS}
-  >
-    {mark.position && (
-      <>
-        <Box
-          as="span"
-          boxSize="8px"
-          borderRadius="full"
-          flexShrink={0}
-          style={{ background: mark.position.color }}
-          aria-hidden
-        />
-        <chakra.span srOnly>{mark.position.name}：</chakra.span>
-      </>
-    )}
-    {mark.label}
-  </Flex>
-);
-
 /**
  * くわしく表示のときだけ、スタッフ名に添える印を出す。
  * `shift`には、表示中の日の勤務を渡す。週や期間を並べる表では渡さない。
@@ -495,19 +460,16 @@ export const StaffMeta = ({
   const detailMode = useAtomValue(detailModeAtom);
   const totals = useAtomValue(staffWorkTotalsAtom);
   const config = useAtomValue(shiftConfigAtom);
-  const skillPosition = useAtomValue(nameSkillPositionAtom);
   if (!detailMode) return null;
 
   // 人ごとの合計は担当者が偏りを確かめるためのもので、スタッフ向けの確定シフト表示には出さない。
   const total = config.displayMode === "confirmed" ? undefined : totals.get(staff.id);
-  // 担当外は「入れるもの」で選んでいるポジションでの値を出す。勤務を入れる前に、担当外のポジションが分かるようにする。
-  const skillMark = buildNameSkillMark({ staff, position: skillPosition, positionCount: config.positions.length });
-  const hasContent = skillMark || shift?.isProvisional || (showTotal && total);
+  // 担当外は名前の横に出さない。担当外のポジションへ入れたときだけ、確認事項で知らせる。
+  const hasContent = shift?.isProvisional || (showTotal && total);
   if (!hasContent) return null;
 
   return (
     <Flex align="center" gap={1} minW={0} flexWrap="nowrap">
-      {skillMark && <NameSkillBadge mark={skillMark} />}
       {shift?.isProvisional && (
         <Box
           px="6px"

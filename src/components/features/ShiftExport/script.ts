@@ -8,19 +8,14 @@ import {
   isValidIsoDateString,
 } from "@/src/domains/shift/date";
 import { isSupportedShiftTime, minutesToTime, timeToMinutes } from "@/src/domains/shift/time";
-import type { ExportNoteRow, ExportSchedule, ShiftExportData } from "./types";
-
-// 休憩は「休憩」「開始」「終了」の3行で出す。日付の列は31日分を並べると狭く、1行にまとめると末尾が省略されるためである。
-const formatBreakLines = (item: { startTime: string; endTime: string }) => ["休憩", item.startTime, item.endTime];
-
-const sortBreaks = (breaks: readonly { startTime: string; endTime: string }[]) =>
-  [...breaks].sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
+import { buildExportDaily } from "./daily";
+import type { ExportNoteRow, ExportSchedule, ExportView, ShiftExportData } from "./types";
 
 export function buildExportSchedule(
   data: ShiftExportData,
   splitPeriod = false,
   includeNotes = false,
-  includeDetails = false,
+  view: ExportView = "overview",
 ): ExportSchedule {
   const { recruitment } = data;
   const count = getInclusiveDateCount(recruitment.periodStart, recruitment.periodEnd);
@@ -59,9 +54,7 @@ export function buildExportSchedule(
       ? [...pattern.options].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id))
       : [];
   const optionIds = new Set(options.map((option) => option.id));
-  const positions = data.positions ?? [];
-  const positionNameById = new Map(positions.map((position) => [position.id, position.name]));
-  const hasBreaks = data.assignments.some((assignment) => (assignment.breaks?.length ?? 0) > 0);
+  // 休憩は一覧に出さないが、日別のバーに使うため、時刻をここで確かめる。
   if (
     data.assignments.some((assignment) =>
       (assignment.breaks ?? []).some(
@@ -74,16 +67,6 @@ export function buildExportSchedule(
   ) {
     throw new Error("休憩時間を確認できませんでした。");
   }
-  const hasShiftDetails = (positions.length >= 2 && data.assignments.length > 0) || hasBreaks;
-  // ポジション名は、ポジションが2つ以上ある店舗でだけ出す。1つの店舗では勤務の内容と同じ意味になるためである。
-  const showPositions = includeDetails && positions.length >= 2;
-  const positionLine = (positionId: string | null | undefined): string[] => {
-    if (!showPositions) return [];
-    const name = positionId ? positionNameById.get(positionId) : undefined;
-    return name ? [name] : [];
-  };
-  const breakLines = (breaks: readonly { startTime: string; endTime: string }[] | undefined): string[] =>
-    includeDetails ? sortBreaks(breaks ?? []).flatMap(formatBreakLines) : [];
   let bodyLineCount = pattern.kind === "time" ? 2 : 1;
   const rows = data.staffs.map((staff) => ({
     staffId: staff.id,
@@ -91,14 +74,8 @@ export function buildExportSchedule(
     cells: dates.map(({ date, isClosed }) => {
       const assignments = byStaffDate.get(`${staff.id}:${date}`) ?? [];
       if (isClosed || assignments.length === 0) return { lines: ["-"] };
-      if (pattern.kind === "dateOnly") {
-        const lines = [
-          positionLine(assignments[0].positionId)[0] ?? "○",
-          ...breakLines(assignments.flatMap((assignment) => assignment.breaks ?? [])),
-        ];
-        bodyLineCount = Math.max(bodyLineCount, lines.length);
-        return { lines };
-      }
+      // 一覧には勤務の開始と終了だけを出す。ポジションと休憩は日別のバーで出す。
+      if (pattern.kind === "dateOnly") return { lines: ["○"] };
       if (pattern.kind === "time") {
         if (
           assignments.some(
@@ -110,54 +87,30 @@ export function buildExportSchedule(
         )
           throw new Error("勤務時間を確認できませんでした。");
         const intervals = assignments
-          .map(({ startTime, endTime, positionId, breaks }) => ({
-            start: timeToMinutes(startTime),
-            end: timeToMinutes(endTime),
-            positionId: positionId ?? null,
-            breaks: breaks ?? [],
-          }))
+          .map(({ startTime, endTime }) => ({ start: timeToMinutes(startTime), end: timeToMinutes(endTime) }))
           .sort((a, b) => a.start - b.start || a.end - b.end);
         const merged: typeof intervals = [];
         for (const interval of intervals) {
           const previous = merged.at(-1);
-          // ポジション名を出すときは、ポジションが違う勤務をまとめない。
-          if (
-            previous &&
-            interval.start <= previous.end &&
-            (!showPositions || previous.positionId === interval.positionId)
-          ) {
-            previous.end = Math.max(previous.end, interval.end);
-            previous.breaks = [...previous.breaks, ...interval.breaks];
-          } else merged.push({ ...interval });
+          if (previous && interval.start <= previous.end) previous.end = Math.max(previous.end, interval.end);
+          else merged.push({ ...interval });
         }
-        const lines = merged.flatMap(({ start, end, positionId, breaks }) => [
-          minutesToTime(start),
-          minutesToTime(end),
-          ...positionLine(positionId),
-          ...breakLines(breaks),
-        ]);
+        const lines = merged.flatMap(({ start, end }) => [minutesToTime(start), minutesToTime(end)]);
         bodyLineCount = Math.max(bodyLineCount, lines.length);
         return { lines };
       }
       const selected = new Set(assignments.map(({ optionId }) => optionId));
       if ([...selected].some((id) => id === null || !optionIds.has(id)))
         throw new Error("勤務パターンを確認できませんでした。");
-      const lines = options
-        .filter(({ id }) => selected.has(id))
-        .flatMap(({ id, name }) => {
-          const optionAssignments = assignments.filter(({ optionId }) => optionId === id);
-          return [
-            name,
-            ...positionLine(optionAssignments[0]?.positionId),
-            ...breakLines(optionAssignments.flatMap((assignment) => assignment.breaks ?? [])),
-          ];
-        });
+      const lines = options.filter(({ id }) => selected.has(id)).map(({ name }) => name);
       bodyLineCount = Math.max(bodyLineCount, lines.length);
       return { lines };
     }),
   }));
   if (bodyLineCount > 36) throw new Error("1日の勤務区間が多すぎるため、帳票へ収まりません。");
   const noteRows = buildExportNoteRows(data, dateSet);
+  // 一覧を出すときも作る。出力画面を開く時点で、日別にできない勤務を検出するためである。
+  const daily = buildExportDaily(data, dates);
   return {
     shopName: data.shopName,
     periodStart: recruitment.periodStart,
@@ -167,9 +120,10 @@ export function buildExportSchedule(
     bodyLineCount,
     dates,
     rows,
-    hasShiftDetails,
     hasDateNotes: noteRows.length > 0,
     noteRows: includeNotes ? noteRows : [],
+    view: daily && view === "daily" ? "daily" : "overview",
+    daily,
   };
 }
 
@@ -217,7 +171,9 @@ export function getExportFileName(schedule: ExportSchedule, format: "pdf" | "xls
       .replace(/[\\/:*?"<>|\p{Cc}\p{Cf}]/gu, "_")
       .trim()
       .slice(0, 60) || "店舗";
-  return `${shopName}_シフト表_${schedule.periodStart}_${schedule.periodEnd}.${format}`;
+  // Excelは常に一覧を出すため、日別の名前はPDFにだけ付ける。
+  const view = schedule.view === "daily" && format === "pdf" ? "_日別" : "";
+  return `${shopName}_シフト表${view}_${schedule.periodStart}_${schedule.periodEnd}.${format}`;
 }
 
 export function getExportTitle(schedule: ExportSchedule): string {

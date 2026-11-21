@@ -221,7 +221,7 @@ describe("必要人数とスタッフの保存", () => {
     act(() => result.current.intents.onChangeStaffPositionLevel(staffA, kitchen, "unavailable"));
     act(() => result.current.intents.onChangeStaffPositionLevel(staffA, hall, "newcomer"));
     // 変えてから元の値へ戻したスタッフは、変更に数えない。
-    act(() => result.current.intents.onChangeStaffPositionLevel(staffB, hall, "lead"));
+    act(() => result.current.intents.onChangeStaffPositionLevel(staffB, hall, "unavailable"));
     act(() => result.current.intents.onChangeStaffPositionLevel(staffB, hall, "standard"));
     expect(result.current.pendingSections).toEqual(["staffs"]);
     expect(result.current.staffProfiles).toEqual({
@@ -251,9 +251,9 @@ describe("必要人数とスタッフの保存", () => {
     mocks.saveStaffShiftProfiles.mockResolvedValue(null);
     const { result } = renderController({
       ...setup,
-      staffs: [{ _id: staffA, name: "佐藤", positionSkills: [{ positionId: kitchen, level: "lead" }] }],
+      staffs: [{ _id: staffA, name: "佐藤", positionSkills: [{ positionId: kitchen, level: "newcomer" }] }],
     });
-    expect(result.current.staffProfiles).toEqual({ [staffA]: { [kitchen]: "lead" } });
+    expect(result.current.staffProfiles).toEqual({ [staffA]: { [kitchen]: "newcomer" } });
 
     act(() => result.current.intents.onChangeStaffPositionLevel(staffA, kitchen, "standard"));
     await act(async () => result.current.intents.onSaveChanges());
@@ -280,7 +280,7 @@ describe("必要人数とスタッフの保存", () => {
     const { result } = renderController();
 
     addLunchKitchenCount(result);
-    act(() => result.current.intents.onChangeStaffPositionLevel(staffA, hall, "lead"));
+    act(() => result.current.intents.onChangeStaffPositionLevel(staffA, hall, "newcomer"));
     expect(result.current.pendingSections).toEqual(["dayTemplates", "staffs"]);
 
     await act(async () => result.current.intents.onSaveChanges());
@@ -290,7 +290,7 @@ describe("必要人数とスタッフの保存", () => {
     expect(mocks.showErrorToast).toHaveBeenCalledExactlyOnceWith(error);
     expect(mocks.showSuccessToast).not.toHaveBeenCalled();
     // 保存できなかったスタッフの変更は、編集中の値として残る。
-    expect(result.current.staffProfiles[staffA]).toEqual({ [hall]: "lead" });
+    expect(result.current.staffProfiles[staffA]).toEqual({ [hall]: "newcomer" });
   });
 
   it("入れた人数を消して元の内容へ戻すと、保存していない変更はなくなる", () => {
@@ -596,7 +596,7 @@ describe("保存の帯と離脱の確認を出す条件", () => {
 
     act(() => result.current.intents.onAddDayTemplate());
     const added = result.current.dayTemplates.drafts[1];
-    act(() => result.current.intents.onChangeStaffPositionLevel(staffA, hall, "lead"));
+    act(() => result.current.intents.onChangeStaffPositionLevel(staffA, hall, "newcomer"));
     expect(result.current.pendingSections).toEqual(["staffs"]);
     await act(async () => result.current.intents.onSaveChanges());
 
@@ -637,7 +637,7 @@ describe("保存の応答を待っている間", () => {
       result.current.intents.onCopyRequirements({ fromRowKey: templateId, toRowKey: added.rowKey });
       result.current.intents.onRemoveDayTemplate(added.rowKey);
       result.current.intents.onAddDayTemplate();
-      result.current.intents.onChangeStaffPositionLevel(staffA, hall, "lead");
+      result.current.intents.onChangeStaffPositionLevel(staffA, hall, "newcomer");
       result.current.intents.onChangeStaffPositionLevel(staffA, kitchen, "unavailable");
     });
 
@@ -1191,7 +1191,7 @@ describe("閲覧専用", () => {
       result.current.intents.onToggleHoliday(templateId);
       result.current.intents.onAddDayTemplate();
       result.current.intents.onRemoveDayTemplate(templateId);
-      result.current.intents.onChangeStaffPositionLevel(staffA, hall, "lead");
+      result.current.intents.onChangeStaffPositionLevel(staffA, hall, "newcomer");
       result.current.positionsDialog.open();
       result.current.assistDialog.open();
     });
@@ -1250,7 +1250,7 @@ describe("ページを離れる操作", () => {
     expect(mocks.blockerOptions?.shouldBlockFn()).toBe(false);
     expect(mocks.blockerOptions?.enableBeforeUnload()).toBe(false);
 
-    act(() => result.current.intents.onChangeStaffPositionLevel(staffA, hall, "lead"));
+    act(() => result.current.intents.onChangeStaffPositionLevel(staffA, hall, "newcomer"));
 
     expect(mocks.blockerOptions?.shouldBlockFn()).toBe(true);
     expect(mocks.blockerOptions?.enableBeforeUnload()).toBe(true);

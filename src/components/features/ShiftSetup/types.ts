@@ -13,10 +13,12 @@ export type ShiftSetupDayTemplate = ShiftSetupData["dayTemplates"][number];
 export type ShiftSetupSubmissionPattern = ShiftSetupData["submissionPattern"];
 /** 保存する形の、ポジションごとの値。一人前は持たない。 */
 export type StoredStaffPositionLevel = ShiftSetupStaff["positionSkills"][number]["level"];
+/** 画面で選べる、保存する値。リーダーは選べないため、保存済みのリーダーは一人前として扱う。 */
+export type EditableStoredStaffPositionLevel = Exclude<StoredStaffPositionLevel, "lead">;
 /** 画面で扱う、ポジションごとの値。入れるかどうかと熟練度を1つにまとめている。 */
-export type StaffPositionLevel = StoredStaffPositionLevel | "standard";
+export type StaffPositionLevel = EditableStoredStaffPositionLevel | "standard";
 /** スタッフの、ポジションごとの値。キーはポジションのID。一人前は持たない。 */
-export type StaffPositionLevels = Readonly<Record<string, StoredStaffPositionLevel>>;
+export type StaffPositionLevels = Readonly<Record<string, EditableStoredStaffPositionLevel>>;
 
 export type PositionInput = FunctionArgs<typeof api.shiftSetup.mutations.savePositions>["positions"][number];
 export type DayTemplateInput = FunctionArgs<typeof api.shiftSetup.mutations.saveDayTemplates>["templates"][number];

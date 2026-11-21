@@ -48,10 +48,16 @@ const dataSchema = z.object({
     )
     .max(2000),
   positions: z
-    .array(z.object({ id: idSchema, name: z.string().min(1).max(POSITION_NAME_MAX_LENGTH) }))
+    .array(
+      z.object({
+        id: idSchema,
+        name: z.string().min(1).max(POSITION_NAME_MAX_LENGTH),
+        // デプロイ前に保存した一時データにはないため、省略を許す。値は描く側で確かめ、色でなければ灰色にする。
+        color: z.string().max(20).optional(),
+      }),
+    )
     .max(POSITION_READ_WINDOW)
     .default([]),
-  includeDetailsByDefault: z.boolean().default(false),
   // デプロイ前に保存した一時データにはないため、空の一覧として読む。
   dateNotes: z
     .array(

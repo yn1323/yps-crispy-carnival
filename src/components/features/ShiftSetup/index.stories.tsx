@@ -24,7 +24,7 @@ const staffNames = ["佐藤 花子", "鈴木 次郎", "高橋 美咲", "田中 �
 const staffs: ShiftSetupData["staffs"] = staffNames.map((name, index) => ({
   _id: `staff-${index + 1}` as Id<"staffs">,
   name,
-  // 佐藤はホールのリーダー、鈴木はキッチンが担当外、伊藤はホールとキッチンの見習い。ほかは全員、全ポジションが一人前。
+  // 佐藤はホールが保存済みのリーダー（選べない値なので、画面では一人前として出す）、鈴木はキッチンが担当外、伊藤はホールとキッチンの見習い。ほかは全員、全ポジションが一人前。
   positionSkills:
     index === 0
       ? [{ positionId: hallId, level: "lead" }]
@@ -642,7 +642,7 @@ export const PendingChanges: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(within(canvas.getByRole("group", { name: "通常" })).getByRole("button", { name: "日曜日" }));
-    await pressStaffLevelCell(canvas, "高橋 美咲", "レジ", "リーダー");
+    await pressStaffLevelCell(canvas, "高橋 美咲", "レジ", "担当外");
   },
 };
 
@@ -1854,15 +1854,16 @@ function readSavedStaffProfiles(canvasElement: HTMLElement): SavedStaffProfile[]
 const cycleStaffLevelsAndSave: Story["play"] = async ({ canvasElement }) => {
   const canvas = within(canvasElement);
 
-  // 押すたびに、見習い、一人前、リーダー、担当外の順に切り替わり、担当外の次は見習いへ戻る。
-  // 一人前のマスは、リーダーから始まる。
-  await pressStaffLevelCell(canvas, "高橋 美咲", "ホール", "リーダー");
+  // 押すたびに、見習い、一人前、担当外の順に切り替わり、担当外の次は見習いへ戻る。
+  // 一人前のマスは、担当外から始まる。
   await pressStaffLevelCell(canvas, "高橋 美咲", "ホール", "担当外");
   await pressStaffLevelCell(canvas, "高橋 美咲", "ホール", "見習い");
   // 高橋: 一巡して一人前へ戻したスタッフは、変更に数えない。
   await pressStaffLevelCell(canvas, "高橋 美咲", "ホール", "一人前");
 
-  await pressStaffLevelCell(canvas, "佐藤 花子", "レジ", "リーダー");
+  // 佐藤の保存済みのリーダーは、一人前として出す。
+  await expect(getStaffLevelCell(canvas, "佐藤 花子", "ホール")).toHaveAccessibleName("佐藤 花子 ホール 一人前");
+  await pressStaffLevelCell(canvas, "佐藤 花子", "レジ", "担当外");
   // 保存済みの値の続きから切り替わる。伊藤のキッチンは見習い、鈴木のキッチンは担当外である。
   await pressStaffLevelCell(canvas, "伊藤 さくら", "キッチン", "一人前");
   await pressStaffLevelCell(canvas, "鈴木 次郎", "キッチン", "見習い");
@@ -1871,34 +1872,31 @@ const cycleStaffLevelsAndSave: Story["play"] = async ({ canvasElement }) => {
   const keyboardCell = getStaffLevelCell(canvas, "田中 太郎", "レジ");
   keyboardCell.focus();
   await userEvent.keyboard("{Enter}");
-  await waitFor(() => expect(keyboardCell).toHaveAccessibleName("田中 太郎 レジ リーダー"));
-  await userEvent.keyboard(" ");
   await waitFor(() => expect(keyboardCell).toHaveAccessibleName("田中 太郎 レジ 担当外"));
+  await userEvent.keyboard(" ");
+  await waitFor(() => expect(keyboardCell).toHaveAccessibleName("田中 太郎 レジ 見習い"));
 
   await saveChanges(canvasElement);
 
   await waitFor(() => expect(readRemoteCalls(canvasElement)).toHaveLength(1));
-  // 変えた4人だけを、ポジションの並び順で保存する。一人前は送らない。
+  // 変えた4人だけを、ポジションの並び順で保存する。一人前と、保存済みのリーダーは送らない。
   await expect(readRemoteCalls(canvasElement)).toEqual([
     {
       name: "saveStaffShiftProfiles",
       args: [
         {
           staffId: "staff-1",
-          positionSkills: [
-            { positionId: hallId, level: "lead" },
-            { positionId: registerId, level: "lead" },
-          ],
+          positionSkills: [{ positionId: registerId, level: "unavailable" }],
         },
         { staffId: "staff-2", positionSkills: [{ positionId: kitchenId, level: "newcomer" }] },
-        { staffId: "staff-4", positionSkills: [{ positionId: registerId, level: "unavailable" }] },
+        { staffId: "staff-4", positionSkills: [{ positionId: registerId, level: "newcomer" }] },
         { staffId: "staff-5", positionSkills: [{ positionId: hallId, level: "newcomer" }] },
       ],
     },
   ]);
   await expectSaveFinished(canvasElement);
   // 保存したあとも、切り替えた値が出ている。
-  await expect(getStaffLevelCell(canvas, "佐藤 花子", "レジ")).toHaveAccessibleName("佐藤 花子 レジ リーダー");
+  await expect(getStaffLevelCell(canvas, "佐藤 花子", "レジ")).toHaveAccessibleName("佐藤 花子 レジ 担当外");
   await expect(getStaffLevelCell(canvas, "伊藤 さくら", "キッチン")).toHaveAccessibleName(
     "伊藤 さくら キッチン 一人前",
   );
@@ -1929,8 +1927,8 @@ const allowUnavailableOnAllPositions: Story["play"] = async ({ canvasElement }) 
   };
 
   // 鈴木はキッチンが担当外である。レジとホールも「担当外」にして、すべてのポジションを担当外にする。
-  await pressThrough("レジ", ["リーダー", "担当外"]);
-  await pressThrough("ホール", ["リーダー", "担当外"]);
+  await pressThrough("レジ", ["担当外"]);
+  await pressThrough("ホール", ["担当外"]);
 
   await saveChanges(canvasElement);
   await waitFor(() => expect(readSavedStaffProfiles(canvasElement)).toHaveLength(1));
@@ -1966,9 +1964,7 @@ export const SinglePositionStaffBehavior: Story = {
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    for (const level of ["リーダー", "担当外"]) {
-      await pressStaffLevelCell(canvas, "佐藤 花子", "ホール", level);
-    }
+    await pressStaffLevelCell(canvas, "佐藤 花子", "ホール", "担当外");
 
     await saveChanges(canvasElement);
     await waitFor(() => expect(readSavedStaffProfiles(canvasElement)).toHaveLength(1));
@@ -1987,7 +1983,7 @@ export const MobileSinglePositionStaffBehavior: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     // 伊藤は、保存済みの値が見習いである。
-    for (const level of ["一人前", "リーダー", "担当外"]) {
+    for (const level of ["一人前", "担当外"]) {
       await pressStaffLevelCell(canvas, "伊藤 さくら", "ホール", level);
     }
 
@@ -2000,20 +1996,20 @@ export const MobileSinglePositionStaffBehavior: Story = {
 };
 
 export const SkillLegendBehavior: Story = {
-  name: "Behavior: スキルの役割を開くと4つのスキルの説明が出て、閉じるとボタンへフォーカスが戻る",
+  name: "Behavior: スキルの役割を開くと3つのスキルの説明が出て、閉じるとボタンへフォーカスが戻る",
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
     const body = within(canvasElement.ownerDocument.body);
     const trigger = within(canvasElement).getByRole("button", { name: "スキルの役割" });
     const dialog = await openSkillLegend(canvasElement);
 
-    // 4つのスキルを、見習い、一人前、リーダー、担当外の順で説明する。
+    // 3つのスキルを、見習い、一人前、担当外の順で説明する。
     await expect(
       within(dialog)
         .getAllByRole("term")
         .map((term) => term.textContent),
-    ).toEqual(["見習い", "一人前", "リーダー", "担当外"]);
-    await expect(within(dialog).getAllByRole("definition")).toHaveLength(4);
+    ).toEqual(["見習い", "一人前", "担当外"]);
+    await expect(within(dialog).getAllByRole("definition")).toHaveLength(3);
 
     const actions = dialog.querySelector<HTMLElement>("[data-dialog-action-area]");
     if (!actions) throw new Error("Dialogの操作の行が見つかりません");
@@ -2030,7 +2026,7 @@ export const ReadOnlySkillLegendBehavior: Story = {
   play: async ({ canvasElement }) => {
     const dialog = await openSkillLegend(canvasElement);
 
-    await expect(within(dialog).getAllByRole("definition")).toHaveLength(4);
+    await expect(within(dialog).getAllByRole("definition")).toHaveLength(3);
   },
 };
 

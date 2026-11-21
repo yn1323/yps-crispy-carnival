@@ -8,7 +8,8 @@ import type {
 } from "./types";
 
 // スタッフが、ポジションごとに担当できるかどうかと熟練度を編集するための純粋処理。
-// 画面では「担当外／見習い／一人前／リーダー」の4つの値で扱い、保存する形では一人前を省く。
+// 画面では「担当外／見習い／一人前」の3つの値で扱い、保存する形では一人前を省く。
+// 保存済みのリーダーは選べない値なので、一人前として扱う。
 // 画面では、マスを押すたびに値が順に切り替わる。
 
 type PositionRef = Pick<ShiftSetupPosition, "_id">;
@@ -17,17 +18,16 @@ const LEVEL_LABELS: Record<StaffPositionLevel, string> = {
   unavailable: "担当外",
   newcomer: "見習い",
   standard: "一人前",
-  lead: "リーダー",
 };
 
 /** マスを押すたびに切り替わる順。最後の「担当外」の次は、最初の見習いへ戻る。 */
-const STAFF_POSITION_LEVEL_ORDER: readonly StaffPositionLevel[] = ["newcomer", "standard", "lead", "unavailable"];
+const STAFF_POSITION_LEVEL_ORDER: readonly StaffPositionLevel[] = ["newcomer", "standard", "unavailable"];
 
 export function getStaffPositionLevelLabel(level: StaffPositionLevel): string {
   return LEVEL_LABELS[level];
 }
 
-/** 保存済みの値を、編集中の形（ポジションのID → 値。一人前は持たない）へ直す。いまは無いポジションの値は捨てる。 */
+/** 保存済みの値を、編集中の形（ポジションのID → 値。一人前は持たない）へ直す。いまは無いポジションの値と、リーダーは捨てる。 */
 export function toStaffPositionLevels(
   staff: Pick<ShiftSetupStaff, "positionSkills">,
   positions: readonly PositionRef[],
@@ -35,7 +35,7 @@ export function toStaffPositionLevels(
   const positionIds = new Set<string>(positions.map((position) => position._id));
   const levels: Record<string, StaffPositionLevels[string]> = {};
   for (const skill of staff.positionSkills) {
-    if (positionIds.has(skill.positionId)) levels[skill.positionId] = skill.level;
+    if (positionIds.has(skill.positionId) && skill.level !== "lead") levels[skill.positionId] = skill.level;
   }
   return levels;
 }
@@ -89,7 +89,7 @@ export function toStaffProfileInputs(
   });
 }
 
-/** マスを押したあとの値を返す。見習い、一人前、リーダー、担当外の順に切り替わり、担当外の次は見習いへ戻る。 */
+/** マスを押したあとの値を返す。見習い、一人前、担当外の順に切り替わり、担当外の次は見習いへ戻る。 */
 export function getNextStaffPositionLevel(levels: StaffPositionLevels, positionId: string): StaffPositionLevel {
   const current = getStaffPositionLevel(levels, positionId);
   return STAFF_POSITION_LEVEL_ORDER[

@@ -225,7 +225,7 @@ describe("ポジションの一覧を変えたあとのスタッフの値", () =
       // 外すポジションだけを変えていたスタッフ。
       "staff-a": { [register]: "newcomer" as const },
       // 残るポジションも変えていたスタッフ。
-      "staff-c": { [hall]: "newcomer" as const, [register]: "lead" as const },
+      "staff-c": { [hall]: "newcomer" as const, [register]: "unavailable" as const },
     };
 
     expect(reconcileStaffDrafts(staffs, drafts, positions)).toEqual({ "staff-c": { [hall]: "newcomer" } });
@@ -236,7 +236,7 @@ describe("ポジションの一覧を変えたあとのスタッフの値", () =
     expect(reconcileStaffDrafts(staffs, {}, [{ _id: kitchen }])).toEqual({});
 
     // ホールだけを残す。編集中の値でホールを担当外にしたstaff-cは、担当外のまま残る。
-    const drafts = { "staff-c": { [hall]: "unavailable" as const, [register]: "lead" as const } };
+    const drafts = { "staff-c": { [hall]: "unavailable" as const, [register]: "unavailable" as const } };
     expect(reconcileStaffDrafts(staffs, drafts, [{ _id: hall }])).toEqual({ "staff-c": { [hall]: "unavailable" } });
   });
 
@@ -253,9 +253,9 @@ describe("ポジションの一覧を変えたあとのスタッフの値", () =
 
     expect(
       replacePositionIdsInStaffDrafts(
-        { "staff-a": { [draftA]: "newcomer", [hall]: "lead" }, "staff-b": { [kitchen]: "unavailable" } },
+        { "staff-a": { [draftA]: "newcomer", [hall]: "unavailable" }, "staff-b": { [kitchen]: "unavailable" } },
         savedIds,
       ),
-    ).toEqual({ "staff-a": { [savedA]: "newcomer", [hall]: "lead" }, "staff-b": { [kitchen]: "unavailable" } });
+    ).toEqual({ "staff-a": { [savedA]: "newcomer", [hall]: "unavailable" }, "staff-b": { [kitchen]: "unavailable" } });
   });
 });

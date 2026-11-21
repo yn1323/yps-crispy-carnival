@@ -22,38 +22,18 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const NOTICE_TEXT = "希望と必要人数から、期間の勤務をまとめて作れます。";
-
-/** くわしく表示で勤務がない期間は、上の行のボタンと、表の上の案内の2か所から開ける。置き換えの注意は出さない。 */
-export const EmptyDesktop: Story = {
+/** くわしく表示では、PCの上の行のボタンから開ける。 */
+export const Desktop: Story = {
   args: { initialShifts: emptyShifts },
   globals: desktopGlobals,
   parameters: { screenshot: { skip: false } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const body = within(canvasElement.ownerDocument.body);
-    await expect(await canvas.findByText(NOTICE_TEXT)).toBeInTheDocument();
-    const buttons = canvas.getAllByRole("button", { name: "自動作成" });
-    await expect(buttons).toHaveLength(2);
-
-    await userEvent.click(buttons[1]);
+    await userEvent.click(await canvas.findByRole("button", { name: "自動作成" }));
     const dialog = within(await body.findByRole("dialog", { name: "シフトを自動作成" }));
-    await expect(dialog.queryByRole("note")).not.toBeInTheDocument();
     await userEvent.click(dialog.getByRole("button", { name: "キャンセル" }));
     await waitFor(() => expect(body.queryByRole("dialog")).not.toBeInTheDocument());
-  },
-};
-
-/** 勤務が入っている期間では、案内を出さず、ダイアログで置き換わることを伝える。 */
-export const WithWorkDesktop: Story = {
-  globals: desktopGlobals,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const body = within(canvasElement.ownerDocument.body);
-    await userEvent.click(await canvas.findByRole("button", { name: "自動作成" }));
-    await expect(canvas.queryByText(NOTICE_TEXT)).not.toBeInTheDocument();
-    const dialog = within(await body.findByRole("dialog", { name: "シフトを自動作成" }));
-    await expect(dialog.getByRole("note")).toHaveTextContent("いま入っている勤務は、作った勤務に置き換わります。");
   },
 };
 
@@ -65,8 +45,7 @@ export const MenuOnMobile: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const body = within(canvasElement.ownerDocument.body);
-    await expect(await canvas.findByText(NOTICE_TEXT)).toBeInTheDocument();
-    await userEvent.click(canvas.getByRole("button", { name: /^保存・確定/ }));
+    await userEvent.click(await canvas.findByRole("button", { name: /^保存・確定/ }));
     const items = await body.findAllByRole("menuitem");
     await expect(items[0]).toHaveAccessibleName("シフトを自動作成");
     await userEvent.click(items[0]);
@@ -82,7 +61,6 @@ export const HiddenOutsideEditableDetail: Story = {
     const canvas = within(canvasElement);
     await expect(await canvas.findByRole("button", { name: "下書き保存" })).toBeInTheDocument();
     await expect(canvas.queryByRole("button", { name: "自動作成" })).not.toBeInTheDocument();
-    await expect(canvas.queryByText(NOTICE_TEXT)).not.toBeInTheDocument();
   },
 };
 
@@ -93,6 +71,5 @@ export const HiddenWhenConfirmed: Story = {
     const canvas = within(canvasElement);
     await expect(await canvas.findByRole("button", { name: "下書き保存" })).toBeInTheDocument();
     await expect(canvas.queryByRole("button", { name: "自動作成" })).not.toBeInTheDocument();
-    await expect(canvas.queryByText(NOTICE_TEXT)).not.toBeInTheDocument();
   },
 };

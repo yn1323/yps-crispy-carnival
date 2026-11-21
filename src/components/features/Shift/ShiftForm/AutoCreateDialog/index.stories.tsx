@@ -10,19 +10,23 @@ const meta = {
     isOpen: true,
     onClose: fn(),
     onCreate: fn(),
-    hasExistingWork: false,
   },
 } satisfies Meta<typeof AutoCreateDialog>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** 勤務がまだない期間で開いた状態。AIの残りの回数が分からない間は、上限があることだけを伝える。 */
+/** 開いた状態。AIの残りの回数が分からない間は、回数に制限があることだけを伝える。 */
 export const Default: Story = {};
 
-/** 勤務が入っている期間では、作った勤務に置き換わることを伝える。 */
-export const WithExistingWork: Story = {
-  args: { hasExistingWork: true, aiRemainingCount: 3 },
+/** AIの残りの回数が分かる場合は、回数を出す。 */
+export const WithAiRemaining: Story = {
+  args: { aiRemainingCount: 3 },
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await expect(await body.findByText("残り3回")).toBeInTheDocument();
+    await expect(body.getByText("使用制限なし")).toBeInTheDocument();
+  },
 };
 
 /** AIの回数を使い切った月は、AIを選べず、ルールだけで作れる。 */
@@ -30,9 +34,9 @@ export const AiExhausted: Story = {
   args: { aiRemainingCount: 0 },
   play: async ({ canvasElement }) => {
     const body = within(canvasElement.ownerDocument.body);
-    await expect(await body.findByText("今月の回数を使い切りました。", { exact: false })).toBeInTheDocument();
-    await expect(body.getByRole("radio", { name: /AIで作る/ })).toBeDisabled();
-    await expect(body.getByRole("radio", { name: /ルールで作る/ })).toBeChecked();
+    await expect(await body.findByText("残り0回")).toBeInTheDocument();
+    await expect(body.getByRole("radio", { name: /AIで作成する/ })).toBeDisabled();
+    await expect(body.getByRole("radio", { name: /希望シフトから自動で作成する/ })).toBeChecked();
   },
 };
 
@@ -42,11 +46,10 @@ export const ChooseAiInteractive: Story = {
   parameters: { screenshot: { skip: true } },
   play: async ({ args, canvasElement }) => {
     const body = within(canvasElement.ownerDocument.body);
-    await expect(await body.findByRole("radio", { name: /ルールで作る/ })).toBeChecked();
-    await expect(body.queryByRole("note")).not.toBeInTheDocument();
+    await expect(await body.findByRole("radio", { name: /希望シフトから自動で作成する/ })).toBeChecked();
 
-    await userEvent.click(body.getByText("AIで作る"));
-    await expect(body.getByRole("radio", { name: /AIで作る/ })).toBeChecked();
+    await userEvent.click(body.getByText("AIで作成する"));
+    await expect(body.getByRole("radio", { name: /AIで作成する/ })).toBeChecked();
     await userEvent.click(body.getByRole("button", { name: "作成する" }));
 
     await expect(args.onCreate).toHaveBeenCalledTimes(1);

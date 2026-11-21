@@ -27,7 +27,6 @@ import { DEFAULT_TIME_PATTERN } from "@/src/domains/shop/submissionPattern";
 import { buildDayFulfillmentView } from "./fulfillmentPresentation";
 import { readLastPositionId, storeLastPositionId } from "./lastPositionStorage";
 import { readRangeAssignHintDismissed, storeRangeAssignHintDismissed } from "./rangeAssignHintStorage";
-import { resolveNameSkillPosition } from "./skillPresentation";
 import { buildDayStaffingView, type DayStaffingView, selectStaffingShifts } from "./staffingPresentation";
 import type { ShiftFormStaffing } from "./types";
 
@@ -318,12 +317,8 @@ export const chromeHiddenAtom = atom<boolean>(false);
 // ==========================================
 // 自動作成
 // ==========================================
-// 自動作成のダイアログを開いている間はtrue。上の行のボタン、スマートフォンのメニュー、空のときの案内から開く。
+// 自動作成のダイアログを開いている間はtrue。PCの上の行のボタンと、スマートフォンのメニューから開く。
 export const autoCreateDialogOpenAtom = atom<boolean>(false);
-// 期間のどこかに勤務が1つでもあるか。空のときの案内と、置き換えの注意に使う。
-export const hasAnyWorkAtom = atom((get) =>
-  get(shiftsAtom).some((shift) => shift.positions.some(isCanonicalWorkPosition)),
-);
 
 // ==========================================
 // 入れるものの選択（ポジションまたは休憩）
@@ -416,18 +411,6 @@ const workPositionAtom = atom(
 );
 
 export const isBreakToolActiveAtom = atom((get) => get(isToolPaletteActiveAtom) && get(breakToolActiveAtom));
-
-// 名前の横の熟練度の印が根拠にするポジション。「入れるもの」がない表示と、休憩を選んでいる間はnull。
-export const nameSkillPositionAtom = atom((get) => {
-  const config = get(shiftConfigAtom);
-  return resolveNameSkillPosition({
-    positions: config.positions,
-    selectedPositionId: get(selectedPositionIdAtom),
-    isToolPaletteActive: get(isToolPaletteActiveAtom),
-    isBreakToolActive: get(isBreakToolActiveAtom),
-    isConfirmedDisplay: config.displayMode === "confirmed",
-  });
-});
 
 // 休憩を選んでいる場合は、勤務のある日の休憩の編集を開き、通常の操作を止める。
 const openBreakEditorIfBreakTool = (get: Getter, set: Setter, staffId: string, date: string): boolean => {

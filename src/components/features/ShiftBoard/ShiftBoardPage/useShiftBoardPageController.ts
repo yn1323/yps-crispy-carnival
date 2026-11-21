@@ -123,9 +123,7 @@ export type ShiftBoardExportData = {
     positionId: string | null;
     breaks: { startTime: string; endTime: string }[];
   }[];
-  positions: { id: string; name: string }[];
-  /** 出力画面を開いた時点で、ポジションと休憩を出力する状態にするかどうか。 */
-  includeDetailsByDefault: boolean;
+  positions: { id: string; name: string; color: string }[];
   dateNotes: ShiftDateNote[];
 };
 
@@ -679,11 +677,8 @@ export const useShiftBoardPageController = (
     }
   });
 
-  // いまの表示（シンプル / くわしく）。出力画面の初期状態に使う。
-  const isDetailModeRef = useRef(initialDetailMode);
-  const handleDetailModeChange = useCallback((isDetailMode: boolean) => {
-    isDetailModeRef.current = isDetailMode;
-  }, []);
+  // ShiftFormは、この通知を渡した画面でだけ「シンプル / くわしく」の切り替えを出す。通知の内容は、いまは使わない。
+  const handleDetailModeChange = useCallback((_isDetailMode: boolean) => {}, []);
 
   // 「シンプル / くわしく」の切り替え。表示が変わると勤務の持ち方が合わなくなるため、この募集の下書きを削除し、
   // 選んだ表示を店舗へ保存する。保存が済むと、店舗の表示が変わったデータを受けて、ページ全体が開き直される。
@@ -803,8 +798,7 @@ export const useShiftBoardPageController = (
           breaks: breaks ?? [],
         }),
       ),
-      positions: data.positions.map((position) => ({ id: position._id, name: position.name })),
-      includeDetailsByDefault: isDetailModeRef.current,
+      positions: data.positions.map((position) => ({ id: position._id, name: position.name, color: position.color })),
       dateNotes: loadedDateNotes.map(({ staffId, date, note }) => ({ staffId, date, note })),
     });
   }, [

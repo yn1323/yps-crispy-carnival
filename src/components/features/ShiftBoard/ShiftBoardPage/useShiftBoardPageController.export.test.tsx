@@ -369,32 +369,8 @@ describe("シフトボードからの出力", () => {
       },
     ]);
     expect(mocks.export.mock.calls[0][0].positions).toEqual([
-      { id: positionId, name: "シフト" },
-      { id: kitchenId, name: "キッチン" },
+      { id: positionId, name: "シフト", color: "#3b82f6" },
+      { id: kitchenId, name: "キッチン", color: "#f97316" },
     ]);
-  });
-
-  it("出力の「ポジションと休憩も出力する」の初期状態は、ボタンを押した時点のシフト表の表示に合わせる", () => {
-    const { result } = renderInitialized();
-
-    act(() => result.current.intents.onOpenExport());
-    act(() => {
-      result.current.intents.onDetailModeChange(true);
-      result.current.intents.onOpenExport();
-    });
-    act(() => {
-      result.current.intents.onDetailModeChange(false);
-      result.current.intents.onOpenExport();
-    });
-
-    expect(mocks.export.mock.calls.map(([exported]) => exported.includeDetailsByDefault)).toEqual([false, true, false]);
-  });
-
-  it("くわしくで開いたシフト表からの出力は、切り替えなくても「ポジションと休憩も出力する」をオンにする", () => {
-    const { result } = renderInitialized({ ...data, shiftDetailMode: true });
-
-    act(() => result.current.intents.onOpenExport());
-
-    expect(mocks.export).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ includeDetailsByDefault: true }));
   });
 });

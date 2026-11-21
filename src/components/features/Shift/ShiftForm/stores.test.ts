@@ -15,7 +15,6 @@ import {
   deleteShiftPositionAtom,
   detailModeAtom,
   isRangeAssignHintDismissedAtom,
-  nameSkillPositionAtom,
   newcomerOnlyPeriodsAtom,
   nextWorkPositionAtom,
   openBreakEditorForToolAtom,
@@ -1121,39 +1120,6 @@ describe("全日の人数と過不足（dayStaffingViewByDateAtom）", () => {
     expect(view?.hasRequirements).toBe(false);
     expect(view?.template.label).toBe("未設定");
     expect([view?.hasShortage, view?.hasExcess]).toEqual([false, false]);
-  });
-});
-
-describe("名前の横の担当外の印の根拠（nameSkillPositionAtom）", () => {
-  it("名前の横の印は、「入れるもの」で選んだポジションを根拠にし、選んでいなければ既定のポジションを根拠にする", () => {
-    const store = createDetailStore();
-    expect(store.get(nameSkillPositionAtom)).toEqual(position);
-
-    store.set(selectedPositionIdAtom, kitchen.id);
-
-    expect(store.get(nameSkillPositionAtom)).toEqual(kitchen);
-  });
-
-  it("休憩を選んでいる間は、名前の横の印の根拠を持たず、ポジションへ戻すと再び持つ", () => {
-    const store = createDetailStore();
-    store.set(selectedPositionIdAtom, kitchen.id);
-
-    store.set(breakToolActiveAtom, true);
-    expect(store.get(nameSkillPositionAtom)).toBeNull();
-
-    store.set(breakToolActiveAtom, false);
-    expect(store.get(nameSkillPositionAtom)).toEqual(kitchen);
-  });
-
-  it("シンプル表示、閲覧専用、スタッフ向けの確定シフト表示では、名前の横の印の根拠を持たない", () => {
-    const simple = createDetailStore({}, { detailMode: false });
-    const readOnly = createDetailStore({ isReadOnly: true });
-    const confirmed = createDetailStore({ isReadOnly: true, displayMode: "confirmed" });
-
-    for (const store of [simple, readOnly, confirmed]) {
-      store.set(selectedPositionIdAtom, kitchen.id);
-      expect(store.get(nameSkillPositionAtom)).toBeNull();
-    }
   });
 });
 

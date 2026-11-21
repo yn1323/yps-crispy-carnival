@@ -258,7 +258,7 @@ export const PCNewcomerOnlyConfirm: Story = {
     const canvas = within(canvasElement);
     const screen = within(canvasElement.ownerDocument.body);
 
-    await userEvent.click(await canvas.findByRole("button", { name: "シフトを確定して通知" }));
+    await userEvent.click(await canvas.findByRole("button", { name: "確定" }));
 
     const dialog = within(await screen.findByRole("dialog", { name: "シフトを確定しますか？" }));
     const list = await dialog.findByRole("list", { name: "見習いだけの時間帯" });
@@ -356,7 +356,8 @@ export const AppOrganizationScopedDesktop: Story = {
     const saveButton = await canvas.findByRole("button", { name: "下書き保存" });
 
     await expect(exportButton).toBeEnabled();
-    await expect(exportButton.nextElementSibling).toBe(saveButton);
+    // 下書き保存のすぐ右に、PDF・Excelを置く。
+    await expect(saveButton.nextElementSibling).toBe(exportButton);
     await expect(within(exportButton).getByText("PDF・Excel")).toBeVisible();
   },
 };
@@ -573,7 +574,7 @@ export const DynamicReadOnlyTransition: Story = {
     await expect(canvas.getByRole("button", { name: /鈴木太郎 1\/20.*勤務あり/ })).toBeInTheDocument();
     await expect(canvas.getByRole("button", { name: /佐藤花子 1\/20.*勤務なし/ })).toBeInTheDocument();
 
-    await userEvent.click(canvas.getByRole("button", { name: "シフトを確定して通知" }));
+    await userEvent.click(canvas.getByRole("button", { name: "確定" }));
     await expect(await screen.findByRole("dialog")).toBeInTheDocument();
 
     // modal表示中の外部状態更新を再現するため、DOM eventを直接発火する。

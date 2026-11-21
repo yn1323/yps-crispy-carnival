@@ -171,6 +171,21 @@ describe("出力データの受け渡し", () => {
       ),
     ).toThrow();
   });
+  it("ポジションの色を受け渡し、色のない旧形式の一時データも読む", () => {
+    const positions = [
+      { id: "hall", name: "ホール", color: "#60a5fa" },
+      { id: "kitchen", name: "キッチン" },
+    ];
+    const snapshot = createSnapshot(createExportFixture({ positions }), scope);
+
+    expect(snapshot.data.positions).toEqual(positions);
+    expect(() =>
+      validateSnapshot(
+        { ...snapshot, data: { ...snapshot.data, positions: [{ ...positions[0], color: "#".repeat(21) }] } },
+        scope,
+      ),
+    ).toThrow();
+  });
   it("日付メモを件数・長さ・形式で検証し、メモのない旧形式の一時データは空の一覧として読む", () => {
     const snapshot = createSnapshot(
       createExportFixture({ dateNotes: [{ staffId: "staff-1", date: "2026-08-03", note: "17時以降なら入れます" }] }),

@@ -11,7 +11,7 @@ export class ShiftBoardPage {
   }
 
   async confirm(staffCount: number) {
-    await this.page.getByRole("button", { name: /確定して通知する|シフトを確定して通知/ }).click();
+    await this.page.getByRole("button", { name: "確定", exact: true }).click();
     const dialog = this.page.getByRole("dialog");
     await expect(dialog).toBeVisible();
     await expect(dialog.getByText(`対象：${staffCount}名`)).toBeVisible();

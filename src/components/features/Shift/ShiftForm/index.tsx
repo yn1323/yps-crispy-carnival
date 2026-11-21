@@ -10,7 +10,7 @@ import type { AssignmentWarning } from "@/src/domains/shift/assignmentWarnings";
 import type { NewcomerOnlyPeriod } from "@/src/domains/shift/staffing";
 import type { PositionType, ShiftData, SortMode, StaffType, TimeRange, ViewMode } from "@/src/domains/shift/types";
 import { AutoCreateDialog } from "./AutoCreateDialog";
-import { AutoCreateButton, AutoCreateEmptyNotice } from "./AutoCreateDialog/entrances";
+import { AutoCreateButton } from "./AutoCreateDialog/entrances";
 import { BreakEditorDialog } from "./BreakEditorDialog";
 import {
   ConfirmButton,
@@ -49,7 +49,6 @@ import {
   chromeHiddenAtom,
   detailModeAtom,
   detailToggleEnabledAtom,
-  hasAnyWorkAtom,
   selectDateWithDailyStaffOrderAtom,
   selectedDateAtom,
   shiftsAtom,
@@ -418,7 +417,6 @@ const Shell = ({
 }: ShellProps) => {
   const detailMode = useAtomValue(detailModeAtom);
   const isChromeHidden = useAtomValue(chromeHiddenAtom);
-  const hasAnyWork = useAtomValue(hasAnyWorkAtom);
   const [isAutoCreateOpen, setAutoCreateOpen] = useAtom(autoCreateDialogOpenAtom);
   const { provisionalAction } = useShiftFormDetailActions();
   // 自動作成は、勤務にポジションを持たせる「くわしく」で、未確定の募集を編集できるときだけ出す。
@@ -490,18 +488,17 @@ const Shell = ({
                   />
                 ) : (
                   <>
-                    {exportAction && <ExportButton {...exportAction} />}
+                    {/* 自動作成、下書き保存、PDF・Excel、確定の順に並べる。 */}
                     {canAutoCreate && <AutoCreateButton onClick={openAutoCreate} />}
+                    {!isReadOnly && <SaveButton compact={compact} isSaving={isSavingDraft} onClick={onSaveDraft} />}
+                    {exportAction && <ExportButton {...exportAction} />}
                     {!isReadOnly && (
-                      <>
-                        <SaveButton compact={compact} isSaving={isSavingDraft} onClick={onSaveDraft} />
-                        <ConfirmButton
-                          compact={compact}
-                          isConfirmed={isConfirmed}
-                          isConfirming={isConfirming}
-                          onClick={onConfirm}
-                        />
-                      </>
+                      <ConfirmButton
+                        compact={compact}
+                        isConfirmed={isConfirmed}
+                        isConfirming={isConfirming}
+                        onClick={onConfirm}
+                      />
                     )}
                   </>
                 )}
@@ -513,7 +510,6 @@ const Shell = ({
         </Box>
       </Box>
 
-      {canAutoCreate && !hasAnyWork && <AutoCreateEmptyNotice onClick={openAutoCreate} compact={compact} />}
       {!hideToolPaletteRow && <ToolPalette />}
       <PositionLegend />
 
@@ -538,13 +534,7 @@ const Shell = ({
           provisionalAction={detailMode ? provisionalAction : undefined}
         />
       )}
-      {canAutoCreate && (
-        <AutoCreateDialog
-          isOpen={isAutoCreateOpen}
-          onClose={() => setAutoCreateOpen(false)}
-          hasExistingWork={hasAnyWork}
-        />
-      )}
+      {canAutoCreate && <AutoCreateDialog isOpen={isAutoCreateOpen} onClose={() => setAutoCreateOpen(false)} />}
     </Flex>
   );
 };

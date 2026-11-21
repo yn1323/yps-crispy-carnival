@@ -25,22 +25,21 @@ const STICKY_TRANSITION = {
 
 /**
  * 値ごとのマスの配色。どの値も、淡い地に同じ色みの濃い文字を載せる。値は必ず言葉でも出す。
- * 見習いの橙とリーダーの緑は、シフト表の印にそろえる。一人前は青、担当外は灰色にする。
+ * 見習いの橙は、シフト表の印にそろえる。一人前は青、担当外は灰色にする。
  * カーソルを載せたときと押している間は、地を1段ずつ濃くする。
  */
 const LEVEL_STYLES: Record<StaffPositionLevel, { bg: string; hoverBg: string; activeBg: string; color: string }> = {
   standard: { bg: "blue.100", hoverBg: "blue.200", activeBg: "blue.300", color: "blue.800" },
   newcomer: { bg: "orange.100", hoverBg: "orange.200", activeBg: "orange.300", color: "orange.800" },
-  lead: { bg: "green.100", hoverBg: "green.200", activeBg: "green.300", color: "green.800" },
   unavailable: { bg: "gray.200", hoverBg: "gray.300", activeBg: "gray.400", color: "gray.700" },
 };
 
 /** スキルの役割に並べる順。熟練度の低いほうから並べ、担当外を最後に置く。マスを押して切り替わる順とは別に決める。 */
-const LEGEND_ORDER: readonly StaffPositionLevel[] = ["newcomer", "standard", "lead", "unavailable"];
+const LEGEND_ORDER: readonly StaffPositionLevel[] = ["newcomer", "standard", "unavailable"];
 
 /**
  * PCの表の、列の見出しとマスの文字の大きさ。ふだんは14pxで出す。
- * ポジションが多く、列が「リーダー」の4文字を収められない幅になったときだけ、12pxへ下げる。
+ * ポジションが多く、列が狭くなったときだけ、12pxへ下げる。
  * 画面の幅ではなく、列自身の幅で切り替えるため、見出しとマスの親をコンテナにする。
  */
 const TABLE_COLUMN_FONT_SWITCH = {
@@ -49,11 +48,10 @@ const TABLE_COLUMN_FONT_SWITCH = {
   "@container (min-width: 4.25rem)": { "& > :is(button, span)": { fontSize: "0.875rem" } },
 } as const;
 
-/** スキルの役割に出す、4つのスキルの意味。 */
+/** スキルの役割に出す、3つのスキルの意味。 */
 const LEVEL_DESCRIPTIONS: Record<StaffPositionLevel, string> = {
   newcomer: "ポジションが見習いのみの場合警告を表示します",
   standard: "特になし。管理者の目印として利用",
-  lead: "特になし。管理者の目印として利用",
   unavailable: "自動作成時に割当たらなくなります",
 };
 
@@ -74,7 +72,7 @@ type Props = {
 
 /**
  * スタッフの、ポジションごとの熟練度。
- * マスを押すたびに、見習い、一人前、リーダー、担当外の順に値が切り替わる。
+ * マスを押すたびに、見習い、一人前、担当外の順に値が切り替わる。
  */
 export function StaffProfilesSection({
   staffs,
@@ -176,7 +174,7 @@ type SkillLegendDialogProps = {
   finalFocusEl: () => HTMLElement | null;
 };
 
-/** 4つのスキルを、マスと同じ見た目の見本と、その意味で説明する。読むだけのDialog。 */
+/** 3つのスキルを、マスと同じ見た目の見本と、その意味で説明する。読むだけのDialog。 */
 function SkillLegendDialog({ isOpen, onOpenChange, finalFocusEl }: SkillLegendDialogProps) {
   return (
     <Dialog
