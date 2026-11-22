@@ -186,6 +186,9 @@ export const DateNotesInteractive: Story = {
     await expect(headers.at(-1)).toBe("連絡事項");
     await expect(headers).toHaveLength(9);
     await expect(headers.filter((text) => text === "希望" || text === "確定")).toEqual([]);
+    // 連絡事項の列は幅を決め、残りの横幅を日付の列で分ける。
+    const noteHeader = Array.from(canvasElement.querySelectorAll<HTMLElement>("thead th")).at(-1) as HTMLElement;
+    await expect(Math.round(noteHeader.getBoundingClientRect().width)).toBe(280);
 
     const yamaguchiRow = (await canvas.findByRole("button", { name: "山口 美月 12/1(火) 勤務あり" })).closest("tr");
     if (!yamaguchiRow) throw new Error("expected staff row");
@@ -209,11 +212,15 @@ export const DateNotesInteractive: Story = {
     await expect(markedCells).toEqual(["山口 美月 12/1(火) 勤務あり", "山口 美月 12/2(水) 勤務あり"]);
     await expect(await canvas.findByRole("button", { name: "12/2(水)で並べ替える、連絡事項2件" })).toBeInTheDocument();
 
-    // 連絡事項を非表示にすると、列と角の印が消え、名前の横のアイコンから日付ごとの本文を読める。
+    // 連絡事項を非表示にすると列が消え、名前の横のアイコンから日付ごとの本文を読める。角の印は残す。
     await expect(canvas.queryByRole("button", { name: "連絡事項2件" })).not.toBeInTheDocument();
     await hideDateNotes(canvasElement);
-    await waitFor(() => expect(getHeaders().at(-1)).toBe(""));
-    await expect(yamaguchiRow.querySelector("[data-date-note-mark]")).toBeNull();
+    await waitFor(() => expect(getHeaders()).toHaveLength(8));
+    await expect(getHeaders()).not.toContain("連絡事項");
+    const markedCellsAfterHide = Array.from(yamaguchiRow.querySelectorAll("td"))
+      .filter((cell) => cell.querySelector("[data-date-note-mark]"))
+      .map((cell) => cell.querySelector("button")?.getAttribute("aria-label"));
+    await expect(markedCellsAfterHide).toEqual(["山口 美月 12/1(火) 勤務あり", "山口 美月 12/2(水) 勤務あり"]);
     const noteIcon = await within(yamaguchiRow.querySelector("td") as HTMLElement).findByRole("button", {
       name: "連絡事項2件",
     });

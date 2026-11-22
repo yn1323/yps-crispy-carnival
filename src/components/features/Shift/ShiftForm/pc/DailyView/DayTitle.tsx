@@ -89,7 +89,7 @@ export const DayTitle = ({
             usesPositionColors && isEditable && <PositionDotLegend positions={positions} />
           ))}
         {/* パターン選択は、連絡事項を名前の横のアイコンだけで示すため、表示の切り替えを出さない。 */}
-        <DisplaySettingsMenu showsDateNotesToggle={positionControl !== "legend"} />
+        <DisplaySettingsMenu />
       </Flex>
     </Flex>
   );

@@ -1,9 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { ShiftForm } from "..";
 import {
   desktopGlobals,
   fullscreenParameters,
+  hideDateNotes,
   shiftFormDecorators,
   shiftTypeArgs,
   shiftTypeDateNotesArgs,
@@ -72,29 +73,34 @@ export const WithDateNotes: Story = {
   globals: desktopGlobals,
 };
 
-/** 連絡事項のある人だけ、名前の横にアイコンを出し、マウスを乗せると本文を出す。希望と連絡事項の列は持たない。 */
+/**
+ * 右端に幅を決めた「連絡事項」列を置き、選んだ日の連絡事項の全文を出す。
+ * 表示設定で連絡事項を非表示にすると列を外し、連絡事項のある人の名前の横にアイコンを出す。
+ */
 export const DateNotesInteractive: Story = {
   args: shiftTypeDateNotesArgs,
   globals: desktopGlobals,
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const headers = Array.from(canvasElement.querySelectorAll<HTMLElement>("thead th")).map((cell) =>
-      cell.textContent?.slice(0, 4),
-    );
-    await expect(headers).toEqual(["スタッフ", "早番09", "中番13", "遅番17", "夜勤21"]);
+    const getHeaders = () =>
+      Array.from(canvasElement.querySelectorAll<HTMLElement>("thead th")).map((cell) => cell.textContent?.slice(0, 4));
+    await expect(getHeaders()).toEqual(["スタッフ", "早番09", "中番13", "遅番17", "夜勤21", "連絡事項"]);
+    const noteHeader = Array.from(canvasElement.querySelectorAll<HTMLElement>("thead th")).at(-1) as HTMLElement;
+    await expect(Math.round(noteHeader.getBoundingClientRect().width)).toBe(280);
 
+    const note = await canvas.findByText("17時以降なら入れます");
+    await expect(note).toHaveAttribute("data-clarity-mask", "true");
+    // 列で本文が読めるあいだは、名前の横にアイコンを重ねない。
+    await expect(canvas.queryByRole("button", { name: "連絡事項1件" })).not.toBeInTheDocument();
+
+    await hideDateNotes(canvasElement);
+    await waitFor(() => expect(getHeaders()).toEqual(["スタッフ", "早番09", "中番13", "遅番17", "夜勤21"]));
     const noteIcons = await canvas.findAllByRole("button", { name: "連絡事項1件" });
     await expect(noteIcons).toHaveLength(2);
     await userEvent.hover(noteIcons[0]);
     const tooltip = await within(document.body).findByRole("tooltip");
     await expect(within(tooltip).getByText("17時以降なら入れます")).toHaveAttribute("data-clarity-mask", "true");
-
-    // 連絡事項の有無で、行の高さを変えない。
-    const rows = Array.from(canvasElement.querySelectorAll<HTMLElement>("tbody tr")).filter(
-      (row) => row.querySelector("[aria-expanded]") === null,
-    );
-    await expect(new Set(rows.map((row) => Math.round(row.getBoundingClientRect().height))).size).toBe(1);
   },
 };
 

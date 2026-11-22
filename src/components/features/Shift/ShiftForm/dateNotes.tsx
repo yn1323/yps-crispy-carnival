@@ -247,7 +247,7 @@ export const ShiftDateNoteCornerMark = ({ onFilled }: { onFilled: boolean }) => 
     borderStyle="solid"
     borderTopWidth="9px"
     borderLeftWidth="9px"
-    borderTopColor={onFilled ? "white" : "gray.600"}
+    borderTopColor={onFilled ? "white" : "teal.500"}
     borderLeftColor="transparent"
     borderTopRightRadius="md"
     pointerEvents="none"

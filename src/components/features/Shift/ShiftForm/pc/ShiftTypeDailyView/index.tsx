@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { indexShiftsByStaffId } from "@/src/domains/shift/shiftLookup";
 import { AssignmentPill, FoldedStaffGroupToggle, PositionStaffingCount } from "../../assignmentCellParts";
 import { Avatar } from "../../components";
-import { ShiftStaffNoteIcon, useAllShiftDateNotes } from "../../dateNotes";
+import { ShiftStaffNoteIcon, useAllShiftDateNotes, useShiftDateNotes } from "../../dateNotes";
 import { StaffMeta } from "../../detailParts";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import {
@@ -38,6 +38,8 @@ import { PositionMenuCell } from "../PositionMenuCell";
 
 const STAFF_COLUMN_WIDTH = 220;
 const OPTION_COLUMN_MIN_WIDTH = 140;
+// 連絡事項の列の幅。勤務パターンの列は、残りの横幅を等分する。
+const NOTE_COLUMN_WIDTH = 280;
 // 割り当ての前後で行の高さを変えないよう、行の高さを決めておく。
 const ROW_HEIGHT = "52px";
 
@@ -50,6 +52,8 @@ export const ShiftTypeDailyView = () => {
   const issueCounts = useAtomValue(issueCountByDateAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
   const allDateNotes = useAllShiftDateNotes();
+  // 連絡事項の列は、表示設定で連絡事項を表示していて、募集期間に1件でもあるときに出す。日付を変えても列の有無を変えない。
+  const showsNoteColumn = useShiftDateNotes().hasNotes;
   const detailMode = useAtomValue(detailModeAtom);
   const usesPositionColors = useAtomValue(usesPositionColorsAtom);
   const isPositionSelectable = useAtomValue(isPositionSelectableAtom);
@@ -151,12 +155,14 @@ export const ShiftTypeDailyView = () => {
         note={allDateNotes.getNote(row.staff.id, selectedDate)}
         date={selectedDate}
         detailMode={detailMode}
+        hasNoteColumn={showsNoteColumn}
       />
       {row.cells.map((cell) => (
         <Box as="td" key={cell.key} px={2} py={0}>
           <Flex justify="center">{renderCell(row, cell)}</Flex>
         </Box>
       ))}
+      {showsNoteColumn && <NoteCell note={allDateNotes.getNote(row.staff.id, selectedDate)} />}
     </Box>
   );
 
@@ -191,7 +197,10 @@ export const ShiftTypeDailyView = () => {
         ) : (
           <Box flex={1} minH={0} overflow="auto" bg="gray.50">
             {/* 見出しの行を上端に留めるため、内側で切り取らない。 */}
-            <Box minW={`${STAFF_COLUMN_WIDTH + presentation.options.length * OPTION_COLUMN_MIN_WIDTH}px`} bg="white">
+            <Box
+              minW={`${STAFF_COLUMN_WIDTH + presentation.options.length * OPTION_COLUMN_MIN_WIDTH + (showsNoteColumn ? NOTE_COLUMN_WIDTH : 0)}px`}
+              bg="white"
+            >
               <Box as="table" w="100%" style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>
                 <Box as="colgroup">
                   <Box as="col" style={{ width: STAFF_COLUMN_WIDTH }} />
@@ -199,6 +208,7 @@ export const ShiftTypeDailyView = () => {
                   {presentation.options.map((option) => (
                     <Box as="col" key={option.key} />
                   ))}
+                  {showsNoteColumn && <Box as="col" style={{ width: NOTE_COLUMN_WIDTH }} />}
                 </Box>
                 <Box as="thead" position="sticky" top={0} zIndex={3} bg="white" boxShadow="0 1px 0 #e5e7eb">
                   <Box as="tr">
@@ -213,13 +223,18 @@ export const ShiftTypeDailyView = () => {
                         showsDot={usesPositionColors}
                       />
                     ))}
+                    {showsNoteColumn && (
+                      <chakra.th px={3} py={2} textAlign="left" verticalAlign="bottom" textStyle="xs" fontWeight={600}>
+                        <Text color="gray.600">連絡事項</Text>
+                      </chakra.th>
+                    )}
                   </Box>
                 </Box>
                 <Box as="tbody">
                   {presentation.rows.map(renderRow)}
                   {presentation.restGroup && (
                     <Box as="tr" borderTopWidth="1px" borderColor="gray.100">
-                      <chakra.td colSpan={presentation.options.length + 1} p={0}>
+                      <chakra.td colSpan={presentation.options.length + 1 + (showsNoteColumn ? 1 : 0)} p={0}>
                         <FoldedStaffGroupToggle
                           group={presentation.restGroup}
                           isOpen={isRestOpen}
@@ -284,11 +299,13 @@ const StaffCell = ({
   note,
   date,
   detailMode,
+  hasNoteColumn,
 }: {
   row: ShiftTypeDailyRowPresentation;
   note?: string;
   date: string;
   detailMode: boolean;
+  hasNoteColumn: boolean;
 }) => (
   <Box as="td" px={4} py={0}>
     <Flex align="center" gap={3} minW={0}>
@@ -305,7 +322,19 @@ const StaffCell = ({
           未提出
         </Text>
       )}
-      {note && <ShiftStaffNoteIcon notes={[{ date, note }]} hasNoteColumn={false} />}
+      {/* 連絡事項の列を表示設定で隠したときだけ、名前の横のアイコンで知らせる。 */}
+      {note && <ShiftStaffNoteIcon notes={[{ date, note }]} hasNoteColumn={hasNoteColumn} />}
     </Flex>
+  </Box>
+);
+
+/** 選んだ日の連絡事項。行数は制限せず、全文を出す。 */
+const NoteCell = ({ note }: { note?: string }) => (
+  <Box as="td" px={3} py={note ? 2 : 0}>
+    {note && (
+      <Text textStyle="sm" lineHeight={1.6} color="gray.700" overflowWrap="anywhere" data-clarity-mask="true">
+        {note}
+      </Text>
+    )}
   </Box>
 );

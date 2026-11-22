@@ -1,6 +1,6 @@
 import { Box, chakra, Flex, Menu, Portal, Text } from "@chakra-ui/react";
 import { useState } from "react";
-import { LuChevronDown } from "react-icons/lu";
+import { LuChartGantt, LuChevronDown } from "react-icons/lu";
 import { formatDateWithWeekday, getWeekdayLabel } from "@/src/domains/shift/date";
 import type { PositionType, StaffType } from "@/src/domains/shift/types";
 import { AssignmentPill, FoldedStaffGroupToggle, PositionStaffingCount } from "../../assignmentCellParts";
@@ -22,9 +22,10 @@ import { PositionMenuCell } from "../PositionMenuCell";
 import type { DateInfo } from "./types";
 
 const STAFF_COL_WIDTH = 200;
-const DATE_COL_WIDTH = 88;
-// 連絡事項の列は右端に置き、残りの横幅をすべて使う。画面が狭いときも、この幅までは縮めず横に送る。
-const NOTE_COL_MIN_WIDTH = 240;
+// 日付の列は、残りの横幅を7日で等分する。画面が狭いときも、この幅までは縮めず横に送る。
+const DATE_COL_MIN_WIDTH = 88;
+// 連絡事項の列は右端に置き、幅を決めておく。長い連絡事項は折り返す。
+const NOTE_COL_WIDTH = 280;
 // 割り当ての前後で行の高さを変えないよう、行の高さを決めておく。連絡事項が長い人の行だけ高くなる。
 const ROW_HEIGHT = "40px";
 // 期間外の日と定休日は、列ごと灰色にする。
@@ -73,7 +74,7 @@ export const DateOnlyTable = ({
   const { columns, rows, foldedGroup } = presentation;
   const [isFoldedGroupOpen, setFoldedGroupOpen] = useState(false);
   const sortableDateSet = new Set(sortableDates.map((date) => date.iso));
-  const tableMinWidth = STAFF_COL_WIDTH + columns.length * DATE_COL_WIDTH + (showsNoteColumn ? NOTE_COL_MIN_WIDTH : 0);
+  const tableMinWidth = STAFF_COL_WIDTH + columns.length * DATE_COL_MIN_WIDTH + (showsNoteColumn ? NOTE_COL_WIDTH : 0);
 
   const renderCell = (row: DateOnlyWeekRowPresentation, cell: DateOnlyCellPresentation) => {
     if (isReadOnly) return <AssignmentPill cell={cell} size="week" isInteractive={false} showsNoticeTooltip />;
@@ -121,10 +122,10 @@ export const DateOnlyTable = ({
         >
           {/* 期間外の日と定休日は、セルに何も描かない。 */}
           {cell.status === "open" && <Flex justify="center">{renderCell(row, cell)}</Flex>}
-          {cell.status === "open" && showsNoteColumn && cell.hasNote && <ShiftDateNoteCornerMark onFilled={false} />}
+          {cell.status === "open" && cell.hasNote && <ShiftDateNoteCornerMark onFilled={false} />}
         </Box>
       ))}
-      {showsNoteColumn ? <NoteListCell notes={row.notes} /> : <FillerCell />}
+      {showsNoteColumn && <NoteListCell notes={row.notes} />}
     </Box>
   );
 
@@ -135,10 +136,9 @@ export const DateOnlyTable = ({
         <Box as="colgroup">
           <Box as="col" style={{ width: STAFF_COL_WIDTH }} />
           {columns.map((column) => (
-            <Box as="col" key={column.key} style={{ width: DATE_COL_WIDTH }} />
+            <Box as="col" key={column.key} />
           ))}
-          {/* 右端の列は幅を決めず、残りの横幅をすべて使う。 */}
-          <Box as="col" />
+          {showsNoteColumn && <Box as="col" style={{ width: NOTE_COL_WIDTH }} />}
         </Box>
         <Box as="thead" position="sticky" top={0} zIndex={5}>
           <Box as="tr">
@@ -173,27 +173,34 @@ export const DateOnlyTable = ({
                 onSort={() => onSortDateSelect(column.key)}
               />
             ))}
-            <chakra.th
-              px={3}
-              py={2}
-              textAlign="left"
-              verticalAlign="bottom"
-              bg="white"
-              borderBottomWidth="1px"
-              borderColor="gray.200"
-              textStyle="xs"
-              fontWeight={600}
-              color="gray.600"
-            >
-              {showsNoteColumn && "連絡事項"}
-            </chakra.th>
+            {showsNoteColumn && (
+              <chakra.th
+                px={3}
+                py={2}
+                textAlign="left"
+                verticalAlign="bottom"
+                bg="white"
+                borderBottomWidth="1px"
+                borderColor="gray.200"
+                textStyle="xs"
+                fontWeight={600}
+                color="gray.600"
+              >
+                連絡事項
+              </chakra.th>
+            )}
           </Box>
         </Box>
         <Box as="tbody">
           {rows.map(renderRow)}
           {foldedGroup && (
             <Box as="tr">
-              <chakra.td colSpan={columns.length + 2} p={0} borderBottomWidth="1px" borderColor="gray.100">
+              <chakra.td
+                colSpan={columns.length + 1 + (showsNoteColumn ? 1 : 0)}
+                p={0}
+                borderBottomWidth="1px"
+                borderColor="gray.100"
+              >
                 {/* 横に送っても見出しが左に残るよう、表示している幅に留める。 */}
                 <Box position="sticky" left={0} maxW="min(100%, 720px)">
                   <FoldedStaffGroupToggle
@@ -306,9 +313,12 @@ const DateHeaderCell = ({
           </Text>
         ) : showsStaffing ? (
           <>
-            {(counts ?? []).map((count) => (
-              <PositionStaffingCount key={count.positionId} count={count} showsDot={showsDot} />
-            ))}
+            {/* ポジションは横に並べ、列の幅が足りないときだけ折り返す。 */}
+            <Flex align="center" justify="center" columnGap={2} rowGap="2px" flexWrap="wrap">
+              {(counts ?? []).map((count) => (
+                <PositionStaffingCount key={count.positionId} count={count} showsDot={showsDot} />
+              ))}
+            </Flex>
             {staffingView && <DayTemplateTrigger date={date.iso} view={staffingView} />}
           </>
         ) : (
@@ -356,10 +366,12 @@ const DayTemplateTrigger = ({ date, view }: { date: string; view: DayStaffingVie
         <chakra.button
           type="button"
           aria-label={`${formatDateWithWeekday(date)}のテンプレート: ${templateLabel}`}
-          display="inline-flex"
+          display="flex"
           alignItems="center"
+          // 列の幅いっぱいに広げ、アイコンと名前を左、開く印を右の端に置く。
+          justifyContent="space-between"
           gap="2px"
-          maxW="100%"
+          w="100%"
           minW={0}
           minH="24px"
           px="4px"
@@ -374,7 +386,13 @@ const DayTemplateTrigger = ({ date, view }: { date: string; view: DayStaffingVie
           _active={{ bg: "blackAlpha.100", transitionDuration: "0ms" }}
           _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "1px" }}
         >
-          {name}
+          {/* ほかの画面のテンプレートと同じ時間帯の横棒のアイコンで、必要人数のテンプレートだと分かるようにする。 */}
+          <Flex as="span" align="center" gap="2px" minW={0}>
+            <Box as="span" flexShrink={0} display="flex" color="gray.500">
+              <LuChartGantt size={12} aria-hidden />
+            </Box>
+            {name}
+          </Flex>
           <Box as="span" flexShrink={0} display="flex">
             <LuChevronDown size={12} aria-hidden />
           </Box>
@@ -456,6 +474,3 @@ const NoteListCell = ({ notes }: { notes: DateOnlyNotePresentation[] }) => (
     )}
   </Box>
 );
-
-/** 連絡事項の列を出さないときに、右端の残りの幅を埋める空のセル。 */
-const FillerCell = () => <Box as="td" borderBottomWidth="1px" borderColor="gray.100" bg="white" />;
