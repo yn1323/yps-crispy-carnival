@@ -104,17 +104,20 @@ export const DayTemplateMenuItems = ({ date, view }: { date: string; view: DaySt
  * 閲覧専用と確定済みでは、名前だけを出す。
  * `shrinks`を渡すと、置いた行の幅が足りないときに、名前を省略して縮む。
  * `fillsWidth`を渡すと、名前の長さに合わせず、置いた列の幅いっぱいに広げる。入りきらない名前は「…」で省略する。
+ * `hidesIcon`を渡すと、時間帯の横棒のアイコンを出さない。幅の狭いスマートフォンの日付の見出しで、名前に幅を回すために使う。
  */
 export const DayTemplateMenu = ({
   date,
   view,
   shrinks = false,
   fillsWidth = false,
+  hidesIcon = false,
 }: {
   date: string;
   view: DayStaffingView;
   shrinks?: boolean;
   fillsWidth?: boolean;
+  hidesIcon?: boolean;
 }) => {
   const editor = useDayStaffingEditor();
   const label = view.template.label;
@@ -149,9 +152,11 @@ export const DayTemplateMenu = ({
         >
           {/* 時間帯の横棒のアイコンで、時間帯ごとの必要人数のテンプレートだと分かるようにする。名前が先に縮む。 */}
           <Flex as="span" align="center" gap={1} minW={0}>
-            <Icon boxSize={3.5} flexShrink={0} color="gray.600" aria-hidden>
-              <LuChartGantt />
-            </Icon>
+            {!hidesIcon && (
+              <Icon boxSize={3.5} flexShrink={0} color="gray.600" aria-hidden>
+                <LuChartGantt />
+              </Icon>
+            )}
             <Box as="span" truncate>
               {label}
             </Box>

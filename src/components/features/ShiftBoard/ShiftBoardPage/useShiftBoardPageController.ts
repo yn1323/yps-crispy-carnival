@@ -34,7 +34,7 @@ import { isAssignmentsEqual } from "@/src/domains/shift/isAssignmentsEqual";
 import { collectNewcomerStaffIdsByPositionId } from "@/src/domains/shift/positionSkills";
 import { insertProvisionalAssignments } from "@/src/domains/shift/provisionalAssignments";
 import { listNewcomerOnlyPeriods, type NewcomerOnlyPeriod } from "@/src/domains/shift/staffing";
-import type { ShiftData, StaffType } from "@/src/domains/shift/types";
+import type { ShiftData, StaffSortMode, StaffType } from "@/src/domains/shift/types";
 import { useDeadlineActive } from "@/src/hooks/useDeadlineActive";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
@@ -127,6 +127,8 @@ export type ShiftBoardExportData = {
   dateNotes: ShiftDateNote[];
   /** 「くわしく」表示で開いているか。「シンプル」の勤務は既定のポジションが入るだけなので、出力でポジションを出さない。 */
   isDetailMode: boolean;
+  /** 店舗が選んだスタッフの並び替え。日別の出力の並びに使う。 */
+  staffSortMode: StaffSortMode;
 };
 
 /** 取得中の日付メモ。出力ボタンを押した時点のメモを出力へ渡すため、取得中は出力を止める。 */
@@ -152,6 +154,7 @@ export const useShiftBoardPageController = (
   const saveShiftAssignments = useShopMutation(api.shiftBoard.mutations.saveShiftAssignments);
   const confirmRecruitmentMutation = useShopMutation(api.shiftBoard.mutations.confirmRecruitment);
   const switchShiftDetailMode = useShopMutation(api.shiftBoard.mutations.switchShiftDetailMode);
+  const setShiftStaffSortMode = useShopMutation(api.shiftBoard.mutations.setShiftStaffSortMode);
 
   const confirmedAt = data.recruitment.confirmedAt ? new Date(data.recruitment.confirmedAt) : null;
   const isConfirmed = data.recruitment.status === "confirmed";
@@ -166,19 +169,31 @@ export const useShiftBoardPageController = (
   const periodLabel = useMemo(() => generatePeriodLabel(dates), [dates]);
   const staffProfiles = staffing?.staffProfiles;
   const positionSkillsByStaffId = useMemo(() => toPositionSkillsByStaffId(staffProfiles), [staffProfiles]);
+  // スタッフのページで決めた並び順を、シフト表の並びの第2キーにする。並び順に載っていない人は、登録順で末尾に置く。
+  const displayOrderByStaffId = useMemo(
+    () => new Map((data.exportStaffOrder ?? []).map((staffId, index) => [staffId, index] as const)),
+    [data.exportStaffOrder],
+  );
   const staffs: StaffType[] = useMemo(() => {
-    return data.staffs.map((staff) => {
-      const positionSkills = positionSkillsByStaffId.get(staff._id);
-      return {
-        id: staff._id,
-        name: staff.isRemoved ? `${staff.name}（削除済み）` : staff.name,
-        isSubmitted: staff.isSubmitted,
-        isRemoved: staff.isRemoved,
-        createdAt: staff.createdAt,
-        ...(positionSkills ? { positionSkills } : {}),
-      };
-    });
-  }, [data.staffs, positionSkillsByStaffId]);
+    return (
+      data.staffs
+        .map((staff): StaffType => {
+          const positionSkills = positionSkillsByStaffId.get(staff._id);
+          const displayOrder = displayOrderByStaffId.get(staff._id);
+          return {
+            id: staff._id,
+            name: staff.isRemoved ? `${staff.name}（削除済み）` : staff.name,
+            isSubmitted: staff.isSubmitted,
+            isRemoved: staff.isRemoved,
+            createdAt: staff.createdAt,
+            ...(displayOrder !== undefined ? { displayOrder } : {}),
+            ...(positionSkills ? { positionSkills } : {}),
+          };
+        })
+        // 並び順のない人どうしは、サーバーが返した順（登録順）のままにする。並べ替えは安定である。
+        .sort((a, b) => (a.displayOrder ?? Number.POSITIVE_INFINITY) - (b.displayOrder ?? Number.POSITIVE_INFINITY))
+    );
+  }, [data.staffs, displayOrderByStaffId, positionSkillsByStaffId]);
   const positions = useMemo(
     () =>
       data.positions.length > 0
@@ -702,6 +717,24 @@ export const useShiftBoardPageController = (
       }
     },
   );
+  // スタッフの並び替え（固定 / 勤務時間順）。店舗に保存し、管理者全員と全端末で共通にする。
+  // 押してすぐ並びが変わるよう、先に画面を切り替えてから保存し、保存できなければ元へ戻す。
+  const savedStaffSortMode: StaffSortMode = data.shiftStaffSortMode ?? "fixed";
+  const [staffSortMode, setStaffSortMode] = useState<StaffSortMode>(savedStaffSortMode);
+  useEffect(() => {
+    setStaffSortMode(savedStaffSortMode);
+  }, [savedStaffSortMode]);
+  const requestStaffSortModeChange = useCallback(
+    (mode: StaffSortMode) => {
+      setStaffSortMode(mode);
+      void setShiftStaffSortMode({ mode }).catch((error: unknown) => {
+        setStaffSortMode(savedStaffSortMode);
+        handleMutationError(error);
+      });
+    },
+    [handleMutationError, savedStaffSortMode, setShiftStaffSortMode],
+  );
+
   const hasSavedDraft = data.recruitment.draftSavedAt !== null;
   const requestDetailModeChange = useCallback(
     (isDetailMode: boolean) => {
@@ -743,10 +776,13 @@ export const useShiftBoardPageController = (
         ? { provisionalAction: { onInsert: handleInsertProvisional, isLoading: isInsertingProvisional } }
         : {}),
       ...(canSwitchDetailMode ? { requestDetailModeChange } : {}),
+      // 並び替えは表示の好みなので、確定済みや過去の募集でも変えられる。店舗を特定できる画面でだけ出す。
+      ...(setupScope ? { requestStaffSortModeChange } : {}),
     }),
     [
       canSwitchDetailMode,
       requestDetailModeChange,
+      requestStaffSortModeChange,
       setupScope,
       canEditDayStaffing,
       canInsertProvisional,
@@ -808,6 +844,7 @@ export const useShiftBoardPageController = (
       positions: data.positions.map((position) => ({ id: position._id, name: position.name, color: position.color })),
       dateNotes: loadedDateNotes.map(({ staffId, date, note }) => ({ staffId, date, note })),
       isDetailMode: initialDetailMode,
+      staffSortMode,
     });
   }, [
     exportOrganizationId,
@@ -820,6 +857,7 @@ export const useShiftBoardPageController = (
     data,
     buildSaveAssignments,
     initialDetailMode,
+    staffSortMode,
   ]);
 
   return {
@@ -853,6 +891,7 @@ export const useShiftBoardPageController = (
         dateNotes: loadedDateNotes,
         staffing: shiftFormStaffing,
         initialDetailMode,
+        staffSortMode,
         canSwitchDetailMode,
         detailActions,
         applyShiftsRef,

@@ -9,6 +9,7 @@ import { assertRecruitmentEditVersion, isCurrentSubmission } from "../_lib/recru
 import { sha256Hex } from "../_lib/sha256";
 import { normalizeExactAdjacentTimeAssignments, sortShiftBreaks } from "../_lib/shiftAssignmentNormalization";
 import { shiftAssignmentBreakValidator } from "../_lib/shiftAssignmentValidators";
+import { shiftStaffSortModeValidator } from "../_lib/shiftStaffSortMode";
 import { normalizeEmail } from "../_lib/validation";
 import { recordAnalyticsUsage } from "../analytics/record";
 import { NOTIFICATION_FANOUT_SCOPE_LIMIT, SHIFT_ASSIGNMENT_LIMIT, SHIFT_BOARD_STAFF_LIMIT } from "../constants";
@@ -363,6 +364,20 @@ export const switchShiftDetailMode = managerMutation({
     // 勤務のない募集は「下書き未保存」が正しいため、下書き保存の時刻も消す。
     await ctx.db.patch(args.recruitmentId, { draftSavedAt: undefined });
     await ctx.db.patch(ctx.shop._id, { shiftDetailMode: args.isDetailMode });
+    return null;
+  },
+});
+
+/**
+ * シフト表のスタッフの並び替え（固定 / 勤務時間順）を店舗へ保存する。
+ * 表示の好みだけを変え、勤務、下書き、通知には触れない。確定済みの募集を開いているときも変えられる。
+ */
+export const setShiftStaffSortMode = managerMutation({
+  args: { mode: shiftStaffSortModeValidator },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    if (ctx.shop.shiftStaffSortMode === args.mode) return null;
+    await ctx.db.patch(ctx.shop._id, { shiftStaffSortMode: args.mode });
     return null;
   },
 });

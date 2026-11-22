@@ -71,6 +71,8 @@ const dataSchema = z.object({
     .default([]),
   // デプロイ前に保存した一時データにはないため、「シンプル」として読み、ポジションを出さない。
   isDetailMode: z.boolean().default(false),
+  // デプロイ前に保存した一時データにはないため、「固定」として読む。
+  staffSortMode: z.enum(["fixed", "workTime"]).default("fixed"),
 });
 export const snapshotSchema = z.object({
   version: z.literal(1),

@@ -25,7 +25,15 @@ import {
 import { compareDefaultStaffOrder, sortDailyStaffs, sortStaffs } from "@/src/domains/shift/sortStaffs";
 import type { NewcomerOnlyPeriod } from "@/src/domains/shift/staffing";
 import { minutesToTime } from "@/src/domains/shift/time";
-import type { PositionType, ShiftData, SortMode, StaffType, TimeRange, ViewMode } from "@/src/domains/shift/types";
+import type {
+  PositionType,
+  ShiftData,
+  SortMode,
+  StaffSortMode,
+  StaffType,
+  TimeRange,
+  ViewMode,
+} from "@/src/domains/shift/types";
 import { sumStaffWorkTotals } from "@/src/domains/shift/workTotals";
 import { DEFAULT_TIME_PATTERN } from "@/src/domains/shop/submissionPattern";
 import { buildDayFulfillmentView } from "./fulfillmentPresentation";
@@ -71,6 +79,8 @@ export const viewModeAtom = atom<ViewMode>("daily");
 export const selectedDateAtom = atom<string>("");
 export const sortModeAtom = atom<SortMode>("default");
 export const lockedDailyStaffOrderAtom = atom<{ date: string; staffIds: string[] } | null>(null);
+// 店舗が選んだスタッフの並び替え。置く側がpropsで渡し、表示設定で変えると置く側が保存して渡し直す。
+export const staffSortModeAtom = atom<StaffSortMode>("fixed");
 
 // ==========================================
 // シフトデータ
@@ -378,12 +388,8 @@ export const detailToggleEnabledAtom = atom<boolean>(false);
 // ==========================================
 // スクロールで隠す上の行
 // ==========================================
-// 上の行（アプリのヘッダーと、戻る、日別と一覧、保存の行）と、スマートフォンの日付の一覧の出し方。
-// - shown: すべて表示する。
-// - datesOnly: スマートフォンで、表の途中から上へ戻したとき。日付の一覧だけを表示し、上の行は上端へ来るまで隠す。
-// - hidden: 内側の入れ物を下へスクロールしている間。すべて隠す。
-export type ChromeVisibility = "shown" | "datesOnly" | "hidden";
-export const chromeVisibilityAtom = atom<ChromeVisibility>("shown");
+// 内側の入れ物を下へスクロールして、上の行（戻る、日別と一覧、保存の行）を隠している間はtrue。
+export const chromeHiddenAtom = atom<boolean>(false);
 
 // ==========================================
 // 自動作成
@@ -565,8 +571,22 @@ const buildDailyStaffOrder = (get: Getter, date: string): string[] | null => {
     staffs: config.staffs,
     shiftByStaffId,
     mode,
+    staffSortMode: get(staffSortModeAtom),
   }).map((staff) => staff.id);
 };
+
+/**
+ * 店舗が選んだスタッフの並び替えを反映する。表示中の日の並びも、新しい並び替えで決め直す。
+ * 並びは日付を選んだときに固定するため、ここで決め直さないと、並び替えを変えても行が動かない。
+ */
+export const applyStaffSortModeAtom = atom(null, (get, set, mode: StaffSortMode) => {
+  if (get(staffSortModeAtom) === mode) return;
+  set(staffSortModeAtom, mode);
+  const locked = get(lockedDailyStaffOrderAtom);
+  if (!locked) return;
+  const staffIds = buildDailyStaffOrder(get, locked.date);
+  set(lockedDailyStaffOrderAtom, staffIds ? { date: locked.date, staffIds } : null);
+});
 
 export const lockDailyStaffOrderAtom = atom(null, (get, set, date: string) => {
   const staffIds = buildDailyStaffOrder(get, date);

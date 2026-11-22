@@ -10,6 +10,7 @@ import {
   selectDateWithDailyStaffOrderAtom,
   shiftConfigAtom,
   shiftsAtom,
+  staffSortModeAtom,
   viewModeAtom,
   warningCountByDateAtom,
 } from "../../stores";
@@ -24,6 +25,7 @@ import {
 export const SPShiftTypeOverviewView = () => {
   const config = useAtomValue(shiftConfigAtom);
   const shifts = useAtomValue(shiftsAtom);
+  const staffSortMode = useAtomValue(staffSortModeAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
   const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const setViewMode = useSetAtom(viewModeAtom);
@@ -34,12 +36,13 @@ export const SPShiftTypeOverviewView = () => {
         dates,
         holidays,
         staffs,
+        staffSortMode,
         shifts,
         submissionPattern,
         warningCounts,
         isReadOnly,
       }),
-    [dates, holidays, staffs, shifts, submissionPattern, warningCounts, isReadOnly],
+    [dates, holidays, staffs, staffSortMode, shifts, submissionPattern, warningCounts, isReadOnly],
   );
   const initialOpen = useMemo(() => {
     const state: Record<number, boolean> = {};

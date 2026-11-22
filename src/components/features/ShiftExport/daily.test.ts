@@ -52,6 +52,24 @@ describe("buildExportDaily", () => {
     expect(daily.sheets.map(({ workerLabel }) => workerLabel)).toEqual(["出勤 5人", "出勤 1人"]);
   });
 
+  it("並び替えが「固定」のときは、開始の早い順にせず、スタッフの並び順のまま並べる", () => {
+    const sheet = build(createDailyExportFixture({ staffSortMode: "fixed" })).sheets[0];
+
+    // staffsの順（田中、伊藤、高橋、鈴木、佐藤）のうち、その日に勤務のある人をそのままの順で出す。
+    expect(sheet.rows.map(({ staffName }) => staffName)).toEqual([
+      "田中 花子",
+      "伊藤 健",
+      "高橋 美咲",
+      "鈴木 太郎",
+      "佐藤 一郎",
+    ]);
+    // 並び替えを省いても「固定」になる。
+    const { staffSortMode: _omitted, ...withoutMode } = createDailyExportFixture();
+    expect(build(withoutMode).sheets[0].rows.map(({ staffName }) => staffName)).toEqual(
+      sheet.rows.map(({ staffName }) => staffName),
+    );
+  });
+
   it("ポジションの切り替えと休憩を、左から右の順の区間にする", () => {
     const [sato, , takahashi] = build(createDailyExportFixture()).sheets[0].rows;
 

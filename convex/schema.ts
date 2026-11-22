@@ -11,6 +11,7 @@ import {
   shiftDayTemplateWeekdayValidator,
   staffPositionSkillValidator,
 } from "./_lib/shiftSetupValidators";
+import { shiftStaffSortModeValidator } from "./_lib/shiftStaffSortMode";
 import { submissionPatternValidator } from "./_lib/submissionPattern";
 import {
   analyticsEngagementValidator,
@@ -82,6 +83,8 @@ const schema = defineSchema({
     // シフト表で最後に選んだ表示。trueは「くわしく」、falseは「シンプル」。次に開くシフト表は、この表示で開く。
     // 省略は「まだ選んでいない」を表し、店舗の設定から表示を決める。業務上の任意項目で、backfillは不要。
     shiftDetailMode: v.optional(v.boolean()),
+    // シフト表のスタッフの並び替え。省略は「まだ選んでいない」を表し、「固定」として扱う。業務上の任意項目で、backfillは不要。
+    shiftStaffSortMode: v.optional(shiftStaffSortModeValidator),
     isDeleted: v.boolean(),
   })
     .index("by_organizationId", ["organizationId"])

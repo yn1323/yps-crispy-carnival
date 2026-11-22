@@ -4,7 +4,11 @@ import { expect, userEvent, waitFor, within } from "storybook/test";
 import type { PositionType, ShiftData, StaffType } from "@/src/domains/shift/types";
 import { ShiftForm } from "../..";
 import { lastPositionStorageKey } from "../../lastPositionStorage";
-import { clearRememberedDateOnlyBoardPosition, dateOnlyBoardDetailArgs } from "../../stories/dateOnlyBoardFixtures";
+import {
+  clearRememberedDateOnlyBoardPosition,
+  dateOnlyBoardDayWithoutTemplateArgs,
+  dateOnlyBoardDetailArgs,
+} from "../../stories/dateOnlyBoardFixtures";
 import { mockDateOnlyDates, mockDateOnlyStaffs, withPositionSkills } from "../../stories/fixtures";
 import {
   dateOnlyArgs,
@@ -227,6 +231,27 @@ export const DetailWithoutDayTemplates: Story = {
   globals: desktopGlobals,
 };
 
+/**
+ * ポジションの人数のない日（テンプレートなし）があっても、テンプレートは見出しの下端にそろえる。
+ * 人数の行の有無や数で、テンプレートの高さがずれないようにする。
+ */
+export const DetailDayWithoutTemplate: Story = {
+  name: "Detail Day Without Template",
+  args: dateOnlyBoardDayWithoutTemplateArgs,
+  globals: desktopGlobals,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByRole("button", { name: /12\/2\(水\)のテンプレート/ });
+    const gaps = Array.from(canvasElement.querySelectorAll<HTMLElement>("[data-day-template]")).map((template) => {
+      const cell = template.closest("th") as HTMLElement;
+      return Math.round(cell.getBoundingClientRect().bottom - template.getBoundingClientRect().bottom);
+    });
+    // 1週目の開いている日（12/1、12/2、12/4〜12/6）のテンプレートの下端と、見出しの下端の間が、すべて同じになる。
+    await expect(gaps).toHaveLength(5);
+    await expect(new Set(gaps).size).toBe(1);
+  },
+};
+
 /** 管理者の閲覧専用でも、ポジションと人数は出す。テンプレートは名前だけを出す。 */
 export const DetailReadOnly: Story = {
   name: "Detail Read Only",
@@ -250,9 +275,11 @@ export const DetailConfirmedForStaff: Story = {
 };
 
 /** その日の見出しの中から、ポジションの「配置/必要」を探す。titleは「ホール 1/2」の形である。 */
-const findDayCount = async (canvas: ReturnType<typeof within>, dateLabel: string, title: string) => {
-  const sortButton = await canvas.findByRole("button", { name: new RegExp(`^${dateLabel}で並べ替える`) });
-  return within(sortButton.closest("th") as HTMLElement).findByTitle(title);
+const findDayCount = async (canvas: ReturnType<typeof within>, date: string, title: string) => {
+  const headers: HTMLElement[] = await canvas.findAllByRole("columnheader");
+  const header = headers.find((item) => item.dataset.dateHeader === date);
+  await expect(header).toBeDefined();
+  return within(header as HTMLElement).findByTitle(title);
 };
 
 /**
@@ -269,16 +296,18 @@ export const PositionMenuInteractive: Story = {
     const canvas = within(canvasElement);
     const body = within(document.body);
     const cellName = (state: string) => `山田 一郎 6/3(水) ${state}`;
-    await expect(await findDayCount(canvas, "6/3\\(水\\)", "ホール 1/2")).toBeInTheDocument();
+    await expect(await findDayCount(canvas, "2026-06-03", "ホール 1/2")).toBeInTheDocument();
 
-    // 入れるものを選ぶパレットは出さない。空きのセルを押すと、先頭のポジションで入る。
+    // 時間指定の「入れるもの」（休憩を含む）は出さない。空きのセルを押すと、先頭のポジションで入る。
     await expect(canvas.queryByRole("radiogroup", { name: "入れるもの" })).not.toBeInTheDocument();
+    const initialPicker = await canvas.findByRole("radiogroup", { name: "入れるポジション" });
+    await expect(within(initialPicker).getByRole("radio", { name: "ホール" })).toHaveAttribute("aria-checked", "true");
     const row = (await canvas.findByRole("button", { name: cellName("勤務なし") })).closest("tr") as HTMLElement;
     const rowHeight = row.getBoundingClientRect().height;
     await userEvent.click(await canvas.findByRole("button", { name: cellName("勤務なし") }));
     const hallPill = await canvas.findByRole("button", { name: cellName("勤務あり、ホール") });
     await expect(hallPill).toHaveTextContent("ホール");
-    await expect(await findDayCount(canvas, "6/3\\(水\\)", "ホール 2/2")).toBeInTheDocument();
+    await expect(await findDayCount(canvas, "2026-06-03", "ホール 2/2")).toBeInTheDocument();
     // 希望のない日に入れたため、橙の点が付く。割り当ての前後で、行の高さは変わらない。
     await expect(hallPill.querySelector('[data-assignment-dot="orange"]')).not.toBeNull();
     await expect(hallPill).toHaveAccessibleDescription("希望時間外に勤務あり");
@@ -290,9 +319,9 @@ export const PositionMenuInteractive: Story = {
     await expect(within(menu).getByRole("menuitemradio", { name: /ホール/ })).toHaveAttribute("aria-checked", "true");
     await userEvent.click(within(menu).getByRole("menuitemradio", { name: /レジ/ }));
     const registerPill = await canvas.findByRole("button", { name: cellName("勤務あり、レジ") });
-    await expect(await findDayCount(canvas, "6/3\\(水\\)", "ホール 1/2")).toBeInTheDocument();
+    await expect(await findDayCount(canvas, "2026-06-03", "ホール 1/2")).toBeInTheDocument();
     // レジで見習いの山田さんだけが入ったため、見習いだけの印が付く。
-    await expect(await findDayCount(canvas, "6/3\\(水\\)", "レジ 1、見習いだけ")).toBeInTheDocument();
+    await expect(await findDayCount(canvas, "2026-06-03", "レジ 1、見習いだけ")).toBeInTheDocument();
 
     // 次の空きのセルには、最後に選んだポジションで入る。
     await userEvent.click(await canvas.findByRole("button", { name: "鈴木 次郎 6/3(水) 勤務なし" }));
@@ -316,7 +345,13 @@ export const PositionMenuInteractive: Story = {
     await userEvent.click(await canvas.findByRole("button", { name: cellName("勤務あり、ホール") }));
     await userEvent.click(await body.findByRole("menuitem", { name: "削除" }));
     await expect(await canvas.findByRole("button", { name: cellName("勤務なし") })).toBeInTheDocument();
-    await expect(await findDayCount(canvas, "6/3\\(水\\)", "ホール 1/2")).toBeInTheDocument();
+    await expect(await findDayCount(canvas, "2026-06-03", "ホール 1/2")).toBeInTheDocument();
+    // 週の見出しのポジションを押すと選んだ状態になり、空きのセルはそのポジションで入る。
+    const picker = await canvas.findByRole("radiogroup", { name: "入れるポジション" });
+    await userEvent.click(within(picker).getByRole("radio", { name: "レジ" }));
+    await expect(within(picker).getByRole("radio", { name: "レジ" })).toHaveAttribute("aria-checked", "true");
+    await userEvent.click(await canvas.findByRole("button", { name: cellName("勤務なし") }));
+    await expect(await canvas.findByRole("button", { name: cellName("勤務あり、レジ") })).toBeInTheDocument();
   },
 };
 
@@ -330,12 +365,12 @@ export const FulfillmentInteractive: Story = {
     clearRememberedDateOnlyBoardPosition();
     const canvas = within(canvasElement);
     await expect(await canvas.findByText("充足 41%")).toBeInTheDocument();
-    await expect(await findDayCount(canvas, "12/5\\(土\\)", "販売 2/4")).toBeInTheDocument();
+    await expect(await findDayCount(canvas, "2026-12-05", "販売 2/4")).toBeInTheDocument();
 
     // 希望だけの日へ入れると、その日の分数と、週の充足率が変わる。
     await userEvent.click(await canvas.findByRole("button", { name: "山口 美月 12/5(土) 勤務なし" }));
     await expect(await canvas.findByRole("button", { name: "山口 美月 12/5(土) 勤務あり、販売" })).toBeInTheDocument();
-    await expect(await findDayCount(canvas, "12/5\\(土\\)", "販売 3/4")).toBeInTheDocument();
+    await expect(await findDayCount(canvas, "2026-12-05", "販売 3/4")).toBeInTheDocument();
     await expect(await canvas.findByText("充足 44%")).toBeInTheDocument();
 
     const headText = canvasElement.querySelector("thead")?.textContent ?? "";
@@ -360,9 +395,9 @@ export const DetailDayTemplateInteractive: Story = {
     await expect(
       await canvas.findByRole("button", { name: "6/3(水)のテンプレート: イベント日（この日だけ）" }),
     ).toBeInTheDocument();
-    await expect(await findDayCount(canvas, "6/3\\(水\\)", "ホール 1/3")).toBeInTheDocument();
-    await expect(await findDayCount(canvas, "6/3\\(水\\)", "キッチン 1/2")).toBeInTheDocument();
-    await expect(await findDayCount(canvas, "6/3\\(水\\)", "レジ 0/1")).toBeInTheDocument();
+    await expect(await findDayCount(canvas, "2026-06-03", "ホール 1/3")).toBeInTheDocument();
+    await expect(await findDayCount(canvas, "2026-06-03", "キッチン 1/2")).toBeInTheDocument();
+    await expect(await findDayCount(canvas, "2026-06-03", "レジ 0/1")).toBeInTheDocument();
 
     // 平日を選び直す。メニューから当てたテンプレートは、その日だけの指定として出る。
     await userEvent.click(
@@ -372,7 +407,7 @@ export const DetailDayTemplateInteractive: Story = {
     await expect(
       await canvas.findByRole("button", { name: "6/3(水)のテンプレート: 平日（この日だけ）" }),
     ).toBeInTheDocument();
-    await expect(await findDayCount(canvas, "6/3\\(水\\)", "ホール 1/2")).toBeInTheDocument();
+    await expect(await findDayCount(canvas, "2026-06-03", "ホール 1/2")).toBeInTheDocument();
     await expect((await readStaffingCalls(canvasElement)).calls).toEqual([
       { mutation: "applyDayTemplateToDates", dates: ["2026-06-03"], templateId: "event" },
       { mutation: "applyDayTemplateToDates", dates: ["2026-06-03"], templateId: "weekday" },

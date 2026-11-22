@@ -3,14 +3,20 @@ import { useAtom, useAtomValue } from "jotai";
 import { useId } from "react";
 import { LuCheck, LuChevronDown, LuMessageSquare } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
+import type { StaffSortMode } from "@/src/domains/shift/types";
 import { useShiftDateNotesVisibility } from "./dateNotes";
 import { useShiftFormDetailActions } from "./detailParts";
-import { detailModeAtom, detailToggleEnabledAtom } from "./stores";
+import { detailModeAtom, detailToggleEnabledAtom, shiftConfigAtom, staffSortModeAtom } from "./stores";
 
 const DETAIL_MODE_OPTIONS = [
   { value: "simple", label: "シンプル", description: "勤務時間のみ表示" },
   { value: "detail", label: "くわしく", description: "時間、ポジション、過不足を表示" },
 ] as const;
+
+const STAFF_SORT_MODE_OPTIONS: ReadonlyArray<{ value: StaffSortMode; label: string; description: string }> = [
+  { value: "fixed", label: "固定", description: "スタッフページの並び順" },
+  { value: "workTime", label: "勤務時間順", description: "勤務と希望の時間が早い順" },
+];
 
 /**
  * 日付見出しの右端に置く、シフト表の見え方を切り替えるメニュー。
@@ -26,7 +32,11 @@ export function DisplaySettingsMenu({
   const { isVisible, setVisible } = useShiftDateNotesVisibility();
   const [detailMode, setDetailMode] = useAtom(detailModeAtom);
   const showDetailToggle = useAtomValue(detailToggleEnabledAtom);
-  const { requestDetailModeChange } = useShiftFormDetailActions();
+  const { requestDetailModeChange, requestStaffSortModeChange } = useShiftFormDetailActions();
+  const staffSortMode = useAtomValue(staffSortModeAtom);
+  const { submissionPattern } = useAtomValue(shiftConfigAtom);
+  // 日付選択の勤務には時刻がなく、「勤務時間順」を選んでも並びが変わらないため、項目を出さない。
+  const showStaffSortMode = Boolean(requestStaffSortModeChange) && submissionPattern.kind !== "dateOnly";
   const handleDetailModeSelect = (isDetailMode: boolean) => {
     if (isDetailMode === detailMode) return;
     // 切り替えを画面の外で受け付ける場合は、確認が済んで開き直されるまで、いまの表示のままにする。
@@ -35,7 +45,7 @@ export function DisplaySettingsMenu({
   };
 
   // 出す項目が1つもない場合は、ボタンごと出さない。
-  if (!showsDateNotesToggle && !showDetailToggle) return null;
+  if (!showsDateNotesToggle && !showDetailToggle && !showStaffSortMode) return null;
 
   return (
     <Menu.Root positioning={{ placement: "bottom-end", gutter: 8 }}>
@@ -109,6 +119,50 @@ export function DisplaySettingsMenu({
                         </Menu.ItemText>
                         <Text
                           id={`${descriptionId}-${option.value}`}
+                          fontSize="xs"
+                          color="fg.muted"
+                          whiteSpace="normal"
+                        >
+                          {option.description}
+                        </Text>
+                      </Stack>
+                    </Menu.RadioItem>
+                  ))}
+                </Menu.RadioItemGroup>
+              </>
+            )}
+            {showStaffSortMode && (
+              <>
+                {(showsDateNotesToggle || showDetailToggle) && <Menu.Separator />}
+                <Menu.RadioItemGroup
+                  value={staffSortMode}
+                  onValueChange={({ value }) => {
+                    if (value !== staffSortMode) requestStaffSortModeChange?.(value as StaffSortMode);
+                  }}
+                >
+                  <Menu.ItemGroupLabel textStyle="xs" color="fg.muted" fontWeight="semibold">
+                    スタッフ並び替え
+                  </Menu.ItemGroupLabel>
+                  {STAFF_SORT_MODE_OPTIONS.map((option) => (
+                    <Menu.RadioItem
+                      key={option.value}
+                      value={option.value}
+                      aria-label={option.label}
+                      aria-describedby={`${descriptionId}-sort-${option.value}`}
+                      cursor="pointer"
+                      ps={8}
+                      pe={3}
+                      py={2.5}
+                    >
+                      <Menu.ItemIndicator color="teal.600">
+                        <LuCheck aria-hidden />
+                      </Menu.ItemIndicator>
+                      <Stack gap={0.5} minW={0}>
+                        <Menu.ItemText fontSize="sm" fontWeight="semibold">
+                          {option.label}
+                        </Menu.ItemText>
+                        <Text
+                          id={`${descriptionId}-sort-${option.value}`}
                           fontSize="xs"
                           color="fg.muted"
                           whiteSpace="normal"

@@ -1886,6 +1886,94 @@ describe("shiftBoard/mutations", () => {
     });
   });
 
+  describe("setShiftStaffSortMode", () => {
+    /** 下書きの勤務を1件持つ募集を用意する。並び替えの保存が、勤務と下書きに触れないことを確かめるために使う。 */
+    async function seedDraft(t: TestConvex<typeof schema>) {
+      const data = await setupTestData(t);
+      await t.run(async (ctx) => {
+        const positionId = await ctx.db.insert("positions", {
+          shopId: data.shopId,
+          name: "シフト",
+          color: "#3b82f6",
+          sortOrder: 0,
+          isDefault: true,
+          isDeleted: false,
+        });
+        await ctx.db.patch(data.recruitmentId, { draftSavedAt: 1 });
+        await ctx.db.insert("shiftAssignments", {
+          recruitmentId: data.recruitmentId,
+          staffId: data.staffId1,
+          date: "2026-01-20",
+          startTime: "10:00",
+          endTime: "18:00",
+          positionId,
+        });
+      });
+      return data;
+    }
+    const readState = (t: TestConvex<typeof schema>, ids: Awaited<ReturnType<typeof seedDraft>>) =>
+      t.run(async (ctx) => {
+        const assignments = await ctx.db.query("shiftAssignments").collect();
+        const recruitment = await ctx.db.get(ids.recruitmentId);
+        const shop = await ctx.db.get(ids.shopId);
+        return {
+          assignmentCount: assignments.length,
+          draftSavedAt: recruitment?.draftSavedAt ?? null,
+          shiftStaffSortMode: shop?.shiftStaffSortMode ?? null,
+        };
+      });
+
+    it("未認証では拒否し、店舗の並び替えを変えない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedDraft(t);
+      const before = await readState(t, ids);
+
+      await expect(
+        t.mutation(api.shiftBoard.mutations.setShiftStaffSortMode, {
+          shopId: ids.shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, ids.shopId),
+          mode: "workTime",
+        }),
+      ).rejects.toThrow();
+      expect(await readState(t, ids)).toEqual(before);
+    });
+
+    it("他店舗の管理者は、この店舗の並び替えを変えられない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedDraft(t);
+      const before = await readState(t, ids);
+      await t.run(async (ctx) => {
+        await seedManagerShop(ctx, { subject: "user_other", email: "other@example.com", shopName: "他店舗" });
+      });
+
+      await expect(
+        t.withIdentity({ subject: "user_other" }).mutation(api.shiftBoard.mutations.setShiftStaffSortMode, {
+          shopId: ids.shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, ids.shopId),
+          mode: "workTime",
+        }),
+      ).rejects.toThrow(ConvexError);
+      expect(await readState(t, ids)).toEqual(before);
+    });
+
+    it("管理者が選んだ並び替えを店舗に保存し、勤務と下書きには触れない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedDraft(t);
+      const setMode = async (mode: "fixed" | "workTime") =>
+        t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.setShiftStaffSortMode, {
+          shopId: ids.shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, ids.shopId),
+          mode,
+        });
+
+      await setMode("workTime");
+      expect(await readState(t, ids)).toEqual({ assignmentCount: 1, draftSavedAt: 1, shiftStaffSortMode: "workTime" });
+
+      await setMode("fixed");
+      expect(await readState(t, ids)).toEqual({ assignmentCount: 1, draftSavedAt: 1, shiftStaffSortMode: "fixed" });
+    });
+  });
+
   describe("confirmRecruitment", () => {
     // scheduler.runAfter(0, ...) による "use node" アクションがテスト環境で
     // トランザクション外書き込みエラーを起こすため、タイマーを止めて実行を抑制する

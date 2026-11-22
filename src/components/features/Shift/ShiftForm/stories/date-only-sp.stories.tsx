@@ -65,9 +65,14 @@ export const Interactive: Story = {
     await expect(requested.getBoundingClientRect().top).toBeLessThan(unrequested.getBoundingClientRect().top);
     await expect(unrequested.getBoundingClientRect().top).toBeLessThan(unsubmitted.getBoundingClientRect().top);
     await expect(canvas.queryByRole("button", { name: "田中 太郎 6/3(水) 勤務なし" })).not.toBeInTheDocument();
-    // シンプル表示は、ピルを押すと割り当てが外れ、理由を出す場所がない。点のある日だけ、点の意味を出す。
-    await expect(unrequested.querySelector("[data-assignment-dot]")).toHaveAttribute("data-assignment-dot", "orange");
-    await expect(await canvas.findByText("橙の点：確認が必要")).toBeInTheDocument();
+    // スマートフォンでは、ピルの右上に点を出さない。名前の右の確認事項のアイコンをタップすると、理由を出す。
+    await expect(unrequested.querySelector("[data-assignment-dot]")).toBeNull();
+    const suzukiRow = unrequested.closest("li") as HTMLElement;
+    await userEvent.click(within(suzukiRow).getByRole("button", { name: "確認事項1件" }));
+    // ピルの読み上げ用の説明にも同じ理由が入るため、開いた吹き出しの中で確かめる。
+    const suzukiWarning = await within(canvasElement.ownerDocument.body).findByRole("dialog");
+    await expect(suzukiWarning).toHaveTextContent("確認事項希望時間外に勤務あり");
+    await userEvent.keyboard("{Escape}");
 
     // たたんだ人を開いて入れると、上のリストへ移る。もう一度押すと外れて、たたんだまとまりへ戻る。
     await userEvent.click(await canvas.findByRole("button", { name: /^この日の希望がない人 3人/ }));
@@ -76,10 +81,12 @@ export const Interactive: Story = {
     await userEvent.click(await canvas.findByRole("button", { name: "田中 太郎 6/3(水) 勤務あり" }));
     await expect(await canvas.findByRole("button", { name: /^この日の希望がない人 3人/ })).toBeInTheDocument();
 
-    // 点のない日は、点の意味を出さない。
+    // 確かめることのない人には、確認事項のアイコンを出さない。
     await userEvent.click(await canvas.findByLabelText("6/2(火)を表示"));
     const tanakaSecond = await canvas.findByRole("button", { name: "田中 太郎 6/2(火) 勤務あり" });
-    await expect(canvas.queryByText("橙の点：確認が必要")).not.toBeInTheDocument();
+    await expect(
+      within(tanakaSecond.closest("li") as HTMLElement).queryByRole("button", { name: /^確認事項\d+件$/ }),
+    ).not.toBeInTheDocument();
     await userEvent.click(tanakaSecond);
     const tanakaRemoved = await canvas.findByRole("button", { name: "田中 太郎 6/2(火) 勤務なし" });
     await expect(tanakaRemoved).toHaveTextContent("希望あり");

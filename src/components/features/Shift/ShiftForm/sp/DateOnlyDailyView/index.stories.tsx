@@ -80,17 +80,18 @@ export const PositionDialogInteractive: Story = {
     );
     await expect(fulfillment).toHaveTextContent("充足 80%販売2/3製造2/2");
 
-    // 「この日の希望がない人」は、最初はたたまれている。開いて入れると、最後に選んだ製造で入り、橙の点が付く。
+    // 「この日の希望がない人」は、最初はたたまれている。開いて入れると、最後に選んだ製造で入り、名前の右に確認事項が出る。
     const toggle = await canvas.findByRole("button", { name: /^この日の希望がない人 4人/ });
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
     await expect(canvas.queryByRole("button", { name: /^小林 悠斗 / })).not.toBeInTheDocument();
     await userEvent.click(toggle);
     await userEvent.click(await canvas.findByRole("button", { name: "小林 悠斗 12/2(水) 勤務なし" }));
     const unrequested = await canvas.findByRole("button", { name: "小林 悠斗 12/2(水) 勤務あり、製造" });
-    await expect(unrequested.querySelector("[data-assignment-dot]")).toHaveAttribute("data-assignment-dot", "orange");
+    await expect(unrequested.querySelector("[data-assignment-dot]")).toBeNull();
     await expect(await canvas.findByRole("button", { name: /^この日の希望がない人 3人/ })).toBeInTheDocument();
-    // 名前の横の注意のアイコンは出さない。
-    await expect(canvas.queryByRole("button", { name: /^確認事項\d+件$/ })).not.toBeInTheDocument();
+    await expect(
+      within(unrequested.closest("li") as HTMLElement).getByRole("button", { name: "確認事項1件" }),
+    ).toBeInTheDocument();
 
     // モーダルには点の理由を出す。「削除」で割り当てを外すと、たたんだまとまりへ戻る。
     await userEvent.click(unrequested);
@@ -103,7 +104,7 @@ export const PositionDialogInteractive: Story = {
   },
 };
 
-/** その日の連絡事項がある人、希望がある人、希望外で割り当て済みの人、未提出の人の順に並べる。連絡事項は名前の下に全文を出す。 */
+/** 連絡事項、希望、割り当て、未提出で並べ替えず、決めた並び順のまま出す（見本は並び順を持たないため、IDの順になる）。連絡事項は名前の下に全文を出す。 */
 export const RowOrderInteractive: Story = {
   name: "Row Order Interactive",
   args: dateOnlyBoardDetailArgs,
@@ -118,22 +119,16 @@ export const RowOrderInteractive: Story = {
       );
     await selectSecondDay(canvasElement);
     await canvas.findByRole("button", { name: "山口 美月 12/2(水) 勤務あり、販売" });
-    await expect(getNames()).toEqual(["山口 美月", "林 心春", "加藤 愛", "佐藤 健太", "伊藤 大輔"]);
+    const initialNames = ["林 心春", "伊藤 大輔", "加藤 愛", "佐藤 健太", "山口 美月"];
+    await expect(getNames()).toEqual(initialNames);
     const note = await canvas.findByText(/^短めの時間だと助かります。.*16時には出たいです$/);
     await expect(note).toHaveAttribute("data-clarity-mask", "true");
 
-    // 希望のない人へ入れると、希望のある人の後ろ、未提出の人の前に並ぶ。割り当て済みの人の並びは変わらない。
+    // 希望のない人へ入れると、まとまりから出て、決めた並び順の位置に入る。ほかの人の並びは変わらない。
     await userEvent.click(await canvas.findByRole("button", { name: /^この日の希望がない人 4人/ }));
     await userEvent.click(await canvas.findByRole("button", { name: "山本 拓海 12/2(水) 勤務なし" }));
     await canvas.findByRole("button", { name: "山本 拓海 12/2(水) 勤務あり、販売" });
-    await expect(getNames().slice(0, 6)).toEqual([
-      "山口 美月",
-      "林 心春",
-      "加藤 愛",
-      "佐藤 健太",
-      "山本 拓海",
-      "伊藤 大輔",
-    ]);
+    await expect(getNames().slice(0, 6)).toEqual([...initialNames, "山本 拓海"]);
 
     // 定休日は、リストを出さない。
     await userEvent.click(canvasElement.querySelector('[data-date-chip="2026-12-03"]') as HTMLElement);

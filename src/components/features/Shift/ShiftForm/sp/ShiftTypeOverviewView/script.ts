@@ -2,7 +2,7 @@ import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import { buildWeeklyGrid, formatDateShort, getWeekdayLabel } from "@/src/domains/shift/date";
 import { getAssignedShiftTypeOptionIdsInOptionOrder } from "@/src/domains/shift/shiftTypeAssignments";
 import { sortDailyStaffsByDate } from "@/src/domains/shift/sortStaffs";
-import type { PositionSegment, ShiftData, StaffType } from "@/src/domains/shift/types";
+import type { PositionSegment, ShiftData, StaffSortMode, StaffType } from "@/src/domains/shift/types";
 import { getOrderedShiftTypeOptions } from "@/src/domains/shop/submissionPattern";
 import { getShiftWeekdayTone, type ShiftWeekdayTone } from "../../weekdayPresentation";
 
@@ -56,6 +56,7 @@ export const buildShiftTypeOverviewViewModel = ({
   dates,
   holidays,
   staffs,
+  staffSortMode,
   shifts,
   submissionPattern,
   warningCounts,
@@ -64,6 +65,8 @@ export const buildShiftTypeOverviewViewModel = ({
   dates: string[];
   holidays: string[];
   staffs: StaffType[];
+  /** 店舗が選んだ並び替え。日別と同じ並びにするために受け取る。 */
+  staffSortMode?: StaffSortMode;
   shifts: ShiftData[];
   submissionPattern: ShiftSubmissionPattern;
   warningCounts: ReadonlyMap<string, number>;
@@ -74,7 +77,7 @@ export const buildShiftTypeOverviewViewModel = ({
   const optionById = new Map(options.map((option, colorIndex) => [option.id, { option, colorIndex }]));
   const holidaySet = new Set(holidays);
   const shiftByStaffDate = new Map(shifts.map((shift) => [`${shift.staffId}-${shift.date}`, shift]));
-  const sortedStaffsByDate = sortDailyStaffsByDate({ staffs, shifts, mode: "shiftType" });
+  const sortedStaffsByDate = sortDailyStaffsByDate({ staffs, shifts, mode: "shiftType", staffSortMode });
 
   return {
     weeks: buildWeeklyGrid(dates).map((week, weekIndex) => {

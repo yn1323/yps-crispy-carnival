@@ -2,7 +2,7 @@ import { buildWeeklyGrid, formatDateShort, getWeekdayLabel } from "@/src/domains
 import { isLegacyCompatibleWorkPosition } from "@/src/domains/shift/positions";
 import { sortDailyStaffsByDate } from "@/src/domains/shift/sortStaffs";
 import { formatShiftClockTime, timeToMinutes } from "@/src/domains/shift/time";
-import type { ShiftData, StaffType } from "@/src/domains/shift/types";
+import type { ShiftData, StaffSortMode, StaffType } from "@/src/domains/shift/types";
 import { getShiftWeekdayTone, type ShiftWeekdayTone } from "../../weekdayPresentation";
 
 export type OverviewWeekdayTone = ShiftWeekdayTone;
@@ -79,6 +79,7 @@ export const buildOverviewViewModel = ({
   dates,
   holidays,
   staffs,
+  staffSortMode,
   shifts,
   warningCounts,
   isReadOnly,
@@ -86,6 +87,8 @@ export const buildOverviewViewModel = ({
   dates: string[];
   holidays: string[];
   staffs: StaffType[];
+  /** 店舗が選んだ並び替え。日別と同じ並びにするために受け取る。 */
+  staffSortMode?: StaffSortMode;
   shifts: ShiftData[];
   warningCounts: ReadonlyMap<string, number>;
   isReadOnly: boolean;
@@ -96,7 +99,7 @@ export const buildOverviewViewModel = ({
     const range = getAssignedRange(shift);
     if (range) assignedByStaffDate.set(`${shift.staffId}-${shift.date}`, { range, shift });
   }
-  const sortedStaffsByDate = sortDailyStaffsByDate({ staffs, shifts, mode: "time" });
+  const sortedStaffsByDate = sortDailyStaffsByDate({ staffs, shifts, mode: "time", staffSortMode });
 
   return {
     weeks: buildWeeklyGrid(dates).map((week, weekIndex) => {

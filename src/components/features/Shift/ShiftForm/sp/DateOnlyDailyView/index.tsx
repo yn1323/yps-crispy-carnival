@@ -3,22 +3,15 @@ import dayjs from "dayjs";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LuMessageSquare } from "react-icons/lu";
+import { formatDateWithWeekday, getWeekdayLabel, isSaturday, isSunday } from "@/src/domains/shift/date";
 import {
-  formatDateShort,
-  formatDateWithWeekday,
-  getWeekdayLabel,
-  isSaturday,
-  isSunday,
-} from "@/src/domains/shift/date";
-import {
-  AssignmentDotLegend,
   AssignmentPill,
   FoldedStaffGroupToggle,
   FulfillmentLabel,
   PositionStaffingCount,
 } from "../../assignmentCellParts";
 import { ChromeCollapse } from "../../ChromeCollapse";
-import { DateIssueBadge, dateIssueBorderColor } from "../../components";
+import { DateIssueBadge, dateIssueBorderColor, ShiftFormScrollEnd, StaffWarningIcon } from "../../components";
 import { DisplaySettingsMenu } from "../../DisplaySettingsMenu";
 import { useAllShiftDateNotes } from "../../dateNotes";
 import {
@@ -30,6 +23,7 @@ import {
 import { ProvisionalBadge } from "../../detailParts";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
+import { useSwipeDateChange } from "../../hooks/useSwipeDateChange";
 import { DayTemplateMenu, useDayStaffingView } from "../../staffingParts";
 import {
   assignDateOnlyAtom,
@@ -112,9 +106,6 @@ export const SPDateOnlyDailyView = () => {
   // モーダルは、開いた時点の行ではなく、いまの表示内容から作る。ポジションを変えた直後の状態を出すためである。
   const allRows = [...presentation.rows, ...(presentation.foldedGroup?.rows ?? [])];
   const dialogRow = dialogStaffId ? allRows.find((row) => row.key === dialogStaffId) : undefined;
-  // ピルを押してもモーダルが開かない表示（シンプル表示、ポジションが1つ以下の店舗、閲覧専用）では、理由を出す場所がない。
-  // 点のある日だけ、リストの下に点の意味を出す。
-  const showsDotLegend = !isPositionSelectable && allRows.some((row) => row.cell.dot !== null);
 
   const handlePillClick = (row: DateOnlyDayRowPresentation) => {
     if (!row.cell.assigned) {
@@ -135,6 +126,8 @@ export const SPDateOnlyDailyView = () => {
     },
     [selectDate],
   );
+  // 時間指定と同じく、左右フリックで前後の日へ移る。
+  const swipeHandlers = useSwipeDateChange({ dates, selectedDate: activeDate, onSelect: handleDateSelect });
 
   if (!activeDate) {
     return (
@@ -151,7 +144,7 @@ export const SPDateOnlyDailyView = () => {
   );
 
   return (
-    <Flex direction="column" flex={1} minH={0} bg="gray.50">
+    <Flex direction="column" flex={1} minH={0} bg="gray.50" {...swipeHandlers}>
       {/* 日付の一覧は、一覧を下へスクロールすると上の行と一緒に隠す。日付の見出しは残す。 */}
       <ChromeCollapse>
         <DateRail
@@ -175,9 +168,11 @@ export const SPDateOnlyDailyView = () => {
         justify="space-between"
         gap={3}
       >
-        <Flex align="baseline" gap={2} minW={0}>
+        {/* 日付は折り返さず、縮めない。幅が足りないときは、右のテンプレートの名前が先に縮む。 */}
+        <Flex align="baseline" gap={2} flexShrink={0} whiteSpace="nowrap">
           <Text textStyle="xl" fontWeight={700} color="gray.800" fontVariantNumeric="tabular-nums">
-            {formatDateShort(activeDate)}
+            {/* 時間指定とパターン選択の日付の見出しと同じく「1月1日」の形にする。 */}
+            {Number(activeDate.slice(5, 7))}月{Number(activeDate.slice(8, 10))}日
           </Text>
           <Text textStyle="sm" fontWeight={600} color={dayColor(activeDate)}>
             ({getWeekdayLabel(activeDate)})
@@ -196,7 +191,7 @@ export const SPDateOnlyDailyView = () => {
           )}
         </Flex>
         <Flex align="center" gap={1} minW={0} flexShrink={1}>
-          {staffingView && <DayTemplateMenu date={activeDate} view={staffingView} shrinks />}
+          {staffingView && <DayTemplateMenu date={activeDate} view={staffingView} shrinks hidesIcon />}
           <DisplaySettingsMenu showsDateNotesToggle={false} />
         </Flex>
       </Flex>
@@ -234,9 +229,10 @@ export const SPDateOnlyDailyView = () => {
                 {presentation.foldedGroup.rows.map(renderRow)}
               </Box>
             )}
-            {showsDotLegend && <AssignmentDotLegend />}
           </Box>
         )}
+        {/* 未提出の帯は、リストのいちばん下に置く。 */}
+        <ShiftFormScrollEnd />
       </Box>
 
       {dialogRow?.cell.assigned && (
@@ -437,6 +433,7 @@ const StaffRow = ({
             未提出
           </Text>
         )}
+        <StaffWarningIcon messages={row.cell.dot === null ? [] : row.cell.noticeTexts} openOn="tap" />
       </Flex>
       {row.note !== null && (
         <Flex mt={1} gap={1.5} align="flex-start">
@@ -452,7 +449,9 @@ const StaffRow = ({
     </Box>
     <Box w="96px" flexShrink={0}>
       <AssignmentPill
-        cell={row.cell}
+        // スマートフォンでは、ピルの右上の点を出さない。押しても理由が出せず、分からないためである。
+        // 確かめたいことは、名前の右の確認事項のアイコンにまとめる。
+        cell={{ ...row.cell, dot: null }}
         size="list"
         isInteractive={!isReadOnly}
         onClick={isReadOnly ? undefined : onPillClick}

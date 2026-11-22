@@ -11,6 +11,7 @@ import {
   shiftBreakRuleValidator,
   staffPositionSkillValidator,
 } from "../_lib/shiftSetupValidators";
+import { DEFAULT_SHIFT_STAFF_SORT_MODE, shiftStaffSortModeValidator } from "../_lib/shiftStaffSortMode";
 import { getSubmissionPatternTimeRange, submissionPatternValidator } from "../_lib/submissionPattern";
 import { isSupportedShiftTime, timeToMinutes } from "../_lib/time";
 import {
@@ -47,6 +48,9 @@ const shiftBoardDataValidator = v.object({
   shopId: v.id("shops"),
   // 店舗がシフト表で最後に選んだ表示。trueは「くわしく」、falseは「シンプル」、nullはまだ選んでいない。
   shiftDetailMode: v.union(v.boolean(), v.null()),
+  // 店舗が選んだスタッフの並び替え。まだ選んでいない店舗は「固定」で返す。
+  shiftStaffSortMode: shiftStaffSortModeValidator,
+  // スタッフのページで決めた並び順。並び順が有効でない組織は、管理者を先にした登録順。画面の並びと出力の両方に使う。
   exportStaffOrder: v.array(v.id("staffs")),
   canWriteBusinessData: v.boolean(),
   businessWriteBlockReason: shiftBoardWriteBlockReasonValidator,
@@ -243,6 +247,7 @@ export const getShiftBoardData = managerQuery({
     return {
       shopId: shop._id,
       shiftDetailMode: shop.shiftDetailMode ?? null,
+      shiftStaffSortMode: shop.shiftStaffSortMode ?? DEFAULT_SHIFT_STAFF_SORT_MODE,
       exportStaffOrder,
       canWriteBusinessData: businessWriteBlockReason === null,
       businessWriteBlockReason,

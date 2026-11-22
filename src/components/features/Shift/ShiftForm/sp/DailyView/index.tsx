@@ -1,6 +1,6 @@
 import { Box, Flex, Stack } from "@chakra-ui/react";
 import { useAtomValue, useSetAtom } from "jotai";
-import { type TouchEvent, useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useDialog } from "@/src/components/ui/Dialog";
 import { isTimeStaffFolded } from "@/src/domains/shift/foldedStaff";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
@@ -8,6 +8,7 @@ import { FoldedStaffGroupToggle } from "../../assignmentCellParts";
 import { useAllShiftDateNotes } from "../../dateNotes";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
+import { useSwipeDateChange } from "../../hooks/useSwipeDateChange";
 import { SP_LIST_PADDING_X_PX } from "../../spTimelineScale";
 import { DayTemplateMenu, useDayStaffingView } from "../../staffingParts";
 import { buildStaffNamesLabel } from "../../staffNamesLabel";
@@ -30,8 +31,6 @@ import { ShiftDetailSheet } from "./ShiftDetailSheet";
 import { ShiftEditSheet } from "./ShiftEditSheet";
 import { SectionHeader, SPDailyCard, SPOffCard } from "./StaffCards";
 import { buildSPDailyCardViewModel } from "./script";
-
-const SWIPE_THRESHOLD = 50;
 
 export const SPDailyView = () => {
   const config = useAtomValue(shiftConfigAtom);
@@ -57,7 +56,6 @@ export const SPDailyView = () => {
   const editDialog = useDialog();
   const detailDialog = useDialog();
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
-  const touchStartX = useRef(0);
   const dateStripRef = useRef<HTMLDivElement>(null);
   useScrollDateIntoView(dateStripRef, selectedDate, "horizontal");
 
@@ -170,23 +168,11 @@ export const SPDailyView = () => {
     />
   );
 
-  const handleTouchStart = useCallback((event: TouchEvent) => {
-    touchStartX.current = event.touches[0].clientX;
-  }, []);
-
-  const handleTouchEnd = useCallback(
-    (event: TouchEvent) => {
-      const deltaX = event.changedTouches[0].clientX - touchStartX.current;
-      if (Math.abs(deltaX) < SWIPE_THRESHOLD) return;
-      const currentIndex = dates.indexOf(selectedDate);
-      if (deltaX > 0 && currentIndex > 0) selectDate(dates[currentIndex - 1]);
-      else if (deltaX < 0 && currentIndex < dates.length - 1) selectDate(dates[currentIndex + 1]);
-    },
-    [dates, selectedDate, selectDate],
-  );
+  // 左右フリックで前後の日へ移る。
+  const swipeHandlers = useSwipeDateChange({ dates, selectedDate, onSelect: selectDate });
 
   return (
-    <Flex direction="column" flex={1} minH={0} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+    <Flex direction="column" flex={1} minH={0} {...swipeHandlers}>
       <DateRail
         dates={dates}
         selectedDate={selectedDate}

@@ -249,3 +249,9 @@ export const buildShiftTypeStaffingPresentation = (
     ),
   };
 };
+
+/** 名前の右の確認事項に出す文言。勤務パターンごとの理由を、勤務パターン名を付けて並べる。 */
+export const toShiftTypeWarningMessages = (row: ShiftTypeDailyRowPresentation): string[] =>
+  row.cells
+    .filter((cell) => cell.dot !== null)
+    .flatMap((cell) => cell.noticeTexts.map((text) => `${cell.option.name}：${text}`));

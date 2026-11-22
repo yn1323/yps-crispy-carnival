@@ -11,7 +11,7 @@ import type {
 import type { DisplayIssue } from "@/src/domains/shift/assignmentIssues";
 import type { AssignmentWarning } from "@/src/domains/shift/assignmentWarnings";
 import type { NewcomerOnlyPeriod } from "@/src/domains/shift/staffing";
-import type { PositionType, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
+import type { PositionType, ShiftData, StaffSortMode, StaffType, TimeRange } from "@/src/domains/shift/types";
 
 export type ShiftBoardPageViewModel = {
   isRecruitmentChanged?: boolean;
@@ -40,6 +40,8 @@ export type ShiftBoardPageViewModel = {
     dateNotes: readonly ShiftDateNote[];
     staffing?: ShiftFormStaffing;
     initialDetailMode: boolean;
+    /** 店舗が選んだスタッフの並び替え。表示設定で変えると、保存を待たずに先に切り替える。 */
+    staffSortMode: StaffSortMode;
     /** 「シンプル / くわしく」の切り替えを出すか。確定済みの募集と、変更できない画面では出さない。 */
     canSwitchDetailMode: boolean;
     detailActions: ShiftFormDetailActions;

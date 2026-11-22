@@ -8,7 +8,15 @@ import { FocusedFlowBackButton } from "@/src/components/templates/FocusedFlowHea
 import { type DisplayIssue, toDisplayIssues } from "@/src/domains/shift/assignmentIssues";
 import type { AssignmentWarning } from "@/src/domains/shift/assignmentWarnings";
 import type { NewcomerOnlyPeriod } from "@/src/domains/shift/staffing";
-import type { PositionType, ShiftData, SortMode, StaffType, TimeRange, ViewMode } from "@/src/domains/shift/types";
+import type {
+  PositionType,
+  ShiftData,
+  SortMode,
+  StaffSortMode,
+  StaffType,
+  TimeRange,
+  ViewMode,
+} from "@/src/domains/shift/types";
 import { AutoCreateDialog } from "./AutoCreateDialog";
 import { AutoCreateButton } from "./AutoCreateDialog/entrances";
 import { BreakEditorDialog } from "./BreakEditorDialog";
@@ -19,6 +27,8 @@ import {
   type ReminderStatus,
   SaveButton,
   type ShiftFormExportAction,
+  ShiftFormScrollEnd,
+  ShiftFormScrollEndProvider,
   UnsubmittedStrip,
   ViewTabs,
 } from "./components";
@@ -45,6 +55,7 @@ import { SPShiftTypeDailyView } from "./sp/ShiftTypeDailyView";
 import { SPShiftTypeOverviewView } from "./sp/ShiftTypeOverviewView";
 import {
   applyShiftDraftsAtom,
+  applyStaffSortModeAtom,
   autoCreateDialogOpenAtom,
   detailModeAtom,
   detailToggleEnabledAtom,
@@ -118,6 +129,11 @@ type ShiftFormProps = {
    * 置く側は、これに合わせてアプリのヘッダーを隠し、シフト表を画面の上端まで広げる。
    */
   onChromeHiddenChange?: (isHidden: boolean) => void;
+  /**
+   * 店舗が選んだスタッフの並び替え。省くと「固定」（その日の状態のまとまり → スタッフのページで決めた並び順）にする。
+   * 表示設定で変えるには、`detailActions.requestStaffSortModeChange`を渡す。
+   */
+  staffSortMode?: StaffSortMode;
 };
 
 const ShiftFormInner = ({
@@ -156,6 +172,7 @@ const ShiftFormInner = ({
   header,
   exportAction,
   onChromeHiddenChange,
+  staffSortMode = "fixed",
 }: ShiftFormProps) => {
   useShiftFormInit({
     shopId,
@@ -179,6 +196,12 @@ const ShiftFormInner = ({
     validationWarnings,
     newcomerOnlyPeriods,
   });
+
+  // 店舗が選んだ並び替えを反映する。表示設定で変えると、置く側が保存して渡し直す。
+  const applyStaffSortMode = useSetAtom(applyStaffSortModeAtom);
+  useEffect(() => {
+    applyStaffSortMode(staffSortMode);
+  }, [applyStaffSortMode, staffSortMode]);
 
   const shifts = useAtomValue(shiftsAtom);
   const onShiftsChangeRef = useRef(onShiftsChange);
@@ -233,11 +256,9 @@ const ShiftFormInner = ({
   const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const displayIssues = useMemo(() => toDisplayIssues(validationIssues ?? [], staffs), [validationIssues, staffs]);
   const layoutMode = useBreakpointValue({ base: "sp", lg: "pc" }) ?? "pc";
-  // 内側の入れ物を下へスクロールすると、上の行を隠す。スマートフォンの表の途中で上へ戻すと、日付の一覧だけを出す。
+  // 内側の入れ物を下へスクロールすると、上の行を隠す。上端まで戻しきったときだけ表示する。
   const selectedDateForChrome = useAtomValue(selectedDateAtom);
-  const handleScrollCapture = useChromeHideOnScroll(`${viewMode}:${selectedDateForChrome}`, onChromeHiddenChange, {
-    isCompact: layoutMode === "sp",
-  });
+  const handleScrollCapture = useChromeHideOnScroll(`${viewMode}:${selectedDateForChrome}`, onChromeHiddenChange);
 
   // エラー行クリックで該当日付の日別ビューへ移動し、該当スタッフ行までスクロールする
   const handleSelectIssue = useCallback(
@@ -337,6 +358,7 @@ const ShiftFormInner = ({
           ) : (
             <Box flex={1} minH={0} overflow="auto">
               <SPDateOnlyOverviewView />
+              <ShiftFormScrollEnd />
             </Box>
           )
         ) : isShiftTypePattern ? (
@@ -347,15 +369,18 @@ const ShiftFormInner = ({
           ) : (
             <Box flex={1} minH={0} overflow="auto">
               <SPShiftTypeOverviewView />
+              <ShiftFormScrollEnd />
             </Box>
           )
         ) : viewMode === "daily" ? (
           <Box flex={1} overflow="auto">
             <SPDailyView />
+            <ShiftFormScrollEnd />
           </Box>
         ) : (
           <Box flex={1} minH={0} overflow="auto">
             <SPOverviewView />
+            <ShiftFormScrollEnd />
           </Box>
         )}
       </Shell>
@@ -412,6 +437,15 @@ const Shell = ({
   // 自動作成は、勤務にポジションを持たせる「くわしく」で、未確定の募集を編集できるときだけ出す。
   const canAutoCreate = detailMode && !isReadOnly && !isConfirmed;
   const openAutoCreate = () => setAutoCreateOpen(true);
+  const unsubmittedStrip =
+    !isReadOnly && !isConfirmed && reminderStatus && unsubmittedNames.length > 0 ? (
+      <UnsubmittedStrip
+        names={unsubmittedNames}
+        reminderStatus={reminderStatus}
+        onOpenDetails={onOpenUnsubmittedDetails}
+        provisionalAction={detailMode ? provisionalAction : undefined}
+      />
+    ) : null;
   return (
     <Flex direction="column" h="100%" minH={0}>
       {header && compact && (
@@ -498,17 +532,13 @@ const Shell = ({
         />
       )}
 
-      <Flex flex={1} minH={0} direction="column">
-        {children}
-      </Flex>
-      {!isReadOnly && !isConfirmed && reminderStatus && unsubmittedNames.length > 0 && (
-        <UnsubmittedStrip
-          names={unsubmittedNames}
-          reminderStatus={reminderStatus}
-          onOpenDetails={onOpenUnsubmittedDetails}
-          provisionalAction={detailMode ? provisionalAction : undefined}
-        />
-      )}
+      {/* 未提出の帯。PCは表の下に留める。スマートフォンは表を隠さないよう、表のスクロールするいちばん下に置く。 */}
+      <ShiftFormScrollEndProvider value={compact ? unsubmittedStrip : null}>
+        <Flex flex={1} minH={0} direction="column">
+          {children}
+        </Flex>
+      </ShiftFormScrollEndProvider>
+      {!compact && unsubmittedStrip}
       {canAutoCreate && <AutoCreateDialog isOpen={isAutoCreateOpen} onClose={() => setAutoCreateOpen(false)} />}
     </Flex>
   );

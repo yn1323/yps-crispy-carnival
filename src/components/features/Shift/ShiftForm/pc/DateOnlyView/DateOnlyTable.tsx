@@ -1,25 +1,25 @@
-import { Box, chakra, Flex, Menu, Portal, Text } from "@chakra-ui/react";
+import { Box, chakra, Flex, Menu, Portal, Text, VisuallyHidden } from "@chakra-ui/react";
 import { useState } from "react";
 import { LuChartGantt, LuChevronDown } from "react-icons/lu";
 import { formatDateWithWeekday, getWeekdayLabel } from "@/src/domains/shift/date";
 import type { PositionType, StaffType } from "@/src/domains/shift/types";
 import { AssignmentPill, FoldedStaffGroupToggle, PositionStaffingCount } from "../../assignmentCellParts";
-import { Avatar } from "../../components";
+import { Avatar, StaffWarningIcon } from "../../components";
 import { ShiftDateNoteCornerMark, ShiftStaffNoteIcon } from "../../dateNotes";
-import type {
-  DateOnlyCellPresentation,
-  DateOnlyNotePresentation,
-  DateOnlyStaffingPresentation,
-  DateOnlyWeekColumnPresentation,
-  DateOnlyWeekPresentation,
-  DateOnlyWeekRowPresentation,
+import {
+  type DateOnlyCellPresentation,
+  type DateOnlyNotePresentation,
+  type DateOnlyStaffingPresentation,
+  type DateOnlyWeekColumnPresentation,
+  type DateOnlyWeekPresentation,
+  type DateOnlyWeekRowPresentation,
+  toDateOnlyWeekWarningMessages,
 } from "../../dateOnlyPresentation";
 import { ProvisionalBadge } from "../../detailParts";
 import { DayTemplateMenuItems, useDayStaffingEditor } from "../../staffingParts";
 import type { DayStaffingView, PositionStaffingCountPresentation } from "../../staffingPresentation";
 import { getShiftWeekdayColor } from "../../weekdayPresentation";
 import { PositionMenuCell } from "../PositionMenuCell";
-import type { DateInfo } from "./types";
 
 const STAFF_COL_WIDTH = 200;
 // 日付の列は、残りの横幅を7日で等分する。画面が狭いときも、この幅までは縮めず横に送る。
@@ -37,8 +37,6 @@ type Props = {
   staffing: DateOnlyStaffingPresentation | null;
   /** 日ごとの人数。その日のテンプレートのメニューに使う。 */
   staffingViews: ReadonlyMap<string, DayStaffingView>;
-  sortableDates: DateInfo[];
-  sortDate: string;
   isReadOnly: boolean;
   /** ポジションを塗り分ける表示かどうか。見出しの分数に色の丸を添える。 */
   usesPositionColors: boolean;
@@ -48,7 +46,6 @@ type Props = {
   /** 連絡事項の列を出すか。連絡事項が1件もない募集と、表示設定で隠した場合は出さない。 */
   showsNoteColumn: boolean;
   noteCountByDate: ReadonlyMap<string, number>;
-  onSortDateSelect: (date: string) => void;
   onAssign: (staff: StaffType, date: string) => void;
   onChangePosition: (staff: StaffType, date: string, positionId: string) => void;
   onRemove: (staff: StaffType, date: string) => void;
@@ -58,22 +55,18 @@ export const DateOnlyTable = ({
   presentation,
   staffing,
   staffingViews,
-  sortableDates,
-  sortDate,
   isReadOnly,
   usesPositionColors,
   isPositionSelectable,
   positions,
   showsNoteColumn,
   noteCountByDate,
-  onSortDateSelect,
   onAssign,
   onChangePosition,
   onRemove,
 }: Props) => {
   const { columns, rows, foldedGroup } = presentation;
   const [isFoldedGroupOpen, setFoldedGroupOpen] = useState(false);
-  const sortableDateSet = new Set(sortableDates.map((date) => date.iso));
   const tableMinWidth = STAFF_COL_WIDTH + columns.length * DATE_COL_MIN_WIDTH + (showsNoteColumn ? NOTE_COL_WIDTH : 0);
 
   const renderCell = (row: DateOnlyWeekRowPresentation, cell: DateOnlyCellPresentation) => {
@@ -163,14 +156,11 @@ export const DateOnlyTable = ({
               <DateHeaderCell
                 key={column.key}
                 column={column}
-                isSortDate={column.key === sortDate}
-                isSortable={sortableDateSet.has(column.key)}
                 noteCount={noteCountByDate.get(column.key) ?? 0}
                 counts={staffing?.countsByDate.get(column.key) ?? null}
                 showsStaffing={staffing !== null}
                 showsDot={usesPositionColors}
                 staffingView={staffingViews.get(column.key)}
-                onSort={() => onSortDateSelect(column.key)}
               />
             ))}
             {showsNoteColumn && (
@@ -221,22 +211,17 @@ export const DateOnlyTable = ({
 
 /**
  * 日付の見出し。日付と曜日の下に、シンプル表示では人数、くわしく表示ではポジションごとの「配置/必要」とその日のテンプレートを出す。
- * 並べ替えられる日の日付は、押すとその日の希望で行を並べ替えるボタンにする。並べ替えに使っている日は、見出しの下線だけで示す。
  */
 const DateHeaderCell = ({
   column,
-  isSortDate,
-  isSortable,
   noteCount,
   counts,
   showsStaffing,
   showsDot,
   staffingView,
-  onSort,
 }: {
   column: DateOnlyWeekColumnPresentation;
-  isSortDate: boolean;
-  isSortable: boolean;
+  /** その日の連絡事項の件数。読み上げにだけ使う。 */
   noteCount: number;
   /** その日の「配置/必要」。定休日と期間外の日はnull。 */
   counts: PositionStaffingCountPresentation[] | null;
@@ -244,7 +229,6 @@ const DateHeaderCell = ({
   showsStaffing: boolean;
   showsDot: boolean;
   staffingView: DayStaffingView | undefined;
-  onSort: () => void;
 }) => {
   const { date, status } = column;
   const isOpen = status === "open";
@@ -254,7 +238,7 @@ const DateHeaderCell = ({
         as="span"
         textStyle="sm"
         fontWeight={700}
-        color={isOpen ? (isSortDate ? "teal.700" : "gray.800") : "gray.500"}
+        color={isOpen ? "gray.800" : "gray.500"}
         fontVariantNumeric="tabular-nums"
       >
         {Number(date.iso.slice(8))}
@@ -268,64 +252,55 @@ const DateHeaderCell = ({
       >
         {getWeekdayLabel(date.iso)}
       </Box>
+      {noteCount > 0 && <VisuallyHidden>連絡事項{noteCount}件</VisuallyHidden>}
     </Flex>
   );
   return (
     <chakra.th
+      data-date-header={date.iso}
       p={0}
       verticalAlign="top"
       bg={isOpen ? "white" : INACTIVE_COLUMN_BG}
       borderBottomWidth="1px"
       borderColor="gray.200"
-      // 並べ替えに使っている日は、列全体を塗らず、見出しの下線だけで示す。
-      boxShadow={isSortDate ? "inset 0 -2px 0 var(--chakra-colors-teal-600)" : undefined}
       fontWeight={600}
+      // 中身を見出しの行の高さいっぱいに広げ、テンプレートを下端にそろえるため、セルの高さを最小にしておく。
+      // 表のセルは、中身より低い高さを指定しても中身に合わせて伸びる。
+      h="1px"
     >
-      {isSortable ? (
-        <chakra.button
-          type="button"
-          aria-label={`${formatDateWithWeekday(date.iso)}で並べ替える${noteCount > 0 ? `、連絡事項${noteCount}件` : ""}`}
-          aria-pressed={isSortDate}
-          onClick={onSort}
-          display="block"
-          w="full"
-          px={1}
-          pt={2}
-          pb={1}
-          cursor="pointer"
-          transitionProperty="background"
-          transitionDuration="faster"
-          _hover={{ bg: "gray.100" }}
-          _active={{ bg: "gray.200", transitionDuration: "0ms" }}
-          _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "-2px" }}
-        >
-          {label}
-        </chakra.button>
-      ) : (
+      <Flex direction="column" h="full">
         <Box px={1} pt={2} pb={1}>
           {label}
         </Box>
-      )}
-      <Flex direction="column" align="center" gap="2px" px={1} pb={2}>
-        {!isOpen ? (
-          <Text textStyle="2xs" fontWeight={600} color="gray.500">
-            {status === "closed" ? "定休日" : "期間外"}
-          </Text>
-        ) : showsStaffing ? (
-          <>
-            {/* ポジションは横に並べ、列の幅が足りないときだけ折り返す。 */}
-            <Flex align="center" justify="center" columnGap={2} rowGap="2px" flexWrap="wrap">
-              {(counts ?? []).map((count) => (
-                <PositionStaffingCount key={count.positionId} count={count} showsDot={showsDot} />
-              ))}
-            </Flex>
-            {staffingView && <DayTemplateTrigger date={date.iso} view={staffingView} />}
-          </>
-        ) : (
-          <Text textStyle="xs" fontWeight={700} color="gray.700" fontVariantNumeric="tabular-nums">
-            {column.countLabel}
-          </Text>
-        )}
+        <Flex direction="column" align="center" gap="2px" px={1} pb={2} flex={1}>
+          {!isOpen ? (
+            <Text textStyle="2xs" fontWeight={600} color="gray.500">
+              {status === "closed" ? "定休日" : "期間外"}
+            </Text>
+          ) : showsStaffing ? (
+            <>
+              {/* ポジションは横に並べ、列の幅が足りないときだけ折り返す。
+                  必要人数がなく、だれも入っていないポジションは並べず、残りを中央に寄せる。 */}
+              <Flex align="center" justify="center" columnGap={2} rowGap="2px" flexWrap="wrap">
+                {(counts ?? [])
+                  .filter((count) => count.label !== null)
+                  .map((count) => (
+                    <PositionStaffingCount key={count.positionId} count={count} showsDot={showsDot} />
+                  ))}
+              </Flex>
+              {/* ポジションの数が少ない日や、テンプレートのない日も、テンプレートを見出しの下端にそろえる。 */}
+              {staffingView && (
+                <Flex mt="auto" w="full" justify="center" data-day-template>
+                  <DayTemplateTrigger date={date.iso} view={staffingView} />
+                </Flex>
+              )}
+            </>
+          ) : (
+            <Text textStyle="xs" fontWeight={700} color="gray.700" fontVariantNumeric="tabular-nums">
+              {column.countLabel}
+            </Text>
+          )}
+        </Flex>
       </Flex>
     </chakra.th>
   );
@@ -436,6 +411,8 @@ const StaffCell = ({ row }: { row: DateOnlyWeekRowPresentation }) => (
           未提出
         </Text>
       )}
+      {/* セルの右上の点と同じ確認事項を、名前の右でもまとめて知らせる。 */}
+      <StaffWarningIcon messages={toDateOnlyWeekWarningMessages(row)} />
       {/* 連絡事項の列を表示設定で隠したときだけ、名前の横のアイコンで知らせる。 */}
       <ShiftStaffNoteIcon notes={row.notes} showDates />
     </Flex>

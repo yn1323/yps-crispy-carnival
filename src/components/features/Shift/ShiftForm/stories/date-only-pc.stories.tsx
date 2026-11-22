@@ -41,6 +41,23 @@ export const WithValidationWarnings: Story = {
   globals: desktopGlobals,
 };
 
+/** PCの日付選択でも、確認事項のある人の名前の右にアイコンを出し、マウスを載せると日付を付けた理由を出す。 */
+export const WarningIconShowsReasonsOnHover: Story = {
+  name: "Warning Icon Shows Reasons On Hover",
+  args: dateOnlyValidationWarningArgs,
+  globals: desktopGlobals,
+  parameters: {
+    screenshot: { skip: true },
+  },
+  play: async ({ canvasElement }) => {
+    const icons = await within(canvasElement).findAllByRole("button", { name: /^確認事項\d+件$/ });
+    await userEvent.hover(icons[0]);
+    await expect(await within(canvasElement.ownerDocument.body).findByRole("tooltip")).toHaveTextContent(
+      /^確認事項\d+\/\d+\(.\)：.+/,
+    );
+  },
+};
+
 export const Interactive: Story = {
   args: dateOnlyArgs,
   globals: desktopGlobals,
@@ -56,14 +73,13 @@ export const Interactive: Story = {
 
     await expect(canvas.queryByRole("tab", { name: "日別" })).not.toBeInTheDocument();
     await expect(canvas.queryByRole("tab", { name: "一覧" })).not.toBeInTheDocument();
-    // 並べ替えは日付の見出しで行い、表の上には左の週タブと同じ期間を出す。見出しの行は、上端に留める。
+    // 表の上には左の週タブと同じ期間を出す。見出しの行は、上端に留める。日付の見出しに、並べ替えのボタンは置かない。
     await expect(await canvas.findAllByText("6/1-7")).toHaveLength(2);
-    const sortButton = await canvas.findByRole("button", { name: "6/3(水)で並べ替える" });
-    await expect(getComputedStyle(sortButton.closest("thead") as HTMLElement).position).toBe("sticky");
-    await expect(getStaffRowTexts()[0]).toContain("田中太郎");
-    await userEvent.click(sortButton);
-    await waitFor(() => expect(getStaffRowTexts()[0]).toContain("鈴木次郎"));
-    await expect(sortButton).toHaveAttribute("aria-pressed", "true");
+    await expect(getComputedStyle(canvasElement.querySelector("thead") as HTMLElement).position).toBe("sticky");
+    await expect(canvas.queryByRole("button", { name: /で並べ替える/ })).not.toBeInTheDocument();
+    // 勤務や希望があってもなくても、渡した順（スタッフのページで決めた並び順）のままにする。
+    const initialOrder = getStaffRowTexts();
+    await expect(initialOrder[0]).toContain("田中太郎");
 
     // 期間外の日（6/1）と定休日（6/7）は、セルに何も描かず、押せるものも置かない。
     await expect(canvas.queryByRole("button", { name: /^田中 太郎 6\/1\(月\)/ })).not.toBeInTheDocument();
@@ -71,6 +87,8 @@ export const Interactive: Story = {
 
     await userEvent.click(await canvas.findByRole("button", { name: "田中 太郎 6/2(火) 勤務あり" }));
     await expect(await canvas.findByRole("button", { name: "田中 太郎 6/2(火) 勤務なし" })).toBeInTheDocument();
+    // 勤務を外しても、行は動かない。
+    await expect(getStaffRowTexts()).toEqual(initialOrder);
 
     // 2週目は6/8だけが期間内で、その日に希望のない田中さんは「希望なし」にたたまれている。開いてから入れる。
     await userEvent.click(await canvas.findByRole("button", { name: "6/8-14を表示" }));
@@ -123,8 +141,8 @@ export const ToggleInteractive: Story = {
     await expect(await within(document.body).findByRole("tooltip")).toHaveTextContent("希望時間外に勤務あり");
     await expect(row.getBoundingClientRect().height).toBe(rowHeight);
 
-    // 名前の横の注意のアイコンと、「×」「−」の表記は出さない。
-    await expect(canvas.queryByRole("button", { name: /^確認事項\d+件$/ })).not.toBeInTheDocument();
+    // 名前の右にも確認事項のアイコンが出る。「×」「−」の表記は出さない。
+    await expect(await within(row).findByRole("button", { name: "確認事項1件" })).toBeInTheDocument();
     const cellTexts = Array.from(canvasElement.querySelectorAll("tbody button")).map((button) => button.textContent);
     await expect(cellTexts.filter((text) => text === "×" || text === "-" || text === "−")).toEqual([]);
   },
@@ -210,7 +228,9 @@ export const DateNotesInteractive: Story = {
       .filter((cell) => cell.querySelector("[data-date-note-mark]"))
       .map((cell) => cell.querySelector("button")?.getAttribute("aria-label"));
     await expect(markedCells).toEqual(["山口 美月 12/1(火) 勤務あり", "山口 美月 12/2(水) 勤務あり"]);
-    await expect(await canvas.findByRole("button", { name: "12/2(水)で並べ替える、連絡事項2件" })).toBeInTheDocument();
+    // 連絡事項の件数は、日付の見出しで読み上げる。
+    const noteDateHeader = canvasElement.querySelector<HTMLElement>('th[data-date-header="2026-12-02"]');
+    await expect(noteDateHeader).toHaveTextContent("連絡事項2件");
 
     // 連絡事項を非表示にすると列が消え、名前の横のアイコンから日付ごとの本文を読める。角の印は残す。
     await expect(canvas.queryByRole("button", { name: "連絡事項2件" })).not.toBeInTheDocument();

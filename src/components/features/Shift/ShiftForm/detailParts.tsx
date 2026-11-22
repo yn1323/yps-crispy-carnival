@@ -5,7 +5,7 @@ import { LuCoffee } from "react-icons/lu";
 import { getEffectiveBreaks } from "@/src/domains/shift/breaks";
 import { isPositionsUnsplit } from "@/src/domains/shift/operations";
 import { formatShiftClockTimeRange } from "@/src/domains/shift/time";
-import type { ShiftData, StaffType } from "@/src/domains/shift/types";
+import type { ShiftData, StaffSortMode, StaffType } from "@/src/domains/shift/types";
 import { formatStaffWorkTotal } from "@/src/domains/shift/workTotals";
 import {
   breakToolActiveAtom,
@@ -48,6 +48,11 @@ export type ShiftFormDetailActions = {
    * 切り替えで下書きを削除する画面が、確認してから開き直すために使う。
    */
   requestDetailModeChange?: (isDetailMode: boolean) => void;
+  /**
+   * 表示設定の「スタッフ並び替え」を受け付ける。渡した画面でだけ、項目を出す。
+   * 置く側が店舗へ保存し、`staffSortMode`を渡し直すと並びが変わる。
+   */
+  requestStaffSortModeChange?: (mode: StaffSortMode) => void;
 };
 
 const ShiftFormDetailActionsContext = createContext<ShiftFormDetailActions>({});
@@ -182,6 +187,49 @@ export const RangeAssignPalette = () => {
           休憩
         </chakra.button>
       </Flex>
+    </Flex>
+  );
+};
+
+/**
+ * パターン選択の日別表示と日付選択の週の表（PC）で、見出しの右に置く、次に入れるポジションの選択。
+ * 凡例を兼ね、押したポジションを選んだ状態にする。空きのセル（希望の輪のセルを含む）を押すと、このポジションで入る。
+ * 割り当て済みのピルを押したときは、これまでどおりポジションのメニューを開き、選んだポジションは変えない。
+ * メニューでポジションを選んだときも、同じ選択が変わる。選んだポジションは店舗ごとに端末へ覚える。
+ */
+export const WorkPositionPicker = () => {
+  const nextWorkPosition = useAtomValue(nextWorkPositionAtom);
+  const { positions } = useAtomValue(shiftConfigAtom);
+  const rememberWorkPosition = useSetAtom(rememberWorkPositionAtom);
+  return (
+    <Flex
+      role="radiogroup"
+      aria-label="入れるポジション"
+      align="center"
+      gap={1}
+      minW={0}
+      overflowX="auto"
+      py="8px"
+      my="-8px"
+    >
+      {positions.map((position) => {
+        const checked = position.id === nextWorkPosition.id;
+        return (
+          <chakra.button
+            key={position.id}
+            type="button"
+            role="radio"
+            aria-checked={checked}
+            onClick={() => rememberWorkPosition(position.id)}
+            css={rangeChipStyle}
+            {...(checked ? {} : rangeChipIdleStyle)}
+            style={checked ? { background: `color-mix(in srgb, ${position.color} 22%, white)` } : undefined}
+          >
+            <Box boxSize="10px" borderRadius="full" flexShrink={0} style={{ background: position.color }} aria-hidden />
+            {position.name}
+          </chakra.button>
+        );
+      })}
     </Flex>
   );
 };

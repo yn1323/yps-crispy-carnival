@@ -1,5 +1,5 @@
 import { Box, chakra, Flex, Icon, Popover, Portal, Stack, type SystemStyleObject, Text } from "@chakra-ui/react";
-import type { KeyboardEvent, ReactNode, SyntheticEvent } from "react";
+import { createContext, type KeyboardEvent, type ReactNode, type SyntheticEvent, useContext } from "react";
 import { LuCircleCheck, LuFileDown, LuSave, LuSend, LuTriangleAlert } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
 import { Tooltip } from "@/src/components/ui/tooltip";
@@ -285,6 +285,15 @@ export const ViewTabs = ({
     </Flex>
   );
 };
+
+// スマートフォンで、表のスクロールするいちばん下に置くもの（未提出の帯）。
+// 表のスクロールする入れ物は表示ごとに違うため、置く側（Shell）が渡し、各表示が入れ物の末尾で受け取る。
+const ShiftFormScrollEndContext = createContext<ReactNode>(null);
+
+export const ShiftFormScrollEndProvider = ShiftFormScrollEndContext.Provider;
+
+/** 表のスクロールする入れ物の末尾に置く。スマートフォンでだけ中身を持ち、表の最後までスクロールすると見える。 */
+export const ShiftFormScrollEnd = () => useContext(ShiftFormScrollEndContext);
 
 type UnsubmittedStripProps = {
   names: string[];

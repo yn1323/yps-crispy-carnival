@@ -6,19 +6,19 @@ import { LuChevronDown, LuChevronUp } from "react-icons/lu";
 import { getWeekdayLabel } from "@/src/domains/shift/date";
 import { indexShiftsByStaffId } from "@/src/domains/shift/shiftLookup";
 import {
-  AssignmentDotLegend,
   AssignmentPill,
   FoldedStaffGroupToggle,
   FulfillmentLabel,
   PositionStaffingCount,
 } from "../../assignmentCellParts";
 import { ChromeCollapse } from "../../ChromeCollapse";
-import { DateIssueBadge, dateIssueBorderColor } from "../../components";
+import { DateIssueBadge, dateIssueBorderColor, ShiftFormScrollEnd, StaffWarningIcon } from "../../components";
 import { DisplaySettingsMenu } from "../../DisplaySettingsMenu";
 import { ShiftStaffNoteIcon, useAllShiftDateNotes } from "../../dateNotes";
 import { StaffMeta } from "../../detailParts";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
+import { useSwipeDateChange } from "../../hooks/useSwipeDateChange";
 import {
   buildShiftTypeDailyPresentation,
   buildShiftTypeStaffingPresentation,
@@ -26,6 +26,7 @@ import {
   type ShiftTypeDailyOptionPresentation,
   type ShiftTypeDailyRowPresentation,
   type ShiftTypeStaffingPresentation,
+  toShiftTypeWarningMessages,
 } from "../../shiftTypeDailyPresentation";
 import { DayTemplateMenu, useDayStaffingView } from "../../staffingParts";
 import {
@@ -47,8 +48,9 @@ import {
 import { getShiftWeekdayColor } from "../../weekdayPresentation";
 import { PositionDialog } from "../PositionDialog";
 
-// 勤務パターンは最大4つ。幅375pxでも横スクロールにならないよう、スタッフの列を狭くする。
-const STAFF_COLUMN_WIDTH = "84px";
+// 名前と確認事項のアイコンが並んでも名前が読めるよう、スタッフの列を広めに取る。
+// 勤務パターンが4つでも、幅375pxでは1列あたり約60pxが残り、「キッチン」のピルが入る。
+const STAFF_COLUMN_WIDTH = "126px";
 // 割り当ての前後で行の高さを変えないよう、行の高さを決めておく。
 const ROW_HEIGHT = "52px";
 
@@ -124,9 +126,6 @@ export const SPShiftTypeDailyView = () => {
   const allRows = [...presentation.rows, ...(presentation.restGroup?.rows ?? [])];
   const dialogRow = dialogTarget ? allRows.find((row) => row.key === dialogTarget.row.key) : undefined;
   const dialogCell = dialogRow?.cells.find((cell) => cell.key === dialogTarget?.optionId);
-  // ピルを押してもモーダルが開かない表示（シンプル表示、ポジションが1つ以下の店舗、閲覧専用）では、理由を出す場所がない。
-  // 点のある日だけ、表の下に点の意味を出す。
-  const showsDotLegend = !isPositionSelectable && allRows.some((row) => row.cells.some((cell) => cell.dot !== null));
 
   const handleCellClick = (row: ShiftTypeDailyRowPresentation, cell: ShiftTypeDailyCellPresentation) => {
     if (!cell.assigned) {
@@ -153,7 +152,9 @@ export const SPShiftTypeDailyView = () => {
         <Box as="td" key={cell.key} px="2px" py={0}>
           <Flex justify="center">
             <AssignmentPill
-              cell={cell}
+              // スマートフォンでは、ピルの右上の点を出さない。押しても理由が出せず、分からないためである。
+              // 確かめたいことは、名前の右の確認事項のアイコンにまとめる。
+              cell={{ ...cell, dot: null }}
               size="sp"
               isInteractive={!isReadOnly}
               onClick={isReadOnly ? undefined : () => handleCellClick(row, cell)}
@@ -164,8 +165,11 @@ export const SPShiftTypeDailyView = () => {
     </Box>
   );
 
+  // 時間指定と同じく、左右フリックで前後の日へ移る。
+  const swipeHandlers = useSwipeDateChange({ dates, selectedDate, onSelect: selectDate });
+
   return (
-    <Flex direction="column" flex={1} minH={0}>
+    <Flex direction="column" flex={1} minH={0} {...swipeHandlers}>
       {/* 日付の一覧は、表を下へスクロールすると上の行と一緒に隠す。日付の見出しは残す。 */}
       <ChromeCollapse>
         <Box px={3} pt={3} pb={2} bg="white" borderBottomWidth="1px" borderColor="gray.100">
@@ -246,7 +250,8 @@ export const SPShiftTypeDailyView = () => {
           justify="space-between"
           gap={3}
         >
-          <Flex align="baseline" gap={2} minW={0}>
+          {/* 日付は折り返さず、縮めない。幅が足りないときは、右のテンプレートの名前が先に縮む。 */}
+          <Flex align="baseline" gap={2} flexShrink={0} whiteSpace="nowrap">
             <Box textStyle="xl" fontWeight={700} color="gray.800" fontVariantNumeric="tabular-nums">
               {selectedDay.month() + 1}月{selectedDay.date()}日
             </Box>
@@ -260,7 +265,9 @@ export const SPShiftTypeDailyView = () => {
             )}
           </Flex>
           <Flex align="center" gap={1} minW={0} flexShrink={1}>
-            {showsTemplate && staffingView && <DayTemplateMenu date={selectedDate} view={staffingView} shrinks />}
+            {showsTemplate && staffingView && (
+              <DayTemplateMenu date={selectedDate} view={staffingView} shrinks hidesIcon />
+            )}
             <DisplaySettingsMenu showsDateNotesToggle={false} />
           </Flex>
         </Flex>
@@ -332,9 +339,10 @@ export const SPShiftTypeDailyView = () => {
                 {isRestOpen && presentation.restGroup?.rows.map(renderRow)}
               </Box>
             </Box>
-            {showsDotLegend && <AssignmentDotLegend />}
           </Box>
         )}
+        {/* 未提出の帯は、表のいちばん下に置く。 */}
+        <ShiftFormScrollEnd />
       </Box>
 
       {dialogRow && dialogCell?.assigned && (
@@ -381,6 +389,7 @@ const StaffCell = ({
             {row.staffName}
           </Text>
           {note && <ShiftStaffNoteIcon notes={[{ date, note }]} openOn="tap" hasNoteColumn={false} />}
+          <StaffWarningIcon messages={toShiftTypeWarningMessages(row)} openOn="tap" />
         </Flex>
         {row.isUnsubmitted && (
           <Text textStyle="2xs" fontWeight={600} style={{ color: "#b45309" }}>

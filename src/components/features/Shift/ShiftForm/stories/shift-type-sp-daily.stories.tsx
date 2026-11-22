@@ -61,7 +61,7 @@ export const Board: Story = {
   globals: mobileGlobals,
 };
 
-/** 「希望」をタップすると「○」が入り、もう一度タップすると外れる。点のある日は、表の下に点の意味を出す。 */
+/** 「希望」をタップすると「○」が入り、もう一度タップすると外れる。確かめることのある人は、名前の右の確認事項のアイコンで理由を出す。 */
 export const ToggleInteractive: Story = {
   args: shiftTypeBoardSimpleArgs,
   globals: mobileGlobals,
@@ -78,14 +78,17 @@ export const ToggleInteractive: Story = {
     await userEvent.click(await cell("勤務あり"));
     await expect(await cell("勤務なし")).toHaveTextContent("希望あり");
 
-    // 希望のないセルに入れると、橙の点が出る。山本さんは遅番だけを希望している。
+    // 希望のないセルに入れても、ピルに点は出さない。山本さんは遅番だけを希望している。
     await userEvent.click(await canvas.findByRole("button", { name: "山本 拓海 早番 勤務なし" }));
     const unrequested = await canvas.findByRole("button", { name: "山本 拓海 早番 勤務あり" });
-    await expect(unrequested.querySelector("[data-assignment-dot]")).toHaveAttribute("data-assignment-dot", "orange");
+    await expect(unrequested.querySelector("[data-assignment-dot]")).toBeNull();
 
-    // 点の理由を出す場所がないため、表の下に点の意味を出す。名前の横の注意のアイコンは出さない。
-    await expect(canvas.getByText("橙の点：確認が必要")).toBeVisible();
-    await expect(canvas.queryByRole("button", { name: /^確認事項\d+件$/ })).not.toBeInTheDocument();
+    // 名前の右の確認事項のアイコンをタップすると、勤務パターン名を付けた理由を出す。
+    const yamamotoRow = unrequested.closest("tr") as HTMLElement;
+    await userEvent.click(within(yamamotoRow).getByRole("button", { name: "確認事項1件" }));
+    // ピルの読み上げ用の説明にも同じ理由が入るため、開いた吹き出しの中で確かめる。
+    const yamamotoWarning = await within(canvasElement.ownerDocument.body).findByRole("dialog");
+    await expect(yamamotoWarning).toHaveTextContent("確認事項早番：希望時間外に勤務あり");
   },
 };
 

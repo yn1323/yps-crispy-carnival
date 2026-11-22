@@ -1,8 +1,8 @@
-import { Box, Flex, Heading, HStack, Icon, Skeleton, Stack } from "@chakra-ui/react";
+import { Box, Flex, Heading, HStack, Skeleton, Stack } from "@chakra-ui/react";
 import { useNavigate } from "@tanstack/react-router";
 import { usePaginatedQuery, useQuery } from "convex/react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LuRefreshCw, LuStore, LuUsers } from "react-icons/lu";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { LuRefreshCw, LuStore } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { ORGANIZATION_PLAN_LIMITS } from "@/convex/organizationBilling/planLimits";
@@ -11,7 +11,9 @@ import { StaffInvitationDialog } from "@/src/components/features/Dashboard/Staff
 import { useStaffInvitation } from "@/src/components/features/Dashboard/StaffManagement/useStaffInvitation";
 import {
   PeopleSection,
+  PeopleSectionHeaderActions,
   PeopleSectionSkeleton,
+  PeopleSectionSummary,
   type StaffOrderReorderSource,
   useStaffOrderReorder,
 } from "@/src/components/features/OrganizationSettings";
@@ -193,9 +195,19 @@ function ConnectedAppStaff({
     return <AppStaffPageStateView state={{ kind: "loading" }} showStaffOrderHandle={shopFilter === "all"} />;
   }
 
+  const peopleUsage = {
+    current: summary.totalCount,
+    max: summary.maxPeople,
+    pendingInvitations: summary.pendingInvitations,
+  };
+  const addStaffDisabledReason =
+    shops.length === 0 ? "スタッフを追加するには、店舗が必要です。" : summary.addStaffDisabledReason;
+  const handleManageManagers = () => void navigate({ to: "/manage/managers", search: { org: organizationId } });
+
   return (
     <Animation>
-      <Stack as="main" gap={{ base: 6, lg: 8 }}>
+      <Stack as="main" gap={{ base: 3, lg: 4 }}>
+        {/* ページの見出しの横に人数、右に「スタッフを追加」と「管理者を設定」を置く。一覧の見出し（「全スタッフ」）は出さない。 */}
         <AppStaffHeader
           value={selectedFilterShop?.id ?? null}
           options={filterOptions}
@@ -205,20 +217,33 @@ function ConnectedAppStaff({
               search: { org: organizationId, ...(nextFilter ? { shopFilter: nextFilter } : {}) },
             })
           }
+          summary={
+            <PeopleSectionSummary
+              peopleUsage={peopleUsage}
+              peopleUsageHasOverflow={summary.totalCountHasOverflow}
+              filterResultCount={shopFilter === "all" ? undefined : summary.visibleCount}
+              filterResultCountHasOverflow={shopFilter === "all" ? false : summary.visibleCountHasOverflow}
+            />
+          }
+          actions={
+            <PeopleSectionHeaderActions
+              onAddStaff={handleAddStaff}
+              canAddStaff={canAddStaff}
+              addStaffDisabledReason={addStaffDisabledReason}
+              onManageManagers={handleManageManagers}
+            />
+          }
         />
 
         <PeopleSection
           key={shopFilter}
+          hidesHeader
           people={staffOrder.people}
-          peopleUsage={{
-            current: summary.totalCount,
-            max: summary.maxPeople,
-            pendingInvitations: summary.pendingInvitations,
-          }}
+          peopleUsage={peopleUsage}
           peopleUsageHasOverflow={summary.totalCountHasOverflow}
           filterResultCount={shopFilter === "all" ? undefined : summary.visibleCount}
           filterResultCountHasOverflow={shopFilter === "all" ? false : summary.visibleCountHasOverflow}
-          onManageManagers={() => void navigate({ to: "/manage/managers", search: { org: organizationId } })}
+          onManageManagers={handleManageManagers}
           onOpenUser={(personId) =>
             void navigate({
               to: "/staff/$personId",
@@ -233,9 +258,7 @@ function ConnectedAppStaff({
           staffOrder={staffOrder.staffOrder}
           onAddStaff={handleAddStaff}
           canAddStaff={canAddStaff}
-          addStaffDisabledReason={
-            shops.length === 0 ? "スタッフを追加するには、店舗が必要です。" : summary.addStaffDisabledReason
-          }
+          addStaffDisabledReason={addStaffDisabledReason}
         />
 
         <StaffInvitationShopSelectionDialog
@@ -310,27 +333,41 @@ export function StaffInvitationShopSelectionDialog({
   );
 }
 
+/**
+ * ページの見出し。見出しは「スタッフ」の1つだけにし、横に人数、右に操作を置く。
+ * 店舗の絞り込みは見出しの上に置き、店舗が2つ以上あるときだけ出す。
+ */
 export function AppStaffHeader({
   value,
   options,
   onChange,
+  summary,
+  actions,
 }: {
   value: string | null;
   options: Array<{ value: string; label: string }>;
   onChange: (value: string | null) => void;
+  summary?: ReactNode;
+  actions?: ReactNode;
 }) {
   return (
-    <Flex align="center" justify="space-between" gap={3} minH="44px">
-      <HStack gap={2.5} minW={0} flexShrink={0}>
-        <Icon as={LuUsers} boxSize={{ base: 5, lg: 6 }} flexShrink={0} aria-hidden />
-        <Heading as="h1" textStyle="sectionTitle" color="gray.900">
-          スタッフ
-        </Heading>
-      </HStack>
-      <Box minW={0} maxW={{ base: "190px", sm: "240px" }}>
-        <ShopFilterMenu value={value} options={options} onChange={onChange} />
-      </Box>
-    </Flex>
+    <Stack gap={2}>
+      {options.length >= 2 && (
+        <Box alignSelf="flex-start" minW={0} maxW={{ base: "full", sm: "240px" }}>
+          <ShopFilterMenu value={value} options={options} onChange={onChange} appearance="inline" />
+        </Box>
+      )}
+      {/* 幅375pxのスマートフォンでも、見出し、人数、操作を1行に収める。 */}
+      <Flex align="center" justify="space-between" gap={{ base: 2, sm: 3 }} minH="44px">
+        <HStack gap={{ base: 1.5, sm: 2.5 }} minW={0} align="baseline" whiteSpace="nowrap">
+          <Heading as="h1" textStyle="sectionTitle" color="gray.900">
+            スタッフ
+          </Heading>
+          {summary}
+        </HStack>
+        {actions}
+      </Flex>
+    </Stack>
   );
 }
 
@@ -367,15 +404,22 @@ export function AppStaffPageStateView({
 }) {
   if (state.kind === "loading") {
     return (
-      <Stack as="main" aria-label="スタッフ一覧を読み込み中" aria-busy="true" gap={{ base: 6, lg: 8 }}>
-        <Flex justify="space-between" align="center">
-          <HStack gap={2.5}>
-            <Skeleton boxSize="24px" borderRadius="full" />
-            <Skeleton h="28px" w="100px" />
-          </HStack>
-          <Skeleton h="44px" w={{ base: "150px", sm: "180px" }} maxW="52vw" />
-        </Flex>
-        <PeopleSectionSkeleton showAddStaff showStaffOrderHandle={showStaffOrderHandle} />
+      <Stack as="main" aria-label="スタッフ一覧を読み込み中" aria-busy="true" gap={{ base: 3, lg: 4 }}>
+        {/* 読み込み後と同じく、上に店舗の絞り込み、その下に見出しと人数、右に操作を並べる。 */}
+        <Stack gap={2}>
+          <Skeleton h="20px" w="80px" />
+          <Flex justify="space-between" align="center" gap={3} minH="44px">
+            <HStack gap={2.5}>
+              <Skeleton h="28px" w="100px" />
+              <Skeleton h="20px" w="64px" />
+            </HStack>
+            <Flex gap={2}>
+              <Skeleton h="40px" w={{ base: "88px", sm: "136px" }} borderRadius="md" />
+              <Skeleton h="40px" w={{ base: "72px", sm: "140px" }} borderRadius="md" />
+            </Flex>
+          </Flex>
+        </Stack>
+        <PeopleSectionSkeleton hidesHeader showAddStaff showStaffOrderHandle={showStaffOrderHandle} />
       </Stack>
     );
   }

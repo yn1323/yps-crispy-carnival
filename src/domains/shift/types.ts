@@ -43,12 +43,20 @@ export type PositionType = {
   isDefault: boolean;
 };
 
+/**
+ * シフト表のスタッフの並び替え。店舗ごとに保存する。
+ * - fixed（固定）: その日の状態のまとまりの中を、スタッフのページで決めた並び順にする。
+ * - workTime（勤務時間順）: 勤務と希望の時刻が早い順にする。同じ時刻と、時刻のないまとまりは、決めた並び順にする。
+ */
+export type StaffSortMode = "fixed" | "workTime";
+
 // スタッフ定義
 export type StaffType = {
   id: string;
   name: string;
   isSubmitted: boolean;
   isRemoved?: boolean;
+  /** スタッフのページで決めた並び順（小さいほど上）。並び順が有効でない組織では、管理者を先にした登録順。 */
   displayOrder?: number;
   createdAt?: number;
   // ポジションごとの値（担当外、見習い、リーダー）。ここにないポジションは一人前。

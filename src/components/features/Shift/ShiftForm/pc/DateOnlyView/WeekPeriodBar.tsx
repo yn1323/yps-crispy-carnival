@@ -2,14 +2,13 @@ import { Box, Flex, Icon, Text } from "@chakra-ui/react";
 import { useAtomValue } from "jotai";
 import { LuSettings2 } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
-import { FulfillmentLabel, PositionDotLegend } from "../../assignmentCellParts";
+import { FulfillmentLabel } from "../../assignmentCellParts";
 import { DisplaySettingsMenu } from "../../DisplaySettingsMenu";
-import { useShiftFormDetailActions } from "../../detailParts";
-import { isToolPaletteActiveAtom, shiftConfigAtom, usesPositionColorsAtom } from "../../stores";
+import { useShiftFormDetailActions, WorkPositionPicker } from "../../detailParts";
+import { isToolPaletteActiveAtom, usesPositionColorsAtom } from "../../stores";
 
 /**
- * 表の上に置く、週の見出し。左に期間とその週の充足率、右にポジションの凡例、「必要人数設定」、表示設定を置く。
- * 並べ替えは日付の見出しで行う。
+ * 表の上に置く、週の見出し。左に期間とその週の充足率、右に次に入れるポジションの選択、「必要人数設定」、表示設定を置く。
  */
 export const WeekPeriodBar = ({
   periodLabel,
@@ -22,7 +21,6 @@ export const WeekPeriodBar = ({
   const usesPositionColors = useAtomValue(usesPositionColorsAtom);
   // 閲覧専用の表示では、表の上の凡例（PositionLegend）が出るため、見出しには重ねて出さない。
   const isEditable = useAtomValue(isToolPaletteActiveAtom);
-  const { positions } = useAtomValue(shiftConfigAtom);
   const { onOpenSetup } = useShiftFormDetailActions();
   return (
     <Flex
@@ -41,7 +39,8 @@ export const WeekPeriodBar = ({
       </Text>
       {fulfillment && <FulfillmentLabel percent={fulfillment.percent} isFulfilled={fulfillment.isFulfilled} />}
       <Flex ml="auto" align="center" gap={3} minW={0}>
-        {usesPositionColors && isEditable && <PositionDotLegend positions={positions} />}
+        {/* 凡例を兼ねた、次に入れるポジションの選択。押すと、空きのセルへ入れるポジションが変わる。 */}
+        {usesPositionColors && isEditable && <WorkPositionPicker />}
         {isEditable && onOpenSetup && (
           <Button
             type="button"

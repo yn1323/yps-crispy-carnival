@@ -255,13 +255,11 @@ export type DateOnlyDayPresentation = {
   foldedGroup: DateOnlyFoldedGroupPresentation<DateOnlyDayRowPresentation> | null;
 };
 
-// その日の並び: 連絡事項がある人 → 希望がある人 → 希望外で割り当て済みの人 → 未提出の人。
-// 割り当てを付け外ししても、たたむまとまりとの行き来のほかは、並びが変わらない。
-const getDayRowRank = (row: DateOnlyDayRowPresentation): number => {
-  if (row.note !== null) return 0;
-  if (row.cell.showsRequestRing) return 1;
-  return row.isUnsubmitted ? 3 : 2;
-};
+/** PCの週の表で、名前の右の確認事項に出す文言。日ごとの理由を、日付を付けて並べる。 */
+export const toDateOnlyWeekWarningMessages = (row: DateOnlyWeekRowPresentation): string[] =>
+  row.cells
+    .filter((cell) => cell.dot !== null)
+    .flatMap((cell) => cell.noticeTexts.map((text) => `${formatDateWithWeekday(cell.key)}：${text}`));
 
 export const buildDateOnlyDayPresentation = ({
   staffs,
@@ -308,13 +306,8 @@ export const buildDateOnlyDayPresentation = ({
   const visibleRows = built.filter((item) => !item.isFolded).map((item) => item.row);
   return {
     countLabel: `${isClosed ? 0 : (countDateOnlyAssignmentsByDate(shifts, [date]).get(date) ?? 0)}人`,
-    // スタッフ向けの確定シフトは、渡された順のまま出す。
-    rows: isConfirmedDisplay
-      ? visibleRows
-      : visibleRows
-          .map((row, index) => ({ row, index, rank: getDayRowRank(row) }))
-          .sort((a, b) => a.rank - b.rank || a.index - b.index)
-          .map((item) => item.row),
+    // 並べ替えず、渡された順（スタッフのページで決めた並び順）のまま出す。
+    rows: visibleRows,
     foldedGroup: toFoldedGroup(
       built.filter((item) => item.isFolded).map((item) => item.row),
       (count) => `この日の希望がない人 ${count}人`,

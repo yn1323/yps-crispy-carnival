@@ -1,7 +1,8 @@
 import { Text } from "@chakra-ui/react";
+import type { ReactNode } from "react";
 import type { CreateRecruitmentData, CreateRecruitmentShop } from "@/src/components/features/CreateRecruitmentForm";
 import { CreateRecruitmentForm } from "@/src/components/features/CreateRecruitmentForm";
-import { RecruitmentBoard } from "@/src/components/features/Dashboard/RecruitmentBoard";
+import { CreateRecruitmentButton, RecruitmentBoard } from "@/src/components/features/Dashboard/RecruitmentBoard";
 import type { DashboardRecruitmentGroup, Recruitment } from "@/src/components/features/Dashboard/types";
 import { Dialog } from "@/src/components/ui/Dialog";
 import { StepperDialog } from "@/src/components/ui/StepperDialog";
@@ -15,6 +16,11 @@ type DialogState = {
 };
 
 type Props = {
+  /**
+   * ページの見出しを描く。渡すと、一覧の見出しの行（「シフト一覧」）を出さず、
+   * 「新しい募集をつくる」をページの見出しの右に置けるよう、引数で渡す。
+   */
+  renderHeader?: (createAction: ReactNode) => ReactNode;
   groups: DashboardRecruitmentGroup[];
   shops: readonly OrganizationRecruitmentShop[];
   canCreateRecruitments: boolean;
@@ -45,6 +51,7 @@ type Props = {
 };
 
 export function OrganizationRecruitmentManagementView({
+  renderHeader,
   groups,
   shops,
   canCreateRecruitments,
@@ -86,8 +93,17 @@ export function OrganizationRecruitmentManagementView({
 
   return (
     <>
+      {renderHeader?.(
+        <CreateRecruitmentButton
+          appearance="primary"
+          canCreate={canCreateRecruitments}
+          disabledReason={createDisabledReason}
+          onClick={onOpenCreate}
+        />,
+      )}
       <RecruitmentBoard
         title="シフト一覧"
+        hidesHeader={renderHeader !== undefined}
         groups={groups}
         canCreateRecruitments={canCreateRecruitments}
         createRecruitmentDisabledReason={createDisabledReason}

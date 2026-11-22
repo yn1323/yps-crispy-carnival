@@ -1,4 +1,4 @@
-import { Badge, Box, Flex, Heading, HStack, Skeleton, Stack } from "@chakra-ui/react";
+import { Badge, Box, Flex, Heading, HStack, Skeleton, Stack, Text } from "@chakra-ui/react";
 import {
   type Announcements,
   closestCenter,
@@ -46,7 +46,143 @@ type Props = {
   canAddStaff?: boolean;
   addStaffDisabledReason?: string;
   staffOrder?: PeopleSectionStaffOrder;
+  /**
+   * 一覧の見出しの行（「全スタッフ」、人数、操作）を出さない。
+   * ページの見出しの横に人数と操作を置く画面（スタッフ）で使い、`PeopleSectionSummary`と`PeopleSectionActions`をそこへ置く。
+   */
+  hidesHeader?: boolean;
 };
+
+/** 人数と上限。上限のない組織では何も出さない。 */
+export const formatPeopleUsage = (usage: BillingUsageView, hasOverflow = false): string | null => {
+  if (usage.max <= 0) return null;
+  return hasOverflow ? `${usage.current}人以上 / 上限${usage.max}人` : `${usage.current} / ${usage.max}人`;
+};
+
+/** ページの見出しの横に置く、人数と上限、店舗で絞り込んだときの店舗所属スタッフの人数。 */
+export const PeopleSectionSummary = ({
+  peopleUsage,
+  peopleUsageHasOverflow = false,
+  filterResultCount,
+  filterResultCountHasOverflow = false,
+}: Pick<Props, "peopleUsage" | "peopleUsageHasOverflow" | "filterResultCount" | "filterResultCountHasOverflow">) => {
+  const usage = formatPeopleUsage(peopleUsage, peopleUsageHasOverflow);
+  return (
+    <>
+      {usage && (
+        <Text
+          as="span"
+          textStyle={{ base: "xs", sm: "sm" }}
+          color="fg.muted"
+          whiteSpace="nowrap"
+          fontVariantNumeric="tabular-nums"
+        >
+          {usage}
+        </Text>
+      )}
+      {filterResultCount !== undefined && (
+        <Badge colorPalette="gray" variant="subtle" borderRadius="full" px={2.5} py={1}>
+          店舗所属スタッフ {filterResultCount}人{filterResultCountHasOverflow ? "以上" : ""}
+        </Badge>
+      )}
+    </>
+  );
+};
+
+/**
+ * ページの見出しの右に置く「管理者を設定」（枠線）と「スタッフを追加」（塗りつぶし）。
+ * スマートフォンでは「管理者」「追加」と短くし、見出しの横に並べる。読み上げは元の名前にする。
+ */
+export const PeopleSectionHeaderActions = ({
+  onAddStaff,
+  canAddStaff = true,
+  addStaffDisabledReason,
+  onManageManagers,
+}: Pick<Props, "onAddStaff" | "canAddStaff" | "addStaffDisabledReason" | "onManageManagers">) => (
+  // スマートフォンでは、見出しと人数と同じ行に収まるよう、ボタンを小さくする。
+  <Flex gap={{ base: 1.5, sm: 2 }} align="center" flexShrink={0}>
+    <Button
+      variant="outline"
+      size={{ base: "sm", sm: "md" }}
+      bg="white"
+      gap={1.5}
+      onClick={onManageManagers}
+      aria-label="管理者を設定"
+    >
+      <LuShieldCheck aria-hidden />
+      <Box as="span" display={{ base: "inline", sm: "none" }}>
+        管理者
+      </Box>
+      <Box as="span" display={{ base: "none", sm: "inline" }}>
+        管理者を設定
+      </Box>
+    </Button>
+    {onAddStaff && (
+      <Button
+        variant="solid"
+        colorPalette="teal"
+        size={{ base: "sm", sm: "md" }}
+        gap={1.5}
+        fontWeight="semibold"
+        onClick={onAddStaff}
+        disabled={!canAddStaff}
+        title={!canAddStaff ? addStaffDisabledReason : undefined}
+        aria-label="スタッフを追加"
+      >
+        <LuPlus aria-hidden />
+        <Box as="span" display={{ base: "inline", sm: "none" }}>
+          追加
+        </Box>
+        <Box as="span" display={{ base: "none", sm: "inline" }}>
+          スタッフを追加
+        </Box>
+      </Button>
+    )}
+  </Flex>
+);
+
+/** 「スタッフを追加」と「管理者を設定」。スマートフォンでは幅いっぱいに縦に並べる。 */
+export const PeopleSectionActions = ({
+  onAddStaff,
+  canAddStaff = true,
+  addStaffDisabledReason,
+  onManageManagers,
+}: Pick<Props, "onAddStaff" | "canAddStaff" | "addStaffDisabledReason" | "onManageManagers">) => (
+  <Flex direction={{ base: "column", md: "row" }} gap={2} w={{ base: "full", md: "auto" }}>
+    {onAddStaff && (
+      <Button
+        variant="ghost"
+        size="sm"
+        colorPalette="teal"
+        gap={1.5}
+        fontWeight="semibold"
+        onClick={onAddStaff}
+        disabled={!canAddStaff}
+        title={!canAddStaff ? addStaffDisabledReason : undefined}
+        w={{ base: "full", md: "auto" }}
+        bg={{ base: "white", md: "transparent" }}
+        borderColor={{ base: "border.emphasized", md: "transparent" }}
+      >
+        <LuPlus aria-hidden />
+        スタッフを追加
+      </Button>
+    )}
+    <Button
+      variant="ghost"
+      size="sm"
+      colorPalette="teal"
+      gap={1.5}
+      fontWeight="semibold"
+      onClick={onManageManagers}
+      w={{ base: "full", md: "auto" }}
+      bg={{ base: "white", md: "transparent" }}
+      borderColor={{ base: "border.emphasized", md: "transparent" }}
+    >
+      <LuShieldCheck aria-hidden />
+      管理者を設定
+    </Button>
+  </Flex>
+);
 
 export type PeopleSectionStaffOrder = {
   disabled: boolean;
@@ -78,6 +214,7 @@ export const PeopleSection = ({
   canAddStaff = true,
   addStaffDisabledReason,
   staffOrder,
+  hidesHeader = false,
 }: Props) => {
   const [visibleUserCount, setVisibleUserCount] = useState(initialVisibleUserCount);
   const [activePersonId, setActivePersonId] = useState<string | null>(null);
@@ -142,61 +279,40 @@ export const PeopleSection = ({
   const activePerson = people.find((person) => person.id === activePersonId);
 
   return (
-    <Stack as="section" gap={4} aria-labelledby="organization-people-heading">
-      <Flex justify="space-between" align={{ base: "flex-start", md: "center" }} gap={3} wrap="wrap">
-        <HStack gap={2} flex={{ base: "1 1 auto", md: "0 0 auto" }} minW={0}>
-          <LuUsers aria-hidden />
-          <Heading id="organization-people-heading" as="h2" fontSize="lg">
-            全スタッフ
-            {peopleUsage.max > 0
-              ? peopleUsageHasOverflow
-                ? ` (${peopleUsage.current}人以上 / 上限${peopleUsage.max}人)`
-                : ` (${peopleUsage.current}/${peopleUsage.max})`
-              : ""}
-          </Heading>
-          {filterResultCount !== undefined && (
-            <Badge colorPalette="gray" variant="subtle" borderRadius="full" px={2.5} py={1}>
-              店舗所属スタッフ {filterResultCount}人{filterResultCountHasOverflow ? "以上" : ""}
-            </Badge>
-          )}
-        </HStack>
-        <Flex display={{ base: "contents", md: "flex" }} gap={2} align="center" ms={{ md: "auto" }}>
-          <Flex direction={{ base: "column", md: "row" }} gap={2} w={{ base: "full", md: "auto" }}>
-            {onAddStaff && (
-              <Button
-                variant="ghost"
-                size="sm"
-                colorPalette="teal"
-                gap={1.5}
-                fontWeight="semibold"
-                onClick={onAddStaff}
-                disabled={!canAddStaff}
-                title={!canAddStaff ? addStaffDisabledReason : undefined}
-                w={{ base: "full", md: "auto" }}
-                bg={{ base: "white", md: "transparent" }}
-                borderColor={{ base: "border.emphasized", md: "transparent" }}
-              >
-                <LuPlus aria-hidden />
-                スタッフを追加
-              </Button>
+    <Stack
+      as="section"
+      gap={4}
+      aria-labelledby={hidesHeader ? undefined : "organization-people-heading"}
+      aria-label={hidesHeader ? "全スタッフ" : undefined}
+    >
+      {!hidesHeader && (
+        <Flex justify="space-between" align={{ base: "flex-start", md: "center" }} gap={3} wrap="wrap">
+          <HStack gap={2} flex={{ base: "1 1 auto", md: "0 0 auto" }} minW={0}>
+            <LuUsers aria-hidden />
+            <Heading id="organization-people-heading" as="h2" fontSize="lg">
+              全スタッフ
+              {peopleUsage.max > 0
+                ? peopleUsageHasOverflow
+                  ? ` (${peopleUsage.current}人以上 / 上限${peopleUsage.max}人)`
+                  : ` (${peopleUsage.current}/${peopleUsage.max})`
+                : ""}
+            </Heading>
+            {filterResultCount !== undefined && (
+              <Badge colorPalette="gray" variant="subtle" borderRadius="full" px={2.5} py={1}>
+                店舗所属スタッフ {filterResultCount}人{filterResultCountHasOverflow ? "以上" : ""}
+              </Badge>
             )}
-            <Button
-              variant="ghost"
-              size="sm"
-              colorPalette="teal"
-              gap={1.5}
-              fontWeight="semibold"
-              onClick={onManageManagers}
-              w={{ base: "full", md: "auto" }}
-              bg={{ base: "white", md: "transparent" }}
-              borderColor={{ base: "border.emphasized", md: "transparent" }}
-            >
-              <LuShieldCheck aria-hidden />
-              管理者を設定
-            </Button>
+          </HStack>
+          <Flex display={{ base: "contents", md: "flex" }} gap={2} align="center" ms={{ md: "auto" }}>
+            <PeopleSectionActions
+              onAddStaff={onAddStaff}
+              canAddStaff={canAddStaff}
+              addStaffDisabledReason={addStaffDisabledReason}
+              onManageManagers={onManageManagers}
+            />
           </Flex>
         </Flex>
-      </Flex>
+      )}
 
       {visiblePeople.length === 0 ? (
         <Empty icon={LuUsers} title="この組織にスタッフはいません。" titleAs="h3" variant="section" py={6} />
@@ -325,7 +441,8 @@ function SortablePersonRow({
       bg={isManager ? "teal.50/50" : "white"}
       listStyleType="none"
     >
-      <Flex align="center" ps={{ base: 1, md: 2 }} flexShrink={0}>
+      {/* スマートフォンでは、持ち手と名前のアイコンの間を詰めて、名前の幅を広く取る。 */}
+      <Flex align="center" ps={{ base: 0, md: 2 }} flexShrink={0}>
         <IconButton
           ref={setActivatorNodeRef}
           {...attributes}
@@ -345,7 +462,7 @@ function SortablePersonRow({
         </IconButton>
       </Flex>
       <Box flex={1} minW={0}>
-        <PersonRow person={person} visibleUserCount={visibleUserCount} onOpenUser={onOpenUser} />
+        <PersonRow person={person} visibleUserCount={visibleUserCount} onOpenUser={onOpenUser} hasLeadingHandle />
       </Box>
     </Flex>
   );
@@ -355,10 +472,12 @@ function PersonRow({
   person,
   visibleUserCount,
   onOpenUser,
+  hasLeadingHandle = false,
 }: {
   person: OrganizationPersonView;
   visibleUserCount: number;
   onOpenUser: (personId: string, visibleUserCount: number) => void;
+  hasLeadingHandle?: boolean;
 }) {
   const isManager = person.managerRole !== "none";
   const lineStatus = person.lineStatus ?? (person.isLineConnected ? "linked_following" : "unlinked");
@@ -370,36 +489,44 @@ function PersonRow({
       role={isManager ? "manager" : "staff"}
       detail={{ kind: "shopNames", names: person.shopNames }}
       badges={[{ kind: "role" }, { kind: "line", status: lineStatus }]}
+      // スマートフォンの幅375pxでも名前が読めるよう、余白を詰めて名前の文字を1段小さくする。
+      compactOnMobile
+      hasLeadingHandle={hasLeadingHandle}
       onOpen={() => onOpenUser(person.id, visibleUserCount)}
     />
   );
 }
 
 type PeopleSectionSkeletonProps = {
+  /** 一覧の見出しの行を出さない画面（スタッフ）で、見出しの行の分を読み込み中にも出さない。 */
+  hidesHeader?: boolean;
   showAddStaff?: boolean;
   showStaffOrderHandle?: boolean;
   rowCount?: number;
 };
 
 export function PeopleSectionSkeleton({
+  hidesHeader = false,
   showAddStaff = false,
   showStaffOrderHandle = false,
   rowCount = 3,
 }: PeopleSectionSkeletonProps) {
   return (
     <Stack as="section" gap={4} aria-hidden>
-      <Flex justify="space-between" align={{ base: "flex-start", md: "center" }} gap={3} wrap="wrap">
-        <HStack gap={2} flex={{ base: "1 1 auto", md: "0 0 auto" }} minW={0}>
-          <Skeleton boxSize={5} borderRadius="sm" flexShrink={0} />
-          <Skeleton h="28px" w="184px" maxW="70vw" />
-        </HStack>
-        <Flex display={{ base: "contents", md: "flex" }} gap={2} align="center" ms={{ md: "auto" }}>
-          <Flex direction={{ base: "column", md: "row" }} gap={2} w={{ base: "full", md: "auto" }}>
-            {showAddStaff && <Skeleton h="36px" w={{ base: "full", md: "120px" }} borderRadius="md" />}
-            <Skeleton h="36px" w={{ base: "full", md: "136px" }} borderRadius="md" />
+      {!hidesHeader && (
+        <Flex justify="space-between" align={{ base: "flex-start", md: "center" }} gap={3} wrap="wrap">
+          <HStack gap={2} flex={{ base: "1 1 auto", md: "0 0 auto" }} minW={0}>
+            <Skeleton boxSize={5} borderRadius="sm" flexShrink={0} />
+            <Skeleton h="28px" w="184px" maxW="70vw" />
+          </HStack>
+          <Flex display={{ base: "contents", md: "flex" }} gap={2} align="center" ms={{ md: "auto" }}>
+            <Flex direction={{ base: "column", md: "row" }} gap={2} w={{ base: "full", md: "auto" }}>
+              {showAddStaff && <Skeleton h="36px" w={{ base: "full", md: "120px" }} borderRadius="md" />}
+              <Skeleton h="36px" w={{ base: "full", md: "136px" }} borderRadius="md" />
+            </Flex>
           </Flex>
         </Flex>
-      </Flex>
+      )}
 
       <Box bg="white" borderRadius="xl" borderWidth="1px" borderColor="blackAlpha.100" overflow="hidden">
         <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">

@@ -4,6 +4,7 @@ import {
   buildDateOnlyDayPresentation,
   buildDateOnlyStaffingPresentation,
   buildDateOnlyWeekPresentation,
+  toDateOnlyWeekWarningMessages,
 } from "./dateOnlyPresentation";
 import { buildStaffingCountView, type DayStaffingView, type StaffingSlotView } from "./staffingPresentation";
 
@@ -141,6 +142,18 @@ describe("buildDateOnlyWeekPresentation", () => {
     });
   });
 
+  it("名前の右の確認事項は、点のある日の理由を、日付を付けて並べる。点のない人は持たない", () => {
+    const rows = buildWeek().rows;
+    const messagesOf = (target: StaffType) => {
+      const row = rows.find((item) => item.key === target.id);
+      return row ? toDateOnlyWeekWarningMessages(row) : null;
+    };
+
+    expect(messagesOf(yamamoto)).toEqual(["12/4(金)：希望時間外に勤務あり"]);
+    expect(messagesOf(sato)).toEqual(["12/1(火)：未提出"]);
+    expect(messagesOf(kobayashi)).toEqual([]);
+  });
+
   it("連絡事項は日付順に日付を付けて持ち、その日のセルに連絡事項があることを持つ", () => {
     const row = buildWeek({
       getNote: (staffId, date) =>
@@ -225,19 +238,19 @@ describe("buildDateOnlyDayPresentation", () => {
       ...overrides,
     });
 
-  it("連絡事項がある人、希望がある人、希望外で割り当て済みの人、未提出の人の順に並べ、同じまとまりでは渡した順を保つ", () => {
+  it("連絡事項、希望、割り当て、未提出で並べ替えず、渡した順のまま出す", () => {
     expect(buildDay().rows.map((row) => row.staffName)).toEqual([
-      "山口 美月",
-      "小林 悠斗",
-      "山本 拓海",
       "高橋 陽菜",
       "佐藤 健太",
+      "小林 悠斗",
+      "山本 拓海",
+      "山口 美月",
     ]);
   });
 
   it("その日の連絡事項を全文で持ち、ない人はnullにする", () => {
     const rows = buildDay().rows;
-    expect(rows.map((row) => row.note)).toEqual(["午後からなら入れます", null, null, null, null]);
+    expect(rows.map((row) => row.note)).toEqual([null, null, null, null, "午後からなら入れます"]);
   });
 
   it("その日の希望も割り当ても連絡事項もない人を、下にまとめる", () => {
@@ -250,7 +263,7 @@ describe("buildDateOnlyDayPresentation", () => {
     expect(buildDay().countLabel).toBe("2人");
   });
 
-  it("スタッフ向けの確定シフトでは、並べ替えずに渡した順で全員を出す", () => {
+  it("スタッフ向けの確定シフトでは、たたまずに、渡した順で全員を出す", () => {
     const day = buildDay({ isConfirmedDisplay: true });
     expect(day.rows.map((row) => row.staffName)).toEqual([
       "高橋 陽菜",

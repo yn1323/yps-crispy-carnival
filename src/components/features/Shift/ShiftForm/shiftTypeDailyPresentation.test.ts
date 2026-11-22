@@ -5,6 +5,7 @@ import {
   buildShiftTypeDailyPresentation,
   buildShiftTypeStaffingPresentation,
   formatShiftTypeShortTimeRange,
+  toShiftTypeWarningMessages,
 } from "./shiftTypeDailyPresentation";
 import { buildStaffingCountView, type DayStaffingView, type StaffingSlotView } from "./staffingPresentation";
 
@@ -149,6 +150,8 @@ describe("buildShiftTypeDailyPresentation", () => {
       { dot: null, noticeTexts: [] },
       { dot: "orange", noticeTexts: ["希望時間外に勤務あり"] },
     ]);
+    // 名前の右の確認事項には、勤務パターン名を付けて並べる。
+    expect(toShiftTypeWarningMessages(row)).toEqual([`${row.cells[2].option.name}：希望時間外に勤務あり`]);
   });
 
   it("ボタンの名前の末尾を「勤務あり」「勤務なし」に保ち、希望と点の理由は説明に分ける", () => {

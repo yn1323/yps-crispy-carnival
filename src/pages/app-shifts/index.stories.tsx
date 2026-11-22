@@ -2,11 +2,11 @@ import { Stack } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, userEvent, within } from "storybook/test";
-import { RecruitmentBoard } from "@/src/components/features/Dashboard/RecruitmentBoard";
+import { CreateRecruitmentButton, RecruitmentBoard } from "@/src/components/features/Dashboard/RecruitmentBoard";
 import type { DashboardRecruitmentGroup, Recruitment } from "@/src/components/features/Dashboard/types";
 import { AuthenticatedAppShell } from "@/src/components/templates/AuthenticatedAppShell";
 import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
-import { AppShiftsOverviewView, AppShiftsPageStateView } from ".";
+import { AppShiftsHeader, AppShiftsOverviewView, AppShiftsPageStateView } from ".";
 
 const recruitment = (overrides: Partial<Recruitment> = {}): Recruitment =>
   ({
@@ -69,6 +69,7 @@ const filterOptions = [
 function CombinedBoard() {
   return (
     <RecruitmentBoard
+      hidesHeader
       groups={groups}
       pastStatus="Exhausted"
       hasPastRecruitments={false}
@@ -89,7 +90,13 @@ function CombinedBoard() {
 function ReadyPreview() {
   return (
     <Stack maxW="1024px" mx="auto">
-      <AppShiftsOverviewView filterValue={null} filterOptions={filterOptions} onFilterChange={() => undefined}>
+      <AppShiftsOverviewView>
+        <AppShiftsHeader
+          value={null}
+          options={filterOptions}
+          onChange={() => undefined}
+          action={<CreateRecruitmentButton canCreate onClick={() => undefined} />}
+        />
         <CombinedBoard />
       </AppShiftsOverviewView>
     </Stack>
@@ -158,11 +165,13 @@ export const AppCompositionMobile: Story = {
 function FilterPreview({ singleShop = false }: { singleShop?: boolean }) {
   const [filter, setFilter] = useState<string | null>(null);
   return (
-    <AppShiftsOverviewView
-      filterValue={filter}
-      filterOptions={singleShop ? filterOptions.slice(0, 1) : filterOptions}
-      onFilterChange={setFilter}
-    >
+    <AppShiftsOverviewView>
+      <AppShiftsHeader
+        value={filter}
+        options={singleShop ? filterOptions.slice(0, 1) : filterOptions}
+        onChange={setFilter}
+        action={<CreateRecruitmentButton canCreate onClick={() => undefined} />}
+      />
       <output>選択中：{filter ?? "すべて"}</output>
     </AppShiftsOverviewView>
   );

@@ -1,5 +1,5 @@
 import { buildWeeklyGrid, formatDateRangeShort, formatDateShort } from "@/src/domains/shift/date";
-import type { DateInfo, WeekItem } from "./types";
+import type { WeekItem } from "./types";
 
 export const buildDateOnlyWeeks = (dates: string[]): WeekItem[] =>
   buildWeeklyGrid(dates).map((week, index) => {
@@ -12,9 +12,3 @@ export const buildDateOnlyWeeks = (dates: string[]): WeekItem[] =>
       dates: week,
     };
   });
-
-export const getSortableDates = (dates: DateInfo[], holidays: string[]): DateInfo[] => {
-  const inRangeDates = dates.filter((date) => date.inRange);
-  const openDates = inRangeDates.filter((date) => !holidays.includes(date.iso));
-  return openDates.length > 0 ? openDates : inRangeDates;
-};

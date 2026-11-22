@@ -13,11 +13,13 @@ const mocks = vi.hoisted(() => ({
   confirmReference: Symbol("confirm"),
   applyTemplateReference: Symbol("applyDayTemplateToDates"),
   switchDetailModeReference: Symbol("switchShiftDetailMode"),
+  setStaffSortModeReference: Symbol("setShiftStaffSortMode"),
   provisionalQueryReference: Symbol("getProvisionalAssignments"),
   save: vi.fn(),
   confirm: vi.fn(),
   applyDayTemplateToDates: vi.fn(),
   switchShiftDetailMode: vi.fn(),
+  setShiftStaffSortMode: vi.fn(),
   navigate: vi.fn(),
   convexQuery: vi.fn(),
   toast: vi.fn(),
@@ -35,6 +37,7 @@ vi.mock("@/convex/_generated/api", () => ({
         saveShiftAssignments: mocks.saveReference,
         confirmRecruitment: mocks.confirmReference,
         switchShiftDetailMode: mocks.switchDetailModeReference,
+        setShiftStaffSortMode: mocks.setStaffSortModeReference,
       },
       queries: { getProvisionalAssignments: mocks.provisionalQueryReference },
     },
@@ -51,6 +54,7 @@ vi.mock("@/src/hooks/useShopMutation", () => ({
     if (reference === mocks.confirmReference) return mocks.confirm;
     if (reference === mocks.applyTemplateReference) return mocks.applyDayTemplateToDates;
     if (reference === mocks.switchDetailModeReference) return mocks.switchShiftDetailMode;
+    if (reference === mocks.setStaffSortModeReference) return mocks.setShiftStaffSortMode;
     throw new Error("unexpected mutation reference");
   },
 }));
@@ -169,6 +173,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.save.mockResolvedValue(null);
   mocks.switchShiftDetailMode.mockResolvedValue(null);
+  mocks.setShiftStaffSortMode.mockResolvedValue(null);
   mocks.confirm.mockResolvedValue(null);
   mocks.applyDayTemplateToDates.mockResolvedValue(null);
   mocks.convexQuery.mockResolvedValue([]);
@@ -393,6 +398,37 @@ describe("表示の初期状態", () => {
 
     expect(result.current.viewModel.shiftForm.initialDetailMode).toBe(false);
     expect(result.current.viewModel.shiftForm.staffing?.templates).toEqual([{ id: templateId, name: "平日" }]);
+  });
+});
+
+describe("スタッフの並び替え", () => {
+  it("店舗が選んだ並び替えを渡し、まだ選んでいない店舗は「固定」にする", () => {
+    const unset = renderInitialized({ staffing: emptyStaffing });
+    expect(unset.result.current.viewModel.shiftForm.staffSortMode).toBe("fixed");
+
+    const workTime = renderInitialized({ data: { ...data, shiftStaffSortMode: "workTime" }, staffing: emptyStaffing });
+    expect(workTime.result.current.viewModel.shiftForm.staffSortMode).toBe("workTime");
+  });
+
+  it("表示設定で変えると、保存を待たずに画面を切り替え、選んだ並び替えを店舗へ保存する", async () => {
+    const { result } = renderInitialized({ staffing: emptyStaffing });
+
+    await act(async () => result.current.viewModel.shiftForm.detailActions.requestStaffSortModeChange?.("workTime"));
+
+    expect(result.current.viewModel.shiftForm.staffSortMode).toBe("workTime");
+    expect(mocks.setShiftStaffSortMode.mock.calls).toEqual([[{ mode: "workTime" }]]);
+    // 勤務や下書きには触れない。
+    expect(mocks.switchShiftDetailMode).not.toHaveBeenCalled();
+  });
+
+  it("保存できなければ、元の並び替えへ戻して誤りを伝える", async () => {
+    mocks.setShiftStaffSortMode.mockRejectedValue(new Error("failed"));
+    const { result } = renderInitialized({ staffing: emptyStaffing });
+
+    await act(async () => result.current.viewModel.shiftForm.detailActions.requestStaffSortModeChange?.("workTime"));
+
+    expect(result.current.viewModel.shiftForm.staffSortMode).toBe("fixed");
+    expect(mocks.showErrorToast).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -841,7 +877,10 @@ describe("その日の必要人数の変更と設定ページへの導線", () =
     });
 
     expect(result.current.viewModel.shiftForm.staffing?.isLocked).toBe(true);
-    expect(Object.keys(result.current.viewModel.shiftForm.detailActions)).toEqual(["onOpenSetup"]);
+    expect(Object.keys(result.current.viewModel.shiftForm.detailActions)).toEqual([
+      "onOpenSetup",
+      "requestStaffSortModeChange",
+    ]);
   });
 
   it.each<[string, Partial<ShiftBoardData>]>([
@@ -854,7 +893,10 @@ describe("その日の必要人数の変更と設定ページへの導線", () =
     const { result } = renderController({ data: { ...data, ...overrides }, staffing: emptyStaffing });
 
     expect(result.current.viewModel.isReadOnly).toBe(true);
-    expect(Object.keys(result.current.viewModel.shiftForm.detailActions)).toEqual(["onOpenSetup"]);
+    expect(Object.keys(result.current.viewModel.shiftForm.detailActions)).toEqual([
+      "onOpenSetup",
+      "requestStaffSortModeChange",
+    ]);
   });
 
   it("募集条件が変わって再読み込みを案内している間は、必要人数の操作を出さない", () => {
@@ -867,12 +909,16 @@ describe("その日の必要人数の変更と設定ページへの導線", () =
       "dayStaffingActions",
       "onOpenSetup",
       "requestDetailModeChange",
+      "requestStaffSortModeChange",
     ]);
 
     rerender({ current: { ...data, recruitment: { ...data.recruitment, editVersion: 1 } } });
 
     expect(result.current.viewModel.isRecruitmentChanged).toBe(true);
-    expect(Object.keys(result.current.viewModel.shiftForm.detailActions)).toEqual(["onOpenSetup"]);
+    expect(Object.keys(result.current.viewModel.shiftForm.detailActions)).toEqual([
+      "onOpenSetup",
+      "requestStaffSortModeChange",
+    ]);
   });
 
   it("設定ページへの導線は、この店舗の「必要人数設定」を組織を指定して開く", () => {

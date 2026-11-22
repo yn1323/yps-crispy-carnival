@@ -3,7 +3,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 import { indexShiftsByStaffId } from "@/src/domains/shift/shiftLookup";
 import { AssignmentPill, FoldedStaffGroupToggle, PositionStaffingCount } from "../../assignmentCellParts";
-import { Avatar } from "../../components";
+import { Avatar, StaffWarningIcon } from "../../components";
 import { ShiftStaffNoteIcon, useAllShiftDateNotes, useShiftDateNotes } from "../../dateNotes";
 import { StaffMeta } from "../../detailParts";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
@@ -14,6 +14,7 @@ import {
   type ShiftTypeDailyOptionPresentation,
   type ShiftTypeDailyRowPresentation,
   type ShiftTypeStaffingPresentation,
+  toShiftTypeWarningMessages,
 } from "../../shiftTypeDailyPresentation";
 import { useDayStaffingView } from "../../staffingParts";
 import {
@@ -267,8 +268,9 @@ const OptionHeader = ({
   /** 色の丸を出すか。ポジションを塗り分けない表示では、凡例がないため出さない。 */
   showsDot: boolean;
 }) => {
-  // 文字を持たないポジションも、同じ幅の空きとして並べる。1人目が入っても、ほかの分数の位置を動かさないためである。
-  const counts = staffing?.countsByOptionId.get(option.key) ?? [];
+  // 必要人数がなく、だれも入っていないポジションは並べず、残りを中央に寄せる。
+  // 空きとして残すと、ほかの勤務パターンより並ぶ数が少ない列で、分数が左へずれて見える。
+  const counts = (staffing?.countsByOptionId.get(option.key) ?? []).filter((count) => count.label !== null);
   return (
     <chakra.th px={2} py={2} textAlign="center" verticalAlign="top" fontWeight={600}>
       <Box textStyle="sm" fontWeight={700} color="gray.800">
@@ -279,7 +281,16 @@ const OptionHeader = ({
       </Box>
       {staffing ? (
         // 出すポジションがない勤務パターンでも、行の高さを残して見出しの高さをそろえる。
-        <Flex mt={1} minH="22px" align="center" justify="center" columnGap={3} rowGap={1} flexWrap="wrap">
+        <Flex
+          mt={1}
+          minH="22px"
+          align="center"
+          justify="center"
+          columnGap={3}
+          rowGap={1}
+          flexWrap="wrap"
+          data-position-counts
+        >
           {counts.map((count) => (
             <PositionStaffingCount key={count.positionId} count={count} showsDot={showsDot} />
           ))}
@@ -321,6 +332,8 @@ const StaffCell = ({
           未提出
         </Text>
       )}
+      {/* セルの右上の点と同じ確認事項を、名前の右でもまとめて知らせる。 */}
+      <StaffWarningIcon messages={toShiftTypeWarningMessages(row)} />
       {/* 連絡事項の列を表示設定で隠したときだけ、名前の横のアイコンで知らせる。 */}
       {note && <ShiftStaffNoteIcon notes={[{ date, note }]} hasNoteColumn={hasNoteColumn} />}
     </Flex>

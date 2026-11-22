@@ -198,6 +198,36 @@ const headerOf = (canvas: ReturnType<typeof within>, name: string) =>
   canvas.findByRole("columnheader", { name: new RegExp(`^${name}`) });
 
 /**
+ * 見出しの「配置/必要」は、勤務パターンごとに並ぶポジションの数が違っても、列の中央に寄せる。
+ * 必要人数がなく、だれも入っていないポジションは並べない。
+ */
+export const HeaderCountsCentered: Story = {
+  name: "Header Counts Centered",
+  args: {
+    ...shiftTypeBoardDetailArgs,
+    initialShifts: [],
+  },
+  globals: desktopGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await headerOf(canvas, "遅番");
+    const rows = Array.from(canvasElement.querySelectorAll<HTMLElement>("[data-position-counts]"));
+    await expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      const cell = row.closest("th") as HTMLElement;
+      const items = Array.from(row.children) as HTMLElement[];
+      // 空きとして残すポジションがない。
+      for (const item of items) await expect(getComputedStyle(item).visibility).toBe("visible");
+      const left = Math.min(...items.map((item) => item.getBoundingClientRect().left));
+      const right = Math.max(...items.map((item) => item.getBoundingClientRect().right));
+      const cellRect = cell.getBoundingClientRect();
+      await expect(Math.abs((left + right) / 2 - (cellRect.left + cellRect.right) / 2)).toBeLessThanOrEqual(1);
+    }
+  },
+};
+
+/**
  * 空きのセルを押すと、最後に選んだポジションで入る。ピルを押して開くメニューでポジションを変えると、見出しの分数が変わる。
  * メニューは数字キーでも選べ、Escでは何も変えずに閉じる。「削除」で割り当てを外す。
  */
@@ -253,7 +283,44 @@ export const PositionMenuInteractive: Story = {
   },
 };
 
-/** 担当外のポジションへ入れると、橙の点と理由が付く。名前の横の確認事項のアイコンは出さない。 */
+/**
+ * 見出しのポジションを押すと、選んだ状態になり、空きのセルはそのポジションで入る。
+ * 割り当て済みのピルを押したときは、ポジションを自動で変えず、メニューを開く。
+ */
+export const WorkPositionPickerInteractive: Story = {
+  name: "Work Position Picker Interactive",
+  args: shiftTypeBoardDetailArgs,
+  globals: desktopGlobals,
+  beforeEach: clearRememberedBoardPosition,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(document.body);
+    const picker = await canvas.findByRole("radiogroup", { name: "入れるポジション" });
+    // 覚えたポジションがないため、店舗の先頭のポジション（ホール）を選んだ状態で始まる。
+    await expect(within(picker).getByRole("radio", { name: "ホール" })).toHaveAttribute("aria-checked", "true");
+
+    await userEvent.click(within(picker).getByRole("radio", { name: "キッチン" }));
+    await expect(within(picker).getByRole("radio", { name: "キッチン" })).toHaveAttribute("aria-checked", "true");
+    await expect(within(picker).getByRole("radio", { name: "ホール" })).toHaveAttribute("aria-checked", "false");
+
+    // 希望の輪のセルを押すと、選んだキッチンで入る。
+    await userEvent.click(await canvas.findByRole("button", { name: "山本 拓海 遅番 勤務なし" }));
+    const assigned = await canvas.findByRole("button", { name: "山本 拓海 遅番 勤務あり" });
+    await expect(assigned).toHaveTextContent("キッチン");
+
+    // ほかのポジションを選んでも、割り当て済みのピルを押すとメニューが開き、ポジションは変わらない。
+    await userEvent.click(within(picker).getByRole("radio", { name: "ホール" }));
+    await userEvent.click(assigned);
+    await body.findByRole("menu");
+    await expect(assigned).toHaveTextContent("キッチン");
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(body.queryByRole("menu")).not.toBeInTheDocument());
+    await expect(within(picker).getByRole("radio", { name: "ホール" })).toHaveAttribute("aria-checked", "true");
+  },
+};
+
+/** 担当外のポジションへ入れると、橙の点と理由が付く。名前の右にも確認事項のアイコンが出て、マウスを載せると勤務パターン名を付けた理由が出る。 */
 export const DetailUnavailablePositionInteractive: Story = {
   name: "Detail Unavailable Position Interactive",
   args: detailArgs,
@@ -268,7 +335,11 @@ export const DetailUnavailablePositionInteractive: Story = {
 
     const assigned = await canvas.findByRole("button", { name: "鈴木 次郎 早番 勤務あり" });
     await expect(assigned).toHaveAccessibleDescription("希望時間外に勤務あり、担当外のポジション");
-    await expect(canvas.queryByRole("button", { name: /^確認事項\d+件$/ })).not.toBeInTheDocument();
+    const row = assigned.closest("tr") as HTMLElement;
+    await userEvent.hover(await within(row).findByRole("button", { name: "確認事項2件" }));
+    const tooltip = await within(canvasElement.ownerDocument.body).findByRole("tooltip");
+    await expect(tooltip).toHaveTextContent("早番：希望時間外に勤務あり");
+    await expect(tooltip).toHaveTextContent("早番：担当外のポジション");
   },
 };
 

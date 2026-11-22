@@ -4,7 +4,7 @@ import { act, renderHook } from "@testing-library/react";
 import { createStore, Provider } from "jotai";
 import type { ReactNode, UIEvent } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { chromeVisibilityAtom } from "../stores";
+import { chromeHiddenAtom } from "../stores";
 import { useChromeHideOnScroll } from "./useChromeHideOnScroll";
 
 const SHIFT_FORM_HEIGHT_PX = 800;
@@ -26,9 +26,20 @@ function createScroller({
   return element;
 }
 
-function createShiftForm() {
+// シフト表の中の隠す行の高さ。PCとスマートフォンの時間指定は上の行だけ、
+// スマートフォンの日付選択とパターン選択は日付の一覧も隠す。
+const TOP_ROW_HEIGHT_PX = 46;
+const DATE_RAIL_HEIGHT_PX = 64;
+
+function createShiftForm(collapsibleRowHeights: number[] = [TOP_ROW_HEIGHT_PX]) {
   const element = document.createElement("div");
   Object.defineProperty(element, "clientHeight", { configurable: true, value: SHIFT_FORM_HEIGHT_PX });
+  for (const height of collapsibleRowHeights) {
+    const row = document.createElement("div");
+    row.setAttribute("data-chrome-collapse", "");
+    Object.defineProperty(row, "offsetHeight", { configurable: true, value: height });
+    element.appendChild(row);
+  }
   return element;
 }
 
@@ -37,24 +48,23 @@ function scrollEvent(target: HTMLElement, currentTarget: HTMLElement, scrollTop:
   return { target, currentTarget } as unknown as UIEvent<HTMLElement>;
 }
 
-function setup(resetKey = "daily:2026-12-01", { isCompact = false } = {}) {
+function setup(resetKey = "daily:2026-12-01", { collapsibleRowHeights }: { collapsibleRowHeights?: number[] } = {}) {
   const store = createStore();
   const onChange = vi.fn();
   const wrapper = ({ children }: { children: ReactNode }) => <Provider store={store}>{children}</Provider>;
-  const hook = renderHook(({ key }) => useChromeHideOnScroll(key, onChange, { isCompact }), {
+  const hook = renderHook(({ key }) => useChromeHideOnScroll(key, onChange), {
     wrapper,
     initialProps: { key: resetKey },
   });
-  const form = createShiftForm();
+  const form = createShiftForm(collapsibleRowHeights);
   const scroll = (target: HTMLElement, scrollTop: number) =>
     act(() => hook.result.current(scrollEvent(target, form, scrollTop)));
-  const visibility = () => store.get(chromeVisibilityAtom);
-  const isHidden = () => visibility() === "hidden";
-  return { hook, onChange, form, scroll, isHidden, visibility };
+  const isHidden = () => store.get(chromeHiddenAtom);
+  return { hook, onChange, form, scroll, isHidden };
 }
 
 describe("useChromeHideOnScroll", () => {
-  it("下へスクロールすると上の行を隠し、上へ戻すと表示する", () => {
+  it("下へスクロールすると上の行を隠す", () => {
     const { onChange, scroll, isHidden } = setup();
     const scroller = createScroller();
 
@@ -64,33 +74,90 @@ describe("useChromeHideOnScroll", () => {
 
     scroll(scroller, 200);
     expect(isHidden()).toBe(true);
+    expect(onChange.mock.calls).toEqual([[true]]);
+  });
 
-    scroll(scroller, 150);
+  it("表の途中で上へ戻しても表示せず、上端まで戻しきったときだけ表示する", () => {
+    const { onChange, scroll, isHidden } = setup();
+    const scroller = createScroller();
+    scroll(scroller, 800);
+    scroll(scroller, 1000);
+    expect(isHidden()).toBe(true);
+
+    // 少しの戻りでも、大きな戻りでも出さない。
+    scroll(scroller, 950);
+    expect(isHidden()).toBe(true);
+    scroll(scroller, 300);
+    expect(isHidden()).toBe(true);
+    // 1人目のスタッフが見える前に出さないよう、上端の近く（ほかのページのヘッダーが出る64px以内）でも、まだ出さない。
+    scroll(scroller, 40);
+    expect(isHidden()).toBe(true);
+    expect(onChange.mock.calls).toEqual([[true]]);
+
+    scroll(scroller, 0);
     expect(isHidden()).toBe(false);
     expect(onChange.mock.calls).toEqual([[true], [false]]);
   });
 
-  it("隠したあとでも、上端の近くへ来ると表示する", () => {
+  it("上へ戻したあとで下へスクロールしても、隠したままにする", () => {
+    const { onChange, scroll, isHidden } = setup();
+    const scroller = createScroller();
+    scroll(scroller, 800);
+    scroll(scroller, 1000);
+
+    scroll(scroller, 600);
+    scroll(scroller, 700);
+    expect(isHidden()).toBe(true);
+    expect(onChange.mock.calls).toEqual([[true]]);
+  });
+
+  it("上端で表示したあと、下へスクロールするとまた隠す", () => {
     const { scroll, isHidden } = setup();
     const scroller = createScroller();
-    scroll(scroller, 100);
-    scroll(scroller, 300);
-    expect(isHidden()).toBe(true);
-
-    scroll(scroller, 40);
+    scroll(scroller, 800);
+    scroll(scroller, 1000);
+    scroll(scroller, 0);
     expect(isHidden()).toBe(false);
+
+    scroll(scroller, 200);
+    expect(isHidden()).toBe(true);
   });
 
   it("隠した分だけ伸びるとスクロールできなくなる短い内容では、下へスクロールしても隠さない", () => {
     const { onChange, scroll, isHidden } = setup();
-    // スクロールできる範囲が200px。上の行を隠して伸びた分で、上端へ戻ってしまう。
-    const scroller = createScroller({ clientHeight: 600, scrollHeight: 800 });
+    // 隠れるのは上の行46pxとアプリのヘッダー64px。隠したあとに48px残るには、158px以上スクロールできる必要がある。
+    const scroller = createScroller({ clientHeight: 600, scrollHeight: 757 });
 
     scroll(scroller, 0);
     scroll(scroller, 100);
-    scroll(scroller, 200);
+    scroll(scroller, 157);
     expect(isHidden()).toBe(false);
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("隠したあともスクロールできる長さが残る内容は、行の低い短めの表でも隠す", () => {
+    const { scroll, isHidden } = setup();
+    const scroller = createScroller({ clientHeight: 600, scrollHeight: 758 });
+
+    scroll(scroller, 0);
+    scroll(scroller, 100);
+    expect(isHidden()).toBe(true);
+  });
+
+  it("隠す行が多い画面では、その分だけ長くスクロールできる内容でだけ隠す", () => {
+    // スマートフォンの日付選択とパターン選択は、日付の一覧も隠す。46 + 64 + 64 + 48 = 222px以上が必要になる。
+    const rows = [TOP_ROW_HEIGHT_PX, DATE_RAIL_HEIGHT_PX];
+    const short = setup("daily:2026-12-01", { collapsibleRowHeights: rows });
+    const shortScroller = createScroller({ clientHeight: 600, scrollHeight: 821 });
+    short.scroll(shortScroller, 0);
+    short.scroll(shortScroller, 100);
+    expect(short.isHidden()).toBe(false);
+
+    const enough = setup("daily:2026-12-01", { collapsibleRowHeights: rows });
+    const enoughScroller = createScroller({ clientHeight: 600, scrollHeight: 822 });
+    enough.scroll(enoughScroller, 0);
+    enough.scroll(enoughScroller, 100);
+    expect(enough.isHidden()).toBe(true);
   });
 
   it("画面のスクロールとして扱わない入れ物のスクロールでは、隠さない", () => {
@@ -159,72 +226,5 @@ describe("useChromeHideOnScroll", () => {
 
     hook.unmount();
     expect(isHidden()).toBe(false);
-  });
-
-  describe("スマートフォン", () => {
-    // シフト表の高さ800pxの4分の1。
-    const COMPACT_REVEAL_DISTANCE_PX = SHIFT_FORM_HEIGHT_PX / 4;
-
-    const hideAt = (scroll: (target: HTMLElement, scrollTop: number) => void, scrollTop: number) => {
-      const scroller = createScroller();
-      scroll(scroller, scrollTop - 200);
-      scroll(scroller, scrollTop);
-      return scroller;
-    };
-
-    it("表の途中では、少し上へ戻しても表示しない", () => {
-      const { onChange, scroll, visibility } = setup("daily:2026-12-01", { isCompact: true });
-      const scroller = hideAt(scroll, 1000);
-      expect(visibility()).toBe("hidden");
-
-      scroll(scroller, 1000 - (COMPACT_REVEAL_DISTANCE_PX - 1));
-      expect(visibility()).toBe("hidden");
-      expect(onChange.mock.calls).toEqual([[true]]);
-    });
-
-    it("表の途中ではっきり上へ戻すと、日付の一覧だけを表示し、上の行は隠したままにする", () => {
-      const { onChange, scroll, visibility } = setup("daily:2026-12-01", { isCompact: true });
-      const scroller = hideAt(scroll, 1000);
-
-      scroll(scroller, 1000 - COMPACT_REVEAL_DISTANCE_PX);
-      expect(visibility()).toBe("datesOnly");
-      // アプリのヘッダーは隠したまま。
-      expect(onChange.mock.calls).toEqual([[true]]);
-
-      // さらに上へ戻しても、上端の近くへ来るまでは日付の一覧だけ。
-      scroll(scroller, 200);
-      expect(visibility()).toBe("datesOnly");
-
-      scroll(scroller, 40);
-      expect(visibility()).toBe("shown");
-      expect(onChange.mock.calls).toEqual([[true], [false]]);
-    });
-
-    it("日付の一覧だけを表示したあと、下へスクロールするとまた隠す", () => {
-      const { scroll, visibility } = setup("daily:2026-12-01", { isCompact: true });
-      const scroller = hideAt(scroll, 1000);
-      scroll(scroller, 1000 - COMPACT_REVEAL_DISTANCE_PX);
-      expect(visibility()).toBe("datesOnly");
-
-      scroll(scroller, 1000 - COMPACT_REVEAL_DISTANCE_PX + 20);
-      expect(visibility()).toBe("hidden");
-    });
-
-    it("隠している間に選んだ日を変えると、日付の一覧だけを表示する", () => {
-      const { hook, onChange, scroll, visibility } = setup("daily:2026-12-01", { isCompact: true });
-      hideAt(scroll, 1000);
-
-      hook.rerender({ key: "daily:2026-12-02" });
-      expect(visibility()).toBe("datesOnly");
-      expect(onChange.mock.calls).toEqual([[true]]);
-    });
-
-    it("上の行を表示している間に表示を切り替えると、表示したままにする", () => {
-      const { hook, onChange, visibility } = setup("daily:2026-12-01", { isCompact: true });
-
-      hook.rerender({ key: "overview:2026-12-01" });
-      expect(visibility()).toBe("shown");
-      expect(onChange).not.toHaveBeenCalled();
-    });
   });
 });

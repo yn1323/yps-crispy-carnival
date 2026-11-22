@@ -38,6 +38,7 @@ Dashboardの「要対応」も同じスタッフ申請・通知失敗カード�
 - `api.appOrganization.actionInboxQueries.getActionInbox`が4種類を最小DTOへ投影する。
 - 種類ごとにcursorを持ち、初期pageより古い項目は「さらに表示」から取得する。
 - 店舗filterはsource別上限やpaginationより前にserverで適用する。
+- 店舗filterは見出しの右に置き、シフトとスタッフのページと同じく、店舗アイコンと「全店舗」（絞り込み中は店舗名）の文字のボタンで出す。店舗が2つ以上あるときだけ出す。
 - cursorには組織、店舗filter、種類を結び付け、別scopeへの使い回しを拒否する。
 - 提出期限の判定はserver時刻を正本にする。  queryが返す`nextRefreshAt`でclientが再購読し、画面を開いたまま提出期限が到来した場合も再評価する。
 - query失敗時は項目を空として扱わず、再読み込みできるエラー状態を表示する。

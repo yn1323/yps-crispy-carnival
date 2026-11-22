@@ -99,12 +99,15 @@ export const PositionDialogInteractive: Story = {
     await expect(await canvas.findByRole("button", { name: "充足 77%" })).toBeVisible();
 
     // 最後に選んだキッチンを覚え、次の空きのセルはキッチンで入る。
-    // 夜番は遅番と時間が重なるが、重なりは知らせず、希望外の橙の点だけを出す。
+    // 夜番は遅番と時間が重なるが、重なりは知らせない。ピルに点は出さず、名前の右の確認事項に希望外だけを出す。
     await userEvent.click(await canvas.findByRole("button", { name: "山本 拓海 夜番 勤務なし" }));
     const night = await canvas.findByRole("button", { name: "山本 拓海 夜番 勤務あり" });
     await expect(night).toHaveTextContent("キッチン");
-    await expect(night.querySelector("[data-assignment-dot]")).toHaveAttribute("data-assignment-dot", "orange");
-    await expect((await lateCell("勤務あり")).querySelector("[data-assignment-dot]")).toBeNull();
+    await expect(night.querySelector("[data-assignment-dot]")).toBeNull();
+    await userEvent.click(within(night.closest("tr") as HTMLElement).getByRole("button", { name: "確認事項1件" }));
+    // ピルの読み上げ用の説明にも同じ理由が入るため、開いた吹き出しの中で確かめる。
+    await expect(await body.findByRole("dialog")).toHaveTextContent("確認事項夜番：希望時間外に勤務あり");
+    await userEvent.keyboard("{Escape}");
 
     // モーダルには点の理由を出す。「削除」で割り当てを外す。
     await userEvent.click(night);

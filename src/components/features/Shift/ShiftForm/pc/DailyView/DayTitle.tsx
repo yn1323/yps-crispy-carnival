@@ -2,11 +2,11 @@ import { Box, Flex } from "@chakra-ui/react";
 import dayjs from "dayjs";
 import { useAtomValue } from "jotai";
 import { getWeekdayLabel } from "@/src/domains/shift/date";
-import { FulfillmentLabel, PositionDotLegend } from "../../assignmentCellParts";
+import { FulfillmentLabel } from "../../assignmentCellParts";
 import { DisplaySettingsMenu } from "../../DisplaySettingsMenu";
-import { RangeAssignPalette } from "../../detailParts";
+import { RangeAssignPalette, WorkPositionPicker } from "../../detailParts";
 import { DayTemplateMenu, useDayStaffingView } from "../../staffingParts";
-import { isToolPaletteActiveAtom, shiftConfigAtom, usesPositionColorsAtom } from "../../stores";
+import { isToolPaletteActiveAtom, usesPositionColorsAtom } from "../../stores";
 import { getShiftWeekdayColor } from "../../weekdayPresentation";
 
 type Props = {
@@ -27,7 +27,6 @@ export const DayTitle = ({ date, holidays = [], positionControl, showsTemplate =
   const usesPositionColors = useAtomValue(usesPositionColorsAtom);
   // 閲覧専用の表示では、表の上の凡例（PositionLegend）が出るため、見出しには重ねて出さない。
   const isEditable = useAtomValue(isToolPaletteActiveAtom);
-  const { positions } = useAtomValue(shiftConfigAtom);
   // くわしく表示のときだけ、その日のテンプレートを日付の横に出す。人数を見る前に、何と比べるかを選べるようにする。
   const staffingView = useDayStaffingView(date);
   if (!date) return null;
@@ -75,7 +74,7 @@ export const DayTitle = ({ date, holidays = [], positionControl, showsTemplate =
           (positionControl === "rangeAssign" ? (
             <RangeAssignPalette />
           ) : (
-            usesPositionColors && isEditable && <PositionDotLegend positions={positions} />
+            usesPositionColors && isEditable && <WorkPositionPicker />
           ))}
         {/* パターン選択は、連絡事項を名前の横のアイコンだけで示すため、表示の切り替えを出さない。 */}
         <DisplaySettingsMenu />

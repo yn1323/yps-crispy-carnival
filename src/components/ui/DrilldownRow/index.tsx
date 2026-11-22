@@ -12,6 +12,12 @@ type Props = {
   accessibleDescription?: ReactNode;
   highlighted?: boolean;
   disabled?: boolean;
+  /**
+   * スマートフォンで、名前の幅を広く取る。左の余白と、アイコンと名前の間を詰め、名前の文字を1段小さくする。
+   * `hasLeadingHandle`は、行の左にドラッグの持ち手を置く一覧で、左の余白をさらに詰める。
+   */
+  compactOnMobile?: boolean;
+  hasLeadingHandle?: boolean;
   onClick: () => void;
 };
 
@@ -25,6 +31,8 @@ export function DrilldownRow({
   accessibleDescription,
   highlighted = false,
   disabled = false,
+  compactOnMobile = false,
+  hasLeadingHandle = false,
   onClick,
 }: Props) {
   const generatedDescriptionId = useId();
@@ -37,8 +45,9 @@ export function DrilldownRow({
       aria-label={ariaLabel}
       aria-describedby={descriptionId}
       disabled={disabled}
-      gap={3}
-      px={{ base: 3, md: 4 }}
+      gap={compactOnMobile ? { base: 2, md: 3 } : 3}
+      ps={hasLeadingHandle ? { base: 1, md: 4 } : { base: 3, md: 4 }}
+      pe={{ base: 3, md: 4 }}
       py={3.5}
       display="flex"
       alignItems="center"
@@ -64,7 +73,13 @@ export function DrilldownRow({
 
       <Flex gap={2} align="center" flex={1} minW={0}>
         <Stack gap={secondary ? 1 : 0} flex="1 1 10rem" minW={0} overflow="hidden">
-          <Text fontWeight="semibold" color="gray.900" truncate minW={0}>
+          <Text
+            fontWeight="semibold"
+            color="gray.900"
+            fontSize={compactOnMobile ? { base: "sm", md: "md" } : undefined}
+            truncate
+            minW={0}
+          >
             {title}
           </Text>
           {secondary}

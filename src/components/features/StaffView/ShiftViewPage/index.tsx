@@ -5,7 +5,7 @@ import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
 import { DEFAULT_POSITION } from "@/src/domains/shift/constants";
 import { getDateRange } from "@/src/domains/shift/date";
-import type { ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
+import type { ShiftData, StaffSortMode, StaffType, TimeRange } from "@/src/domains/shift/types";
 
 const POSITIONS = [DEFAULT_POSITION];
 
@@ -25,10 +25,13 @@ type Props = {
   periodEnd: string;
   shopClosedDates: string[];
   submissionPattern: ShiftSubmissionPattern;
+  /** スタッフのページで決めた並び順で受け取る。 */
   staffs: { _id: Id<"staffs">; name: string }[];
   positions: { _id: Id<"positions">; name: string; color: string; isDefault: boolean }[];
   assignments: Assignment[];
   timeRange: TimeRange;
+  /** 店舗が選んだスタッフの並び替え。管理者の画面と同じ並びで出す。スタッフは変えられない。 */
+  staffSortMode?: StaffSortMode;
 };
 
 function getShiftTypeOptionIdForAssignment(assignment: Assignment, pattern: ShiftSubmissionPattern) {
@@ -114,11 +117,13 @@ export function ShiftViewPage({
   positions,
   assignments,
   timeRange,
+  staffSortMode = "fixed",
 }: Props) {
   const dates = useMemo(() => getDateRange(periodStart, periodEnd), [periodStart, periodEnd]);
 
   const staffTypes: StaffType[] = useMemo(
-    () => staffs.map((s) => ({ id: s._id, name: s.name, isSubmitted: true })),
+    // 受け取った順を、並びの第2キー（スタッフのページで決めた並び順）にする。
+    () => staffs.map((s, index) => ({ id: s._id, name: s.name, isSubmitted: true, displayOrder: index })),
     [staffs],
   );
 
@@ -169,6 +174,7 @@ export function ShiftViewPage({
           defaultToToday
           isReadOnly
           initialDetailMode={showsShiftDetails}
+          staffSortMode={staffSortMode}
         />
       </Box>
     </Flex>

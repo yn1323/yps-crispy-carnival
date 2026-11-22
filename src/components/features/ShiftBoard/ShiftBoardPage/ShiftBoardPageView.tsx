@@ -147,6 +147,7 @@ export const ShiftBoardPageView = ({
           dateNotes={shiftForm.dateNotes}
           staffing={shiftForm.staffing}
           initialDetailMode={shiftForm.initialDetailMode}
+          staffSortMode={shiftForm.staffSortMode}
           // 切り替えを出さない画面（確定済み、変更できない画面）では、表示の通知を渡さない。
           onDetailModeChange={shiftForm.canSwitchDetailMode ? intents.onDetailModeChange : undefined}
           detailActions={shiftForm.detailActions}

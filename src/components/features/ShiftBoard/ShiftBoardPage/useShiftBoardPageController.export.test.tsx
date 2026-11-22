@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   confirmReference: Symbol("confirm"),
   applyTemplateReference: Symbol("applyDayTemplateToDates"),
   switchDetailModeReference: Symbol("switchShiftDetailMode"),
+  setStaffSortModeReference: Symbol("setShiftStaffSortMode"),
   save: vi.fn(),
   applyDayTemplateToDates: vi.fn(),
   navigate: vi.fn(),
@@ -32,6 +33,7 @@ vi.mock("@/convex/_generated/api", () => ({
         saveShiftAssignments: mocks.saveReference,
         confirmRecruitment: mocks.confirmReference,
         switchShiftDetailMode: mocks.switchDetailModeReference,
+        setShiftStaffSortMode: mocks.setStaffSortModeReference,
       },
       queries: { getProvisionalAssignments: Symbol("getProvisionalAssignments") },
     },
@@ -48,6 +50,7 @@ vi.mock("@/src/hooks/useShopMutation", () => ({
     if (reference === mocks.confirmReference) return mocks.confirm;
     if (reference === mocks.applyTemplateReference) return mocks.applyDayTemplateToDates;
     if (reference === mocks.switchDetailModeReference) return vi.fn();
+    if (reference === mocks.setStaffSortModeReference) return vi.fn();
     throw new Error("unexpected mutation reference");
   },
 }));
@@ -184,7 +187,7 @@ describe("シフトボードからの出力", () => {
     );
     expect(mocks.save).not.toHaveBeenCalled();
   });
-  it("画面の表示順を変えずにDashboard順で渡し、勤務を取り消したセルも反映する", () => {
+  it("スタッフのページで決めた並び順で、画面にも出力にも渡し、勤務を取り消したセルも反映する", () => {
     const secondId = "staff-b" as Id<"staffs">;
     const { result } = renderInitialized({
       ...data,
@@ -199,7 +202,13 @@ describe("シフトボードからの出力", () => {
     });
     expect(mocks.export.mock.calls[0][0].staffs.map((staff: { id: string }) => staff.id)).toEqual([secondId, staffId]);
     expect(mocks.export.mock.calls[0][0].assignments).toEqual([]);
-    expect(result.current.viewModel.shiftForm.staffs.map((staff) => staff.id)).toEqual([staffId, secondId]);
+    // 画面の並びの第2キーにも、同じ並び順を使う。
+    expect(
+      result.current.viewModel.shiftForm.staffs.map((staff) => ({ id: staff.id, displayOrder: staff.displayOrder })),
+    ).toEqual([
+      { id: secondId, displayOrder: 0 },
+      { id: staffId, displayOrder: 1 },
+    ]);
   });
   it("並び順が欠けた場合は部分的な帳票を渡さない", () => {
     const { result } = renderInitialized({ ...data, exportStaffOrder: [] });

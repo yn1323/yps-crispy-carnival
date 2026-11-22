@@ -50,6 +50,8 @@ export function createDailyExportFixture(overrides: Partial<ShiftExportData> = {
     ],
     // 日別のバーにポジションを出すのは、くわしく表示の勤務だけである。
     isDetailMode: true,
+    // 日別の行を、開始の早い順に並べる。「固定」の並びは、個別のテストで確かめる。
+    staffSortMode: "workTime",
     assignments: [
       work("staff-1", "17:00", "22:00", "hall"),
       work("staff-2", "17:00", "22:00", "kitchen"),

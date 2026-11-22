@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDateOnlyWeeks, getSortableDates } from "./script";
+import { buildDateOnlyWeeks } from "./script";
 
 describe("buildDateOnlyWeeks", () => {
   it("期間を月曜始まりの週へまとめる", () => {
@@ -12,21 +12,5 @@ describe("buildDateOnlyWeeks", () => {
       "2026-06-04",
       "2026-06-05",
     ]);
-  });
-});
-
-describe("getSortableDates", () => {
-  const dates = [
-    { iso: "2026-06-01", inRange: true },
-    { iso: "2026-06-02", inRange: true },
-    { iso: "2026-06-03", inRange: false },
-  ];
-
-  it("営業日を優先する", () => {
-    expect(getSortableDates(dates, ["2026-06-01"])).toEqual([{ iso: "2026-06-02", inRange: true }]);
-  });
-
-  it("全日休業なら期間内の日付を返す", () => {
-    expect(getSortableDates(dates, ["2026-06-01", "2026-06-02"])).toEqual(dates.slice(0, 2));
   });
 });

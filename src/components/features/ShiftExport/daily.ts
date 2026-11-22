@@ -198,8 +198,11 @@ export function buildExportDaily(data: ShiftExportData, dates: readonly ExportDa
       if (!staff.isRemoved) countInputs.push({ staffId: staff.id, pieces, shift });
     }
     if (entries.length === 0) continue;
-    // 並べ替えは安定なので、開始と終了が同じ人はスタッフの表示順のままになる。
-    entries.sort((a, b) => a.firstStart - b.firstStart || a.lastEnd - b.lastEnd);
+    // 「固定」は、スタッフの並び順（data.staffsの順）のままにする。
+    // 「勤務時間順」は、開始と終了の早い順にする。並べ替えは安定なので、開始と終了が同じ人はスタッフの並び順のままになる。
+    if (data.staffSortMode === "workTime") {
+      entries.sort((a, b) => a.firstStart - b.firstStart || a.lastEnd - b.lastEnd);
+    }
 
     const workedPositionIds = new Set(countInputs.flatMap(({ pieces }) => pieces.map((piece) => piece.positionId)));
     const countPositions = showPositions ? positions.filter((position) => workedPositionIds.has(position.id)) : [];

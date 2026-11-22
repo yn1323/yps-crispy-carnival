@@ -1,7 +1,7 @@
 import { isLegacyCompatibleWorkPosition } from "./positions";
 import { indexShiftsByStaffId } from "./shiftLookup";
 import { timeToMinutes } from "./time";
-import type { ShiftData, SortMode, StaffType } from "./types";
+import type { ShiftData, SortMode, StaffSortMode, StaffType } from "./types";
 
 type SortStaffsParams = {
   staffs: StaffType[];
@@ -15,6 +15,8 @@ type SortDailyStaffsParams = {
   staffs: StaffType[];
   shiftByStaffId?: ReadonlyMap<string, ShiftData | undefined>;
   mode: DailyStaffSortMode;
+  /** 店舗が選んだ並び替え。省くと「固定」として扱う。 */
+  staffSortMode?: StaffSortMode;
 };
 
 const compareByName = (a: StaffType, b: StaffType) => a.name.localeCompare(b.name, "ja");
@@ -139,7 +141,7 @@ const compareRanges = (
   return a.startMinutes - b.startMinutes || a.endMinutes - b.endMinutes;
 };
 
-// 日別の並びのまとまり: 勤務あり → 出勤の希望あり → 休み → 未提出。
+// 「勤務時間順」の並びのまとまり: 勤務あり → 出勤の希望あり → 休み → 未提出。
 // 勤務がまだない日（「くわしく」で開いた直後など）も、希望のある人が上に来る。
 const getDailyGroup = (staff: StaffType, shift: ShiftData | undefined, mode: DailyStaffSortMode): number => {
   if (getEarliestAssignedWorkRange(shift)) return 0;
@@ -147,8 +149,22 @@ const getDailyGroup = (staff: StaffType, shift: ShiftData | undefined, mode: Dai
   return hasWorkRequest(shift, mode) ? 1 : 2;
 };
 
-export const sortDailyStaffs = ({ staffs, shiftByStaffId, mode }: SortDailyStaffsParams): StaffType[] =>
-  [...staffs].sort((a, b) => {
+/**
+ * 日別の並び。
+ * - 「固定」は、勤務や希望があってもなくても、スタッフのページで決めた並び順のままにする。
+ * - 「勤務時間順」は、その日の状態のまとまり（勤務あり → 出勤の希望あり → 休み希望 → 未提出）で分け、
+ *   勤務と希望の時刻の早い順に並べる。休み希望と未提出のまとまりと、時刻が同じ人どうしは、決めた並び順になる。
+ * 日付選択は勤務に時刻がなく、並び替えの項目もない。どちらを渡しても「固定」と同じ並びにする。
+ */
+export const sortDailyStaffs = ({
+  staffs,
+  shiftByStaffId,
+  mode,
+  staffSortMode = "fixed",
+}: SortDailyStaffsParams): StaffType[] => {
+  if (staffSortMode !== "workTime" || mode === "dateOnly") return [...staffs].sort(compareDefaultStaffOrder);
+
+  return [...staffs].sort((a, b) => {
     const aShift = shiftByStaffId?.get(a.id);
     const bShift = shiftByStaffId?.get(b.id);
     const aGroup = getDailyGroup(a, aShift, mode);
@@ -156,30 +172,31 @@ export const sortDailyStaffs = ({ staffs, shiftByStaffId, mode }: SortDailyStaff
 
     if (aGroup !== bGroup) return aGroup - bGroup;
 
-    // 勤務は勤務の時刻、希望は希望の時刻で、開始と終了が早い順にする。日付選択は時刻を持たないため比べない。
-    if (mode !== "dateOnly") {
-      const byTime =
-        aGroup === 0
-          ? compareRanges(getEarliestAssignedWorkRange(aShift), getEarliestAssignedWorkRange(bShift))
-          : aGroup === 1
-            ? compareRanges(getEarliestRequestRange(aShift), getEarliestRequestRange(bShift))
-            : 0;
-      if (byTime !== 0) return byTime;
-    }
+    // 勤務は勤務の時刻、希望は希望の時刻で、開始と終了が早い順にする。
+    const byTime =
+      aGroup === 0
+        ? compareRanges(getEarliestAssignedWorkRange(aShift), getEarliestAssignedWorkRange(bShift))
+        : aGroup === 1
+          ? compareRanges(getEarliestRequestRange(aShift), getEarliestRequestRange(bShift))
+          : 0;
+    if (byTime !== 0) return byTime;
 
     return compareDefaultStaffOrder(a, b);
   });
+};
 
-// 日付ごとに、その日のシフトをもとに日別ビューと同じ「早い順」でスタッフを並べ替える。
+// 日付ごとに、その日のシフトをもとに日別ビューと同じ決まりでスタッフを並べ替える。
 // 一覧タブ（人×時間／人×勤務パターン）で日別ビューと並びを揃えるために使う。
 export const sortDailyStaffsByDate = ({
   staffs,
   shifts,
   mode,
+  staffSortMode,
 }: {
   staffs: StaffType[];
   shifts: readonly ShiftData[];
   mode: DailyStaffSortMode;
+  staffSortMode?: StaffSortMode;
 }): Map<string, StaffType[]> => {
   const shiftsByDate = new Map<string, ShiftData[]>();
   for (const shift of shifts) {
@@ -190,7 +207,10 @@ export const sortDailyStaffsByDate = ({
 
   const sortedByDate = new Map<string, StaffType[]>();
   for (const [date, dateShifts] of shiftsByDate) {
-    sortedByDate.set(date, sortDailyStaffs({ staffs, shiftByStaffId: indexShiftsByStaffId(dateShifts), mode }));
+    sortedByDate.set(
+      date,
+      sortDailyStaffs({ staffs, shiftByStaffId: indexShiftsByStaffId(dateShifts), mode, staffSortMode }),
+    );
   }
   return sortedByDate;
 };

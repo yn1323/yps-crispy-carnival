@@ -1,12 +1,15 @@
 import type { Id } from "@/convex/_generated/dataModel";
 import type { DayRequirements } from "@/convex/shiftSetup/dayTemplates";
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
-import type { TimeRange } from "@/src/domains/shift/types";
+import type { StaffSortMode, TimeRange } from "@/src/domains/shift/types";
 
 export type ShiftBoardData = {
   shopId: Id<"shops">;
   /** 店舗がシフト表で最後に選んだ表示。trueは「くわしく」、falseは「シンプル」。まだ選んでいない店舗はnull。 */
   shiftDetailMode?: boolean | null;
+  /** 店舗が選んだスタッフの並び替え。まだ選んでいない店舗は「固定」。 */
+  shiftStaffSortMode?: StaffSortMode;
+  /** スタッフのページで決めた並び順。画面の並びと出力の両方に使う。 */
   exportStaffOrder?: Id<"staffs">[];
   canWriteBusinessData: boolean;
   businessWriteBlockReason: "paymentResultPending" | "usageLimitExceeded" | "usageLimitEvaluationUnavailable" | null;

@@ -147,6 +147,18 @@ export const dateOnlyBoardDetailArgs = {
   detailActions: { onOpenSetup: () => {}, dayStaffingActions: { onApplyTemplate: async () => true, isPending: false } },
 } satisfies ShiftFormArgs;
 
+/** くわしく表示で、1週目の12/2だけ必要人数がない。ポジションの人数のない日も、テンプレートの位置をほかの日とそろえる。 */
+export const dateOnlyBoardDayWithoutTemplateArgs = {
+  ...dateOnlyBoardDetailArgs,
+  staffing: buildStaffing({
+    templates: dateOnlyBoardTemplates,
+    days: dateOnlyBoardDates.map((date) => {
+      if (date === "2026-12-02") return unsetDay(date);
+      return templateDay(date, date === "2026-12-05" || date === "2026-12-06" ? weekendTemplate : weekdayTemplate);
+    }),
+  }),
+} satisfies ShiftFormArgs;
+
 /** 前のStoryで覚えたポジションを消す。空きのセルへ入るポジションを、店舗の先頭のポジションから始めるためである。 */
 export const clearRememberedDateOnlyBoardPosition = () => {
   localStorage.removeItem(lastPositionStorageKey(dateOnlyBoardShopId));

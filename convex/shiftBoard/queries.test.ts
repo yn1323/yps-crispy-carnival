@@ -445,6 +445,37 @@ describe("shiftBoard/queries", () => {
     expect((await getData())?.shiftDetailMode).toBe(false);
   });
 
+  it("店舗が選んだスタッフの並び替えを返す。まだ選んでいない店舗は「固定」を返す", async () => {
+    const t = convexTest(schema, modules);
+    const { shopId, recruitmentId } = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, { subject: "manager_staff_sort", shopName: "テスト店舗" });
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: "2026-04-01",
+        periodEnd: "2026-04-07",
+        deadline: "2026-03-28",
+        shopClosedDates: [],
+        status: "open",
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      return { shopId, recruitmentId };
+    });
+    const getData = async () =>
+      t.withIdentity({ subject: "manager_staff_sort" }).query(api.shiftBoard.queries.getShiftBoardData, {
+        shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
+        recruitmentId,
+        refreshDayKey: QUERY_REFRESH_DAY_KEY,
+      });
+
+    expect((await getData())?.shiftStaffSortMode).toBe("fixed");
+
+    await t.run(async (ctx) => ctx.db.patch(shopId, { shiftStaffSortMode: "workTime" }));
+
+    expect((await getData())?.shiftStaffSortMode).toBe("workTime");
+  });
+
   it("シフト対象外スタッフはシフト表に含めない", async () => {
     const t = convexTest(schema, modules);
     const { shopId, recruitmentId, includedStaffId } = await t.run(async (ctx) => {

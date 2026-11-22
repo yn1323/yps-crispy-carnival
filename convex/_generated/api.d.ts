@@ -34,6 +34,7 @@ import type * as _lib_sha256 from "../_lib/sha256.js";
 import type * as _lib_shiftAssignmentNormalization from "../_lib/shiftAssignmentNormalization.js";
 import type * as _lib_shiftAssignmentValidators from "../_lib/shiftAssignmentValidators.js";
 import type * as _lib_shiftSetupValidators from "../_lib/shiftSetupValidators.js";
+import type * as _lib_shiftStaffSortMode from "../_lib/shiftStaffSortMode.js";
 import type * as _lib_shopAvailability from "../_lib/shopAvailability.js";
 import type * as _lib_shopManagerRecipients from "../_lib/shopManagerRecipients.js";
 import type * as _lib_staffAccess from "../_lib/staffAccess.js";
@@ -330,6 +331,7 @@ declare const fullApi: ApiFromModules<{
   "_lib/shiftAssignmentNormalization": typeof _lib_shiftAssignmentNormalization;
   "_lib/shiftAssignmentValidators": typeof _lib_shiftAssignmentValidators;
   "_lib/shiftSetupValidators": typeof _lib_shiftSetupValidators;
+  "_lib/shiftStaffSortMode": typeof _lib_shiftStaffSortMode;
   "_lib/shopAvailability": typeof _lib_shopAvailability;
   "_lib/shopManagerRecipients": typeof _lib_shopManagerRecipients;
   "_lib/staffAccess": typeof _lib_staffAccess;

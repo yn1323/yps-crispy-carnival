@@ -369,6 +369,23 @@ export async function getOrganizationStaffOrderScope(
   return canonicalStaffs && shopEntriesValid ? { mode: "ordered", revision: state.revision } : { mode: "legacy" };
 }
 
+/**
+ * 店舗のスタッフを、スタッフのページで決めた並び順（組織共通順の部分列）で並べたIDを返す。
+ * 並び順が有効でない組織と、完全性が崩れている場合はnullを返す。呼び出し側は、既定の順（登録順など）へ戻す。
+ */
+export async function listShopStaffIdsInSavedOrder(
+  ctx: ReadCtx,
+  args: { organizationId: Id<"organizations">; shopId: Id<"shops"> },
+): Promise<Id<"staffs">[] | null> {
+  const scope = await getOrganizationStaffOrderScope(ctx, args);
+  if (scope.mode !== "ordered") return null;
+  const entries = await ctx.db
+    .query("shopStaffOrderEntries")
+    .withIndex("by_shopId_and_displayOrder", (q) => q.eq("shopId", args.shopId))
+    .take(ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT);
+  return entries.map((entry) => entry.staffId);
+}
+
 async function deleteExistingOrderRows(ctx: WriteCtx, resolution: OrganizationOrderResolution) {
   for (const entry of resolution.organizationEntries) await ctx.db.delete(entry._id);
   for (const entries of resolution.shopEntries.values()) {

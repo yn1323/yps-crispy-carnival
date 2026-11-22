@@ -228,6 +228,7 @@ const COUNT_TONE_STYLES = {
 /**
  * ポジション1つ分の「配置/必要」。チップと文字で同じ幅を取り、状態が変わっても位置を動かさない。
  * 文字を持たない（必要人数がなく、だれも入っていない）場合も、同じ幅の空きを残す。
+ * 位置をそろえる表（スマートフォンのパターン選択の充足）で使う。PCの見出しでは、文字を持たないものを並べない。
  */
 export const PositionStaffingCount = ({
   count,
@@ -289,41 +290,4 @@ export const FulfillmentLabel = ({ percent, isFulfilled }: { percent: number; is
   >
     充足 {percent}%
   </Text>
-);
-
-/** 押せないポジションの凡例。色の丸と名前を並べる。 */
-export const PositionDotLegend = ({
-  positions,
-}: {
-  positions: ReadonlyArray<{ id: string; name: string; color: string }>;
-}) => (
-  <Flex
-    as="ul"
-    aria-label="ポジション"
-    listStyleType="none"
-    align="center"
-    columnGap={3}
-    rowGap={1}
-    flexWrap="wrap"
-    minW={0}
-  >
-    {positions.map((position) => (
-      <Flex as="li" key={position.id} align="center" gap="6px" minW={0}>
-        <Box boxSize="10px" borderRadius="full" flexShrink={0} style={{ background: position.color }} aria-hidden />
-        <Text as="span" textStyle="xs" fontWeight={600} color="gray.700" truncate>
-          {position.name}
-        </Text>
-      </Flex>
-    ))}
-  </Flex>
-);
-
-/** 点の意味。ピルを押しても理由を出せない表示（スマートフォンで、押すと割り当てが外れる表示と閲覧専用）で、表の下に出す。 */
-export const AssignmentDotLegend = () => (
-  <Flex px={3} py={3} columnGap={4} rowGap={1} flexWrap="wrap" textStyle="2xs" color="gray.600">
-    <Flex align="center" gap="6px">
-      <Box boxSize="8px" borderRadius="full" bg="orange.400" aria-hidden />
-      橙の点：確認が必要
-    </Flex>
-  </Flex>
 );
