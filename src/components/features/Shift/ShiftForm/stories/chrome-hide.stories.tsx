@@ -75,7 +75,8 @@ const findMainScroller = async (canvasElement: HTMLElement) => {
   return scroller as HTMLElement;
 };
 
-const expectHidesAndReveals = async (canvasElement: HTMLElement) => {
+/** 下へスクロールすると、上の行を隠し、置く側へ伝える。 */
+const expectHides = async (canvasElement: HTMLElement) => {
   const canvas = within(canvasElement);
   const notification = await canvas.findByRole("status", { name: "上の行の通知" });
   const chromeRow = canvasElement.querySelector<HTMLElement>("[data-chrome-row]");
@@ -83,16 +84,34 @@ const expectHidesAndReveals = async (canvasElement: HTMLElement) => {
   const scroller = await findMainScroller(canvasElement);
   await expect(chromeRow).not.toHaveAttribute("data-chrome-hidden");
 
-  // 下へスクロールすると、上の行を隠し、置く側へ伝える。
   scroller.scrollTop = 120;
   await nextFrame();
   scroller.scrollTop = 320;
   await waitFor(() => expect(chromeRow).toHaveAttribute("data-chrome-hidden"));
   await waitFor(() => expect(chromeRow.getBoundingClientRect().height).toBe(0));
   await expect(notification).toHaveTextContent("通知：true");
+  return { scroller, chromeRow, notification };
+};
 
-  // 上へ戻すと、表示する。
-  scroller.scrollTop = 290;
+/**
+ * スマートフォンでは、表の途中で少し上へ戻しても上の行を出さない。
+ * はっきり上へ戻しても上の行は隠したままにし、上端の近くへ来たときに表示する。
+ */
+const expectRevealsOnlyNearTopOnMobile = async (canvasElement: HTMLElement) => {
+  const { scroller, chromeRow, notification } = await expectHides(canvasElement);
+  scroller.scrollTop = 700;
+  await nextFrame();
+
+  scroller.scrollTop = 670;
+  await nextFrame();
+  await expect(chromeRow).toHaveAttribute("data-chrome-hidden");
+
+  scroller.scrollTop = 300;
+  await nextFrame();
+  await expect(chromeRow).toHaveAttribute("data-chrome-hidden");
+  await expect(notification).toHaveTextContent("通知：true");
+
+  scroller.scrollTop = 0;
   await waitFor(() => expect(chromeRow).not.toHaveAttribute("data-chrome-hidden"));
   await expect(notification).toHaveTextContent("通知：true、false");
   return { scroller };
@@ -103,7 +122,12 @@ export const HidesOnDesktop: Story = {
   name: "Hides On Desktop",
   globals: desktopGlobals,
   play: async ({ canvasElement }) => {
-    await expectHidesAndReveals(canvasElement);
+    const { scroller, chromeRow, notification } = await expectHides(canvasElement);
+
+    // 上へ戻すと、表示する。
+    scroller.scrollTop = 290;
+    await waitFor(() => expect(chromeRow).not.toHaveAttribute("data-chrome-hidden"));
+    await expect(notification).toHaveTextContent("通知：true、false");
   },
 };
 
@@ -116,7 +140,7 @@ export const HidesOnMobile: Story = {
   globals: mobileGlobals,
   tags: ["vrt-mobile2"],
   play: async ({ canvasElement }) => {
-    const { scroller } = await expectHidesAndReveals(canvasElement);
+    const { scroller } = await expectRevealsOnlyNearTopOnMobile(canvasElement);
     const dateChip = canvasElement.querySelector<HTMLElement>("[data-date-chip]");
     const heading = within(canvasElement).getByText(/^\d+月\d+日$/);
     if (!dateChip) throw new Error("日付の一覧が見つかりません");
@@ -133,26 +157,30 @@ export const HidesOnMobile: Story = {
 
 /**
  * 日付選択とパターン選択のスマートフォンでは、日付の一覧が表の外にあるため、上の行と一緒に縮めて隠す。
- * 日付の見出しは残し、上へ戻すと日付の一覧も表示する。
+ * 日付の見出しは残す。表の途中ではっきり上へ戻すと、日付の一覧だけを表示し、上の行は隠したままにする。
  */
 const expectDateRailHidesWithChrome = async (canvasElement: HTMLElement) => {
-  const { scroller } = await expectHidesAndReveals(canvasElement);
+  const { scroller } = await expectRevealsOnlyNearTopOnMobile(canvasElement);
+  const chromeRow = canvasElement.querySelector<HTMLElement>("[data-chrome-row]");
   const dateChip = canvasElement.querySelector<HTMLElement>("[data-date-chip]");
   const dateRail = dateChip?.closest<HTMLElement>("[data-chrome-collapse]");
-  if (!dateRail) throw new Error("隠す行の中に日付の一覧が見つかりません");
+  if (!chromeRow || !dateRail) throw new Error("隠す行の中に日付の一覧が見つかりません");
   // 日付の一覧のすぐ下の行が、日付の見出し（日付、テンプレート、表示設定）である。
   const dateHeading = dateRail.nextElementSibling;
   if (!(dateHeading instanceof HTMLElement)) throw new Error("日付の見出しが見つかりません");
 
-  scroller.scrollTop = 600;
+  scroller.scrollTop = 200;
+  await nextFrame();
+  scroller.scrollTop = 700;
   await waitFor(() => expect(dateRail).toHaveAttribute("data-chrome-hidden"));
   await waitFor(() => expect(dateRail.getBoundingClientRect().height).toBe(0));
   await expect(dateHeading).toBeVisible();
   await expect(dateHeading.getBoundingClientRect().height).toBeGreaterThan(0);
 
-  scroller.scrollTop = 560;
+  scroller.scrollTop = 300;
   await waitFor(() => expect(dateRail).not.toHaveAttribute("data-chrome-hidden"));
   await waitFor(() => expect(dateRail.getBoundingClientRect().height).toBeGreaterThan(0));
+  await expect(chromeRow).toHaveAttribute("data-chrome-hidden");
 };
 
 export const HidesDateRailOnMobileDateOnly: Story = {

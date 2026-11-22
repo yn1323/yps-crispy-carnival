@@ -233,9 +233,11 @@ const ShiftFormInner = ({
   const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const displayIssues = useMemo(() => toDisplayIssues(validationIssues ?? [], staffs), [validationIssues, staffs]);
   const layoutMode = useBreakpointValue({ base: "sp", lg: "pc" }) ?? "pc";
-  // 内側の入れ物を下へスクロールすると、上の行を隠す。選んだ日か表示を変えると、表示した状態へ戻す。
+  // 内側の入れ物を下へスクロールすると、上の行を隠す。スマートフォンの表の途中で上へ戻すと、日付の一覧だけを出す。
   const selectedDateForChrome = useAtomValue(selectedDateAtom);
-  const handleScrollCapture = useChromeHideOnScroll(`${viewMode}:${selectedDateForChrome}`, onChromeHiddenChange);
+  const handleScrollCapture = useChromeHideOnScroll(`${viewMode}:${selectedDateForChrome}`, onChromeHiddenChange, {
+    isCompact: layoutMode === "sp",
+  });
 
   // エラー行クリックで該当日付の日別ビューへ移動し、該当スタッフ行までスクロールする
   const handleSelectIssue = useCallback(

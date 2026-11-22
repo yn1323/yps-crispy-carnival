@@ -209,6 +209,8 @@ export const SPDailyView = () => {
         px={`${SP_LIST_PADDING_X_PX}px`}
         py={3}
         data-tour="shift-grid"
+        // 充足を開いて低くなっても、画面のスクロールとして扱う。
+        data-chrome-scroll-target
       >
         {isShopClosedDate ? (
           <Flex minH="240px" align="center" justify="center" direction="column" gap={2} px={4}>

@@ -61,7 +61,7 @@ export const PositionDialogInteractive: Story = {
 
     // 「希望」をタップすると、覚えたポジションがないため、店舗の先頭のポジション（販売）で入る。
     const requested = await canvas.findByRole("button", { name: "林 心春 12/2(水) 勤務なし" });
-    await expect(requested).toHaveTextContent("希望");
+    await expect(requested).toHaveTextContent("希望あり");
     const rowHeight = (requested.closest("li") as HTMLElement).getBoundingClientRect().height;
     await userEvent.click(requested);
     const pill = await canvas.findByRole("button", { name: "林 心春 12/2(水) 勤務あり、販売" });

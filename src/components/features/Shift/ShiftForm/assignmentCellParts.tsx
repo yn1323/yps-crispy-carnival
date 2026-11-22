@@ -142,7 +142,7 @@ export const AssignmentPill = forwardRef<HTMLButtonElement, PillProps>(
         ) : (
           cell.showsRequestRing && (
             <Text as="span" textStyle="xs" fontWeight={500} color="gray.500">
-              希望
+              希望あり
             </Text>
           )
         )}

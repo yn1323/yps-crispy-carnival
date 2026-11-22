@@ -116,7 +116,7 @@ export const ToggleInteractive: Story = {
       Math.round((canvas.getByRole("row", { name: /山本 拓海/ }) as HTMLElement).getBoundingClientRect().height);
     const heightBefore = rowHeight();
 
-    await expect(await cell("勤務なし")).toHaveTextContent("希望");
+    await expect(await cell("勤務なし")).toHaveTextContent("希望あり");
     await userEvent.click(await cell("勤務なし"));
     const assigned = await cell("勤務あり");
     await expect(assigned).toHaveTextContent("○");
@@ -126,7 +126,7 @@ export const ToggleInteractive: Story = {
     await expect(rowHeight()).toBe(heightBefore);
 
     await userEvent.click(assigned);
-    await expect(await cell("勤務なし")).toHaveTextContent("希望");
+    await expect(await cell("勤務なし")).toHaveTextContent("希望あり");
     await expect(rowHeight()).toBe(heightBefore);
 
     // 希望していない早番に入れると、橙の点と理由が付く。

@@ -276,7 +276,8 @@ export const SPShiftTypeDailyView = () => {
         />
       )}
 
-      <Box flex={1} minH={0} overflow="auto" bg="gray.50">
+      {/* 充足を開いて低くなっても、画面のスクロールとして扱う。 */}
+      <Box flex={1} minH={0} overflow="auto" bg="gray.50" data-chrome-scroll-target>
         {isShopClosedDate ? (
           <Flex minH="240px" align="center" justify="center" direction="column" gap={2} px={4}>
             <Text textStyle="md" fontWeight={700} color="gray.700">

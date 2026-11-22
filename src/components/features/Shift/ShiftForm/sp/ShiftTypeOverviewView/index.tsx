@@ -14,7 +14,6 @@ import {
   warningCountByDateAtom,
 } from "../../stores";
 import { SHIFT_WEEKDAY_TONE_COLORS } from "../../weekdayPresentation";
-import { StaffTotalsCard } from "../StaffTotalsCard";
 import {
   buildShiftTypeOverviewViewModel,
   type ShiftTypeOverviewDayRowViewModel,
@@ -61,7 +60,6 @@ export const SPShiftTypeOverviewView = () => {
   return (
     <Box flex={1} minH={0} overflow="auto" bg="gray.50" px={3} py={3}>
       <Stack gap={2}>
-        <StaffTotalsCard />
         {viewModel.weeks.map((week) => {
           const isOpen = !!open[week.key];
           return (

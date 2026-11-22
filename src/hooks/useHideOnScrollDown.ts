@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 /** ページ上端からこの距離までは、スクロール方向にかかわらず常に表示する。 */
-const ALWAYS_VISIBLE_SCROLL_Y = 64;
+export const ALWAYS_VISIBLE_SCROLL_Y = 64;
 /** 指の揺れや慣性スクロールの微小な戻りで表示が切り替わらないようにする移動量。 */
 const HIDE_DISTANCE = 12;
 const REVEAL_DISTANCE = 8;
@@ -26,8 +26,11 @@ export function createHideOnScrollDownTracker(initialScrollY = 0) {
   };
 
   return {
-    /** いまのスクロール位置と、スクロールできる最大の位置を受け取り、隠すかどうかを返す。 */
-    update(scrollY: number, maxScrollY: number): boolean {
+    /**
+     * いまのスクロール位置と、スクロールできる最大の位置を受け取り、隠すかどうかを返す。
+     * `revealDistance`は、隠したあとに上へ戻して表示するまでの移動量。
+     */
+    update(scrollY: number, maxScrollY: number, revealDistance = REVEAL_DISTANCE): boolean {
       if (scrollY <= ALWAYS_VISIBLE_SCROLL_Y) return apply(false, scrollY);
 
       // スクロール範囲が縮むと、ブラウザが下端の位置を戻す（モバイルブラウザのツールバーや、隠した分だけ入れ物が伸びた場合）。
@@ -36,7 +39,7 @@ export function createHideOnScrollDownTracker(initialScrollY = 0) {
 
       if (hidden) {
         if (scrollY > anchorY) anchorY = scrollY;
-        else if (anchorY - scrollY >= REVEAL_DISTANCE) return apply(false, scrollY);
+        else if (anchorY - scrollY >= revealDistance) return apply(false, scrollY);
         return hidden;
       }
 

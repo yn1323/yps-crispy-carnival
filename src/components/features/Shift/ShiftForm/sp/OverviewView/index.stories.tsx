@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
 import { ShiftForm } from "../..";
 import { fullscreenParameters, mobileGlobals, shiftFormDecorators } from "../../stories/shared";
 import { timeDetailArgs } from "../detailStoryFixtures";
@@ -28,22 +27,4 @@ export const DetailReadOnly: Story = {
   name: "Detail Read Only",
   args: { ...overviewArgs, isReadOnly: true, displayMode: "confirmed", onDetailModeChange: undefined },
   globals: mobileGlobals,
-};
-
-/** 人ごとの合計は、押したときだけ開く。時間指定は休憩を引いた時間で出す。 */
-export const StaffTotalsInteractive: Story = {
-  name: "Staff Totals Interactive",
-  args: overviewArgs,
-  globals: mobileGlobals,
-  parameters: { screenshot: { skip: true } },
-  play: async ({ canvasElement }) => {
-    const totals = await within(canvasElement).findByRole("region", { name: "人ごとの合計" });
-    await expect(within(totals).queryByText("Aさん")).not.toBeInTheDocument();
-
-    await userEvent.click(within(totals).getByRole("button", { name: "人ごとの合計" }));
-    await within(totals).findByText("Aさん");
-    // Aさんは「8時間−休憩1時間」と「8時間」で、計15時間。
-    // 名前の横に熟練度の印は出さない。
-    await expect(totals).toHaveTextContent("Aさん15hBさん12.5hCさん4hDさん7hEさん-");
-  },
 };

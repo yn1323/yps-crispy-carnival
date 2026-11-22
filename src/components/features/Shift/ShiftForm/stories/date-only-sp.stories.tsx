@@ -82,7 +82,7 @@ export const Interactive: Story = {
     await expect(canvas.queryByText("橙の点：確認が必要")).not.toBeInTheDocument();
     await userEvent.click(tanakaSecond);
     const tanakaRemoved = await canvas.findByRole("button", { name: "田中 太郎 6/2(火) 勤務なし" });
-    await expect(tanakaRemoved).toHaveTextContent("希望");
+    await expect(tanakaRemoved).toHaveTextContent("希望あり");
 
     await userEvent.click(await canvas.findByRole("tab", { name: "一覧" }));
     await expect(await canvas.findByText("6/1 – 6/7")).toBeInTheDocument();

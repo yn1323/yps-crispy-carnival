@@ -249,7 +249,7 @@ export const PositionMenuInteractive: Story = {
     // 「削除」で割り当てを外すと、希望の輪だけが残る。
     await userEvent.click(await lateCell("勤務あり"));
     await userEvent.click(await body.findByRole("menuitem", { name: "削除" }));
-    await expect(await lateCell("勤務なし")).toHaveTextContent("希望");
+    await expect(await lateCell("勤務なし")).toHaveTextContent("希望あり");
   },
 };
 

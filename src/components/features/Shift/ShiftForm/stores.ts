@@ -378,8 +378,12 @@ export const detailToggleEnabledAtom = atom<boolean>(false);
 // ==========================================
 // スクロールで隠す上の行
 // ==========================================
-// 内側の入れ物を下へスクロールして、上の行（戻る、日別と一覧、保存の行）を隠している間はtrue。
-export const chromeHiddenAtom = atom<boolean>(false);
+// 上の行（アプリのヘッダーと、戻る、日別と一覧、保存の行）と、スマートフォンの日付の一覧の出し方。
+// - shown: すべて表示する。
+// - datesOnly: スマートフォンで、表の途中から上へ戻したとき。日付の一覧だけを表示し、上の行は上端へ来るまで隠す。
+// - hidden: 内側の入れ物を下へスクロールしている間。すべて隠す。
+export type ChromeVisibility = "shown" | "datesOnly" | "hidden";
+export const chromeVisibilityAtom = atom<ChromeVisibility>("shown");
 
 // ==========================================
 // 自動作成

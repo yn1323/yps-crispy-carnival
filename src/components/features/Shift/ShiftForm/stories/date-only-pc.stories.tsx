@@ -96,7 +96,7 @@ export const ToggleInteractive: Story = {
     const row = requested.closest("tr") as HTMLElement;
     const rowHeight = row.getBoundingClientRect().height;
     const ringRect = requested.getBoundingClientRect();
-    await expect(requested).toHaveTextContent("希望");
+    await expect(requested).toHaveTextContent("希望あり");
     await expect(requested).toHaveAccessibleDescription("希望あり、連絡事項あり");
 
     await userEvent.click(requested);
@@ -108,7 +108,9 @@ export const ToggleInteractive: Story = {
     await expect(row.getBoundingClientRect().height).toBe(rowHeight);
 
     await userEvent.click(assigned);
-    await expect(await canvas.findByRole("button", { name: "林 心春 12/2(水) 勤務なし" })).toHaveTextContent("希望");
+    await expect(await canvas.findByRole("button", { name: "林 心春 12/2(水) 勤務なし" })).toHaveTextContent(
+      "希望あり",
+    );
 
     // 希望のない日に入れると、橙の点が出る。点にマウスを乗せると、理由が出る。
     const empty = await canvas.findByRole("button", { name: "林 心春 12/4(金) 勤務なし" });

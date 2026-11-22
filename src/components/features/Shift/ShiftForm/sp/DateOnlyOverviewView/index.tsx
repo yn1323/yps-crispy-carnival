@@ -12,7 +12,6 @@ import {
   viewModeAtom,
   warningCountByDateAtom,
 } from "../../stores";
-import { StaffTotalsCard } from "../StaffTotalsCard";
 import {
   buildDateOnlyOverviewViewModel,
   type DateOnlyOverviewDayRowViewModel,
@@ -64,7 +63,6 @@ export const SPDateOnlyOverviewView = () => {
   return (
     <Box flex={1} minH={0} overflow="auto" bg="gray.50" px={3} py={3}>
       <Stack gap={3}>
-        <StaffTotalsCard />
         {viewModel.weeks.map((week, index) => {
           const isOpen = openWeeks[week.key] ?? index === 0;
           return (

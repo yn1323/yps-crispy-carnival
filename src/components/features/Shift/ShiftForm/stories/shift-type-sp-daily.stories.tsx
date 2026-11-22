@@ -70,13 +70,13 @@ export const ToggleInteractive: Story = {
     const canvas = within(canvasElement);
     const cell = (state: "勤務あり" | "勤務なし") => canvas.findByRole("button", { name: `山本 拓海 遅番 ${state}` });
 
-    await expect(await cell("勤務なし")).toHaveTextContent("希望");
+    await expect(await cell("勤務なし")).toHaveTextContent("希望あり");
     await userEvent.click(await cell("勤務なし"));
     await expect(await cell("勤務あり")).toHaveTextContent("○");
     await expect(await canvas.findByRole("columnheader", { name: /遅番/ })).toHaveTextContent("15–21・4人");
 
     await userEvent.click(await cell("勤務あり"));
-    await expect(await cell("勤務なし")).toHaveTextContent("希望");
+    await expect(await cell("勤務なし")).toHaveTextContent("希望あり");
 
     // 希望のないセルに入れると、橙の点が出る。山本さんは遅番だけを希望している。
     await userEvent.click(await canvas.findByRole("button", { name: "山本 拓海 早番 勤務なし" }));
