@@ -25,8 +25,32 @@ export async function listActivePositions(ctx: DbCtx, shopId: Id<"shops">): Prom
   return positions.sort((left, right) => left.sortOrder - right.sortOrder || left._creationTime - right._creationTime);
 }
 
+/** 店舗の有効なポジションのID。受け取ったポジションが、同じ店舗の有効なものかを確かめるために使う。 */
+export async function listActivePositionIds(ctx: DbCtx, shopId: Id<"shops">): Promise<Set<Id<"positions">>> {
+  const positions = await listActivePositions(ctx, shopId);
+  return new Set(positions.map((position) => position._id));
+}
+
 /** 募集のシフトを表示・検証するときに使うポジション。 */
 export type RecruitmentPosition = { _id: Id<"positions">; name: string; color: string; isDefault: boolean };
+
+/** 設定のポジションから、画面へ返す項目だけを取り出す。 */
+export function toPositionDto(position: Doc<"positions">): RecruitmentPosition {
+  return { _id: position._id, name: position.name, color: position.color, isDefault: position.isDefault };
+}
+
+/** 確定済みの募集が持つ、確定した時点のポジション。未確定の募集と、確定時の一覧を持たない募集はnullを返す。 */
+function getConfirmedPositions(recruitment: Pick<Doc<"recruitments">, "status" | "confirmedPositions">) {
+  const confirmed = recruitment.status === "confirmed" ? recruitment.confirmedPositions : undefined;
+  return confirmed && confirmed.length > 0 ? confirmed : null;
+}
+
+/** 確定した時点のポジションを使う募集かを返す。listRecruitmentPositionsが確定時の一覧を返す条件と同じである。 */
+export function usesConfirmedPositions(
+  recruitment: Pick<Doc<"recruitments">, "status" | "confirmedPositions">,
+): boolean {
+  return getConfirmedPositions(recruitment) !== null;
+}
 
 /**
  * 募集で使うポジションを、並び順で返す。
@@ -37,8 +61,8 @@ export async function listRecruitmentPositions(
   ctx: DbCtx,
   recruitment: Pick<Doc<"recruitments">, "shopId" | "status" | "confirmedPositions">,
 ): Promise<RecruitmentPosition[]> {
-  const confirmed = recruitment.status === "confirmed" ? recruitment.confirmedPositions : undefined;
-  if (confirmed && confirmed.length > 0) {
+  const confirmed = getConfirmedPositions(recruitment);
+  if (confirmed) {
     return confirmed.map((position) => ({
       _id: position.positionId,
       name: position.name,
@@ -47,12 +71,7 @@ export async function listRecruitmentPositions(
     }));
   }
   const positions = await listActivePositions(ctx, recruitment.shopId);
-  return positions.map((position) => ({
-    _id: position._id,
-    name: position.name,
-    color: position.color,
-    isDefault: position.isDefault,
-  }));
+  return positions.map(toPositionDto);
 }
 
 export async function listDayTemplates(ctx: DbCtx, shopId: Id<"shops">): Promise<Doc<"shiftDayTemplates">[]> {

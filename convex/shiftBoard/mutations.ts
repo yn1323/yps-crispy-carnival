@@ -8,7 +8,7 @@ import { managerMutation } from "../_lib/functions";
 import { assertRecruitmentEditVersion, isCurrentSubmission } from "../_lib/recruitmentEditing";
 import { sha256Hex } from "../_lib/sha256";
 import { normalizeExactAdjacentTimeAssignments, sortShiftBreaks } from "../_lib/shiftAssignmentNormalization";
-import { shiftAssignmentBreakValidator } from "../_lib/shiftAssignmentValidators";
+import { shiftAssignmentBreakValidator, toShiftAssignmentCore } from "../_lib/shiftAssignmentValidators";
 import { shiftStaffSortModeValidator } from "../_lib/shiftStaffSortMode";
 import { normalizeEmail } from "../_lib/validation";
 import { recordAnalyticsUsage } from "../analytics/record";
@@ -27,6 +27,7 @@ import {
   listDayTemplates,
   listRecruitmentPositions,
   resolveRecruitmentStaffingDays,
+  usesConfirmedPositions,
 } from "../shiftSetup/service";
 import { getActiveStaffInShop, isShiftTargetStaff } from "../staff/service";
 import { buildAssignmentIssue, SHIFT_ASSIGNMENT_VALIDATION, validateShiftAssignments } from "./validation";
@@ -187,12 +188,37 @@ async function scheduleSupplementalConfirmationResends(
   return scheduledStaffCount;
 }
 
-async function getSubmittedStaffIds(ctx: MutationCtx, recruitmentId: Id<"recruitments">) {
+/**
+ * 募集の保存済みの勤務をすべて読む。
+ * 一部だけを置き換えたり消したりしないよう、上限を超える募集では処理ごと受け付けない。
+ */
+async function listSavedAssignments(ctx: MutationCtx, recruitmentId: Id<"recruitments">) {
+  const assignments = await ctx.db
+    .query("shiftAssignments")
+    .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
+    .take(SHIFT_ASSIGNMENT_LIMIT + 1);
+  if (assignments.length > SHIFT_ASSIGNMENT_LIMIT) {
+    throw new ConvexError("保存済みシフト割当が上限を超えています");
+  }
+  return assignments;
+}
+
+/**
+ * 仮の勤務のうち、提出済みスタッフのものを返す。仮の勤務を入れたあとで提出したスタッフには、希望を優先する。
+ * 仮の勤務がなければ、提出を読まない。
+ */
+async function listStaleProvisionalAssignments<T extends { staffId: Id<"staffs">; isProvisional?: boolean }>(
+  ctx: MutationCtx,
+  recruitmentId: Id<"recruitments">,
+  assignments: readonly T[],
+): Promise<T[]> {
+  if (!assignments.some((assignment) => assignment.isProvisional)) return [];
   const submissions = await ctx.db
     .query("shiftSubmissions")
     .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
     .take(SHIFT_BOARD_STAFF_LIMIT);
-  return new Set(submissions.filter(isCurrentSubmission).map((submission) => submission.staffId));
+  const submittedStaffIds = new Set(submissions.filter(isCurrentSubmission).map((submission) => submission.staffId));
+  return assignments.filter((assignment) => assignment.isProvisional && submittedStaffIds.has(assignment.staffId));
 }
 
 export const saveShiftAssignments = managerMutation({
@@ -242,9 +268,8 @@ export const saveShiftAssignments = managerMutation({
     const uniqueStaffIds = [...new Set(args.assignments.map((a) => a.staffId))];
     const uniquePositionIds = [...new Set(args.assignments.flatMap((a) => (a.positionId ? [a.positionId] : [])))];
     const recruitmentPositions = await listRecruitmentPositions(ctx, recruitment);
-    const usesConfirmedPositions =
-      recruitment.status === "confirmed" && (recruitment.confirmedPositions?.length ?? 0) > 0;
-    const confirmedPositionIds = usesConfirmedPositions
+    const hasConfirmedPositions = usesConfirmedPositions(recruitment);
+    const confirmedPositionIds = hasConfirmedPositions
       ? new Set(recruitmentPositions.map((position) => position._id))
       : null;
     await Promise.all(
@@ -267,26 +292,20 @@ export const saveShiftAssignments = managerMutation({
     );
 
     // 削除前に上限超過を検出し、一部だけを置換する状態を作らない。
-    const existing = await ctx.db
-      .query("shiftAssignments")
-      .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", args.recruitmentId))
-      .take(SHIFT_ASSIGNMENT_LIMIT + 1);
-    if (existing.length > SHIFT_ASSIGNMENT_LIMIT) {
-      throw new ConvexError("保存済みシフト割当が上限を超えています");
-    }
+    const existing = await listSavedAssignments(ctx, args.recruitmentId);
 
     const draftSavedAt = Date.now();
     // 確定済みの募集では、確定した時点の既定のポジションへ寄せる。
     const defaultPositionId =
-      (usesConfirmedPositions ? recruitmentPositions.find((position) => position.isDefault)?._id : undefined) ??
+      (hasConfirmedPositions ? recruitmentPositions.find((position) => position.isDefault)?._id : undefined) ??
       (await ensureDefaultPosition(ctx, ctx.shop._id));
     // 仮の勤務は未提出者のものだけを保存する。画面を開いている間に提出したスタッフの仮の勤務は、
     // 希望を優先するために保存しない。開き直すと、そのスタッフの希望が勤務の候補として出る。
-    const submittedStaffIds = args.assignments.some((assignment) => assignment.isProvisional)
-      ? await getSubmittedStaffIds(ctx, args.recruitmentId)
-      : new Set<Id<"staffs">>();
+    const staleProvisionalAssignments = new Set(
+      await listStaleProvisionalAssignments(ctx, args.recruitmentId, args.assignments),
+    );
     const resolvedAssignments = args.assignments
-      .filter((assignment) => !(assignment.isProvisional && submittedStaffIds.has(assignment.staffId)))
+      .filter((assignment) => !staleProvisionalAssignments.has(assignment))
       .map(({ breaks, isProvisional, ...assignment }) => ({
         ...assignment,
         positionId: assignment.positionId ?? defaultPositionId,
@@ -353,13 +372,7 @@ export const switchShiftDetailMode = managerMutation({
     }
 
     // 消し残しを作らないよう、上限を超える下書きでは切り替えごと受け付けない。
-    const existing = await ctx.db
-      .query("shiftAssignments")
-      .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", args.recruitmentId))
-      .take(SHIFT_ASSIGNMENT_LIMIT + 1);
-    if (existing.length > SHIFT_ASSIGNMENT_LIMIT) {
-      throw new ConvexError("保存済みシフト割当が上限を超えています");
-    }
+    const existing = await listSavedAssignments(ctx, args.recruitmentId);
     await Promise.all(existing.map((assignment) => ctx.db.delete(assignment._id)));
     // 勤務のない募集は「下書き未保存」が正しいため、下書き保存の時刻も消す。
     await ctx.db.patch(args.recruitmentId, { draftSavedAt: undefined });
@@ -386,11 +399,12 @@ export const setShiftStaffSortMode = managerMutation({
  * 確定した時点の、募集期間の各日の必要人数（募集の集め方へ写したもの）とテンプレートの名前を保存する。
  * 確定済みのシフト表は、この内容だけを表示する。テンプレートが当たらない日は行を作らない。
  */
-async function saveRecruitmentStaffingSnapshots(ctx: MutationCtx, recruitment: Doc<"recruitments">) {
-  const [positions, templates] = await Promise.all([
-    listActivePositions(ctx, recruitment.shopId),
-    listDayTemplates(ctx, recruitment.shopId),
-  ]);
+async function saveRecruitmentStaffingSnapshots(
+  ctx: MutationCtx,
+  recruitment: Doc<"recruitments">,
+  positions: ReadonlyArray<Doc<"positions">>,
+) {
+  const templates = await listDayTemplates(ctx, recruitment.shopId);
   const days = await resolveRecruitmentStaffingDays(ctx, {
     shopId: recruitment.shopId,
     recruitment,
@@ -450,23 +464,14 @@ export const confirmRecruitment = managerMutation({
     }
 
     const shopClosedDateSet = new Set(recruitment.shopClosedDates);
-    const savedAssignments = await ctx.db
-      .query("shiftAssignments")
-      .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", args.recruitmentId))
-      .take(SHIFT_ASSIGNMENT_LIMIT + 1);
-    if (savedAssignments.length > SHIFT_ASSIGNMENT_LIMIT) {
-      throw new ConvexError("保存済みシフト割当が上限を超えています");
-    }
+    const savedAssignments = await listSavedAssignments(ctx, args.recruitmentId);
     // 仮の勤務を入れたあとで提出したスタッフには、希望を優先する。
     // 画面を通さない確定でも、提出済みスタッフの仮の勤務を確定内容に残さない。
-    const staleProvisionalAssignments = savedAssignments.some((assignment) => assignment.isProvisional)
-      ? await (async () => {
-          const submittedStaffIds = await getSubmittedStaffIds(ctx, args.recruitmentId);
-          return savedAssignments.filter(
-            (assignment) => assignment.isProvisional && submittedStaffIds.has(assignment.staffId),
-          );
-        })()
-      : [];
+    const staleProvisionalAssignments = await listStaleProvisionalAssignments(
+      ctx,
+      args.recruitmentId,
+      savedAssignments,
+    );
     await Promise.all(staleProvisionalAssignments.map((assignment) => ctx.db.delete(assignment._id)));
     const staleProvisionalIds = new Set(staleProvisionalAssignments.map((assignment) => assignment._id));
     const existingAssignments = savedAssignments.filter((assignment) => !staleProvisionalIds.has(assignment._id));
@@ -493,15 +498,7 @@ export const confirmRecruitment = managerMutation({
     const notificationStaffs = staffs.filter(isShiftTargetStaff);
     const currentSnapshots = buildConfirmationSnapshotsForStaffs(
       notificationStaffs.map((staff) => staff._id),
-      existingAssignments.map((assignment) => ({
-        staffId: assignment.staffId,
-        date: assignment.date,
-        startTime: assignment.startTime,
-        endTime: assignment.endTime,
-        positionId: assignment.positionId,
-        ...(assignment.optionId !== undefined ? { optionId: assignment.optionId } : {}),
-        ...(assignment.breaks ? { breaks: assignment.breaks } : {}),
-      })),
+      existingAssignments.map((assignment) => ({ staffId: assignment.staffId, ...toShiftAssignmentCore(assignment) })),
       recruitment.submissionPattern.kind === "time",
     );
     // シフトボードで扱うスタッフ上限に合わせ、snapshotも差分判定対象のスタッフ分だけ読む。
@@ -609,24 +606,25 @@ export const confirmRecruitment = managerMutation({
     }
     const confirmedAt = Date.now();
     // 再確定も同じ導線で許可する。再通知では前回通知時点から変わったスタッフだけに届ける。
-    // 未確定から確定へ変わるときだけ、確定した時点のポジションを残す。再確定では書き直さない。
-    const confirmedPositions = isResend
-      ? undefined
-      : (await listActivePositions(ctx, recruitment.shopId)).map((position) => ({
-          positionId: position._id,
-          name: position.name,
-          color: position.color,
-          isDefault: position.isDefault,
-        }));
+    // 未確定から確定へ変わるときだけ、確定した時点のポジションと必要人数を残す。再確定では書き直さない。
+    const positionsAtConfirmation = isResend ? null : await listActivePositions(ctx, recruitment.shopId);
     await ctx.db.patch(args.recruitmentId, {
       status: "confirmed",
       confirmedAt,
-      ...(confirmedPositions ? { confirmedPositions } : {}),
+      ...(positionsAtConfirmation
+        ? {
+            confirmedPositions: positionsAtConfirmation.map((position) => ({
+              positionId: position._id,
+              name: position.name,
+              color: position.color,
+              isDefault: position.isDefault,
+            })),
+          }
+        : {}),
       lastConfirmationNotificationOperationKey: operationKey,
       lastConfirmationNotificationRunId: notificationRunId,
     });
-    // 未確定から確定へ変わるときだけ、確定した時点の必要人数を残す。再確定では書き直さない。
-    if (!isResend) await saveRecruitmentStaffingSnapshots(ctx, recruitment);
+    if (positionsAtConfirmation) await saveRecruitmentStaffingSnapshots(ctx, recruitment, positionsAtConfirmation);
     // 配送だけの再送は利用実績へ加えない。確定後に保存したシフトの再確定は記録する。
     if (!isResend || (recruitment.draftSavedAt ?? 0) > (recruitment.confirmedAt ?? 0)) {
       await recordAnalyticsUsage(ctx, {

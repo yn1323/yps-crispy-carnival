@@ -8,11 +8,10 @@ import {
   staffPositionSkillValidator,
 } from "../_lib/shiftSetupValidators";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
-import { SHIFT_BOARD_STAFF_LIMIT } from "../constants";
-import { getOrganizationStaffOrderScope } from "../organization/staffOrder";
+import { listShopStaffIdsInSavedOrder, sortStaffsInSavedOrder } from "../organization/staffOrder";
 import { getOrganizationAccessPolicy } from "../organizationBilling/service";
-import { isShiftTargetStaff } from "../staff/service";
-import { listActivePositions, listDayTemplates, toDayTemplateDto, toPositionSkillsDto } from "./service";
+import { listShiftTargetStaffsInShop } from "../staff/service";
+import { listActivePositions, listDayTemplates, toDayTemplateDto, toPositionDto, toPositionSkillsDto } from "./service";
 
 const shiftSetupWriteBlockReasonValidator = v.union(
   v.literal("paymentResultPending"),
@@ -61,26 +60,14 @@ export const getShiftSetup = managerQuery({
     const { shop, organization } = ctx;
     if (!shop || !organization) return null;
 
-    const [positions, templates, staffs, organizationAccess, staffOrderScope] = await Promise.all([
+    const [positions, templates, staffs, organizationAccess, savedStaffOrder] = await Promise.all([
       listActivePositions(ctx, shop._id),
       listDayTemplates(ctx, shop._id),
-      ctx.db
-        .query("staffs")
-        .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
-        .take(SHIFT_BOARD_STAFF_LIMIT),
+      listShiftTargetStaffsInShop(ctx, shop),
       getOrganizationAccessPolicy(ctx, organization._id),
-      getOrganizationStaffOrderScope(ctx, { organizationId: organization._id, shopId: shop._id }),
+      listShopStaffIdsInSavedOrder(ctx, { organizationId: organization._id, shopId: shop._id }),
     ]);
     const activePositionIds = new Set(positions.map((position) => position._id));
-    // スタッフは、ダッシュボードとシフト表と同じ並び順で返す。並び順をまだ持たない組織では、登録した順にする。
-    const staffOrderEntries =
-      staffOrderScope.mode === "ordered"
-        ? await ctx.db
-            .query("shopStaffOrderEntries")
-            .withIndex("by_shopId_and_displayOrder", (q) => q.eq("shopId", shop._id))
-            .take(SHIFT_BOARD_STAFF_LIMIT + 1)
-        : [];
-    const staffOrder = new Map(staffOrderEntries.map((entry, index) => [entry.staffId, index]));
     const businessWriteBlockReason =
       !organizationAccess || organizationAccess.usageLimitStatus?.kind === "unknown"
         ? ("usageLimitEvaluationUnavailable" as const)
@@ -92,26 +79,15 @@ export const getShiftSetup = managerQuery({
       regularClosedDays: shop.regularClosedDays,
       canWriteBusinessData: businessWriteBlockReason === null,
       businessWriteBlockReason,
-      positions: positions.map((position) => ({
-        _id: position._id,
-        name: position.name,
-        color: position.color,
-        isDefault: position.isDefault,
-      })),
+      positions: positions.map(toPositionDto),
       dayTemplates: templates.map((template) => toDayTemplateDto(template, shop.submissionPattern, activePositionIds)),
       breakRule: shop.breakRule ?? null,
-      staffs: staffs
-        .filter((staff) => staff.organizationId === shop.organizationId && isShiftTargetStaff(staff))
-        .sort(
-          (left, right) =>
-            (staffOrder.get(left._id) ?? Number.POSITIVE_INFINITY) -
-              (staffOrder.get(right._id) ?? Number.POSITIVE_INFINITY) || left._creationTime - right._creationTime,
-        )
-        .map((staff) => ({
-          _id: staff._id,
-          name: staff.name,
-          positionSkills: toPositionSkillsDto(staff, positions),
-        })),
+      // スタッフは、ダッシュボードとシフト表と同じ並び順で返す。並び順をまだ持たない組織では、登録した順にする。
+      staffs: sortStaffsInSavedOrder(staffs, savedStaffOrder).map((staff) => ({
+        _id: staff._id,
+        name: staff.name,
+        positionSkills: toPositionSkillsDto(staff, positions),
+      })),
       assistAvailable: getShiftSetupAssistMode() !== "off",
     };
   },

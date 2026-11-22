@@ -48,7 +48,7 @@ type Props = {
   staffOrder?: PeopleSectionStaffOrder;
   /**
    * 一覧の見出しの行（「全スタッフ」、人数、操作）を出さない。
-   * ページの見出しの横に人数と操作を置く画面（スタッフ）で使い、`PeopleSectionSummary`と`PeopleSectionActions`をそこへ置く。
+   * ページの見出しの横に人数と操作を置く画面（スタッフ）で使い、`PeopleSectionSummary`と`PeopleSectionHeaderActions`をそこへ置く。
    */
   hidesHeader?: boolean;
 };
@@ -58,6 +58,13 @@ export const formatPeopleUsage = (usage: BillingUsageView, hasOverflow = false):
   if (usage.max <= 0) return null;
   return hasOverflow ? `${usage.current}人以上 / 上限${usage.max}人` : `${usage.current} / ${usage.max}人`;
 };
+
+/** 店舗で絞り込んだときに出す、店舗所属スタッフの人数。 */
+const FilterResultCountBadge = ({ count, hasOverflow }: { count: number; hasOverflow: boolean }) => (
+  <Badge colorPalette="gray" variant="subtle" borderRadius="full" px={2.5} py={1}>
+    店舗所属スタッフ {count}人{hasOverflow ? "以上" : ""}
+  </Badge>
+);
 
 /** ページの見出しの横に置く、人数と上限、店舗で絞り込んだときの店舗所属スタッフの人数。 */
 export const PeopleSectionSummary = ({
@@ -81,9 +88,7 @@ export const PeopleSectionSummary = ({
         </Text>
       )}
       {filterResultCount !== undefined && (
-        <Badge colorPalette="gray" variant="subtle" borderRadius="full" px={2.5} py={1}>
-          店舗所属スタッフ {filterResultCount}人{filterResultCountHasOverflow ? "以上" : ""}
-        </Badge>
+        <FilterResultCountBadge count={filterResultCount} hasOverflow={filterResultCountHasOverflow} />
       )}
     </>
   );
@@ -141,8 +146,8 @@ export const PeopleSectionHeaderActions = ({
   </Flex>
 );
 
-/** 「スタッフを追加」と「管理者を設定」。スマートフォンでは幅いっぱいに縦に並べる。 */
-export const PeopleSectionActions = ({
+/** 一覧の見出しの行に置く「スタッフを追加」と「管理者を設定」。スマートフォンでは幅いっぱいに縦に並べる。 */
+const PeopleSectionActions = ({
   onAddStaff,
   canAddStaff = true,
   addStaffDisabledReason,
@@ -298,9 +303,7 @@ export const PeopleSection = ({
                 : ""}
             </Heading>
             {filterResultCount !== undefined && (
-              <Badge colorPalette="gray" variant="subtle" borderRadius="full" px={2.5} py={1}>
-                店舗所属スタッフ {filterResultCount}人{filterResultCountHasOverflow ? "以上" : ""}
-              </Badge>
+              <FilterResultCountBadge count={filterResultCount} hasOverflow={filterResultCountHasOverflow} />
             )}
           </HStack>
           <Flex display={{ base: "contents", md: "flex" }} gap={2} align="center" ms={{ md: "auto" }}>

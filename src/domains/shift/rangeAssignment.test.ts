@@ -4,6 +4,7 @@ import {
   closeGapsWithBreaks,
   findSelectionBoundsAt,
   findWorkSectionAt,
+  hasBreakInRange,
   listWorkSections,
   removeBreakRange,
   resolveRangeAssignment,
@@ -364,6 +365,49 @@ describe("assignPositionToRange", () => {
     const shift = { ...day([segment(hall, "10:00", "18:00")]), requestedTime: { start: "10:00", end: "18:00" } };
 
     expect(Object.keys(assign(shift, "12:00", "14:00") ?? {}).sort()).toEqual(["breaks", "positions"]);
+  });
+});
+
+describe("hasBreakInRange", () => {
+  const shift = day([segment(hall, "10:00", "18:00")], [{ start: "12:00", end: "13:00" }]);
+
+  it("休憩に少しでもかかる範囲は、休憩があると判定する", () => {
+    expect(hasBreakInRange(shift, minutes("11:00", "12:15"))).toBe(true);
+    expect(hasBreakInRange(shift, minutes("12:45", "14:00"))).toBe(true);
+    expect(hasBreakInRange(shift, minutes("12:15", "12:30"))).toBe(true);
+    expect(hasBreakInRange(shift, minutes("10:00", "18:00"))).toBe(true);
+  });
+
+  it("休憩の開始か終了に接するだけの範囲は、休憩がないと判定する", () => {
+    expect(hasBreakInRange(shift, minutes("10:00", "12:00"))).toBe(false);
+    expect(hasBreakInRange(shift, minutes("13:00", "18:00"))).toBe(false);
+  });
+
+  it("勤務の間の空きにかかる範囲は、休憩があると判定する。空きに接するだけの範囲は判定しない", () => {
+    const gapped = day([segment(hall, "10:00", "12:00"), segment(kitchen, "14:00", "18:00")]);
+
+    expect(hasBreakInRange(gapped, minutes("11:00", "12:30"))).toBe(true);
+    expect(hasBreakInRange(gapped, minutes("13:30", "15:00"))).toBe(true);
+    expect(hasBreakInRange(gapped, minutes("10:00", "12:00"))).toBe(false);
+    expect(hasBreakInRange(gapped, minutes("14:00", "18:00"))).toBe(false);
+  });
+
+  it("休憩として扱っていない休憩（勤務の頭やお尻にかかるもの、勤務の外のもの）は数えない", () => {
+    const edge = day(
+      [segment(hall, "10:00", "18:00")],
+      [
+        { start: "10:00", end: "10:30" },
+        { start: "17:30", end: "19:00" },
+        { start: "20:00", end: "21:00" },
+      ],
+    );
+
+    expect(hasBreakInRange(edge, minutes("10:00", "18:00"))).toBe(false);
+    expect(hasBreakInRange(edge, minutes("19:30", "21:30"))).toBe(false);
+  });
+
+  it("長さのない範囲は、休憩の上でも休憩がないと判定する", () => {
+    expect(hasBreakInRange(shift, minutes("12:30", "12:30"))).toBe(false);
   });
 });
 

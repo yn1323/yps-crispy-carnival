@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -44,14 +44,23 @@ vi.mock("@/src/components/features/ShiftBoard", () => ({
     header,
     dateNotes,
     staffing,
+    onChromeHiddenChange,
   }: {
     data: { shopId: string };
     layout?: string;
     header?: { desktopTitle: string };
     dateNotes?: unknown;
     staffing?: unknown;
+    onChromeHiddenChange?: (isHidden: boolean) => void;
   }) => (
     <>
+      {/* シフト表の内側のスクロールで、上の行を隠す・表示するを伝える操作の代わり。 */}
+      <button type="button" onClick={() => onChromeHiddenChange?.(true)}>
+        上の行を隠す
+      </button>
+      <button type="button" onClick={() => onChromeHiddenChange?.(false)}>
+        上の行を表示する
+      </button>
       <output
         data-testid="shop-id"
         data-layout={layout}
@@ -110,7 +119,24 @@ vi.mock("@/src/providers/ManagerShopScopeProvider", () => ({
   ),
 }));
 
+import { AppHeaderVisibilityProvider, useAppHeaderVisibility } from "@/src/providers/AppHeaderVisibilityProvider";
 import { AppShiftBoardRoutePage } from ".";
+
+/** アプリのヘッダーが、画面の内側のスクロールで隠されているかを読む。 */
+function AppHeaderHiddenProbe() {
+  const { isHiddenByContent } = useAppHeaderVisibility();
+  return <output data-testid="app-header-hidden">{String(isHiddenByContent)}</output>;
+}
+
+/** アプリの枠の中で、シフト表とほかの画面を切り替える。 */
+function AppScreen({ showsShiftBoard }: { showsShiftBoard: boolean }) {
+  return (
+    <AppHeaderVisibilityProvider>
+      <AppHeaderHiddenProbe />
+      {showsShiftBoard && <AppShiftBoardRoutePage organizationId="organization-1" recruitmentId="recruitment-1" />}
+    </AppHeaderVisibilityProvider>
+  );
+}
 
 const staffing = {
   breakRule: { minWorkMinutes: 360, breakMinutes: 60 },
@@ -273,5 +299,35 @@ describe("AppShiftBoardRoutePage", () => {
 
     expect(screen.getByTestId("shop-id").textContent).toBe("shop-1");
     expect(screen.getByTestId("shop-id").getAttribute("data-staffing")).toBe("null");
+  });
+
+  it("シフト表が上の行を隠すとアプリのヘッダーも隠し、表示へ戻すとヘッダーも表示する", () => {
+    mocks.queryResults.scope = { shopId: "shop-1", shopName: "設定店舗" };
+    mocks.queryResults.data = boardData;
+    mocks.queryResults.staffing = staffing;
+
+    render(<AppScreen showsShiftBoard />);
+    expect(screen.getByTestId("app-header-hidden").textContent).toBe("false");
+
+    fireEvent.click(screen.getByRole("button", { name: "上の行を隠す" }));
+    expect(screen.getByTestId("app-header-hidden").textContent).toBe("true");
+
+    fireEvent.click(screen.getByRole("button", { name: "上の行を表示する" }));
+    expect(screen.getByTestId("app-header-hidden").textContent).toBe("false");
+  });
+
+  it("ヘッダーを隠したままほかの画面へ移ると、ヘッダーを表示した状態へ戻す", () => {
+    mocks.queryResults.scope = { shopId: "shop-1", shopName: "設定店舗" };
+    mocks.queryResults.data = boardData;
+    mocks.queryResults.staffing = staffing;
+
+    const { rerender } = render(<AppScreen showsShiftBoard />);
+    fireEvent.click(screen.getByRole("button", { name: "上の行を隠す" }));
+    expect(screen.getByTestId("app-header-hidden").textContent).toBe("true");
+
+    rerender(<AppScreen showsShiftBoard={false} />);
+
+    expect(screen.queryByTestId("shop-id")).toBeNull();
+    expect(screen.getByTestId("app-header-hidden").textContent).toBe("false");
   });
 });

@@ -914,7 +914,7 @@ describe("テンプレートごとの入力の誤り", () => {
     expect(issuesOf([draft()], dateOnlyPattern)).toEqual({ a: "REQUIREMENTS_KIND_MISMATCH" });
   });
 
-  it("テンプレートは20件まで誤りにならず、21件で一覧全体の誤りになる", () => {
+  it("テンプレートは上限の件数まで誤りにならず、1件超えると一覧全体の誤りになる", () => {
     const build = (length: number) =>
       toDayTemplateInputs(
         Array.from({ length }, (_, index) =>

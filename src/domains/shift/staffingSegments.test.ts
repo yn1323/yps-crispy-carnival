@@ -5,8 +5,6 @@ import {
   barsToStaffingSegments,
   countSegmentsOutsideRange,
   DEFAULT_STAFFING_COUNT_LIMIT,
-  getMaxStaffingCount,
-  getStaffingCountAt,
   getStaffingCountRange,
   moveStaffingCount,
   normalizeStaffingSegments,
@@ -15,7 +13,6 @@ import {
   splitRangeByStaffingCount,
   staffingSegmentsToBars,
   trimSegmentsToRange,
-  validateStaffingSegments,
 } from "./staffingSegments";
 import { timeToMinutes } from "./time";
 import type { StaffingBar } from "./types";
@@ -299,36 +296,6 @@ describe("splitRangeByStaffingCount", () => {
   });
 });
 
-describe("getStaffingCountAt", () => {
-  const segments = [seg("hall", "11:00", "14:00", 3), seg("kitchen", "09:00", "22:00", 1)];
-
-  it("区間の開始ちょうどは区間に含め、終了ちょうどは含めない", () => {
-    expect(getStaffingCountAt(segments, "hall", timeToMinutes("10:59"))).toBe(0);
-    expect(getStaffingCountAt(segments, "hall", timeToMinutes("11:00"))).toBe(3);
-    expect(getStaffingCountAt(segments, "hall", timeToMinutes("13:59"))).toBe(3);
-    expect(getStaffingCountAt(segments, "hall", timeToMinutes("14:00"))).toBe(0);
-  });
-
-  it("区間のないポジションは0人を返す", () => {
-    expect(getStaffingCountAt(segments, "register", timeToMinutes("12:00"))).toBe(0);
-  });
-});
-
-describe("getMaxStaffingCount", () => {
-  it("そのポジションの、いちばん多い人数を返す", () => {
-    const segments = [
-      seg("hall", "09:00", "11:00", 1),
-      seg("hall", "11:00", "14:00", 4),
-      seg("kitchen", "09:00", "22:00", 7),
-    ];
-    expect(getMaxStaffingCount(segments, "hall")).toBe(4);
-  });
-
-  it("区間がなければ0を返す", () => {
-    expect(getMaxStaffingCount([], "hall")).toBe(0);
-  });
-});
-
 describe("getStaffingCountRange", () => {
   const segments = [seg("hall", "09:00", "11:00", 1), seg("hall", "11:00", "14:00", 3)];
   const range = (start: string, end: string) =>
@@ -540,72 +507,8 @@ describe("trimSegmentsToRange", () => {
   });
 });
 
-describe("validateStaffingSegments", () => {
-  const validate = (segments: readonly StaffingSegment[], maxCount?: number) =>
-    validateStaffingSegments({ segments, range: RANGE, maxCount });
-
-  it("刻みに乗り、範囲の内側で、重ならず、人数が上限以下なら受け付ける", () => {
-    expect(
-      validate([
-        seg("hall", "09:00", "11:00", 1),
-        seg("hall", "11:00", "22:00", 10),
-        seg("kitchen", "09:00", "09:30", 1),
-      ]),
-    ).toEqual({ ok: true });
-  });
-
-  it("空の配列を受け付ける", () => {
-    expect(validate([])).toEqual({ ok: true });
-  });
-
+describe("DEFAULT_STAFFING_COUNT_LIMIT", () => {
   it("人数の既定の上限は、Convexが受け付ける上限と同じである", () => {
     expect(DEFAULT_STAFFING_COUNT_LIMIT).toBe(SHIFT_DAY_TEMPLATE_CONCURRENT_BAR_LIMIT);
-  });
-
-  it("人数が上限を超える区間、1未満の区間、整数でない区間を受け付けない", () => {
-    expect(validate([seg("hall", "09:00", "11:00", DEFAULT_STAFFING_COUNT_LIMIT)])).toEqual({ ok: true });
-    expect(validate([seg("hall", "09:00", "11:00", DEFAULT_STAFFING_COUNT_LIMIT + 1)])).toEqual({
-      ok: false,
-      reason: "INVALID_COUNT",
-    });
-    expect(validate([seg("hall", "09:00", "11:00", 0)])).toEqual({ ok: false, reason: "INVALID_COUNT" });
-    expect(validate([seg("hall", "09:00", "11:00", 1.5)])).toEqual({ ok: false, reason: "INVALID_COUNT" });
-  });
-
-  it("人数の上限を引数で変えられる", () => {
-    expect(validate([seg("hall", "09:00", "11:00", 11)], 11)).toEqual({ ok: true });
-    expect(validate([seg("hall", "09:00", "11:00", 4)], 3)).toEqual({ ok: false, reason: "INVALID_COUNT" });
-  });
-
-  it("刻みに乗らない時刻を受け付けない", () => {
-    expect(validate([seg("hall", "09:15", "11:15", 1)])).toEqual({ ok: false, reason: "NOT_ON_UNIT" });
-    expect(validate([seg("hall", "09:00", "11:45", 1)])).toEqual({ ok: false, reason: "NOT_ON_UNIT" });
-  });
-
-  it("刻みを引数で変えられる", () => {
-    expect(
-      validateStaffingSegments({ segments: [seg("hall", "09:15", "11:15", 1)], range: RANGE, unitMinutes: 15 }),
-    ).toEqual({ ok: true });
-  });
-
-  it("長さが刻みに届かない区間と、終了が開始より前の区間を受け付けない", () => {
-    expect(validate([seg("hall", "09:00", "09:00", 1)])).toEqual({ ok: false, reason: "TOO_SHORT" });
-    expect(validate([seg("hall", "11:00", "09:00", 1)])).toEqual({ ok: false, reason: "TOO_SHORT" });
-  });
-
-  it("範囲の外にかかる区間を受け付けない", () => {
-    expect(validate([seg("hall", "08:30", "11:00", 1)])).toEqual({ ok: false, reason: "OUT_OF_RANGE" });
-    expect(validate([seg("hall", "21:00", "22:30", 1)])).toEqual({ ok: false, reason: "OUT_OF_RANGE" });
-  });
-
-  it("同じポジションで重なる区間を受け付けない", () => {
-    expect(validate([seg("hall", "09:00", "12:00", 1), seg("hall", "11:30", "14:00", 2)])).toEqual({
-      ok: false,
-      reason: "OVERLAP",
-    });
-  });
-
-  it("別のポジションの区間は、同じ時間でも重なりに数えない", () => {
-    expect(validate([seg("hall", "09:00", "12:00", 1), seg("kitchen", "09:00", "12:00", 2)])).toEqual({ ok: true });
   });
 });

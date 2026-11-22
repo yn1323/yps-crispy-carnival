@@ -1,5 +1,5 @@
-import { fitExportText } from "./layout";
-import type { ExportDaily, ExportDailyCountRow, ExportDailyRow, ExportDailySheet } from "./types";
+import { fitExportText, getExportNotePages, getExportPages } from "./layout";
+import type { ExportDaily, ExportDailyCountRow, ExportDailyRow, ExportDailySheet, ExportSchedule } from "./types";
 
 // 日別のバーの帳票の、ページ割りと座標。プレビューとPDFは同じ値で描く。
 
@@ -40,6 +40,7 @@ export const getExportDailyLayout = (daily: ExportDaily) => {
       label: index % hourLabelStep === 0 ? String(minute / 60) : "",
     };
   });
+  const toChartPt = (minute: number) => ((minute - daily.axisStart) / axisMinutes) * plotWidthPt;
   return {
     pageWidthPt,
     pageHeightPt,
@@ -49,6 +50,8 @@ export const getExportDailyLayout = (daily: ExportDaily) => {
     footerHeightPt,
     nameColumnWidthPt,
     timeColumnWidthPt,
+    /** 人数の行の見出しの幅。スタッフと時間の2列を合わせた幅にする。 */
+    labelColumnWidthPt: nameColumnWidthPt + timeColumnWidthPt,
     chartWidthPt,
     axisHeightPt,
     rowHeightPt,
@@ -63,7 +66,12 @@ export const getExportDailyLayout = (daily: ExportDaily) => {
     hours,
     /** 勤務の行を置ける高さ。人数の行の分は、日ごとにここから引く。 */
     bodyHeightPt: pageHeightPt - marginPt * 2 - titleHeightPt - axisHeightPt - footerHeightPt,
-    toChartPt: (minute: number) => ((minute - daily.axisStart) / axisMinutes) * plotWidthPt,
+    toChartPt,
+    /** 区間を描く位置。時刻の軸の左端からの距離と幅を返す。 */
+    toChartSpan: ({ start, end }: { start: number; end: number }) => {
+      const leftPt = toChartPt(start);
+      return { leftPt, widthPt: toChartPt(end) - leftPt };
+    },
   };
 };
 
@@ -88,6 +96,23 @@ export const getExportDailyPages = (daily: ExportDaily, layout = getExportDailyL
       return { sheet, rows, title: pageCount > 1 ? `${sheet.title}（${index + 1}/${pageCount}）` : sheet.title };
     });
   });
+
+/**
+ * 出力する形に合わせた、帳票全体のページ割り。プレビューとPDFのページ番号を同じにするため、両方がここから読む。
+ * 日別を選んでいる間は一覧のページを出さない。連絡事項のページは、どの形でも最後に付ける。
+ */
+export const getExportDocumentPages = (schedule: ExportSchedule) => {
+  const daily = schedule.view === "daily" ? schedule.daily : null;
+  const pages = daily ? [] : getExportPages(schedule);
+  const notePages = getExportNotePages(schedule);
+  const dailyPageCount = daily ? getExportDailyPages(daily).length : 0;
+  const bodyPageCount = pages.length + dailyPageCount;
+  return { daily, pages, notePages, dailyPageCount, bodyPageCount, totalPageCount: bodyPageCount + notePages.length };
+};
+
+/** 行の見出し（スタッフの名前、人数の行の名前）に書く文字。列の幅に収まらない分は省略する。 */
+export const fitDailyRowHeader = (text: string, columnWidthPt: number, layout: ExportDailyLayout): string =>
+  fitExportText(text, columnWidthPt - layout.cellPaddingPt * 2, layout.fontSizePt).text;
 
 /** バーの中に書く文字。幅に収まらない分は省略し、狭い区間には書かない。 */
 export const fitDailySegmentLabel = (label: string, widthPt: number, layout: ExportDailyLayout) => {
@@ -149,4 +174,12 @@ export const getDailyCountLabels = (row: ExportDailyCountRow): string[] => {
     if (count > 0) return String(count);
     return first < index && index < last ? "0" : "";
   });
+};
+
+/** 人数の行に置く数字と、その位置。数字を書かない区間は含めない。 */
+export const getDailyCountCells = (row: ExportDailyCountRow, layout: ExportDailyLayout) => {
+  const labels = getDailyCountLabels(row);
+  return row.segments.flatMap((segment, index) =>
+    labels[index] ? [{ ...segment, label: labels[index], ...layout.toChartSpan(segment) }] : [],
+  );
 };

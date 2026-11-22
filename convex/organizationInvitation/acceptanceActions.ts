@@ -1,6 +1,5 @@
-import { v } from "convex/values";
+import { type Infer, v } from "convex/values";
 import { internal } from "../_generated/api";
-import type { Id } from "../_generated/dataModel";
 import { observedAction as action } from "../_lib/errorObservability";
 
 const acceptanceActionResultValidator = v.union(
@@ -13,10 +12,7 @@ const acceptanceActionResultValidator = v.union(
   v.object({ status: v.literal("conflict"), accountAlreadyRegistered: v.boolean() }),
 );
 
-type AcceptanceActionResult =
-  | { status: "linked"; organizationId: Id<"organizations">; shopId?: Id<"shops"> }
-  | { status: "invalid" | "expired" | "revoked" | "used" | "unavailable" }
-  | { status: "conflict"; accountAlreadyRegistered: boolean };
+type AcceptanceActionResult = Infer<typeof acceptanceActionResultValidator>;
 
 /**
  * 管理者招待の受諾入口。

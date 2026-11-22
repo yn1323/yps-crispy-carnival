@@ -125,13 +125,9 @@ function InvitationContent({ state, actions }: ContentProps) {
         </Button>
       )}
 
-      {state.kind === "used" && (
-        <Button colorPalette="teal" size="lg" minH="48px" onClick={actions.onGoToDashboard}>
-          シフトリを確認する
-        </Button>
-      )}
-
-      {state.kind === "accepted" && !state.isPreparingDestination && !state.hasDestination && (
+      {/* 参加済みの招待と、参加したあとに開く店舗がない場合は、自分でシフトリへ進めるようにする。 */}
+      {(state.kind === "used" ||
+        (state.kind === "accepted" && !state.isPreparingDestination && !state.hasDestination)) && (
         <Button colorPalette="teal" size="lg" minH="48px" onClick={actions.onGoToDashboard}>
           シフトリを確認する
         </Button>

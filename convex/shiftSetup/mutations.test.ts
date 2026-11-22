@@ -11,7 +11,9 @@ import { modules, schema } from "../_test/setup.test-helper";
 import {
   POSITION_ACTIVE_LIMIT,
   POSITION_COLOR_PALETTE,
+  POSITION_REMOVAL_OPEN_RECRUITMENT_LIMIT,
   RECRUITMENT_PERIOD_DAYS_MAX,
+  SHIFT_ASSIGNMENT_LIMIT,
   SHIFT_BOARD_STAFF_LIMIT,
   SHIFT_DAY_TEMPLATE_BAR_LIMIT,
   SHIFT_DAY_TEMPLATE_CONCURRENT_BAR_LIMIT,
@@ -747,6 +749,124 @@ describe("shiftSetup/mutations", () => {
           }),
         message,
       );
+    });
+
+    it("既定のポジションをまだ持たない店舗では、ここで作る既定と合わせて上限に収まる件数まで保存でき、上限と同じ件数は拒否する", async () => {
+      const subject = "shift_setup_no_default_limit_manager";
+      const t = convexTest(schema, modules);
+      const actor = await t.run(async (ctx) => seedOrganizationManagerShop(ctx, { subject, shopName: "既定なし店舗" }));
+      const asManager = t.withIdentity({ subject });
+      const scope = { shopId: actor.shopId, expectedOrganizationId: actor.organizationId };
+      const newPositions = Array.from({ length: POSITION_ACTIVE_LIMIT }, (_, index) => ({
+        name: `ポジション${index + 1}`,
+        color: POSITION_COLOR_PALETTE[index % POSITION_COLOR_PALETTE.length],
+      }));
+
+      // 既定のポジションを作る前に拒否した場合と同じく、既定のポジションも残さない。
+      await expectRejectedWithoutChange(
+        t,
+        () => asManager.mutation(api.shiftSetup.mutations.savePositions, { ...scope, positions: newPositions }),
+        "ポジションは10件まで登録できます",
+      );
+
+      await asManager.mutation(api.shiftSetup.mutations.savePositions, {
+        ...scope,
+        positions: newPositions.slice(0, POSITION_ACTIVE_LIMIT - 1),
+      });
+
+      const active = (await readSetupState(t)).positions.filter(
+        (position) => position.shopId === actor.shopId && !position.isDeleted,
+      );
+      expect(active).toHaveLength(POSITION_ACTIVE_LIMIT);
+      expect(active.filter((position) => position.isDefault).map((position) => position.sortOrder)).toEqual([0]);
+    });
+
+    it("ポジションを削除する保存は、確定していない募集が上限の件数までなら受け付け、1件でも超えると拒否して下書きの勤務を消さない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedShops(t);
+      const asManager = t.withIdentity({ subject: MANAGER_SUBJECT });
+      // seedShopsが置いた未確定の募集1件と合わせて、上限を1件超える件数にする。ホールの勤務は、足した募集の1件に置く。
+      await t.run(async (ctx) => {
+        for (let index = 1; index <= POSITION_REMOVAL_OPEN_RECRUITMENT_LIMIT; index += 1) {
+          const recruitmentId = await ctx.db.insert("recruitments", {
+            shopId: ids.shopId,
+            periodStart: addDays(PERIOD_START, 7 * index),
+            periodEnd: addDays(PERIOD_END, 7 * index),
+            deadline: "2026-01-15",
+            shopClosedDates: [],
+            status: "open",
+            isDeleted: false,
+            submissionPattern: TIME_PATTERN,
+          });
+          if (index > 1) continue;
+          await ctx.db.insert("shiftAssignments", {
+            recruitmentId,
+            staffId: ids.staffId,
+            date: addDays(PERIOD_START, 7),
+            positionId: ids.hallPositionId,
+            startTime: "10:00",
+            endTime: "14:00",
+          });
+        }
+      });
+      const readAssignments = () => t.run(async (ctx) => ctx.db.query("shiftAssignments").collect());
+      const assignmentsBefore = await readAssignments();
+      const removeHall = () =>
+        asManager.mutation(api.shiftSetup.mutations.savePositions, {
+          ...ids.scope,
+          positions: [
+            { id: ids.defaultPositionId, name: "シフト", color: "#3b82f6" },
+            { id: ids.kitchenPositionId, name: "キッチン", color: "#c2410c" },
+          ],
+        });
+
+      expect(POSITION_REMOVAL_OPEN_RECRUITMENT_LIMIT).toBe(50);
+      expect(assignmentsBefore).toHaveLength(1);
+      await expectRejectedWithoutChange(t, removeHall, "確定していない募集が多いため、ポジションを削除できません");
+      expect(await readAssignments()).toEqual(assignmentsBefore);
+
+      // 未確定の募集を上限ちょうどの件数へ減らすと、削除を受け付けて、削除したポジションの勤務を消す。
+      await t.run(async (ctx) => await ctx.db.patch(ids.recruitmentId, { isDeleted: true }));
+      await removeHall();
+
+      expect(await readAssignments()).toEqual([]);
+      expect(
+        (await readSetupState(t)).positions
+          .filter((position) => position._id === ids.hallPositionId)
+          .map((position) => position.isDeleted),
+      ).toEqual([true]);
+    });
+
+    it("ポジションを削除する保存は、下書きの勤務が上限を超える募集がある店舗では拒否し、勤務を1件も消さない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedShops(t);
+      await t.run(async (ctx) => {
+        for (let index = 0; index <= SHIFT_ASSIGNMENT_LIMIT; index += 1) {
+          await ctx.db.insert("shiftAssignments", {
+            recruitmentId: ids.recruitmentId,
+            staffId: ids.staffId,
+            date: "2026-01-20",
+            positionId: ids.hallPositionId,
+            startTime: "10:00",
+            endTime: "14:00",
+          });
+        }
+      });
+      const countAssignments = () => t.run(async (ctx) => (await ctx.db.query("shiftAssignments").collect()).length);
+
+      await expectRejectedWithoutChange(
+        t,
+        () =>
+          t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shiftSetup.mutations.savePositions, {
+            ...ids.scope,
+            positions: [
+              { id: ids.defaultPositionId, name: "シフト", color: "#3b82f6" },
+              { id: ids.kitchenPositionId, name: "キッチン", color: "#c2410c" },
+            ],
+          }),
+        "下書きの勤務が多いため、ポジションを削除できません",
+      );
+      expect(await countAssignments()).toBe(SHIFT_ASSIGNMENT_LIMIT + 1);
     });
 
     it("空の一覧は拒否する", async () => {

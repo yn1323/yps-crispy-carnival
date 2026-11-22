@@ -56,6 +56,14 @@ export class ShiftSetupPage {
     }
   }
 
+  /** 「スタッフのスキル」で、初期値（一人前）のマスを1回押して担当外にする。まだ保存しない。 */
+  async markStaffPositionUnavailable(staffName: string, positionName: string) {
+    await this.page.getByRole("button", { name: `${staffName} ${positionName} 一人前`, exact: true }).click();
+    await expect(
+      this.page.getByRole("button", { name: `${staffName} ${positionName} 担当外`, exact: true }),
+    ).toBeVisible();
+  }
+
   /** ページの「保存する」で、編集中のポジション、テンプレート、スキルをまとめて保存する。 */
   async save() {
     const saveButton = this.page

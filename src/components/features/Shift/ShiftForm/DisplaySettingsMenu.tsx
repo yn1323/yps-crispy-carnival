@@ -25,7 +25,7 @@ const STAFF_SORT_MODE_OPTIONS: ReadonlyArray<{ value: StaffSortMode; label: stri
 export function DisplaySettingsMenu({
   showsDateNotesToggle = true,
 }: {
-  /** 「連絡事項を表示」を出すか。連絡事項を名前の横のアイコンだけで示す画面（パターン選択の日別）では出さない。 */
+  /** 「連絡事項を表示」を出すか。連絡事項の出し方を切り替えない画面（スマートフォンのパターン選択と日付選択の日別）では出さない。 */
   showsDateNotesToggle?: boolean;
 } = {}) {
   const descriptionId = useId();

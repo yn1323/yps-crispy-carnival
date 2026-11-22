@@ -154,6 +154,25 @@ describe("buildShiftTypeDailyPresentation", () => {
     expect(toShiftTypeWarningMessages(row)).toEqual([`${row.cells[2].option.name}：希望時間外に勤務あり`]);
   });
 
+  it("担当外のポジションへの割り当てには、希望どおりの勤務パターンでも、橙の点と理由を付ける", () => {
+    // キッチンが担当外の人が、希望した早番にキッチンで、希望した遅番にホールで入っている。
+    const unavailableInKitchen: StaffType = {
+      ...staff("a", "伊藤 大和"),
+      positionSkills: [{ positionId: KITCHEN.id, level: "unavailable" }],
+    };
+    const [row] = build(
+      [unavailableInKitchen],
+      [shift("a", ["early", "late"], [segment("early", KITCHEN), segment("late", HALL)])],
+    ).rows;
+
+    expect(row.cells.map(({ dot, noticeTexts, ariaDescription }) => ({ dot, noticeTexts, ariaDescription }))).toEqual([
+      { dot: "orange", noticeTexts: ["担当外のポジション"], ariaDescription: "希望あり、担当外のポジション" },
+      { dot: null, noticeTexts: [], ariaDescription: "希望あり" },
+      { dot: null, noticeTexts: [], ariaDescription: null },
+    ]);
+    expect(toShiftTypeWarningMessages(row)).toEqual(["早番：担当外のポジション"]);
+  });
+
   it("ボタンの名前の末尾を「勤務あり」「勤務なし」に保ち、希望と点の理由は説明に分ける", () => {
     const [row] = build([staff("a", "木村 湊")], [shift("a", ["late"], [segment("early", KITCHEN)])], {
       usesPositionColors: true,

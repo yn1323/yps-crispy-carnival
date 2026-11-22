@@ -1,7 +1,7 @@
 import { Box, Flex, Icon, Text, VisuallyHidden } from "@chakra-ui/react";
 import dayjs from "dayjs";
 import { useAtomValue, useSetAtom } from "jotai";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { LuMessageSquare } from "react-icons/lu";
 import { formatDateWithWeekday, getWeekdayLabel, isSaturday, isSunday } from "@/src/domains/shift/date";
 import {
@@ -22,6 +22,7 @@ import {
 } from "../../dateOnlyPresentation";
 import { ProvisionalBadge } from "../../detailParts";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
+import { useRestoreRememberedWorkPosition } from "../../hooks/useRestoreRememberedWorkPosition";
 import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
 import { useSwipeDateChange } from "../../hooks/useSwipeDateChange";
 import { DayTemplateMenu, useDayStaffingView } from "../../staffingParts";
@@ -32,7 +33,6 @@ import {
   isPositionSelectableAtom,
   issueCountByDateAtom,
   removeDateOnlyAssignmentAtom,
-  restoreRememberedWorkPositionAtom,
   selectDateWithDailyStaffOrderAtom,
   selectedDateAtom,
   shiftConfigAtom,
@@ -64,20 +64,14 @@ export const SPDateOnlyDailyView = () => {
   // その日の連絡事項は、表示設定にかかわらず、名前の下に全文を出す。
   const dateNotes = useAllShiftDateNotes();
 
-  const { dates, holidays, isReadOnly, shopId, positions } = config;
+  const { dates, holidays, isReadOnly, positions } = config;
   const isConfirmedDisplay = config.displayMode === "confirmed";
   const activeDate = dates.includes(selectedDate) ? selectedDate : (dates[0] ?? "");
   const isShopClosedDate = holidays.includes(activeDate);
   // 人数と過不足を出す日（くわしく表示の営業日）だけ値が入る。
   const staffingView = useDayStaffingView(activeDate);
   useLockedDailyStaffOrder(activeDate);
-
-  // 前にこの店舗で最後に選んだポジションを、次に入れるポジションへ戻す。店舗とポジションが読み込まれてから行う。
-  const restoreRememberedWorkPosition = useSetAtom(restoreRememberedWorkPositionAtom);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: 店舗かポジションが変わったときに戻し直すため、値の変化を見る。
-  useEffect(() => {
-    restoreRememberedWorkPosition();
-  }, [restoreRememberedWorkPosition, shopId, positions]);
+  useRestoreRememberedWorkPosition();
 
   const presentation = useMemo(
     () =>

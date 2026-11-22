@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { BREAK_POSITION } from "@/src/domains/shift/constants";
+import { timeToMinutes } from "@/src/domains/shift/time";
 import type { PositionSegment, ShiftData } from "@/src/domains/shift/types";
-import { findBreakEditorError, getBreakEditorRange } from "./BreakEditorDialog";
+import { buildNewBreak, findBreakEditorError, getBreakEditorRange } from "./BreakEditorDialog";
 
 const INVALID_TIME_ERROR = "休憩の終了時間は開始時間より後にしてください";
 const OUT_OF_WORK_ERROR = "休憩は勤務の開始より後、終了より前にしてください";
@@ -76,6 +77,31 @@ describe("getBreakEditorRange", () => {
     expect(
       getBreakEditorRange({ positions: [segment("12:00", "13:00", { positionId: BREAK_POSITION.id })] }, isDateOnly),
     ).toBeNull();
+  });
+});
+
+describe("buildNewBreak", () => {
+  const at = (start: string, end: string) => ({ startMinutes: timeToMinutes(start), endMinutes: timeToMinutes(end) });
+
+  it("入れられる範囲の真ん中に、1時間の休憩を入れる", () => {
+    // 10:00〜18:00の勤務に入れられる範囲は、10:15〜17:45。
+    expect(buildNewBreak(at("10:15", "17:45"))).toEqual({ start: "13:30", end: "14:30" });
+  });
+
+  it("真ん中が15分単位にそろわない範囲では、開始を15分単位にそろえ、範囲の中に収める", () => {
+    // 真ん中に置くと10:07.5〜11:07.5になるため、10:15〜11:15にそろえる。
+    expect(buildNewBreak(at("09:15", "12:00"))).toEqual({ start: "10:15", end: "11:15" });
+    // 1時間15分の範囲でも、終了が範囲の終わりを越えない。
+    expect(buildNewBreak(at("10:15", "11:30"))).toEqual({ start: "10:30", end: "11:30" });
+  });
+
+  it("ちょうど1時間の範囲は、その全体を休憩にする", () => {
+    expect(buildNewBreak(at("12:00", "13:00"))).toEqual({ start: "12:00", end: "13:00" });
+  });
+
+  it("1時間より短い範囲は、その長さの休憩にする", () => {
+    expect(buildNewBreak(at("10:15", "10:45"))).toEqual({ start: "10:15", end: "10:45" });
+    expect(buildNewBreak(at("10:15", "10:30"))).toEqual({ start: "10:15", end: "10:30" });
   });
 });
 

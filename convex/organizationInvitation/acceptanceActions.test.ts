@@ -116,6 +116,28 @@ describe("organizationInvitation/acceptanceActions", () => {
     expect(await persistentState(fixture)).toEqual(before);
   });
 
+  it.each([
+    { name: "削除の手続き中のアカウント", caseKey: "deletion_requested", state: { accountDeletionRequestedAt: 1 } },
+    { name: "削除済みのアカウント", caseKey: "deleted_account", state: { isDeleted: true } },
+  ])("$name は受け付けず、招待と所属を変更しない", async ({ caseKey, state }) => {
+    const fixture = await seedAcceptanceFixture(caseKey);
+    const actorSubject = `${caseKey}_target`;
+    await fixture.t.run(async (ctx) => {
+      const userId = await seedUser(ctx, actorSubject, fixture.email);
+      await ctx.db.patch(userId, state);
+    });
+    const before = await persistentState(fixture);
+
+    await expect(
+      invitationActor(fixture.t, actorSubject, fixture.email).action(
+        api.organizationInvitation.acceptanceActions.accept,
+        { token: fixture.token },
+      ),
+    ).resolves.toEqual({ status: "unavailable" });
+
+    expect(await persistentState(fixture)).toEqual(before);
+  });
+
   it.each(["revoke", "resend"] as const)("%s後の古いURLでは参加できず、人物と所属を作らない", async (operation) => {
     const fixture = await seedAcceptanceFixture(`stale_${operation}`);
     if (operation === "resend") {

@@ -51,6 +51,21 @@ export class ShiftFormCells {
     ).toBeVisible({ timeout: SHIFT_FORM_DATA_TIMEOUT });
   }
 
+  /** ポジションを添えた勤務のセルが、確認事項の理由（「担当外のポジション」など）を読み上げに持つことを確認する。 */
+  async expectDateOnlyPositionNotice(staffName: string, dateLabel: string, positionName: string, notice: string) {
+    await expect(
+      this.page.getByRole("button", { name: `${staffName} ${dateLabel} 勤務あり、${positionName}`, exact: true }),
+    ).toHaveAccessibleDescription(new RegExp(escapeRegExp(notice)), { timeout: SHIFT_FORM_DATA_TIMEOUT });
+  }
+
+  /** 勤務のセルが、前回の勤務を仮で入れたものとして読み上げられることを確認する。 */
+  async expectDateOnlyProvisional(staffName: string, dateLabel: string) {
+    await expect(this.dateOnlyCell(staffName, dateLabel, true)).toHaveAccessibleDescription(
+      /前回の勤務を仮で入れています/,
+      { timeout: SHIFT_FORM_DATA_TIMEOUT },
+    );
+  }
+
   async selectDailyDate(isoDate: string) {
     const chip = this.page.getByRole("tablist", { name: "日付選択" }).locator(`[data-date-chip="${isoDate}"]`);
     await expect(chip).toBeVisible({ timeout: SHIFT_FORM_DATA_TIMEOUT });

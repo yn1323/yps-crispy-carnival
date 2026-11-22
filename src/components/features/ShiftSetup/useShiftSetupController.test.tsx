@@ -808,6 +808,39 @@ describe("テンプレートの追加、切り替え、削除", () => {
     ).toEqual([["テンプレート2"]]);
   });
 
+  it("テンプレートを並べ替えても、編集しているテンプレートを開いたままにし、並べた順で保存する", async () => {
+    mocks.saveDayTemplates.mockResolvedValue(null);
+    const weekendId = "template-weekend" as Id<"shiftDayTemplates">;
+    const { result } = renderController({
+      ...setup,
+      dayTemplates: [
+        ...setup.dayTemplates,
+        {
+          _id: weekendId,
+          name: "土日",
+          weekdays: ["sat", "sun"],
+          appliesToHolidays: false,
+          requirements: { kind: "time", bars: [{ positionId: kitchen, startTime: "10:00", endTime: "20:00" }] },
+          requiresReentry: false,
+        },
+      ],
+    });
+    expect(result.current.dayTemplates.selectedRowKey).toBe(templateId);
+
+    act(() => result.current.intents.onReorderDayTemplates(templateId, weekendId));
+
+    // 並びの先頭が変わっても、開いているのは動かした「平日」のままである。
+    expect(result.current.dayTemplates.drafts.map((draft) => draft.name)).toEqual(["土日", "平日"]);
+    expect(result.current.dayTemplates.selectedRowKey).toBe(templateId);
+    expect(result.current.pendingSections).toEqual(["dayTemplates"]);
+
+    await act(async () => result.current.intents.onSaveChanges());
+
+    expect(
+      mocks.saveDayTemplates.mock.calls.map(([args]) => args.templates.map(({ id }: { id: string }) => id)),
+    ).toEqual([[weekendId, templateId]]);
+  });
+
   it("テンプレートは10件までで、11件目は足さない", () => {
     const { result } = renderController();
 
@@ -899,6 +932,75 @@ describe("AIサポート", () => {
     expect(result.current.assistDialog).toMatchObject({ isOpen: true, message });
     expect(result.current.pendingSections).toEqual([]);
     expect(result.current.dayTemplates.drafts.map((draft) => draft.id)).toEqual([templateId]);
+  });
+
+  it("下書きに入れるテンプレートが1つもなければ、いまのテンプレートを変えず、手で作れることをDialogに出す", async () => {
+    mocks.suggestShiftSetup.mockResolvedValue({ status: "ok", templates: [] });
+    const { result } = renderController();
+
+    act(() => result.current.assistDialog.open());
+    await act(async () => result.current.intents.onRequestAssist("平日は昼が混みます"));
+
+    expect(result.current.assistDialog).toMatchObject({
+      isOpen: true,
+      message: "下書きに入れるテンプレートがありませんでした。\n「テンプレートを作る」から手で作れます。",
+    });
+    expect(result.current.pendingSections).toEqual([]);
+    expect(result.current.dayTemplates.drafts.map((draft) => draft.id)).toEqual([templateId]);
+    expect(mocks.showSuccessToast).not.toHaveBeenCalled();
+  });
+
+  it("下書きの取得に失敗したら、いまのテンプレートを変えず、Dialogを開いたまま失敗を伝える", async () => {
+    const error = new Error("network error");
+    mocks.suggestShiftSetup.mockRejectedValue(error);
+    const { result } = renderController();
+
+    act(() => result.current.assistDialog.open());
+    await act(async () => result.current.intents.onRequestAssist("平日は昼が混みます"));
+
+    expect(mocks.showErrorToast).toHaveBeenCalledExactlyOnceWith(error);
+    expect(result.current.assistDialog.isOpen).toBe(true);
+    expect(result.current.pendingSections).toEqual([]);
+    expect(result.current.dayTemplates.drafts.map((draft) => draft.id)).toEqual([templateId]);
+  });
+
+  it("Dialogを開き直すと、前に出した知らせを消す", async () => {
+    mocks.suggestShiftSetup.mockResolvedValue({ status: "rateLimited" });
+    const { result } = renderController();
+    act(() => result.current.assistDialog.open());
+    await act(async () => result.current.intents.onRequestAssist("平日は昼が混みます"));
+    expect(result.current.assistDialog.message).toBeDefined();
+
+    act(() => result.current.assistDialog.close());
+    act(() => result.current.assistDialog.open());
+
+    expect(result.current.assistDialog).toMatchObject({ isOpen: true, message: undefined });
+  });
+
+  it("編集中の一覧から外したポジションの人数は、下書きに入れない", async () => {
+    mocks.suggestShiftSetup.mockResolvedValue({
+      status: "ok",
+      templates: [
+        {
+          ...suggestion.templates[0],
+          requirements: {
+            kind: "time",
+            bars: [
+              { positionId: hall, startTime: "09:00", endTime: "22:00" },
+              { positionId: kitchen, startTime: "17:00", endTime: "21:00" },
+            ],
+          },
+        },
+      ],
+    });
+    const { result } = renderController();
+    // 下書きは保存済みのポジションから作られる。キッチンは、保存の前に編集中の一覧から外している。
+    act(() => result.current.intents.onApplyPositions([{ id: hall, name: "ホール", color: "#60a5fa" }]));
+
+    await act(async () => result.current.intents.onRequestAssist("土日は夜が忙しいです"));
+
+    expect(result.current.dayTemplates.drafts.map((draft) => draft.name)).toEqual(["週末"]);
+    expect(getSegments(result)).toEqual([savedHallSegment]);
   });
 
   it("店の状況が空のときは、actionを呼ばずに入力を促す", async () => {
@@ -1132,6 +1234,49 @@ describe("ポジションの反映と保存", () => {
     // 削除したポジションの人数や熟練度を外しただけのテンプレートとスタッフは、保存する変更に数えない。
     expect(result.current.pendingSections).toEqual(["positions"]);
     expect(mocks.savePositions).not.toHaveBeenCalled();
+  });
+
+  it("ポジションをすべて削除して反映すると、残した既定のポジションの人数と熟練度も外し、空の人数と熟練度で保存する", async () => {
+    mocks.savePositions.mockResolvedValue([hall]);
+    mocks.saveDayTemplates.mockResolvedValue(null);
+    mocks.saveStaffShiftProfiles.mockResolvedValue(null);
+    const { result } = renderController({
+      ...setup,
+      staffs: [
+        { _id: staffA, name: "佐藤", positionSkills: [{ positionId: kitchen, level: "newcomer" }] },
+        { _id: staffB, name: "鈴木", positionSkills: [{ positionId: hall, level: "unavailable" }] },
+      ],
+    });
+    // すべて削除して決定すると、Dialogは既定のポジションを仮の名前へ戻した1件を渡す。
+    const unsplitInput = { id: hall, name: "シフト", color: "#60a5fa" };
+
+    act(() => result.current.intents.onApplyPositions([unsplitInput]));
+
+    // 残した既定のポジション（ホール）に入っていた人数と、鈴木のホールの担当外も外れる。
+    expect(getSegments(result)).toEqual([]);
+    expect(result.current.staffProfiles).toEqual({ [staffA]: {}, [staffB]: {} });
+    expect(result.current.pendingSections).toEqual(["positions", "dayTemplates", "staffs"]);
+
+    await act(async () => result.current.intents.onSaveChanges());
+
+    expect(mocks.savePositions).toHaveBeenCalledExactlyOnceWith({ ...scope, positions: [unsplitInput] });
+    expect(mocks.saveDayTemplates).toHaveBeenCalledExactlyOnceWith({
+      ...scope,
+      templates: [
+        {
+          id: templateId,
+          name: "平日",
+          weekdays: ["mon", "tue"],
+          appliesToHolidays: false,
+          requirements: { kind: "time", bars: [] },
+        },
+      ],
+    });
+    // 削除したキッチンの値だけを持つ佐藤は、送らなくても保存済みの値から外れる。鈴木は空の値で送る。
+    expect(mocks.saveStaffShiftProfiles).toHaveBeenCalledExactlyOnceWith({
+      ...scope,
+      profiles: [{ staffId: staffB, positionSkills: [] }],
+    });
   });
 
   it("保存の応答を待っている間は、ポジションの反映を受け付けない", async () => {

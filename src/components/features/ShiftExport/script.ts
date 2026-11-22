@@ -7,8 +7,8 @@ import {
   getWeekdayLabel,
   isValidIsoDateString,
 } from "@/src/domains/shift/date";
-import { isSupportedShiftTime, minutesToTime, timeToMinutes } from "@/src/domains/shift/time";
-import { buildExportDaily } from "./daily";
+import { minutesToTime, timeToMinutes } from "@/src/domains/shift/time";
+import { buildExportDaily, getExportStaffName, isExportTimeRange } from "./daily";
 import type { ExportNoteRow, ExportSchedule, ExportView, ShiftExportData } from "./types";
 
 export function buildExportSchedule(
@@ -55,16 +55,7 @@ export function buildExportSchedule(
       : [];
   const optionIds = new Set(options.map((option) => option.id));
   // 休憩は一覧に出さないが、日別のバーに使うため、時刻をここで確かめる。
-  if (
-    data.assignments.some((assignment) =>
-      (assignment.breaks ?? []).some(
-        ({ startTime, endTime }) =>
-          !isSupportedShiftTime(startTime) ||
-          !isSupportedShiftTime(endTime) ||
-          timeToMinutes(startTime) >= timeToMinutes(endTime),
-      ),
-    )
-  ) {
+  if (data.assignments.some((assignment) => (assignment.breaks ?? []).some((range) => !isExportTimeRange(range)))) {
     throw new Error("休憩時間を確認できませんでした。");
   }
   // 日付選択の「ポジション」は、「くわしく」表示で、ポジションが2つ以上ある店舗でだけ選べる。
@@ -77,7 +68,7 @@ export function buildExportSchedule(
   let bodyLineCount = pattern.kind === "time" ? 2 : 1;
   const rows = data.staffs.map((staff) => ({
     staffId: staff.id,
-    staffName: staff.isRemoved ? `${staff.name}（削除済み）` : staff.name,
+    staffName: getExportStaffName(staff),
     cells: dates.map(({ date, isClosed }) => {
       const assignments = byStaffDate.get(`${staff.id}:${date}`) ?? [];
       if (isClosed || assignments.length === 0) return { lines: ["-"] };
@@ -96,14 +87,7 @@ export function buildExportSchedule(
         return { lines };
       }
       if (pattern.kind === "time") {
-        if (
-          assignments.some(
-            ({ startTime, endTime }) =>
-              !isSupportedShiftTime(startTime) ||
-              !isSupportedShiftTime(endTime) ||
-              timeToMinutes(startTime) >= timeToMinutes(endTime),
-          )
-        )
+        if (assignments.some((assignment) => !isExportTimeRange(assignment)))
           throw new Error("勤務時間を確認できませんでした。");
         const intervals = assignments
           .map(({ startTime, endTime }) => ({ start: timeToMinutes(startTime), end: timeToMinutes(endTime) }))
@@ -180,7 +164,7 @@ function buildExportNoteRows(data: ShiftExportData, dateSet: ReadonlySet<string>
       return {
         key: `${entry.staffId}:${entry.date}`,
         dateLabel: formatDateWithWeekday(entry.date),
-        staffName: staff.isRemoved ? `${staff.name}（削除済み）` : staff.name,
+        staffName: getExportStaffName(staff),
         note: entry.note,
       };
     });

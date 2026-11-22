@@ -1,10 +1,9 @@
 import { Box, chakra, Flex, Icon, Text } from "@chakra-ui/react";
 import dayjs from "dayjs";
 import { useAtomValue, useSetAtom } from "jotai";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { LuChevronDown, LuChevronUp } from "react-icons/lu";
 import { getWeekdayLabel } from "@/src/domains/shift/date";
-import { indexShiftsByStaffId } from "@/src/domains/shift/shiftLookup";
 import {
   AssignmentPill,
   FoldedStaffGroupToggle,
@@ -12,40 +11,37 @@ import {
   PositionStaffingCount,
 } from "../../assignmentCellParts";
 import { ChromeCollapse } from "../../ChromeCollapse";
-import { DateIssueBadge, dateIssueBorderColor, ShiftFormScrollEnd, StaffWarningIcon } from "../../components";
+import { ShiftFormScrollEnd, StaffWarningIcon } from "../../components";
 import { DisplaySettingsMenu } from "../../DisplaySettingsMenu";
 import { ShiftStaffNoteIcon, useAllShiftDateNotes } from "../../dateNotes";
 import { StaffMeta } from "../../detailParts";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
+import { useRestoreRememberedWorkPosition } from "../../hooks/useRestoreRememberedWorkPosition";
 import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
+import { useShiftTypeDailyPresentation } from "../../hooks/useShiftTypeDailyPresentation";
 import { useSwipeDateChange } from "../../hooks/useSwipeDateChange";
 import {
-  buildShiftTypeDailyPresentation,
-  buildShiftTypeStaffingPresentation,
   type ShiftTypeDailyCellPresentation,
   type ShiftTypeDailyOptionPresentation,
   type ShiftTypeDailyRowPresentation,
   type ShiftTypeStaffingPresentation,
   toShiftTypeWarningMessages,
 } from "../../shiftTypeDailyPresentation";
-import { DayTemplateMenu, useDayStaffingView } from "../../staffingParts";
+import { DayTemplateMenu } from "../../staffingParts";
 import {
   assignShiftTypeAtom,
   changeShiftTypePositionAtom,
-  dailySortedStaffsAtom,
   detailModeAtom,
   isPositionSelectableAtom,
   issueCountByDateAtom,
   removeShiftTypeAssignmentAtom,
-  restoreRememberedWorkPositionAtom,
   selectDateWithDailyStaffOrderAtom,
   selectedDateAtom,
   shiftConfigAtom,
-  shiftsForSelectedDateAtom,
-  usesPositionColorsAtom,
   warningCountByDateAtom,
 } from "../../stores";
 import { getShiftWeekdayColor } from "../../weekdayPresentation";
+import { DateChips } from "../DailyView/DateRail";
 import { PositionDialog } from "../PositionDialog";
 
 // 名前と確認事項のアイコンが並んでも名前が読めるよう、スタッフの列を広めに取る。
@@ -58,63 +54,27 @@ type PositionDialogTarget = { row: ShiftTypeDailyRowPresentation; optionId: stri
 
 export const SPShiftTypeDailyView = () => {
   const config = useAtomValue(shiftConfigAtom);
-  const shiftsForDate = useAtomValue(shiftsForSelectedDateAtom);
-  const sortedStaffs = useAtomValue(dailySortedStaffsAtom);
   const selectedDate = useAtomValue(selectedDateAtom);
   const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const issueCounts = useAtomValue(issueCountByDateAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
   const detailMode = useAtomValue(detailModeAtom);
-  const usesPositionColors = useAtomValue(usesPositionColorsAtom);
   const isPositionSelectable = useAtomValue(isPositionSelectableAtom);
   const assign = useSetAtom(assignShiftTypeAtom);
   const changePosition = useSetAtom(changeShiftTypePositionAtom);
   const removeAssignment = useSetAtom(removeShiftTypeAssignmentAtom);
-  // 人数と過不足を出す日（くわしく表示の営業日）だけ値が入る。
-  const staffingView = useDayStaffingView(selectedDate);
   const dateNotes = useAllShiftDateNotes();
 
-  const { dates, holidays, isReadOnly, submissionPattern, shopId, positions } = config;
-  const isConfirmedDisplay = config.displayMode === "confirmed";
+  const { dates, holidays, isReadOnly, positions } = config;
   const isShopClosedDate = holidays.includes(selectedDate);
   const selectedDay = selectedDate ? dayjs(selectedDate) : null;
   const dateStripRef = useRef<HTMLDivElement>(null);
   useScrollDateIntoView(dateStripRef, selectedDate, "horizontal");
   useLockedDailyStaffOrder(selectedDate);
+  useRestoreRememberedWorkPosition();
 
-  // 前にこの店舗で最後に選んだポジションを、次に入れるポジションへ戻す。店舗とポジションが読み込まれてから行う。
-  const restoreRememberedWorkPosition = useSetAtom(restoreRememberedWorkPositionAtom);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: 店舗かポジションが変わったときに戻し直すため、値の変化を見る。
-  useEffect(() => {
-    restoreRememberedWorkPosition();
-  }, [restoreRememberedWorkPosition, shopId, positions]);
-
-  const presentation = useMemo(
-    () =>
-      buildShiftTypeDailyPresentation({
-        submissionPattern,
-        shifts: shiftsForDate,
-        staffs: sortedStaffs,
-        shiftByStaffId: indexShiftsByStaffId(shiftsForDate),
-        isConfirmedDisplay,
-        usesPositionColors,
-        hasNote: (staffId) => dateNotes.getNote(staffId, selectedDate) !== undefined,
-      }),
-    [dateNotes, isConfirmedDisplay, selectedDate, shiftsForDate, sortedStaffs, submissionPattern, usesPositionColors],
-  );
-  const staffing = useMemo(
-    () =>
-      staffingView
-        ? buildShiftTypeStaffingPresentation(
-            staffingView,
-            presentation.options.map(({ option }) => option),
-          )
-        : null,
-    [presentation.options, staffingView],
-  );
-  // テンプレートの選択は、必要人数のない日でも、店舗にテンプレートがあれば出す。
-  const showsTemplate =
-    staffingView !== null && (staffingView.hasRequirements || (config.staffing?.templates.length ?? 0) > 0);
+  // 人数と過不足（staffingView、staffing）は、出す日（くわしく表示の営業日）だけ値が入る。
+  const { presentation, staffing, staffingView, showsTemplate } = useShiftTypeDailyPresentation();
   // 充足の欄は、必要人数が1つでもある日にだけ出す。
   const showsFulfillment = staffing !== null && staffing.percent !== null;
 
@@ -173,68 +133,15 @@ export const SPShiftTypeDailyView = () => {
       {/* 日付の一覧は、表を下へスクロールすると上の行と一緒に隠す。日付の見出しは残す。 */}
       <ChromeCollapse>
         <Box px={3} pt={3} pb={2} bg="white" borderBottomWidth="1px" borderColor="gray.100">
-          <Flex ref={dateStripRef} gap={2} overflow="auto" pt={2} pb={1}>
-            {dates.map((iso) => {
-              const date = dayjs(iso);
-              const active = iso === selectedDate;
-              const isClosed = holidays.includes(iso);
-              const issueCount = issueCounts.get(iso) ?? 0;
-              const warningCount = warningCounts.get(iso) ?? 0;
-              const chipBorderColor = dateIssueBorderColor({
-                active,
-                issueCount,
-                warningCount,
-                activeColor: "teal.500",
-                fallbackColor: "gray.200",
-              });
-              return (
-                <Box
-                  key={iso}
-                  data-date-chip={iso}
-                  onClick={() => selectDate(iso)}
-                  position="relative"
-                  flexShrink={0}
-                  w="52px"
-                  py="8px"
-                  textAlign="center"
-                  borderRadius="md"
-                  borderWidth="1px"
-                  borderColor={chipBorderColor}
-                  bg={active ? "teal.500" : isClosed ? "gray.50" : "white"}
-                  cursor="pointer"
-                  transitionProperty="colors"
-                  transitionDuration="faster"
-                  _active={{ bg: active ? "teal.600" : "gray.100", transitionDuration: "0ms" }}
-                >
-                  <DateIssueBadge issueCount={issueCount} warningCount={warningCount} />
-                  <Box
-                    textStyle="md"
-                    fontWeight={700}
-                    color={active ? "white" : "gray.800"}
-                    lineHeight="1.1"
-                    fontVariantNumeric="tabular-nums"
-                  >
-                    {date.date()}
-                  </Box>
-                  {/* 休みは曜日と同じ行に置き、日付の高さをそろえる。 */}
-                  <Box
-                    textStyle="2xs"
-                    mt="2px"
-                    fontWeight={active ? 700 : 500}
-                    whiteSpace="nowrap"
-                    style={{ color: active ? "white" : getShiftWeekdayColor(iso) }}
-                  >
-                    {getWeekdayLabel(iso)}
-                    {isClosed && (
-                      <Box as="span" fontWeight={700} color={active ? "white" : "gray.500"}>
-                        (休)
-                      </Box>
-                    )}
-                  </Box>
-                </Box>
-              );
-            })}
-          </Flex>
+          <DateChips
+            dates={dates}
+            selectedDate={selectedDate}
+            holidays={holidays}
+            issueCounts={issueCounts}
+            warningCounts={warningCounts}
+            dateStripRef={dateStripRef}
+            onSelect={selectDate}
+          />
         </Box>
       </ChromeCollapse>
 

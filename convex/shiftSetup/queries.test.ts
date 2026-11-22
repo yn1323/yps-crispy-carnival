@@ -518,6 +518,59 @@ describe("shiftSetup/queries", () => {
       });
     });
 
+    it.each([
+      { name: "利用上限を超えた", kind: "overLimit" as const, reason: "usageLimitExceeded" },
+      { name: "契約状態を読めない", kind: "missingBilling" as const, reason: "usageLimitEvaluationUnavailable" },
+    ])("$name 組織では、設定を閲覧用に返し、書き込めない理由を添える", async ({ kind, reason }) => {
+      const subject = `shift_setup_query_${kind}`;
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, { subject, shopName: "閲覧だけの店舗", plan: "free" });
+        const staffIds = [];
+        // Freeの人数の上限を超える人数にする。
+        for (let index = 0; index < 5; index += 1) {
+          staffIds.push(
+            await seedStaff(ctx, {
+              shopId: seeded.shopId,
+              name: `スタッフ${index + 1}`,
+              email: `shift-setup-${kind}-${index + 1}@example.com`,
+            }),
+          );
+        }
+        if (kind === "missingBilling") {
+          const billingState = await ctx.db
+            .query("organizationBillingStates")
+            .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+            .unique();
+          if (!billingState) throw new Error("billing state fixture was not found");
+          await ctx.db.delete(billingState._id);
+        }
+        return { ...seeded, staffIds };
+      });
+
+      const result = await t.withIdentity({ subject }).query(api.shiftSetup.queries.getShiftSetup, {
+        shopId: ids.shopId,
+        expectedOrganizationId: ids.organizationId,
+      });
+
+      expect(result).toEqual({
+        shopName: "閲覧だけの店舗",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        regularClosedDays: [],
+        canWriteBusinessData: false,
+        businessWriteBlockReason: reason,
+        positions: [],
+        dayTemplates: [],
+        breakRule: null,
+        staffs: ids.staffIds.map((staffId, index) => ({
+          _id: staffId,
+          name: `スタッフ${index + 1}`,
+          positionSkills: [],
+        })),
+        assistAvailable: false,
+      });
+    });
+
     it("SHIFT_SETUP_ASSIST_MODEがrandomの環境では、AIサポートを使えると返す", async () => {
       vi.stubEnv("SHIFT_SETUP_ASSIST_MODE", "random");
       const t = convexTest(schema, modules);

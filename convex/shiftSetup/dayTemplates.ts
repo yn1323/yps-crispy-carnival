@@ -87,14 +87,9 @@ function isStaffingBarWithinRange(bar: TimeRange, range: TimeRange): boolean {
   );
 }
 
-/** 受付時間の外へ出ているバー（一部でも外に出ているもの）の本数を返す。 */
-export function countStaffingBarsOutsideRange(bars: ReadonlyArray<TimeRange>, range: TimeRange): number {
-  return bars.filter((bar) => !isStaffingBarWithinRange(bar, range)).length;
-}
-
 /**
  * バーを受付時間の内側へ切りそろえる。完全に外のバーは落とし、またぐバーは内側だけを残す。
- * 設定ページの「受付時間に合わせる」と、募集の受付時間への射影で使う。
+ * 募集の受付時間への射影で使う。
  */
 export function clipStaffingBarsToRange<PositionId extends string>(
   bars: ReadonlyArray<StaffingBar<PositionId>>,

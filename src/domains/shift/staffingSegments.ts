@@ -45,6 +45,30 @@ const listPositionIds = (items: readonly { positionId: string }[]): string[] =>
 const isPositiveCount = (count: number): boolean => Number.isFinite(count) && count > 0;
 
 /**
+ * 範囲の端で時間を区切り、区切った時間ごとに人数を決めて、同じ人数が続く時間を1つにまとめる。
+ * 人数は、その時間にかかる範囲（渡した配列の順）から resolveCount で決める。人数が0の時間は返さない。
+ */
+const sweepCountSpans = <Range extends StaffingSegmentRange>(
+  ranges: readonly Range[],
+  resolveCount: (covering: readonly Range[]) => number,
+): StaffingCountSpan[] => {
+  const points = [...new Set(ranges.flatMap((range) => [range.startMinutes, range.endMinutes]))].sort((a, b) => a - b);
+
+  const spans: StaffingCountSpan[] = [];
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const startMinutes = points[index];
+    const endMinutes = points[index + 1];
+    const count = resolveCount(
+      ranges.filter((range) => range.startMinutes <= startMinutes && startMinutes < range.endMinutes),
+    );
+    const previous = spans.at(-1);
+    if (previous && previous.count === count) previous.endMinutes = endMinutes;
+    else spans.push({ startMinutes, endMinutes, count });
+  }
+  return spans.filter((span) => span.count > 0);
+};
+
+/**
  * 1つのポジションの区間を、重ならない人数の並びへ直す。
  * 重なった区間があれば、配列のあとにある区間の人数を使う。人数が0以下の区間と、長さのない区間は捨てる。
  */
@@ -57,19 +81,10 @@ const toSpans = (segments: readonly StaffingSegment[], positionId: string): Staf
       count: segment.count,
     }))
     .filter((range) => range.startMinutes < range.endMinutes);
-  const points = [...new Set(ranges.flatMap((range) => [range.startMinutes, range.endMinutes]))].sort((a, b) => a - b);
-
-  const spans: StaffingCountSpan[] = [];
-  for (let index = 0; index < points.length - 1; index += 1) {
-    const startMinutes = points[index];
-    const endMinutes = points[index + 1];
-    const covering = ranges.findLast((range) => range.startMinutes <= startMinutes && startMinutes < range.endMinutes);
-    const count = covering && isPositiveCount(covering.count) ? covering.count : 0;
-    const previous = spans.at(-1);
-    if (previous && previous.count === count) previous.endMinutes = endMinutes;
-    else spans.push({ startMinutes, endMinutes, count });
-  }
-  return spans.filter((span) => span.count > 0);
+  return sweepCountSpans(ranges, (covering) => {
+    const last = covering.at(-1);
+    return last && isPositiveCount(last.count) ? last.count : 0;
+  });
 };
 
 const toSegment = (positionId: string, span: StaffingCountSpan): StaffingSegment => ({
@@ -171,14 +186,6 @@ export const splitRangeByStaffingCount = (input: {
   return spans;
 };
 
-/** その時刻（分）に必要な人数。区間の終了ちょうどの時刻は、その区間に含めない。 */
-export const getStaffingCountAt = (segments: readonly StaffingSegment[], positionId: string, minutes: number): number =>
-  toSpans(segments, positionId).find((span) => span.startMinutes <= minutes && minutes < span.endMinutes)?.count ?? 0;
-
-/** そのポジションの、いちばん多い人数。区間がなければ0を返す。 */
-export const getMaxStaffingCount = (segments: readonly StaffingSegment[], positionId: string): number =>
-  Math.max(0, ...toSpans(segments, positionId).map((span) => span.count));
-
 /**
  * その範囲の中で、ポジションの人数がとる最小と最大を返す。人数の入っていない時間は0人として数える。
  * 範囲の長さが0以下なら、nullを返す。
@@ -207,18 +214,9 @@ export const barsToStaffingSegments = (bars: readonly StaffingBar[]): StaffingSe
   listPositionIds(bars).flatMap((positionId) => {
     const ranges = bars
       .filter((bar) => bar.positionId === positionId)
-      .map((bar) => ({ start: timeToMinutes(bar.start), end: timeToMinutes(bar.end) }))
-      .filter((range) => range.start < range.end);
-    const points = [...new Set(ranges.flatMap((range) => [range.start, range.end]))].sort((a, b) => a - b);
-    const spans: StaffingCountSpan[] = [];
-    for (let index = 0; index < points.length - 1; index += 1) {
-      const startMinutes = points[index];
-      const count = ranges.filter((range) => range.start <= startMinutes && startMinutes < range.end).length;
-      const previous = spans.at(-1);
-      if (previous && previous.count === count) previous.endMinutes = points[index + 1];
-      else spans.push({ startMinutes, endMinutes: points[index + 1], count });
-    }
-    return spans.filter((span) => span.count > 0).map((span) => toSegment(positionId, span));
+      .map((bar) => ({ startMinutes: timeToMinutes(bar.start), endMinutes: timeToMinutes(bar.end) }))
+      .filter((range) => range.startMinutes < range.endMinutes);
+    return sweepCountSpans(ranges, (covering) => covering.length).map((span) => toSegment(positionId, span));
   });
 
 /**
@@ -276,60 +274,4 @@ export const trimSegmentsToRange = (input: {
       return [toSegment(segment.positionId, { startMinutes, endMinutes, count: segment.count })];
     }),
   );
-};
-
-export type StaffingSegmentRejection =
-  // 終了が開始より前、または長さが刻みに届かない
-  | "TOO_SHORT"
-  // 開始か終了が刻みに合っていない
-  | "NOT_ON_UNIT"
-  // 受付時間の外にかかる
-  | "OUT_OF_RANGE"
-  // 同じポジションの区間が重なっている
-  | "OVERLAP"
-  // 人数が1以上、上限以下の整数でない
-  | "INVALID_COUNT";
-
-export type StaffingSegmentValidation = { ok: true } | { ok: false; reason: StaffingSegmentRejection };
-
-/**
- * 区間を保存できる形か確かめる。最初に見つかった理由を返す。
- * 時刻は刻みに乗り、受付時間の内側にあること。同じポジションの区間は重ならないこと。人数は1以上、上限以下の整数であること。
- * 並びと、同じ人数の区間がまとまっているかは確かめない。保存の前に normalizeStaffingSegments でそろえる。
- */
-export const validateStaffingSegments = (input: {
-  segments: readonly StaffingSegment[];
-  range: StaffingSegmentRange;
-  /** 刻み（分）。区間の最小の長さでもある。未指定は30分。 */
-  unitMinutes?: number;
-  /** 人数の上限。未指定は50人。 */
-  maxCount?: number;
-}): StaffingSegmentValidation => {
-  const { segments, range } = input;
-  const unitMinutes = input.unitMinutes ?? STAFFING_SEGMENT_UNIT_MINUTES;
-  const maxCount = input.maxCount ?? DEFAULT_STAFFING_COUNT_LIMIT;
-
-  for (const segment of segments) {
-    const start = timeToMinutes(segment.startTime);
-    const end = timeToMinutes(segment.endTime);
-    if (!Number.isFinite(start) || !Number.isFinite(end)) return { ok: false, reason: "NOT_ON_UNIT" };
-    if (end - start < unitMinutes) return { ok: false, reason: "TOO_SHORT" };
-    if (start % unitMinutes !== 0 || end % unitMinutes !== 0) return { ok: false, reason: "NOT_ON_UNIT" };
-    if (start < range.startMinutes || end > range.endMinutes) return { ok: false, reason: "OUT_OF_RANGE" };
-    if (!Number.isInteger(segment.count) || segment.count < 1 || segment.count > maxCount) {
-      return { ok: false, reason: "INVALID_COUNT" };
-    }
-  }
-
-  for (const positionId of listPositionIds(segments)) {
-    const sorted = segments
-      .filter((segment) => segment.positionId === positionId)
-      .map((segment) => ({ start: timeToMinutes(segment.startTime), end: timeToMinutes(segment.endTime) }))
-      .sort((a, b) => a.start - b.start);
-    // 端が接しているだけの区間は、重なりに数えない。
-    if (sorted.some((item, index) => index > 0 && item.start < sorted[index - 1].end)) {
-      return { ok: false, reason: "OVERLAP" };
-    }
-  }
-  return { ok: true };
 };

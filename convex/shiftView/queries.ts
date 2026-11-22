@@ -2,13 +2,13 @@ import { v } from "convex/values";
 import { formatPeriodLabel } from "../_lib/dateFormat";
 import { staffSessionQuery } from "../_lib/functions";
 import { normalizeExactAdjacentTimeAssignments } from "../_lib/shiftAssignmentNormalization";
-import { shiftAssignmentReadValidator } from "../_lib/shiftAssignmentValidators";
+import { shiftAssignmentReadValidator, toShiftAssignmentCore } from "../_lib/shiftAssignmentValidators";
 import { DEFAULT_SHIFT_STAFF_SORT_MODE, shiftStaffSortModeValidator } from "../_lib/shiftStaffSortMode";
 import { sessionMatchesAccessKind } from "../_lib/staffAccess";
 import { getSubmissionPatternTimeRange, submissionPatternValidator } from "../_lib/submissionPattern";
 import { timeToMinutes } from "../_lib/time";
 import { SHIFT_ASSIGNMENT_LIMIT, SHIFT_BOARD_STAFF_LIMIT, SHIFT_BOARD_TIME_UNIT_MINUTES } from "../constants";
-import { listShopStaffIdsInSavedOrder } from "../organization/staffOrder";
+import { listShopStaffIdsInSavedOrder, sortStaffsInSavedOrder } from "../organization/staffOrder";
 import { getActiveRecruitmentInShop } from "../recruitment/service";
 import { listRecruitmentPositions } from "../shiftSetup/service";
 import { isShiftTargetStaff } from "../staff/service";
@@ -74,13 +74,7 @@ export const getShiftViewData = staffSessionQuery({
       throw new Error("Shift assignment scope exceeds the supported limit");
     }
 
-    const targetStaffs = staffs.filter(isShiftTargetStaff);
-    const rankByStaffId = new Map((savedOrder ?? []).map((staffId, index) => [staffId, index] as const));
-    // 並び順に載っていない人は、登録順のまま末尾に置く。並べ替えは安定なので、同じ順位どうしは元の順を保つ。
-    const orderedStaffs = [...targetStaffs].sort(
-      (a, b) =>
-        (rankByStaffId.get(a._id) ?? Number.POSITIVE_INFINITY) - (rankByStaffId.get(b._id) ?? Number.POSITIVE_INFINITY),
-    );
+    const orderedStaffs = sortStaffsInSavedOrder(staffs.filter(isShiftTargetStaff), savedOrder);
 
     const submissionPattern = recruitment.submissionPattern;
     const projectedAssignments =
@@ -96,16 +90,8 @@ export const getShiftViewData = staffSessionQuery({
       periodEnd: recruitment.periodEnd,
       staffs: orderedStaffs.map((s) => ({ _id: s._id, name: s.name })),
       shiftStaffSortMode: shop.shiftStaffSortMode ?? DEFAULT_SHIFT_STAFF_SORT_MODE,
-      positions: positions.map((p) => ({ _id: p._id, name: p.name, color: p.color, isDefault: p.isDefault })),
-      assignments: projectedAssignments.map((a) => ({
-        staffId: a.staffId,
-        date: a.date,
-        startTime: a.startTime,
-        endTime: a.endTime,
-        positionId: a.positionId,
-        ...(a.optionId !== undefined ? { optionId: a.optionId } : {}),
-        ...(a.breaks ? { breaks: a.breaks } : {}),
-      })),
+      positions,
+      assignments: projectedAssignments.map((a) => ({ staffId: a.staffId, ...toShiftAssignmentCore(a) })),
       shopClosedDates: recruitment.shopClosedDates,
       submissionPattern,
       timeRange: {

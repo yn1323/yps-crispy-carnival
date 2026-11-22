@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type CapturedState = {
@@ -20,6 +20,8 @@ type CapturedAccount = {
 
 type CapturedActions = {
   onAccept: () => void | Promise<void>;
+  onLogin: () => void | Promise<void>;
+  onSignup: () => void | Promise<void>;
   onLogout: () => void | Promise<void>;
   onGoToDashboard: () => void | Promise<void>;
 };
@@ -37,7 +39,8 @@ const mocks = vi.hoisted(() => ({
     status: "ready",
     organizationName: "さくらダイニング",
     expiresAt: Date.UTC(2026, 6, 23, 9),
-  },
+  } as { status: string; organizationName?: string; expiresAt?: number },
+  isSignedIn: true,
   shops: [] as Array<Record<string, unknown>>,
   user: {
     primaryEmailAddress: { emailAddress: "login@example.com" },
@@ -47,9 +50,9 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@clerk/react", () => ({
-  useAuth: () => ({ isLoaded: true, isSignedIn: true }),
+  useAuth: () => ({ isLoaded: true, isSignedIn: mocks.isSignedIn }),
   useClerk: () => ({ signOut: mocks.signOut }),
-  useUser: () => ({ isLoaded: true, user: mocks.user }),
+  useUser: () => ({ isLoaded: true, user: mocks.isSignedIn ? mocks.user : null }),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -58,7 +61,7 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("convex/react", () => ({
   useAction: mocks.useAction,
-  useConvexAuth: () => ({ isAuthenticated: true, isLoading: false }),
+  useConvexAuth: () => ({ isAuthenticated: mocks.isSignedIn, isLoading: false }),
   useQuery: mocks.useQuery,
 }));
 
@@ -91,6 +94,12 @@ vi.mock("./ManagerInvitationAcceptanceView", () => ({
         <button type="button" onClick={() => void actions.onAccept()}>
           参加する
         </button>
+        <button type="button" onClick={() => void actions.onLogin()}>
+          ログイン
+        </button>
+        <button type="button" onClick={() => void actions.onSignup()}>
+          新規登録
+        </button>
         <button type="button" onClick={() => void actions.onLogout()}>
           ログアウト
         </button>
@@ -111,6 +120,8 @@ beforeEach(() => {
   mocks.useAction.mockReset();
   mocks.useQuery.mockReset();
   mocks.shops = [];
+  mocks.preview = { status: "ready", organizationName: "さくらダイニング", expiresAt: Date.UTC(2026, 6, 23, 9) };
+  mocks.isSignedIn = true;
   mocks.latestState = null;
   mocks.latestAccount = null;
 
@@ -141,6 +152,68 @@ describe("ManagerInvitationAcceptance controller", () => {
 
     await waitFor(() => expect(screen.getByTestId("state-kind").textContent).toBe("accepted"));
     expect(mocks.acceptInvitation.mock.calls).toEqual([[{ token: "invitation-token" }]]);
+  });
+
+  it("「参加する」を続けて押しても、受諾を1回だけ呼ぶ", async () => {
+    let finish: ((result: { status: "linked"; organizationId: string }) => void) | undefined;
+    mocks.acceptInvitation.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    render(<ManagerInvitationAcceptance token="invitation-token" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "参加する" }));
+    fireEvent.click(screen.getByRole("button", { name: "参加する" }));
+
+    expect(mocks.acceptInvitation).toHaveBeenCalledTimes(1);
+    await act(async () => finish?.({ status: "linked", organizationId: "organization-invited" }));
+    await waitFor(() => expect(screen.getByTestId("state-kind").textContent).toBe("accepted"));
+    expect(mocks.acceptInvitation).toHaveBeenCalledTimes(1);
+  });
+
+  it("ログインしていないときはアカウントを渡さず、ログインと新規登録の戻り先に同じ招待URLを指定する", async () => {
+    mocks.isSignedIn = false;
+    render(<ManagerInvitationAcceptance token="invitation token" />);
+
+    await waitFor(() => expect(mocks.latestState).toMatchObject({ kind: "ready", isSignedIn: false }));
+    expect(mocks.latestAccount).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "ログイン" }));
+    fireEvent.click(screen.getByRole("button", { name: "新規登録" }));
+    // ログインする前に「参加する」が押されても、受諾は呼ばない。
+    fireEvent.click(screen.getByRole("button", { name: "参加する" }));
+
+    expect(mocks.navigate.mock.calls).toEqual([
+      [{ to: "/login", search: { redirect: "/manager-invite?token=invitation%20token" } }],
+      [{ to: "/signup", search: { redirect: "/manager-invite?token=invitation%20token" } }],
+    ]);
+    expect(mocks.acceptInvitation).not.toHaveBeenCalled();
+  });
+
+  it.each(["expired", "revoked", "used", "unavailable", "invalid"])(
+    "招待が%sなら、その状態を画面へ渡し、受諾を呼ばない",
+    async (status) => {
+      mocks.preview = { status };
+      render(<ManagerInvitationAcceptance token="invitation-token" />);
+
+      await waitFor(() => expect(mocks.latestState).toEqual({ kind: status }));
+      expect(mocks.acceptInvitation).not.toHaveBeenCalled();
+    },
+  );
+
+  it("tokenのないURLは無効な招待として扱い、招待の内容を問い合わせない", async () => {
+    render(<ManagerInvitationAcceptance token={undefined} />);
+
+    await waitFor(() => expect(mocks.latestState).toEqual({ kind: "invalid" }));
+    const previewArgs = mocks.useQuery.mock.calls
+      .filter(([query]) => query === mocks.previewQuery)
+      .map(([, args]) => args);
+    expect(previewArgs.length).toBeGreaterThan(0);
+    expect(new Set(previewArgs)).toEqual(new Set(["skip"]));
+    fireEvent.click(screen.getByRole("button", { name: "参加する" }));
+    expect(mocks.acceptInvitation).not.toHaveBeenCalled();
   });
 
   it.each([

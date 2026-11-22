@@ -5,6 +5,7 @@ import {
   addPositionDraft,
   findPositionDraftErrors,
   formatPendingSections,
+  getShiftSetupReadOnlyReason,
   hasRenamedPosition,
   type PositionDraft,
   pickUnusedPositionColor,
@@ -178,5 +179,18 @@ describe("保存していない変更の表示", () => {
     expect(formatPendingSections(["dayTemplates", "staffs"])).toBe("必要人数とスタッフ");
     expect(formatPendingSections(["positions"])).toBe("ポジション");
     expect(formatPendingSections(["positions", "dayTemplates", "staffs"])).toBe("ポジションと必要人数とスタッフ");
+  });
+});
+
+describe("閲覧専用の案内", () => {
+  it("上限超過は確定した超過として案内する", () => {
+    expect(getShiftSetupReadOnlyReason("usageLimitExceeded")).toContain("プラン上限を超えているため");
+  });
+
+  it("利用状況を確認できない場合を、上限超過と断定しない", () => {
+    const reason = getShiftSetupReadOnlyReason("usageLimitEvaluationUnavailable");
+
+    expect(reason).toContain("利用状況を確認できないため");
+    expect(reason).not.toContain("上限を超えて");
   });
 });

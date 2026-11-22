@@ -1507,6 +1507,8 @@ export const seedOpenRecruitmentNotificationScenario = internalMutation({
     dateOnly: v.optional(v.boolean()),
     // 店舗の集め方も日付選択にする。設定ページの必要人数は、店舗の集め方で入力する。
     shopDateOnly: v.optional(v.boolean()),
+    // 店舗のシフト表を「くわしく」で開く。休憩など、くわしく表示でだけ入れられる内容の前提にする。
+    shopDetailMode: v.optional(v.boolean()),
     managerLineState: v.optional(lineDeliveryStateValidator),
     managerLegalConsentState: v.optional(legalConsentStateValidator),
     managerStaffLegalConsentState: v.optional(legalConsentStateValidator),
@@ -1521,6 +1523,9 @@ export const seedOpenRecruitmentNotificationScenario = internalMutation({
     });
     if (args.shopDateOnly) {
       await ctx.db.patch(shopId, { submissionPattern: { kind: "dateOnly" } });
+    }
+    if (args.shopDetailMode) {
+      await ctx.db.patch(shopId, { shiftDetailMode: true });
     }
     const recruitmentId = await createRecruitment(ctx, {
       shopId,
@@ -1539,13 +1544,15 @@ export const seedOpenRecruitmentNotificationScenario = internalMutation({
   },
 });
 
-/** 募集の編集・削除E2Eで使う、同じ店舗に募集中の募集2件だけがある前提を作る。 */
+/** 募集の編集・削除E2Eと、前回の勤務を仮で入れるE2Eで使う、同じ店舗に募集中の募集2件だけがある前提を作る。 */
 export const seedRecruitmentManagementScenario = internalMutation({
   args: {
     managerAuthTokenIdentifier: v.string(),
     managerEmail: v.optional(v.string()),
     dates: scenarioDatesValidator,
     otherDates: scenarioDatesValidator,
+    // 2件とも日付選択の募集にする。
+    dateOnly: v.optional(v.boolean()),
   },
   returns: v.object({
     organizationId: v.id("organizations"),
@@ -1559,8 +1566,19 @@ export const seedRecruitmentManagementScenario = internalMutation({
       managerEmail: args.managerEmail,
       shopName: "募集管理テスト店舗",
     });
-    const recruitmentId = await createRecruitment(ctx, { shopId, dates: args.dates, status: "open" });
-    const otherRecruitmentId = await createRecruitment(ctx, { shopId, dates: args.otherDates, status: "open" });
+    const submissionPattern = args.dateOnly ? { submissionPattern: { kind: "dateOnly" as const } } : {};
+    const recruitmentId = await createRecruitment(ctx, {
+      shopId,
+      dates: args.dates,
+      status: "open",
+      ...submissionPattern,
+    });
+    const otherRecruitmentId = await createRecruitment(ctx, {
+      shopId,
+      dates: args.otherDates,
+      status: "open",
+      ...submissionPattern,
+    });
 
     // 編集・削除とその通知はブラウザ操作から通す。
     return { organizationId, shopId, recruitmentId, otherRecruitmentId };

@@ -125,19 +125,31 @@ export function toUnsplitPositionInputs(positions: readonly ShiftSetupPosition[]
   return kept ? [{ id: kept._id, name: DEFAULT_POSITION.name, color: kept.color }] : [];
 }
 
+/**
+ * つかんだ行を、重ねた行の位置へ動かす。どちらかが一覧になければ、そのまま返す。
+ * ポジションの一覧とテンプレートの一覧の並べ替えで使う。
+ */
+export function moveRowByKey<Row extends { rowKey: string }>(
+  rows: readonly Row[],
+  activeRowKey: string,
+  overRowKey: string,
+): Row[] {
+  const from = rows.findIndex((row) => row.rowKey === activeRowKey);
+  const to = rows.findIndex((row) => row.rowKey === overRowKey);
+  if (from < 0 || to < 0 || from === to) return [...rows];
+  const next = [...rows];
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  return next;
+}
+
 /** つかんだ行を、重ねた行の位置へ動かす。どちらかが一覧になければ、そのまま返す。 */
 export function reorderPositionDrafts(
   drafts: readonly PositionDraft[],
   activeRowKey: string,
   overRowKey: string,
 ): PositionDraft[] {
-  const from = drafts.findIndex((draft) => draft.rowKey === activeRowKey);
-  const to = drafts.findIndex((draft) => draft.rowKey === overRowKey);
-  if (from < 0 || to < 0 || from === to) return [...drafts];
-  const next = [...drafts];
-  const [moved] = next.splice(from, 1);
-  next.splice(to, 0, moved);
-  return next;
+  return moveRowByKey(drafts, activeRowKey, overRowKey);
 }
 
 /**

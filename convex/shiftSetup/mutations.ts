@@ -34,7 +34,15 @@ import {
   normalizeDayRequirements,
 } from "./dayTemplates";
 import { breakRuleSchema, savePositionsSchema } from "./schemas";
-import { ACTIVE_POSITION_LIMIT_MESSAGE, listActivePositions, listDayTemplates } from "./service";
+import { ACTIVE_POSITION_LIMIT_MESSAGE, listActivePositionIds, listActivePositions, listDayTemplates } from "./service";
+
+/**
+ * 受け取ったIDが重複せず、すべて同じ店舗の有効なものかを確かめる。
+ * 別店舗・削除済みのIDは、存在を区別せずに拒否する。
+ */
+function requireUniqueKnownIds<T>(ids: readonly T[], knownIds: ReadonlySet<T>): void {
+  if (new Set(ids).size !== ids.length || ids.some((id) => !knownIds.has(id))) throw new ConvexError("Not found");
+}
 
 /**
  * 店舗のポジションを、渡された一覧で置き換える。
@@ -57,15 +65,13 @@ export const savePositions = managerMutation({
 
     // 既定のポジションをまだ持たない店舗では、ここで作る。画面は作る前の一覧しか知らないため、
     // その場合に限って、入力に既定のポジションがなくても受け付けて一覧の先頭へ残す。
-    const hadDefaultPosition = (await getDefaultPosition(ctx, ctx.shop._id)) !== null;
-    const defaultPositionId = await ensureDefaultPosition(ctx, ctx.shop._id);
+    const defaultPositionBefore = await getDefaultPosition(ctx, ctx.shop._id);
+    const hadDefaultPosition = defaultPositionBefore !== null;
+    const defaultPositionId = defaultPositionBefore?._id ?? (await ensureDefaultPosition(ctx, ctx.shop._id));
     const existing = await listActivePositions(ctx, ctx.shop._id);
-    const existingById = new Map(existing.map((position) => [position._id, position]));
 
     const inputIds = args.positions.flatMap((position) => (position.id ? [position.id] : []));
-    if (new Set(inputIds).size !== inputIds.length) throw new ConvexError("Not found");
-    // 別店舗・削除済みのIDは、存在を区別せずに拒否する。
-    if (inputIds.some((id) => !existingById.has(id))) throw new ConvexError("Not found");
+    requireUniqueKnownIds(inputIds, new Set(existing.map((position) => position._id)));
     const replacesDefault = hadDefaultPosition && !inputIds.includes(defaultPositionId);
     const keepsCreatedDefault = !hadDefaultPosition;
     if (keepsCreatedDefault && args.positions.length >= POSITION_ACTIVE_LIMIT) {
@@ -165,6 +171,14 @@ function listRequirementPositionIds(requirements: DayRequirements<Id<"positions"
   return requirements.options.flatMap((option) => option.counts.map((entry) => entry.positionId));
 }
 
+/** 必要人数が、店舗の有効なポジション以外を指しているかを返す。 */
+function referencesUnknownPosition(
+  requirements: DayRequirements<Id<"positions">>,
+  activePositionIds: ReadonlySet<Id<"positions">>,
+): boolean {
+  return listRequirementPositionIds(requirements).some((positionId) => !activePositionIds.has(positionId));
+}
+
 /**
  * 店舗の日のテンプレートを、渡された一覧で置き換える。
  * 既存のテンプレートはidで引き継ぎ、その日だけの指定が指すテンプレートを保つ。一覧にないテンプレートは削除する。
@@ -188,21 +202,16 @@ export const saveDayTemplates = managerMutation({
     const issue = findDayTemplateIssue({ templates: args.templates, pattern });
     if (issue) throw new ConvexError(DAY_TEMPLATE_ISSUE_MESSAGES[issue]);
 
-    const [existing, positions] = await Promise.all([
+    const [existing, activePositionIds] = await Promise.all([
       listDayTemplates(ctx, ctx.shop._id),
-      listActivePositions(ctx, ctx.shop._id),
+      listActivePositionIds(ctx, ctx.shop._id),
     ]);
-    const existingById = new Map(existing.map((template) => [template._id, template]));
-    const activePositionIds = new Set(positions.map((position) => position._id));
 
     const inputIds = args.templates.flatMap((template) => (template.id ? [template.id] : []));
-    if (new Set(inputIds).size !== inputIds.length) throw new ConvexError("Not found");
-    // 別店舗・削除済みのIDは、存在を区別せずに拒否する。
-    if (inputIds.some((id) => !existingById.has(id))) throw new ConvexError("Not found");
-    const hasForeignPosition = args.templates.some((template) =>
-      listRequirementPositionIds(template.requirements).some((positionId) => !activePositionIds.has(positionId)),
-    );
-    if (hasForeignPosition) throw new ConvexError("Not found");
+    requireUniqueKnownIds(inputIds, new Set(existing.map((template) => template._id)));
+    if (args.templates.some((template) => referencesUnknownPosition(template.requirements, activePositionIds))) {
+      throw new ConvexError("Not found");
+    }
 
     const keptIds = new Set<Id<"shiftDayTemplates">>(inputIds);
     await Promise.all(
@@ -262,13 +271,12 @@ export const saveStaffShiftProfiles = managerMutation({
     const staffIds = args.profiles.map((profile) => profile.staffId);
     if (new Set(staffIds).size !== staffIds.length) throw new ConvexError("Not found");
 
-    const positions = await listActivePositions(ctx, ctx.shop._id);
-    const activePositionIds = new Set(positions.map((position) => position._id));
+    const activePositionIds = await listActivePositionIds(ctx, ctx.shop._id);
     for (const profile of args.profiles) {
-      const positionIds = profile.positionSkills.map((skill) => skill.positionId);
-      if (new Set(positionIds).size !== positionIds.length) throw new ConvexError("Not found");
-      // 別店舗・削除済みのIDは、存在を区別せずに拒否する。
-      if (positionIds.some((positionId) => !activePositionIds.has(positionId))) throw new ConvexError("Not found");
+      requireUniqueKnownIds(
+        profile.positionSkills.map((skill) => skill.positionId),
+        activePositionIds,
+      );
     }
     const staffs = await Promise.all(
       args.profiles.map((profile) => getActiveStaffInShop(ctx, ctx.shop._id, profile.staffId)),
@@ -385,12 +393,9 @@ export const saveDayCustomRequirements = managerMutation({
     const issue = findDayRequirementsIssue(args.requirements, pattern);
     if (issue) throw new ConvexError(DAY_TEMPLATE_ISSUE_MESSAGES[issue]);
 
-    const positions = await listActivePositions(ctx, ctx.shop._id);
-    const activePositionIds = new Set(positions.map((position) => position._id));
     // 別店舗・削除済みのポジションは、存在を区別せずに拒否する。
-    if (listRequirementPositionIds(args.requirements).some((positionId) => !activePositionIds.has(positionId))) {
-      throw new ConvexError("Not found");
-    }
+    const activePositionIds = await listActivePositionIds(ctx, ctx.shop._id);
+    if (referencesUnknownPosition(args.requirements, activePositionIds)) throw new ConvexError("Not found");
 
     await deleteDayOverrides(ctx, ctx.shop._id, args.date);
     await ctx.db.insert("shiftDayTemplateOverrides", {

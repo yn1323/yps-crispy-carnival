@@ -1,5 +1,5 @@
 import { isLegacyCompatibleWorkPosition } from "./positions";
-import { indexShiftsByStaffId } from "./shiftLookup";
+import { groupShiftsByDate, indexShiftsByStaffId } from "./shiftLookup";
 import { timeToMinutes } from "./time";
 import type { ShiftData, SortMode, StaffSortMode, StaffType } from "./types";
 
@@ -84,9 +84,13 @@ const getEarliestEndMinutes = (staffShifts: ShiftData[], targetStartMinutes: num
   return earliest;
 };
 
-export const getEarliestAssignedWorkRange = (
-  shift: ShiftData | undefined,
-): { startMinutes: number; endMinutes: number } | null => {
+type MinuteSpan = { startMinutes: number; endMinutes: number };
+
+// 開始の早い順。開始が同じなら終了の早い順。
+const compareMinuteSpans = (a: MinuteSpan, b: MinuteSpan): number =>
+  a.startMinutes - b.startMinutes || a.endMinutes - b.endMinutes;
+
+export const getEarliestAssignedWorkRange = (shift: ShiftData | undefined): MinuteSpan | null => {
   if (!shift) return null;
 
   const workRanges = shift.positions
@@ -95,7 +99,7 @@ export const getEarliestAssignedWorkRange = (
       startMinutes: timeToMinutes(position.start),
       endMinutes: timeToMinutes(position.end),
     }))
-    .sort((a, b) => a.startMinutes - b.startMinutes || a.endMinutes - b.endMinutes);
+    .sort(compareMinuteSpans);
 
   const firstRange = workRanges[0];
   if (!firstRange) return null;
@@ -124,22 +128,17 @@ const hasWorkRequest = (shift: ShiftData | undefined, mode: DailyStaffSortMode):
 };
 
 // 希望のうち最も早い時間帯（分）。開始が同じなら終了が早いほうを使う。
-const getEarliestRequestRange = (shift: ShiftData | undefined): { startMinutes: number; endMinutes: number } | null => {
+const getEarliestRequestRange = (shift: ShiftData | undefined): MinuteSpan | null => {
   if (!shift) return null;
   const requests = shift.requestedTimes ?? (shift.requestedTime ? [shift.requestedTime] : []);
   const ranges = requests
     .map((request) => ({ startMinutes: timeToMinutes(request.start), endMinutes: timeToMinutes(request.end) }))
-    .sort((a, b) => a.startMinutes - b.startMinutes || a.endMinutes - b.endMinutes);
+    .sort(compareMinuteSpans);
   return ranges[0] ?? null;
 };
 
-const compareRanges = (
-  a: { startMinutes: number; endMinutes: number } | null,
-  b: { startMinutes: number; endMinutes: number } | null,
-): number => {
-  if (!a || !b) return 0;
-  return a.startMinutes - b.startMinutes || a.endMinutes - b.endMinutes;
-};
+// どちらかに時間帯がなければ、時刻では順を決めない。
+const compareRanges = (a: MinuteSpan | null, b: MinuteSpan | null): number => (a && b ? compareMinuteSpans(a, b) : 0);
 
 // 「勤務時間順」の並びのまとまり: 勤務あり → 出勤の希望あり → 休み → 未提出。
 // 勤務がまだない日（「くわしく」で開いた直後など）も、希望のある人が上に来る。
@@ -198,15 +197,8 @@ export const sortDailyStaffsByDate = ({
   mode: DailyStaffSortMode;
   staffSortMode?: StaffSortMode;
 }): Map<string, StaffType[]> => {
-  const shiftsByDate = new Map<string, ShiftData[]>();
-  for (const shift of shifts) {
-    const list = shiftsByDate.get(shift.date);
-    if (list) list.push(shift);
-    else shiftsByDate.set(shift.date, [shift]);
-  }
-
   const sortedByDate = new Map<string, StaffType[]>();
-  for (const [date, dateShifts] of shiftsByDate) {
+  for (const [date, dateShifts] of groupShiftsByDate(shifts)) {
     sortedByDate.set(
       date,
       sortDailyStaffs({ staffs, shiftByStaffId: indexShiftsByStaffId(dateShifts), mode, staffSortMode }),

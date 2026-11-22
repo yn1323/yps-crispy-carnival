@@ -31,8 +31,8 @@ export function ShopFilterMenu({
 }) {
   if (options.length < 2) return null;
 
-  const selectedLabel = options.find((option) => option.value === value)?.label ?? allLabel;
   const selectedOption = options.find((option) => option.value === value);
+  const selectedLabel = selectedOption?.label ?? allLabel;
 
   return (
     <Menu.Root positioning={{ placement: "bottom-start", gutter: 8 }}>

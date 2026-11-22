@@ -176,6 +176,29 @@ describe("setShiftTypeAssignment と removeShiftTypeAssignment", () => {
     expect(result).toEqual([{ ...shifts[0], positions: [optionSegment(options[2], position)] }]);
   });
 
+  it("ほかのスタッフの勤務と、同じスタッフのほかの日の勤務は変えない", () => {
+    const otherStaff = shift({
+      id: `shift-staff2-${date}`,
+      staffId: "staff2",
+      staffName: "鈴木 花子",
+      positions: [optionSegment(options[0], position)],
+    });
+    const otherDay = shift({
+      id: "shift-staff1-2026-05-24",
+      date: "2026-05-24",
+      positions: [optionSegment(options[0], position)],
+    });
+    const shifts = [otherStaff, ...assigned(), otherDay];
+
+    const replaced = setShiftTypeAssignment({ shifts, staff, date, option: options[0], position: kitchen });
+    expect(replaced[1].positions).toEqual([optionSegment(options[0], kitchen), optionSegment(options[2], position)]);
+    expect([replaced[0], replaced[2]]).toEqual([otherStaff, otherDay]);
+
+    const removed = removeShiftTypeAssignment({ shifts, staffId: "staff1", date, optionId: "morning" });
+    expect(removed[1].positions).toEqual([optionSegment(options[2], position)]);
+    expect([removed[0], removed[2]]).toEqual([otherStaff, otherDay]);
+  });
+
   it("入っていない勤務パターンと、勤務のない日は、外しても何も変えない", () => {
     const shifts = assigned();
 

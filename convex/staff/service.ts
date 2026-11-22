@@ -3,7 +3,11 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { resolveOrganizationPersonEmail } from "../_lib/personIdentity";
 import { normalizeEmail } from "../_lib/validation";
-import { ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT, SHOP_MEMBERSHIP_STATS_ACTIVE_STAFF_LIMIT } from "../constants";
+import {
+  ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT,
+  SHIFT_BOARD_STAFF_LIMIT,
+  SHOP_MEMBERSHIP_STATS_ACTIVE_STAFF_LIMIT,
+} from "../constants";
 import {
   createOrganizationShopStaffMembershipFingerprint,
   ORGANIZATION_SHOP_STAFF_MEMBERSHIP_DESIRED_LIMIT,
@@ -247,6 +251,21 @@ export async function collectOrganizationShopStaffMembershipSnapshot(
  */
 export function isShiftTargetStaff(staff: { isDeleted: boolean; excludedFromShift: boolean }) {
   return !staff.isDeleted && !staff.excludedFromShift;
+}
+
+/**
+ * 店舗のシフト対象のスタッフを、登録した順で返す。シフト表が扱う人数までを読む。
+ * 店舗と違う組織に属するスタッフは含めない。
+ */
+export async function listShiftTargetStaffsInShop(
+  ctx: DbCtx,
+  shop: Pick<Doc<"shops">, "_id" | "organizationId">,
+): Promise<Doc<"staffs">[]> {
+  const staffs = await ctx.db
+    .query("staffs")
+    .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
+    .take(SHIFT_BOARD_STAFF_LIMIT);
+  return staffs.filter((staff) => staff.organizationId === shop.organizationId && isShiftTargetStaff(staff));
 }
 
 export async function getActiveStaffInShop(ctx: DbCtx, shopId: Id<"shops">, staffId: Id<"staffs">) {

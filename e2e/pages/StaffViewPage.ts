@@ -31,6 +31,13 @@ export class StaffViewPage {
     ).toBeVisible({ timeout: STAFF_VIEW_DATA_TIMEOUT });
   }
 
+  /** スマートフォンの時間指定の日別で、スタッフの勤務が休憩の時刻を内訳に出すことを確認する。 */
+  async expectStaffBreakVisible(name: string, breakLabel: string) {
+    const row = this.staffRow(name);
+    await expect(row.getByText("休憩", { exact: true })).toBeVisible({ timeout: STAFF_VIEW_DATA_TIMEOUT });
+    await expect(row.getByText(breakLabel, { exact: true })).toBeVisible();
+  }
+
   private staffRow(staffName: string): Locator {
     return this.staffRows().filter({ hasText: staffName }).first();
   }

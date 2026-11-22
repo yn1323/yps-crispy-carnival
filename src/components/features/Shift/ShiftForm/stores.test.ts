@@ -6,6 +6,7 @@ import type { PositionSegment, PositionType, ShiftData, StaffType } from "@/src/
 import { DEFAULT_TIME_PATTERN } from "@/src/domains/shop/submissionPattern";
 import {
   applyShiftDraftsAtom,
+  applyStaffSortModeAtom,
   assignDateOnlyAtom,
   assignShiftRangeAtom,
   assignShiftTypeAtom,
@@ -15,10 +16,15 @@ import {
   changeDateOnlyPositionAtom,
   changeShiftTypePositionAtom,
   clearShiftDraftPositionsAtom,
+  dailySortedStaffsAtom,
   dayStaffingViewByDateAtom,
   deleteShiftPositionAtom,
   detailModeAtom,
+  isBreakToolActiveAtom,
+  isPositionSelectableAtom,
   isRangeAssignHintDismissedAtom,
+  isToolPaletteActiveAtom,
+  lockDailyStaffOrderAtom,
   newcomerOnlyPeriodsAtom,
   nextWorkPositionAtom,
   paintsPositionColorAtom,
@@ -28,6 +34,10 @@ import {
   replaceShiftDraftsAtom,
   restoreRememberedWorkPositionAtom,
   type ShiftFormStaffing,
+  selectDateWithDailyStaffOrderAtom,
+  selectedDateAtom,
+  selectedDayFulfillmentViewAtom,
+  selectedPositionAtom,
   selectedPositionIdAtom,
   setShiftBreaksAtom,
   shiftConfigAtom,
@@ -36,6 +46,7 @@ import {
   staffWorkTotalsAtom,
   updateShiftDraftsAtom,
   upsertShiftDraftAtom,
+  usesPositionColorsAtom,
   validationWarningsAtom,
   warningCountByDateAtom,
 } from "./stores";
@@ -1255,5 +1266,211 @@ describe("次に入れるポジション（nextWorkPositionAtom / restoreRemembe
     store.set(selectedPositionIdAtom, position.id);
     store.set(restoreRememberedWorkPositionAtom);
     expect(store.get(selectedPositionIdAtom)).toBe(position.id);
+  });
+});
+
+describe("入れるものを選べるか（isPositionSelectableAtom / isBreakToolActiveAtom / usesPositionColorsAtom）", () => {
+  const selectKitchenAndBreak = (store: ReturnType<typeof createDetailStore>) => {
+    store.set(selectedPositionIdAtom, kitchen.id);
+    store.set(breakToolActiveAtom, true);
+  };
+
+  it("編集できるくわしく表示でポジションが2つ以上ある店舗では、選んだポジションと休憩を使う", () => {
+    const store = createDetailStore();
+    selectKitchenAndBreak(store);
+
+    expect(store.get(isToolPaletteActiveAtom)).toBe(true);
+    expect(store.get(isPositionSelectableAtom)).toBe(true);
+    expect(store.get(selectedPositionAtom)).toEqual(kitchen);
+    expect(store.get(isBreakToolActiveAtom)).toBe(true);
+    expect(store.get(usesPositionColorsAtom)).toBe(true);
+  });
+
+  it("閲覧専用のくわしく表示では、ポジションを見分けて示すが、ポジションも休憩も選べない", () => {
+    const store = createDetailStore({ isReadOnly: true });
+    selectKitchenAndBreak(store);
+
+    expect(store.get(usesPositionColorsAtom)).toBe(true);
+    expect(store.get(isToolPaletteActiveAtom)).toBe(false);
+    expect(store.get(isPositionSelectableAtom)).toBe(false);
+    expect(store.get(selectedPositionAtom)).toBeNull();
+    expect(store.get(isBreakToolActiveAtom)).toBe(false);
+  });
+
+  it("シンプル表示では、選んだポジションと休憩が残っていても、選んでいない扱いにし、ポジションを見分けない", () => {
+    const store = createDetailStore({}, { detailMode: false });
+    selectKitchenAndBreak(store);
+
+    expect(store.get(isToolPaletteActiveAtom)).toBe(false);
+    expect(store.get(isPositionSelectableAtom)).toBe(false);
+    expect(store.get(selectedPositionAtom)).toBeNull();
+    expect(store.get(isBreakToolActiveAtom)).toBe(false);
+    expect(store.get(usesPositionColorsAtom)).toBe(false);
+  });
+
+  it("ポジションが1つの店舗のくわしく表示では、休憩は選べるが、ポジションを選び分けず、見分けもしない", () => {
+    const store = createDetailStore({ positions: [position] });
+    store.set(selectedPositionIdAtom, position.id);
+    store.set(breakToolActiveAtom, true);
+
+    expect(store.get(isBreakToolActiveAtom)).toBe(true);
+    expect(store.get(isPositionSelectableAtom)).toBe(false);
+    expect(store.get(selectedPositionAtom)).toBeNull();
+    expect(store.get(usesPositionColorsAtom)).toBe(false);
+  });
+});
+
+describe("選んでいる日の充足率（selectedDayFulfillmentViewAtom）", () => {
+  const removed: StaffType = { id: "staff-removed", name: "退職", isSubmitted: true, isRemoved: true };
+  // 1日目は9〜18時にホールへ1人が必要。2日目は必要人数を入れていない。
+  const staffing = staffingWith(null, {
+    templates: [{ id: "template-1", name: "通常" }],
+    days: [
+      {
+        date,
+        source: "weekday",
+        templateId: "template-1",
+        templateName: "通常",
+        requirements: { kind: "time", bars: [{ positionId: position.id, startTime: "09:00", endTime: "18:00" }] },
+      },
+    ],
+  });
+  const createFulfillmentStore = (config: StoreConfig = {}, options: { detailMode?: boolean } = {}) => {
+    const store = createDetailStore({ staffs: [staff, secondStaff, removed], staffing, ...config }, options);
+    store.set(selectedDateAtom, date);
+    // 在籍している山田は9〜12時。削除済みのスタッフには、9〜18時の勤務が残っている。
+    store.set(replaceShiftDraftsAtom, [
+      draft({ positions: [workSegment(position, "09:00", "12:00")] }),
+      draft({
+        id: "shift-removed",
+        staffId: removed.id,
+        staffName: removed.name,
+        positions: [workSegment(position, "09:00", "18:00")],
+      }),
+    ]);
+    return store;
+  };
+
+  it("時間指定のくわしく表示で、選んでいる日の充足率を、在籍しているスタッフの勤務から求める", () => {
+    const store = createFulfillmentStore();
+
+    // 必要は1人×9時間。満たすのは山田の3時間だけで、削除済みのスタッフの勤務は数えない。
+    expect(store.get(selectedDayFulfillmentViewAtom)?.percent).toBe(33);
+  });
+
+  it("勤務を編集すると充足率が変わり、必要人数のない日を選ぶと出さない", () => {
+    const store = createFulfillmentStore();
+
+    store.set(upsertShiftDraftAtom, draft({ positions: [workSegment(position, "09:00", "18:00")] }));
+    expect(store.get(selectedDayFulfillmentViewAtom)?.percent).toBe(100);
+
+    store.set(selectedDateAtom, nextDate);
+    expect(store.get(selectedDayFulfillmentViewAtom)).toBeNull();
+  });
+
+  it("シンプル表示、スタッフ向けの確定シフト表示、定休日、パターン選択、日付選択では出さない", () => {
+    const stores = [
+      createFulfillmentStore({}, { detailMode: false }),
+      createFulfillmentStore({ displayMode: "confirmed" }),
+      createFulfillmentStore({ holidays: [date] }),
+      createFulfillmentStore({ submissionPattern: shiftTypePattern }),
+      createFulfillmentStore({ submissionPattern: dateOnlyPattern }),
+    ];
+
+    for (const store of stores) {
+      expect(store.get(selectedDayFulfillmentViewAtom)).toBeNull();
+    }
+  });
+});
+
+describe("日別のスタッフの並び（dailySortedStaffsAtom）", () => {
+  // スタッフのページで決めた並び順は、山田 → 佐藤 → 鈴木。3人とも提出済みで、希望は出していない。
+  const first: StaffType = { ...staff, displayOrder: 0 };
+  const second: StaffType = { ...secondStaff, isSubmitted: true, displayOrder: 1 };
+  const third: StaffType = { id: "staff-3", name: "鈴木", isSubmitted: true, displayOrder: 2 };
+  const shiftOf = (target: StaffType, targetDate: string, start: string, end: string): ShiftData =>
+    draft({
+      id: `shift-${target.id}-${targetDate}`,
+      staffId: target.id,
+      staffName: target.name,
+      date: targetDate,
+      positions: [workSegment(position, start, end)],
+    });
+  const createSortStore = (config: StoreConfig = {}) => {
+    const store = createDetailStore({ staffs: [first, second, third], ...config });
+    // 1日目は、山田が13時から、佐藤が9時から勤務。2日目は、鈴木だけが10時から勤務。
+    store.set(replaceShiftDraftsAtom, [
+      shiftOf(first, date, "13:00", "17:00"),
+      shiftOf(second, date, "09:00", "12:00"),
+      shiftOf(third, nextDate, "10:00", "14:00"),
+    ]);
+    return store;
+  };
+  const staffOrder = (store: ReturnType<typeof createSortStore>) =>
+    store.get(dailySortedStaffsAtom).map((item) => item.id);
+
+  it("「固定」では、勤務があっても決めた並び順のままにする。「勤務時間順」へ変えると、表示中の日の並びを勤務の早い順に決め直す", () => {
+    const store = createSortStore();
+
+    store.set(selectDateWithDailyStaffOrderAtom, date);
+    expect(staffOrder(store)).toEqual([first.id, second.id, third.id]);
+
+    store.set(applyStaffSortModeAtom, "workTime");
+    expect(staffOrder(store)).toEqual([second.id, first.id, third.id]);
+
+    store.set(applyStaffSortModeAtom, "fixed");
+    expect(staffOrder(store)).toEqual([first.id, second.id, third.id]);
+  });
+
+  it("日付を選ぶ前に「勤務時間順」を受け取っていれば、日付を選んだ時点から勤務の早い順に並べる", () => {
+    const store = createSortStore();
+
+    store.set(applyStaffSortModeAtom, "workTime");
+    store.set(selectDateWithDailyStaffOrderAtom, date);
+
+    expect(store.get(selectedDateAtom)).toBe(date);
+    expect(staffOrder(store)).toEqual([second.id, first.id, third.id]);
+  });
+
+  it("「勤務時間順」の並びは日付を選んだ時点で決め、勤務を編集しても行を動かさない。日付を選び直すと、その日の勤務で決め直す", () => {
+    const store = createSortStore();
+    store.set(applyStaffSortModeAtom, "workTime");
+    store.set(selectDateWithDailyStaffOrderAtom, date);
+
+    // いちばん上の佐藤の勤務を消しても、編集中の行は動かさない。
+    store.set(clearShiftDraftPositionsAtom, { staffId: second.id, date });
+    expect(staffOrder(store)).toEqual([second.id, first.id, third.id]);
+
+    store.set(selectDateWithDailyStaffOrderAtom, nextDate);
+    expect(store.get(selectedDateAtom)).toBe(nextDate);
+    expect(staffOrder(store)).toEqual([third.id, first.id, second.id]);
+
+    // 1日目へ戻ると、勤務のある山田が先になり、勤務のなくなった佐藤は決めた並び順で続く。
+    store.set(selectDateWithDailyStaffOrderAtom, date);
+    expect(staffOrder(store)).toEqual([first.id, second.id, third.id]);
+  });
+
+  it("並びを決めたあとで増えたスタッフは、決め直すまで末尾に出し、同じ日の並びを決め直すと、選んだ並び替えで並べる", () => {
+    const store = createSortStore();
+    store.set(applyStaffSortModeAtom, "workTime");
+    store.set(selectDateWithDailyStaffOrderAtom, date);
+
+    // 高橋は、1日目の9時から10時まで勤務。開始が同じ佐藤より、終了が早い。
+    const fourth: StaffType = { id: "staff-4", name: "高橋", isSubmitted: true, displayOrder: 3 };
+    store.set(shiftConfigAtom, { ...store.get(shiftConfigAtom), staffs: [first, second, third, fourth] });
+    store.set(upsertShiftDraftAtom, shiftOf(fourth, date, "09:00", "10:00"));
+    expect(staffOrder(store)).toEqual([second.id, first.id, third.id, fourth.id]);
+
+    store.set(lockDailyStaffOrderAtom, date);
+    expect(staffOrder(store)).toEqual([fourth.id, second.id, first.id, third.id]);
+  });
+
+  it("日付選択では、「勤務時間順」を受け取っても、勤務で行を動かさず、決めた並び順のままにする", () => {
+    const store = createSortStore({ submissionPattern: dateOnlyPattern });
+
+    store.set(applyStaffSortModeAtom, "workTime");
+    store.set(selectDateWithDailyStaffOrderAtom, nextDate);
+
+    expect(staffOrder(store)).toEqual([first.id, second.id, third.id]);
   });
 });

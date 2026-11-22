@@ -400,7 +400,8 @@ export const autoCreateDialogOpenAtom = atom<boolean>(false);
 // ==========================================
 // 入れるものの選択（ポジションまたは休憩）
 // ==========================================
-// 時間指定のPCの日別表示には選ぶ場所がなく、勤務のバーのメニューで最後に選んだポジションが入る。
+// 次に新しく入れる勤務のポジション。日付の見出しの選択か、勤務のメニューで選んだポジションが入る。
+// nullの間は、まだ選んでいない。端末に覚えたポジションへ戻す処理は、restoreRememberedWorkPositionAtomが行う。
 export const selectedPositionIdAtom = atom<string | null>(null);
 // 休憩を選んでいる間は、勤務を押すと休憩の編集を開く。
 export const breakToolActiveAtom = atom<boolean>(false);
@@ -450,7 +451,7 @@ export const selectedPositionAtom = atom((get) => {
 
 /**
  * 選んだポジションを、次に新しく入れる勤務のポジションとして覚える。店舗ごとに端末にも覚える。
- * 時間指定のPCの日別表示で、日付の見出しのポジションを押したときと、勤務のバーのメニューでポジションを選んだときに使う。
+ * 日付の見出しのポジションを押したときと、勤務のメニュー（時間指定のバー、パターン選択と日付選択のピル）でポジションを選んだときに使う。
  * 休憩を選んでいた場合は、休憩の選択を外す。
  */
 export const rememberWorkPositionAtom = atom(null, (get, set, positionId: string) => {
@@ -460,7 +461,7 @@ export const rememberWorkPositionAtom = atom(null, (get, set, positionId: string
 });
 
 /**
- * 時間指定のPCの日別表示と、パターン選択の日別表示で、次に入れるポジションを決める。この画面でまだ選んでいない場合だけ決める。
+ * 時間指定のPCの日別表示と、パターン選択と日付選択の表で、次に入れるポジションを決める。この画面でまだ選んでいない場合だけ決める。
  * 端末に覚えたポジションがあればそれを使い、覚えていない場合と削除済みの場合は、ポジションの一覧の先頭を使う。
  * 既定のポジションは画面から分からないため、ここでは使わない。
  */
@@ -473,7 +474,7 @@ export const restoreRememberedWorkPositionAtom = atom(null, (get, set) => {
 });
 
 /**
- * 時間指定のPCの日別表示と、パターン選択の日別表示で、次に新しく入れる勤務のポジション。
+ * 時間指定のPCの日別表示と、パターン選択と日付選択の表で、次に新しく入れる勤務のポジション。
  * メニューで最後に選んだポジションで、選んでいなければ一覧の先頭。ポジションを選び分けない表示では既定のポジション。
  */
 export const nextWorkPositionAtom = atom((get) => {
@@ -566,11 +567,10 @@ const buildDailyStaffOrder = (get: Getter, date: string): string[] | null => {
   if (!date || config.staffs.length === 0) return null;
 
   const shiftByStaffId = indexShiftsByStaffId(get(shiftsAtom).filter((shift) => shift.date === date));
-  const mode = config.submissionPattern.kind === "dateOnly" ? "dateOnly" : config.submissionPattern.kind;
   return sortDailyStaffs({
     staffs: config.staffs,
     shiftByStaffId,
-    mode,
+    mode: config.submissionPattern.kind,
     staffSortMode: get(staffSortModeAtom),
   }).map((staff) => staff.id);
 };

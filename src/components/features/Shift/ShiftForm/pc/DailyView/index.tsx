@@ -1,11 +1,11 @@
 import { Box, Flex, Grid, Text } from "@chakra-ui/react";
 import { useAtomValue, useSetAtom } from "jotai";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import type { ShiftData } from "@/src/domains/shift/types";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
+import { useRestoreRememberedWorkPosition } from "../../hooks/useRestoreRememberedWorkPosition";
 import {
   issueCountByDateAtom,
-  restoreRememberedWorkPositionAtom,
   selectDateWithDailyStaffOrderAtom,
   selectedDateAtom,
   shiftConfigAtom,
@@ -25,13 +25,8 @@ export const DailyView = () => {
   const issueCounts = useAtomValue(issueCountByDateAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
 
-  const { dates, isReadOnly, holidays, shopId, positions } = config;
-  // 前にこの店舗で最後に選んだポジションを、次に入れるポジションへ戻す。店舗とポジションが読み込まれてから行う。
-  const restoreRememberedWorkPosition = useSetAtom(restoreRememberedWorkPositionAtom);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: 店舗かポジションが変わったときに戻し直すため、値の変化を見る。
-  useEffect(() => {
-    restoreRememberedWorkPosition();
-  }, [restoreRememberedWorkPosition, shopId, positions]);
+  const { dates, isReadOnly, holidays } = config;
+  useRestoreRememberedWorkPosition();
   const isShopClosedDate = holidays.includes(selectedDate);
   useLockedDailyStaffOrder(selectedDate);
 

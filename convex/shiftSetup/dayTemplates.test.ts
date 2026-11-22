@@ -11,7 +11,6 @@ import {
   buildEmptyDayRequirements,
   clipStaffingBarsToRange,
   countMaxConcurrentStaffingBars,
-  countStaffingBarsOutsideRange,
   type DayRequirements,
   type DayStaffingOverride,
   type DayTemplate,
@@ -106,7 +105,6 @@ describe("clipStaffingBarsToRange", () => {
       bar("hall", "12:00", "14:00"),
       bar("hall", "18:00", "20:00"),
     ]);
-    expect(countStaffingBarsOutsideRange(bars, range)).toBe(5);
   });
 
   it("範囲の端が30分刻みにそろっていない場合は、刻みに乗る内側の時刻へ切る", () => {

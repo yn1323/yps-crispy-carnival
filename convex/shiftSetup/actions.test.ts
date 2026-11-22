@@ -2,6 +2,8 @@ import type { TestConvex } from "convex-test";
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
+import type { MutationCtx } from "../_generated/server";
 import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import { seedManagerShop, seedOrganizationManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
@@ -65,6 +67,7 @@ async function seedAssistShop(
     });
     return {
       scope: { shopId: actor.shopId, expectedOrganizationId: actor.organizationId },
+      actor: { userId: actor.userId, memberId: actor.memberId, shopId: actor.shopId },
       organizationId: actor.organizationId,
       otherShopId: other.shopId,
       // 下書きの必要人数は、有効なポジションを設定の並び順で持つ。
@@ -235,6 +238,41 @@ describe("shiftSetup/actions", () => {
           expectedOrganizationId: ids.organizationId,
           situation: SITUATION,
         }),
+      ).rejects.toThrowError("Not found");
+
+      expect(await readState(t)).toEqual(before);
+    });
+
+    it.each([
+      {
+        name: "削除済みのアカウント",
+        arrange: async (ctx: MutationCtx, actor: { userId: Id<"users"> }) => {
+          await ctx.db.patch(actor.userId, { isDeleted: true });
+        },
+      },
+      {
+        name: "管理者から外れたアカウント",
+        arrange: async (ctx: MutationCtx, actor: { memberId: Id<"organizationMembers"> }) => {
+          await ctx.db.patch(actor.memberId, { status: "removed" });
+        },
+      },
+      {
+        name: "削除済みの店舗の指定",
+        arrange: async (ctx: MutationCtx, actor: { shopId: Id<"shops"> }) => {
+          await ctx.db.patch(actor.shopId, { isDeleted: true });
+        },
+      },
+    ])("$name は Not found で拒否し、rate limitを消費しない", async ({ arrange }) => {
+      vi.stubEnv("SHIFT_SETUP_ASSIST_MODE", "random");
+      const t = convexTest(schema, modules);
+      const ids = await seedAssistShop(t);
+      await t.run(async (ctx) => await arrange(ctx, ids.actor));
+      const before = await readState(t);
+
+      await expect(
+        t
+          .withIdentity({ subject: MANAGER_SUBJECT })
+          .action(api.shiftSetup.actions.suggestShiftSetup, { ...ids.scope, situation: SITUATION }),
       ).rejects.toThrowError("Not found");
 
       expect(await readState(t)).toEqual(before);

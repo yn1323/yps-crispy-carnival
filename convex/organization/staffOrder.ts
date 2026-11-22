@@ -386,6 +386,19 @@ export async function listShopStaffIdsInSavedOrder(
   return entries.map((entry) => entry.staffId);
 }
 
+/**
+ * スタッフを、listShopStaffIdsInSavedOrderが返した並び順で並べる。
+ * 並び順に載っていない人と、並び順が有効でない場合（null）は、登録した順で後ろに置く。
+ */
+export function sortStaffsInSavedOrder<T extends { _id: Id<"staffs">; _creationTime: number }>(
+  staffs: readonly T[],
+  savedOrder: readonly Id<"staffs">[] | null,
+): T[] {
+  const rankByStaffId = new Map((savedOrder ?? []).map((staffId, index) => [staffId, index] as const));
+  const rankOf = (staff: T) => rankByStaffId.get(staff._id) ?? Number.POSITIVE_INFINITY;
+  return [...staffs].sort((left, right) => rankOf(left) - rankOf(right) || left._creationTime - right._creationTime);
+}
+
 async function deleteExistingOrderRows(ctx: WriteCtx, resolution: OrganizationOrderResolution) {
   for (const entry of resolution.organizationEntries) await ctx.db.delete(entry._id);
   for (const entries of resolution.shopEntries.values()) {

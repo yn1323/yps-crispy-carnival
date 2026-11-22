@@ -12,12 +12,14 @@ export const BREAK_TIME_UNIT_MINUTES = 15;
 
 export type MinuteRange = { start: number; end: number };
 
-const toMinuteRange = (range: ShiftTimeRange): MinuteRange => ({
+/** 時刻（"HH:mm"）の範囲を、分の範囲へ直す。 */
+export const toMinuteRange = (range: ShiftTimeRange): MinuteRange => ({
   start: timeToMinutes(range.start),
   end: timeToMinutes(range.end),
 });
 
-const toTimeRange = (range: MinuteRange): ShiftTimeRange => ({
+/** 分の範囲を、時刻（"HH:mm"）の範囲へ直す。 */
+export const toTimeRange = (range: MinuteRange): ShiftTimeRange => ({
   start: minutesToTime(range.start),
   end: minutesToTime(range.end),
 });

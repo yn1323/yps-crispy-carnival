@@ -94,6 +94,52 @@ describe("useBandSwipe", () => {
     expect(onCommit).not.toHaveBeenCalled();
   });
 
+  it("なぞっている途中で描き直されても、離したときは最新の確定処理を呼ぶ", () => {
+    const firstCommit = vi.fn();
+    const latestCommit = vi.fn();
+    const hook = renderHook(({ onCommit }) => useBandSwipe({ toCellMinutes, onCommit }), {
+      initialProps: { onCommit: firstCommit },
+    });
+    act(() => hook.result.current.startSwipe(START, { pointerId: POINTER_ID, track, startClientX: 60 }));
+    dispatchPointer("pointermove", { clientX: 150 });
+
+    hook.rerender({ onCommit: latestCommit });
+    dispatchPointer("pointerup", { clientX: 150 });
+
+    expect(firstCommit).not.toHaveBeenCalled();
+    expect(latestCommit.mock.calls).toEqual([[{ ...START, currentMinutes: 690, hasMoved: true }]]);
+  });
+
+  it("なぞっている途中で帯が動いても、動かすたびに帯の位置を読み直してマスを決める", () => {
+    let trackLeft = 0;
+    const movingTrack = { getBoundingClientRect: () => ({ left: trackLeft }) as DOMRect };
+    const onCommit = vi.fn();
+    const hook = renderHook(() => useBandSwipe({ toCellMinutes, onCommit }));
+    act(() => hook.result.current.startSwipe(START, { pointerId: POINTER_ID, track: movingTrack, startClientX: 60 }));
+
+    // 帯が横へ60pxスクロールした。同じ指の位置でも、2マス先を指す。
+    trackLeft = -60;
+    dispatchPointer("pointermove", { clientX: 150 });
+
+    expect(hook.result.current.swipe).toEqual({ ...START, currentMinutes: 750, hasMoved: true });
+  });
+
+  it("なぞっている途中で部品が外れると、listenerを外し、あとから離しても確定しない", () => {
+    const removeSpy = vi.spyOn(document, "removeEventListener");
+    const { hook, onCommit } = setup();
+    dispatchPointer("pointermove", { clientX: 150 });
+
+    hook.unmount();
+
+    expect(removeSpy.mock.calls.map(([type]) => type).filter((type) => type.startsWith("pointer"))).toEqual([
+      "pointermove",
+      "pointerup",
+      "pointercancel",
+    ]);
+    dispatchPointer("pointerup", { clientX: 150 });
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
   it("なぞっている間だけdocumentのlistenerを持ち、終わると外す", () => {
     const addSpy = vi.spyOn(document, "addEventListener");
     const removeSpy = vi.spyOn(document, "removeEventListener");

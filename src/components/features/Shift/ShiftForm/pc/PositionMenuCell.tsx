@@ -18,10 +18,49 @@ type Props = {
 };
 
 /**
- * 割り当て済みのピル。押すと、その場にポジションのメニューを開く。パターン選択と日付選択のPCの表が使う。
+ * パターン選択と日付選択のPCの表の1マス。
+ * 閲覧専用では押せない。空きのセルと「希望あり」のセルは、押すと割り当てる。
+ * 割り当て済みのピルは、ポジションを選び分ける表示ではメニューを開き、それ以外の表示では押すたびに外す。
+ */
+export const AssignmentCell = ({
+  cell,
+  size,
+  positions,
+  isReadOnly,
+  isPositionSelectable,
+  onAssign,
+  onChangePosition,
+  onRemove,
+}: Props & {
+  isReadOnly: boolean;
+  /** 割り当て済みのピルを押したときに、ポジションのメニューを開くか。くわしく表示で、ポジションが2つ以上のときにtrue。 */
+  isPositionSelectable: boolean;
+  onAssign: () => void;
+}) => {
+  if (isReadOnly) return <AssignmentPill cell={cell} size={size} isInteractive={false} showsNoticeTooltip />;
+  if (!cell.assigned) {
+    return <AssignmentPill cell={cell} size={size} isInteractive showsNoticeTooltip onClick={onAssign} />;
+  }
+  // ポジションを選び分けない表示（シンプル表示、ポジションが1つ以下の店舗）では、押すたびに付け外しする。
+  if (!isPositionSelectable) {
+    return <AssignmentPill cell={cell} size={size} isInteractive showsNoticeTooltip onClick={onRemove} />;
+  }
+  return (
+    <PositionMenuCell
+      cell={cell}
+      size={size}
+      positions={positions}
+      onChangePosition={onChangePosition}
+      onRemove={onRemove}
+    />
+  );
+};
+
+/**
+ * 割り当て済みのピル。押すと、その場にポジションのメニューを開く。
  * 開いている間は、数字キーの1〜9でもポジションを選べる。Escとメニューの外のクリックは、何も変えずに閉じる。
  */
-export const PositionMenuCell = ({ cell, size, positions, onChangePosition, onRemove }: Props) => {
+const PositionMenuCell = ({ cell, size, positions, onChangePosition, onRemove }: Props) => {
   const [isOpen, setIsOpen] = useState(false);
 
   const select = (positionId: string) => {

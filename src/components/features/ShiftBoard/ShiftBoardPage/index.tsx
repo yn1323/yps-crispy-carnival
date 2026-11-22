@@ -1,12 +1,9 @@
 import type { Id } from "@/convex/_generated/dataModel";
 import type { ShiftFormHeader } from "@/src/components/features/Shift/ShiftForm";
 import type { ShiftBoardData, ShiftBoardStaffingData } from "../types";
+import type { ShiftBoardExportData } from "./exportData";
 import { ShiftBoardPageView } from "./ShiftBoardPageView";
-import {
-  type ShiftBoardDateNotes,
-  type ShiftBoardExportData,
-  useShiftBoardPageController,
-} from "./useShiftBoardPageController";
+import { type ShiftBoardDateNotes, useShiftBoardPageController } from "./useShiftBoardPageController";
 
 export type ShiftBoardPageProps = {
   data: ShiftBoardData;

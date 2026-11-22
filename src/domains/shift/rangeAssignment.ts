@@ -1,7 +1,15 @@
-import { getEffectiveBreaks, getWorkBlocks, type MinuteRange, mergeBreaks, pruneBreaks } from "./breaks";
+import {
+  getEffectiveBreaks,
+  getWorkBlocks,
+  type MinuteRange,
+  mergeBreaks,
+  pruneBreaks,
+  toMinuteRange,
+  toTimeRange,
+} from "./breaks";
 import { mergeAdjacentPositions, paintPosition } from "./operations";
 import { isCanonicalWorkPosition } from "./positions";
-import { minutesToTime, timeToMinutes } from "./time";
+import { timeToMinutes } from "./time";
 import type { PositionSegment, PositionType, ShiftData, ShiftTimeRange } from "./types";
 
 // 勤務の一部の範囲を選び、ポジションまたは休憩を入れるための純粋処理。
@@ -18,10 +26,7 @@ export type RangeAssignment = { kind: "position"; positionId: string } | { kind:
 type ShiftWork = Pick<ShiftData, "positions" | "breaks">;
 
 const effectiveBreakRanges = (shift: ShiftWork): MinuteRange[] =>
-  getEffectiveBreaks(shift, { clipToWork: true }).map((range) => ({
-    start: timeToMinutes(range.start),
-    end: timeToMinutes(range.end),
-  }));
+  getEffectiveBreaks(shift, { clipToWork: true }).map(toMinuteRange);
 
 const clip = <Range extends MinuteRange>(item: Range, range: MinuteRange): Range => ({
   ...item,
@@ -132,10 +137,7 @@ const subtractRange = (ranges: readonly MinuteRange[], removed: MinuteRange): Mi
 
 /** 選んだ範囲にかかる休憩を外した、その日の休憩を返す。勤務は変えない。休憩の一部だけを選んだ場合は、選んだ分だけ外す。 */
 export const removeBreakRange = (shift: ShiftWork, range: MinuteRange): ShiftTimeRange[] =>
-  subtractRange(effectiveBreakRanges(shift), range).map((item) => ({
-    start: minutesToTime(item.start),
-    end: minutesToTime(item.end),
-  }));
+  subtractRange(effectiveBreakRanges(shift), range).map(toTimeRange);
 
 const isSameWork = (a: readonly PositionSegment[], b: readonly PositionSegment[]): boolean =>
   a.length === b.length &&
@@ -235,9 +237,6 @@ export const closeGapsWithBreaks = <Shift extends ShiftData>(
   const last = gaps.at(-1);
   if (!first || !last) return pruned;
   const { positions } = restoreWorkInRange({ shift: pruned, range: { start: first.start, end: last.end }, segmentId });
-  const breaks = mergeBreaks([
-    ...(pruned.breaks ?? []),
-    ...gaps.map((gap) => ({ start: minutesToTime(gap.start), end: minutesToTime(gap.end) })),
-  ]);
+  const breaks = mergeBreaks([...(pruned.breaks ?? []), ...gaps.map(toTimeRange)]);
   return { ...pruned, positions, breaks };
 };

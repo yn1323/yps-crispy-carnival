@@ -73,3 +73,35 @@ export const HiddenWhenConfirmed: Story = {
     await expect(canvas.queryByRole("button", { name: "自動作成" })).not.toBeInTheDocument();
   },
 };
+
+/** 閲覧専用では、PDF・Excelのボタンだけを出し、自動作成のボタンを出さない。 */
+export const HiddenWhenReadOnly: Story = {
+  args: { initialShifts: emptyShifts, isReadOnly: true, exportAction: { onClick: () => {}, isDisabled: false } },
+  globals: desktopGlobals,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByRole("button", { name: /^PDF・Excel/ })).toBeInTheDocument();
+    await expect(canvas.queryByRole("button", { name: "自動作成" })).not.toBeInTheDocument();
+  },
+};
+
+/** AIを選んだままキャンセルで閉じても、次に開いたときは、回数を使わない作り方が選ばれた状態に戻る。 */
+export const ResetsMethodOnReopen: Story = {
+  args: { initialShifts: emptyShifts },
+  globals: desktopGlobals,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await canvas.findByRole("button", { name: "自動作成" }));
+    const dialog = within(await body.findByRole("dialog", { name: "シフトを自動作成" }));
+    await userEvent.click(dialog.getByText("AIで作成する"));
+    await expect(dialog.getByRole("radio", { name: /AIで作成する/ })).toBeChecked();
+    await userEvent.click(dialog.getByRole("button", { name: "キャンセル" }));
+    await waitFor(() => expect(body.queryByRole("dialog")).not.toBeInTheDocument());
+
+    await userEvent.click(canvas.getByRole("button", { name: "自動作成" }));
+    const reopened = within(await body.findByRole("dialog", { name: "シフトを自動作成" }));
+    await expect(reopened.getByRole("radio", { name: /希望シフトから自動で作成する/ })).toBeChecked();
+    await expect(reopened.getByRole("radio", { name: /AIで作成する/ })).not.toBeChecked();
+  },
+};

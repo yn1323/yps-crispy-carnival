@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 export class ShiftBoardPage {
   constructor(private page: Page) {}
@@ -59,6 +59,56 @@ export class ShiftBoardPage {
     await expect(this.page.getByTitle(`${positionName} ${label}`, { exact: true })).toHaveCount(dayCount, {
       timeout: 20_000,
     });
+  }
+
+  /**
+   * 日付見出しの「表示設定」で「くわしく」へ切り替える。下書きのない募集では、確認を挟まずに切り替わる。
+   * 切り替えが済むとシフト表が開き直されるため、呼び出し側は、くわしく表示にだけ出る要素を待ってから次の操作へ進む。
+   */
+  async switchToDetailMode() {
+    await this.page.getByRole("button", { name: "表示設定", exact: true }).click();
+    await this.page.getByRole("menuitemradio", { name: "くわしく", exact: true }).click();
+  }
+
+  /**
+   * スマートフォンの時間指定の日別で、勤務のない人のカードから編集シートを開き、勤務時間と休憩を入れる。
+   * 休憩は「休憩を追加」が入れる初期値（勤務時間の中央の1時間）のまま決定する。
+   */
+  async addMobileWorkWithBreak(staffName: string, work: { start: string; end: string }) {
+    await this.page.getByRole("button", { name: `${staffName}の勤務を追加`, exact: true }).click();
+    const sheet = this.page.getByRole("dialog", { name: new RegExp(`^${staffName}のシフト`) });
+    await expect(sheet).toBeVisible();
+    // くわしく表示の編集シートは、勤務時間を行ごとに持つ。
+    await this.selectSheetTime(sheet, "勤務時間1の開始時間", work.start);
+    await this.selectSheetTime(sheet, "勤務時間1の終了時間", work.end);
+    await sheet.getByRole("button", { name: "休憩を追加", exact: true }).click();
+    await expect(sheet.getByRole("group", { name: "休憩1", exact: true })).toBeVisible();
+    await sheet.getByRole("button", { name: "変更する", exact: true }).click();
+    await expect(sheet).toBeHidden();
+  }
+
+  /** スマートフォンの時間指定の日別で、勤務のカードが休憩の時刻を内訳に出すことを確認する。 */
+  async expectMobileBreak(staffName: string, breakLabel: string) {
+    const card = this.page.getByRole("button", { name: `${staffName}の勤務を編集`, exact: true });
+    await expect(card.getByText("休憩", { exact: true })).toBeVisible();
+    await expect(card.getByText(breakLabel, { exact: true })).toBeVisible();
+  }
+
+  private async selectSheetTime(sheet: Locator, label: string, value: string) {
+    await sheet.getByRole("combobox", { name: label, exact: true }).click();
+    // 直前に選んだ欄の一覧が閉じきる前でも、この欄の一覧の選択肢だけを押す。
+    await sheet
+      .getByRole("listbox", { name: label, exact: true })
+      .getByRole("option", { name: value, exact: true })
+      .click();
+  }
+
+  /** くわしく表示の未提出の帯から、前回確定した募集の同じ曜日の勤務を、未提出者へ仮で入れる。 */
+  async insertPreviousShiftsAsProvisional(insertedDayCount: number) {
+    await this.page.getByRole("button", { name: "前回の勤務を仮で入れる", exact: true }).click();
+    await expect(
+      this.page.getByText(`前回の勤務を${insertedDayCount}日分、仮で入れました`, { exact: true }),
+    ).toBeVisible();
   }
 
   async saveDraft() {

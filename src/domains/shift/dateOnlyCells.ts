@@ -1,17 +1,17 @@
+import { type AssignmentCellNotice, type CellStaff, collectAssignmentCellNotices } from "./cellNotices";
 import { hasDateOnlyRequest } from "./dateOnlyAssignments";
 import { isFoldedStaff } from "./foldedStaff";
-import { getPositionSkill } from "./positionSkills";
 import { isCanonicalWorkPosition } from "./positions";
-import type { PositionSegment, ShiftData, StaffPositionSkill } from "./types";
+import type { PositionSegment, ShiftData } from "./types";
 
 // 日付選択の表で、1人の1日分を、希望と割り当ての2つを持つセルへ直す純粋処理。
-// 割り当てについて確かめたいことは、理由として添える。パターン選択のセル（shiftTypeCells）と同じ考え方である。
+// 割り当てについて確かめたいことは、理由として添える。理由の決まりは、パターン選択のセル（shiftTypeCells）と共通である（cellNotices）。
 
 /** その日に勤務を入れられるか。期間外の日と定休日は、何も描かず、入れられない。 */
 export type DateOnlyDayStatus = "open" | "closed" | "outOfRange";
 
 /** 割り当てに添える理由。どれも、確定を止めない確認事項である。 */
-export type DateOnlyCellNotice = { kind: "unrequested" } | { kind: "notSubmitted" } | { kind: "positionUnavailable" };
+export type DateOnlyCellNotice = AssignmentCellNotice;
 
 export type DateOnlyCell = {
   status: DateOnlyDayStatus;
@@ -23,8 +23,6 @@ export type DateOnlyCell = {
   /** 割り当てに付ける点。理由が1つでもあれば橙にする。 */
   dot: "orange" | null;
 };
-
-type CellStaff = { isSubmitted: boolean; positionSkills?: readonly StaffPositionSkill[] };
 
 /**
  * 1人の1日分をセルにする。
@@ -41,12 +39,7 @@ export const buildDateOnlyCell = (input: {
 
   const segment = shift?.positions.find(isCanonicalWorkPosition) ?? null;
   const isRequested = staff.isSubmitted && hasDateOnlyRequest(shift);
-  const notices: DateOnlyCellNotice[] = [];
-  if (segment) {
-    if (!staff.isSubmitted) notices.push({ kind: "notSubmitted" });
-    else if (!isRequested) notices.push({ kind: "unrequested" });
-    if (getPositionSkill(staff, segment.positionId) === "unavailable") notices.push({ kind: "positionUnavailable" });
-  }
+  const notices = collectAssignmentCellNotices({ staff, segment, isRequested });
   return { status, isRequested, segment, notices, dot: notices.length > 0 ? "orange" : null };
 };
 

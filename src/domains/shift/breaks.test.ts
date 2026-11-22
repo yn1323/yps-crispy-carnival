@@ -4,6 +4,7 @@ import {
   buildInitialBreak,
   getBreaksForSegment,
   getEffectiveBreaks,
+  getWorkBlocks,
   getWorkedMinutes,
   mergeBreaks,
   moveBreakEdge,
@@ -301,6 +302,39 @@ describe("applyBreakRange", () => {
       positions: [segment("09:00", "13:00", { start: "12:45" })],
       breaks: [],
     });
+  });
+});
+
+describe("getWorkBlocks", () => {
+  it("開始順に並んでいない区間も、隣り合う区間と重なる区間を1つにまとめ、ひと続きの勤務を開始順に返す", () => {
+    const blocks = getWorkBlocks(
+      day([
+        segment("15:00", "18:00"),
+        segment("12:00", "13:00", { positionId: "pos2" }),
+        segment("09:00", "12:00"),
+        segment("16:00", "20:00", { positionId: "pos2" }),
+      ]),
+    );
+
+    expect(blocks).toEqual([
+      { start: 540, end: 780 },
+      { start: 900, end: 1200 },
+    ]);
+  });
+
+  it("休憩のポジションの区間はひと続きの勤務に含めず、その前後で勤務を分ける", () => {
+    const blocks = getWorkBlocks(
+      day([
+        segment("10:00", "12:00"),
+        segment("12:00", "13:00", { positionId: BREAK_POSITION.id }),
+        segment("13:00", "18:00"),
+      ]),
+    );
+
+    expect(blocks).toEqual([
+      { start: 600, end: 720 },
+      { start: 780, end: 1080 },
+    ]);
   });
 });
 

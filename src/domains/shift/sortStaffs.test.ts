@@ -285,6 +285,50 @@ describe("sortDailyStaffs", () => {
     ).toEqual(["staff-e", "staff-d", "staff-c", "staff-b", "staff-a", "staff-f"]);
   });
 
+  test("勤務時間順：パターン選択は、勤務のない人のうち勤務パターンの希望がある人を、希望の開始・終了が早い順に休み希望より上へ並べる", () => {
+    const morning = { start: "09:00", end: "13:00" };
+    const late = { start: "17:00", end: "22:00" };
+    const shiftByStaffId = indexShiftsByStaffIdForDate(
+      [
+        shift({ staffId: "staff-a", date: "2026-06-01", requestedShiftTypeOptionIds: [] }),
+        shift({
+          staffId: "staff-b",
+          date: "2026-06-01",
+          requestedShiftTypeOptionIds: ["late"],
+          requestedTimes: [late],
+        }),
+        shift({
+          staffId: "staff-c",
+          date: "2026-06-01",
+          requestedShiftTypeOptionIds: ["late", "morning"],
+          requestedTimes: [late, morning],
+        }),
+        shift({
+          staffId: "staff-d",
+          date: "2026-06-01",
+          requestedShiftTypeOptionIds: ["morning"],
+          requestedTimes: [morning],
+        }),
+        shift({
+          staffId: "staff-e",
+          date: "2026-06-01",
+          requestedShiftTypeOptionIds: ["late"],
+          requestedTimes: [late],
+          positions: [segment({ start: "17:00", end: "22:00", shiftTypeOptionId: "late" })],
+        }),
+        shift({ staffId: "staff-f", date: "2026-06-01" }),
+      ],
+      "2026-06-01",
+    );
+
+    // 勤務あり（E）→ 希望あり（早番を含むCとDは同じ時刻なので決めた並び順、遅番だけのBが後）→ 休み希望（A）→ 未提出（F）。
+    expect(
+      sortDailyStaffs({ staffs: dailyStaffs, shiftByStaffId, mode: "shiftType", staffSortMode: "workTime" }).map(
+        (staff) => staff.id,
+      ),
+    ).toEqual(["staff-e", "staff-c", "staff-d", "staff-b", "staff-a", "staff-f"]);
+  });
+
   test("勤務時間順：勤務パターンの複数勤務は最も早い開始時刻と、その開始時刻に紐づく早い終了時刻で比較する", () => {
     const shiftByStaffId = indexShiftsByStaffIdForDate(
       [

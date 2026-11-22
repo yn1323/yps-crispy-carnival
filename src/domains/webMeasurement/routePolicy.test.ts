@@ -39,6 +39,8 @@ describe("Web計測route policy", () => {
     ["/manage/billing", "billing"],
     ["/app/manage/managers/invite-staff", "manager_management"],
     ["/manage/shops/shop_internal_id", "shop_detail"],
+    ["/manage/shops/shop_internal_id/shift-setup", "shop_detail"],
+    ["/app/manage/shops/shop_internal_id/shift-setup/", "shop_detail"],
     ["/shifts", "shift_management"],
     ["/app/shifts/recruitment_internal_id/board", "shiftboard"],
     ["/shifts/recruitment_internal_id/export", "shift_export"],
@@ -68,12 +70,15 @@ describe("Web計測route policy", () => {
     expect(getWebMeasurementRouteFamily(pathname)).toBe(routeFamily);
   });
 
-  it.each(["/unknown", "/help/a/b", "/articles/categories/a/b"])(
-    "未知route %sもnot_foundとして計測対象にする",
-    (pathname) => {
-      expect(getWebMeasurementRouteFamily(pathname)).toBe("not_found");
-    },
-  );
+  it.each([
+    "/unknown",
+    "/help/a/b",
+    "/articles/categories/a/b",
+    "/manage/shops/shop_internal_id/unknown",
+    "/manage/shops/shop_internal_id/shift-setup/extra",
+  ])("未知route %sもnot_foundとして計測対象にする", (pathname) => {
+    expect(getWebMeasurementRouteFamily(pathname)).toBe("not_found");
+  });
 
   it.each([
     ["home", "public"],
@@ -102,6 +107,8 @@ describe("Web計測route policy", () => {
     ["/articles/shiftori-line-workflow/?utm_source=x#toc", "/articles/shiftori-line-workflow"],
     ["/shifts/submit?token=secret", "/shifts/submit"],
     ["/manage/shops/shop_internal_id", "/manage/shops/:shopId"],
+    ["/manage/shops/shop_internal_id/shift-setup", "/manage/shops/:shopId"],
+    ["/app/manage/shops/shop_internal_id/shift-setup", "/app/manage/shops/:shopId"],
     ["/shifts/recruitment_internal_id/board", "/shifts/:recruitmentId/board"],
     ["/Shifts/recruitment_internal_id/Export", "/shifts/:recruitmentId/export"],
     ["/staff/person_internal_id", "/staff/:personId"],

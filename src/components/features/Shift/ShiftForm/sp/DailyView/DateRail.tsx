@@ -9,7 +9,7 @@ import { getShiftWeekdayColor } from "../../weekdayPresentation";
 /** 日付の見出しの行の高さ（px）。見出しを上端に留め、その下に入れるものの行と充足を留めるために使う。 */
 export const SP_DATE_HEADING_HEIGHT_PX = 52;
 
-type Props = {
+type DateChipsProps = {
   dates: string[];
   selectedDate: string;
   holidays: string[];
@@ -17,9 +17,85 @@ type Props = {
   warningCounts: ReadonlyMap<string, number>;
   dateStripRef: RefObject<HTMLDivElement | null>;
   onSelect: (date: string) => void;
+};
+
+type Props = DateChipsProps & {
   /** 日付の見出しの右に置く操作。表示設定のボタンの左に並べる。 */
   headingAction?: ReactNode;
 };
+
+/** 横に並べる日付のチップ。時間指定とパターン選択のスマートフォンの日別表示で使う。 */
+export const DateChips = ({
+  dates,
+  selectedDate,
+  holidays,
+  issueCounts,
+  warningCounts,
+  dateStripRef,
+  onSelect,
+}: DateChipsProps) => (
+  <Flex ref={dateStripRef} gap={2} overflow="auto" pt={2} pb={1}>
+    {dates.map((iso) => {
+      const date = dayjs(iso);
+      const active = iso === selectedDate;
+      const isClosed = holidays.includes(iso);
+      const issueCount = issueCounts.get(iso) ?? 0;
+      const warningCount = warningCounts.get(iso) ?? 0;
+      return (
+        <Box
+          key={iso}
+          data-date-chip={iso}
+          onClick={() => onSelect(iso)}
+          position="relative"
+          flexShrink={0}
+          w="52px"
+          py="8px"
+          textAlign="center"
+          borderRadius="md"
+          borderWidth="1px"
+          borderColor={dateIssueBorderColor({
+            active,
+            issueCount,
+            warningCount,
+            activeColor: "teal.500",
+            fallbackColor: "gray.200",
+          })}
+          bg={active ? "teal.500" : isClosed ? "gray.50" : "white"}
+          cursor="pointer"
+          transitionProperty="colors"
+          transitionDuration="faster"
+          _active={{ bg: active ? "teal.600" : "gray.100", transitionDuration: "0ms" }}
+        >
+          <DateIssueBadge issueCount={issueCount} warningCount={warningCount} />
+          <Box
+            textStyle="md"
+            fontWeight={700}
+            color={active ? "white" : "gray.800"}
+            lineHeight="1.1"
+            fontVariantNumeric="tabular-nums"
+          >
+            {date.date()}
+          </Box>
+          {/* 休みは曜日と同じ行に置き、日付の高さをそろえる。 */}
+          <Box
+            textStyle="2xs"
+            mt="2px"
+            fontWeight={active ? 700 : 500}
+            whiteSpace="nowrap"
+            style={{ color: active ? "white" : getShiftWeekdayColor(iso) }}
+          >
+            {getWeekdayLabel(iso)}
+            {isClosed && (
+              <Box as="span" fontWeight={700} color={active ? "white" : "gray.500"}>
+                (休)
+              </Box>
+            )}
+          </Box>
+        </Box>
+      );
+    })}
+  </Flex>
+);
 
 export const DateRail = ({
   dates,
@@ -46,67 +122,15 @@ export const DateRail = ({
         flexShrink={0}
         data-tour="date-rail"
       >
-        <Flex ref={dateStripRef} gap={2} overflow="auto" pt={2} pb={1}>
-          {dates.map((iso) => {
-            const date = dayjs(iso);
-            const active = iso === selectedDate;
-            const isClosed = holidays.includes(iso);
-            const issueCount = issueCounts.get(iso) ?? 0;
-            const warningCount = warningCounts.get(iso) ?? 0;
-            return (
-              <Box
-                key={iso}
-                data-date-chip={iso}
-                onClick={() => onSelect(iso)}
-                position="relative"
-                flexShrink={0}
-                w="52px"
-                py="8px"
-                textAlign="center"
-                borderRadius="md"
-                borderWidth="1px"
-                borderColor={dateIssueBorderColor({
-                  active,
-                  issueCount,
-                  warningCount,
-                  activeColor: "teal.500",
-                  fallbackColor: "gray.200",
-                })}
-                bg={active ? "teal.500" : isClosed ? "gray.50" : "white"}
-                cursor="pointer"
-                transitionProperty="colors"
-                transitionDuration="faster"
-                _active={{ bg: active ? "teal.600" : "gray.100", transitionDuration: "0ms" }}
-              >
-                <DateIssueBadge issueCount={issueCount} warningCount={warningCount} />
-                <Box
-                  textStyle="md"
-                  fontWeight={700}
-                  color={active ? "white" : "gray.800"}
-                  lineHeight="1.1"
-                  fontVariantNumeric="tabular-nums"
-                >
-                  {date.date()}
-                </Box>
-                {/* 休みは曜日と同じ行に置き、日付の高さをそろえる。 */}
-                <Box
-                  textStyle="2xs"
-                  mt="2px"
-                  fontWeight={active ? 700 : 500}
-                  whiteSpace="nowrap"
-                  style={{ color: active ? "white" : getShiftWeekdayColor(iso) }}
-                >
-                  {getWeekdayLabel(iso)}
-                  {isClosed && (
-                    <Box as="span" fontWeight={700} color={active ? "white" : "gray.500"}>
-                      (休)
-                    </Box>
-                  )}
-                </Box>
-              </Box>
-            );
-          })}
-        </Flex>
+        <DateChips
+          dates={dates}
+          selectedDate={selectedDate}
+          holidays={holidays}
+          issueCounts={issueCounts}
+          warningCounts={warningCounts}
+          dateStripRef={dateStripRef}
+          onSelect={onSelect}
+        />
       </Box>
       {selected && (
         // 日付の一覧はスクロールで上へ流し、この見出しは上端に留める。

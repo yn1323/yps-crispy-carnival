@@ -421,6 +421,21 @@ describe("スタッフの並び替え", () => {
     expect(mocks.switchShiftDetailMode).not.toHaveBeenCalled();
   });
 
+  it("ほかの管理者や端末が並び替えを変えたら、届いた店舗の並び替えへ画面を合わせる", () => {
+    const { result, rerender } = renderHook(
+      ({ current }: { current: ShiftBoardData }) =>
+        useShiftBoardPageController(current, recruitmentId, undefined, undefined, emptyStaffing),
+      { wrapper: Scope, initialProps: { current: data } },
+    );
+    expect(result.current.viewModel.shiftForm.staffSortMode).toBe("fixed");
+
+    rerender({ current: { ...data, shiftStaffSortMode: "workTime" } });
+
+    expect(result.current.viewModel.shiftForm.staffSortMode).toBe("workTime");
+    // 届いた値へ合わせるだけで、この画面からは保存しない。
+    expect(mocks.setShiftStaffSortMode).not.toHaveBeenCalled();
+  });
+
   it("保存できなければ、元の並び替えへ戻して誤りを伝える", async () => {
     mocks.setShiftStaffSortMode.mockRejectedValue(new Error("failed"));
     const { result } = renderInitialized({ staffing: emptyStaffing });

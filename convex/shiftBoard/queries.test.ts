@@ -2355,5 +2355,25 @@ describe("shiftBoard/queries", () => {
         },
       ]);
     });
+
+    it("前回確定の勤務が上限を超える場合は、一部だけの候補を返さない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedStaffingBoard(t);
+      const previousRecruitmentId = await seedPrevious(t, ids);
+      await t.run(async (ctx) => {
+        for (let index = 0; index <= SHIFT_ASSIGNMENT_LIMIT; index += 1) {
+          await ctx.db.insert("shiftAssignments", {
+            recruitmentId: previousRecruitmentId,
+            staffId: ids.unsubmittedStaffId,
+            date: "2026-08-10",
+            startTime: "10:00",
+            endTime: "18:00",
+            positionId: ids.hallPositionId,
+          });
+        }
+      });
+
+      await expect(getProvisional(t, ids)).rejects.toThrow("Shift assignment scope exceeds the supported limit");
+    });
   });
 });

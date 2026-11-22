@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ShiftData, StaffType } from "@/src/domains/shift/types";
+import type { ShiftData, StaffSortMode, StaffType } from "@/src/domains/shift/types";
 import { buildOverviewViewModel } from "./script";
 
 const staffs: StaffType[] = [
@@ -53,7 +53,7 @@ const shifts: ShiftData[] = [
 ];
 
 describe("buildOverviewViewModel", () => {
-  it("勤務範囲・出勤順・日付状態を描画用の週と行へ変換する", () => {
+  it("勤務範囲・日付状態を描画用の週と行へ変換し、並び替えを渡さない場合は既定の並び順で出す", () => {
     const viewModel = buildOverviewViewModel({
       dates: ["2026-06-03", "2026-06-04"],
       holidays: ["2026-06-04"],
@@ -132,6 +132,33 @@ describe("buildOverviewViewModel", () => {
         { key: "kitchen", positionId: "kitchen", positionName: "キッチン", color: "#222" },
       ],
     ]);
+  });
+
+  describe("その日のスタッフの並び", () => {
+    // スタッフのページで決めた並び順は遅番スタッフが先で、勤務は早番スタッフのほうが早い。
+    const orderedStaffs: StaffType[] = [
+      { ...staffs[0], displayOrder: 0 },
+      { ...staffs[1], displayOrder: 1 },
+    ];
+    const staffKeys = (staffSortMode?: StaffSortMode) =>
+      buildOverviewViewModel({
+        dates: ["2026-06-03"],
+        holidays: [],
+        staffs: orderedStaffs,
+        shifts,
+        warningCounts: new Map(),
+        isReadOnly: false,
+        staffSortMode,
+      }).weeks[0].rows[2].staffRows.map((row) => row.key);
+
+    it("「固定」と、並び替えを渡さない場合は、勤務の時刻にかかわらず、決めた並び順で出す", () => {
+      expect(staffKeys("fixed")).toEqual(["late-staff", "early-staff"]);
+      expect(staffKeys()).toEqual(["late-staff", "early-staff"]);
+    });
+
+    it("「勤務時間順」では、日別と同じく、勤務の早い順に出す", () => {
+      expect(staffKeys("workTime")).toEqual(["early-staff", "late-staff"]);
+    });
   });
 
   it("読み取り専用では期間内の日付も日別へ移動できない", () => {

@@ -142,6 +142,47 @@ describe("buildDateOnlyWeekPresentation", () => {
     });
   });
 
+  it("担当外のポジションへの割り当てには、希望どおりの日でも、橙の点と理由を付ける", () => {
+    // 伊藤は、製造が担当外。12/1は希望どおりに製造、12/2は希望のない日に製造、12/4は希望どおりに販売へ入っている。
+    const ito: StaffType = {
+      ...staff("s7", "伊藤 大和"),
+      positionSkills: [{ positionId: KITCHEN.id, level: "unavailable" }],
+    };
+    const [row] = buildWeek({
+      staffs: [ito],
+      shifts: [
+        shift(ito, "2026-12-01", { requested: true, position: KITCHEN }),
+        shift(ito, "2026-12-02", { position: KITCHEN }),
+        shift(ito, "2026-12-04", { requested: true, position: HALL }),
+      ],
+    }).rows;
+
+    expect(
+      row.cells
+        .filter((cell) => cell.assigned)
+        .map(({ key, dot, noticeTexts, ariaDescription }) => ({ key, dot, noticeTexts, ariaDescription })),
+    ).toEqual([
+      {
+        key: "2026-12-01",
+        dot: "orange",
+        noticeTexts: ["担当外のポジション"],
+        ariaDescription: "希望あり、担当外のポジション",
+      },
+      {
+        key: "2026-12-02",
+        dot: "orange",
+        noticeTexts: ["希望時間外に勤務あり", "担当外のポジション"],
+        ariaDescription: "希望時間外に勤務あり、担当外のポジション",
+      },
+      { key: "2026-12-04", dot: null, noticeTexts: [], ariaDescription: "希望あり" },
+    ]);
+    expect(toDateOnlyWeekWarningMessages(row)).toEqual([
+      "12/1(火)：担当外のポジション",
+      "12/2(水)：希望時間外に勤務あり",
+      "12/2(水)：担当外のポジション",
+    ]);
+  });
+
   it("名前の右の確認事項は、点のある日の理由を、日付を付けて並べる。点のない人は持たない", () => {
     const rows = buildWeek().rows;
     const messagesOf = (target: StaffType) => {
@@ -261,6 +302,17 @@ describe("buildDateOnlyDayPresentation", () => {
 
   it("人数は、その日に勤務のある人を数える", () => {
     expect(buildDay().countLabel).toBe("2人");
+  });
+
+  it("定休日は、残っている希望と勤務を出さず、人数を0人にする", () => {
+    const day = buildDay({ isClosed: true });
+    const cells = [...day.rows, ...(day.foldedGroup?.rows ?? [])].map((row) => row.cell);
+
+    expect(day.countLabel).toBe("0人");
+    expect(cells).toHaveLength(6);
+    expect(
+      cells.filter((cell) => cell.status !== "closed" || cell.assigned || cell.showsRequestRing || cell.dot !== null),
+    ).toEqual([]);
   });
 
   it("スタッフ向けの確定シフトでは、たたまずに、渡した順で全員を出す", () => {

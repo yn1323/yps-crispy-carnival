@@ -35,7 +35,6 @@ export type AssignmentWarningInput = {
 // 各セル（スタッフ×日付）の「割当」と「希望」を比べ、食い違いを1セルあたり最大1件で収集する。
 // NOT_SUBMITTED / OFF_REQUEST / 枠外・パターン外 は提出状況と希望有無で自然に排他になる。
 export function computeAssignmentWarnings(input: AssignmentWarningInput): AssignmentWarning[] {
-  const isSubmittedById = new Map(input.staffs.map((staff) => [staff.id, staff.isSubmitted]));
   const kind = input.pattern.kind;
   const optionNameById = new Map(
     input.pattern.kind === "shiftType" ? input.pattern.options.map((option) => [option.id, option.name]) : [],
@@ -71,7 +70,7 @@ export function computeAssignmentWarnings(input: AssignmentWarningInput): Assign
     }
 
     // 未提出は希望データが存在しないため、休み希望・希望時間外とは別カテゴリ
-    if (!isSubmittedById.get(shift.staffId)) {
+    if (!staff?.isSubmitted) {
       add("NOT_SUBMITTED", "未提出");
       continue;
     }

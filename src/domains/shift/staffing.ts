@@ -1,6 +1,7 @@
-import { getEffectiveBreaks } from "./breaks";
+import { getEffectiveBreaks, type MinuteRange, toMinuteRange } from "./breaks";
 import type { NewcomerStaffIdsByPositionId } from "./positionSkills";
 import { isCanonicalWorkPosition } from "./positions";
+import { groupShiftsByDate } from "./shiftLookup";
 import { minutesToTime, timeToMinutes } from "./time";
 import type { ShiftData, StaffingBar, StaffingSlot, StaffingSlotKey } from "./types";
 
@@ -39,7 +40,6 @@ type CountInput = {
   newcomerStaffIdsByPositionId?: NewcomerStaffIdsByPositionId;
 };
 
-type MinuteRange = { start: number; end: number };
 type PreparedShift = {
   staffId: string;
   segments: Array<MinuteRange & { positionId: string }>;
@@ -49,15 +49,10 @@ type PreparedShift = {
 // 勤務区間と、実際に効く休憩を、分の範囲へ直す。時刻ごとの判定で同じ計算を繰り返さないために先に作る。
 const prepareShift = (shift: ShiftData): PreparedShift => ({
   staffId: shift.staffId,
-  segments: shift.positions.filter(isCanonicalWorkPosition).map((position) => ({
-    start: timeToMinutes(position.start),
-    end: timeToMinutes(position.end),
-    positionId: position.positionId,
-  })),
-  breaks: getEffectiveBreaks(shift, { clipToWork: true }).map((range) => ({
-    start: timeToMinutes(range.start),
-    end: timeToMinutes(range.end),
-  })),
+  segments: shift.positions
+    .filter(isCanonicalWorkPosition)
+    .map((position) => ({ ...toMinuteRange(position), positionId: position.positionId })),
+  breaks: getEffectiveBreaks(shift, { clipToWork: true }).map(toMinuteRange),
 });
 
 // 見習いかどうかは、スタッフではなく、入っているポジションでの値で決める。
@@ -285,12 +280,7 @@ export const listNewcomerOnlyPeriods = (input: {
   const { pattern, positionIds, newcomerStaffIdsByPositionId } = input;
   if (newcomerStaffIdsByPositionId.size === 0) return [];
 
-  const shiftsByDate = new Map<string, ShiftData[]>();
-  for (const shift of input.shifts) {
-    const dayShifts = shiftsByDate.get(shift.date);
-    if (dayShifts) dayShifts.push(shift);
-    else shiftsByDate.set(shift.date, [shift]);
-  }
+  const shiftsByDate = groupShiftsByDate(input.shifts);
 
   return input.dates.flatMap((date): NewcomerOnlyPeriod[] => {
     const shifts = shiftsByDate.get(date) ?? [];

@@ -1,5 +1,5 @@
-import { getExportDailyPages } from "./dailyLayout";
-import { fitExportText, getExportNotePages, getExportPages } from "./layout";
+import { getExportDocumentPages } from "./dailyLayout";
+import { fitExportText } from "./layout";
 import { createDailyPdfPages } from "./pdfDaily";
 import { getExportNotesTitle, getExportTitle } from "./script";
 import type { ExportSchedule } from "./types";
@@ -31,12 +31,7 @@ export const createShiftPdf = async (schedule: ExportSchedule): Promise<Blob> =>
   const renderer = await import("@react-pdf/renderer");
   await loadJapaneseFont(renderer);
   const { Document, Page, View, Text, pdf } = renderer;
-  const daily = schedule.view === "daily" ? schedule.daily : null;
-  const pages = daily ? [] : getExportPages(schedule);
-  const notePages = getExportNotePages(schedule);
-  const dailyPageCount = daily ? getExportDailyPages(daily).length : 0;
-  const bodyPageCount = pages.length + dailyPageCount;
-  const totalPageCount = bodyPageCount + notePages.length;
+  const { daily, pages, notePages, bodyPageCount, totalPageCount } = getExportDocumentPages(schedule);
 
   return pdf(
     <Document title={getExportTitle(schedule)} author="シフトリ" language="ja">

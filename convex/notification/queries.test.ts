@@ -679,6 +679,44 @@ describe("notification/queries", () => {
         ]);
       });
 
+      it("確定のあとでポジションの名前を変えて削除しても、確定した時点のポジションの名前で伝える", async () => {
+        const t = convexTest(schema, modules);
+        const ids = await seedConfirmedShifts(t, {
+          positions: [
+            { key: "default", name: "シフト" },
+            { key: "hall", name: "ホール" },
+            { key: "kitchen", name: "キッチン" },
+          ],
+          assignments: [
+            { date: "2026-01-20", startTime: "10:00", endTime: "15:00", position: "hall" },
+            { date: "2026-01-21", startTime: "10:00", endTime: "15:00", position: "kitchen" },
+          ],
+        });
+        await t.run(async (ctx) => {
+          const { default: defaultPositionId, hall: hallPositionId, kitchen: kitchenPositionId } = ids.positionIds;
+          await ctx.db.patch(ids.recruitmentId, {
+            confirmedPositions: [
+              { positionId: defaultPositionId, name: "シフト", color: "#3b82f6", isDefault: true },
+              { positionId: hallPositionId, name: "ホール", color: "#3b82f6", isDefault: false },
+              { positionId: kitchenPositionId, name: "キッチン", color: "#3b82f6", isDefault: false },
+            ],
+          });
+          // 確定のあとで、ホールの名前を変え、キッチンを削除する。
+          await ctx.db.patch(hallPositionId, { name: "フロア" });
+          await ctx.db.patch(kitchenPositionId, { isDeleted: true });
+        });
+
+        const result = await t.query(internal.notification.queries.getConfirmationEmailData, {
+          recruitmentId: ids.recruitmentId,
+        });
+
+        expect(result?.staffEntries).toHaveLength(1);
+        expect(result?.staffEntries[0].shifts).toEqual([
+          { date: "1/20(火)", timeLabel: "10:00-15:00 ホール" },
+          { date: "1/21(水)", timeLabel: "10:00-15:00 キッチン" },
+        ]);
+      });
+
       // 休憩だけを変えた再通知で本文に違いが出るよう、休憩はポジションの数にかかわらず伝える。
       it("ポジションが1つだけの店舗では、ポジション名を出さず、休憩だけを時刻の後ろへ添える", async () => {
         const t = convexTest(schema, modules);

@@ -217,6 +217,30 @@ export type StaffingSlotView = {
   hasExcess: boolean;
 };
 
+/**
+ * パターン選択と日付選択で、人数を出すポジションを決める。
+ * 渡した区切りのどれかに必要人数があるか、だれかが入っているポジションを、設定の並び順で出す。
+ * 出すポジションは渡した区切りでそろえ、区切りによって並びと数を変えない。状態が変わっても位置を動かさないためである。
+ */
+export const selectShownStaffingPositions = (slots: ReadonlyArray<Pick<StaffingSlotView, "positions">>) => {
+  const shownPositionIds = new Set(
+    slots.flatMap((slot) =>
+      slot.positions
+        .filter((position) => position.required !== null || position.count > 0)
+        .map((position) => position.positionId),
+    ),
+  );
+  const isShown = (position: StaffingPositionView): boolean => shownPositionIds.has(position.positionId);
+  return {
+    positions: (slots[0]?.positions ?? [])
+      .filter(isShown)
+      .map((position) => ({ positionId: position.positionId, name: position.name, color: position.color })),
+    /** 区切り1つ分の「配置/必要」を、positionsと同じ並びで返す。 */
+    toCounts: (slot: Pick<StaffingSlotView, "positions">): PositionStaffingCountPresentation[] =>
+      slot.positions.filter(isShown).map(toPositionStaffingCount),
+  };
+};
+
 // ==========================================
 // 時間指定の帯
 // ==========================================

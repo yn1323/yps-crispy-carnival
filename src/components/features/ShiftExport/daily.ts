@@ -25,15 +25,13 @@ const COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 type Assignment = ShiftExportData["assignments"][number];
 type WorkPiece = { start: number; end: number; label: string; color: string | null; positionId: string };
 
-const assertWorkTime = ({ startTime, endTime }: Pick<Assignment, "startTime" | "endTime">) => {
-  if (
-    !isSupportedShiftTime(startTime) ||
-    !isSupportedShiftTime(endTime) ||
-    timeToMinutes(startTime) >= timeToMinutes(endTime)
-  ) {
-    throw new Error("勤務時間を確認できませんでした。");
-  }
-};
+/** 開始と終了が帳票で扱える時刻で、開始が終了より前か。勤務と休憩の時刻を確かめるために、一覧と日別の両方で使う。 */
+export const isExportTimeRange = ({ startTime, endTime }: { startTime: string; endTime: string }): boolean =>
+  isSupportedShiftTime(startTime) && isSupportedShiftTime(endTime) && timeToMinutes(startTime) < timeToMinutes(endTime);
+
+/** 帳票に書くスタッフの名前。削除済みのスタッフは、名前のあとに「（削除済み）」を付ける。 */
+export const getExportStaffName = (staff: ShiftExportData["staffs"][number]): string =>
+  staff.isRemoved ? `${staff.name}（削除済み）` : staff.name;
 
 /** 重なる勤務は先に始まるほうを残し、同じ見た目で隣り合う勤務は1本にまとめる。 */
 const toWorkPieces = (items: readonly WorkPiece[]): WorkPiece[] => {
@@ -123,7 +121,7 @@ export function buildExportDaily(data: ShiftExportData, dates: readonly ExportDa
         };
   for (const assignment of data.assignments) {
     if (!openDates.has(assignment.date)) continue;
-    assertWorkTime(assignment);
+    if (!isExportTimeRange(assignment)) throw new Error("勤務時間を確認できませんでした。");
     range.start = Math.min(range.start, timeToMinutes(assignment.startTime));
     range.end = Math.max(range.end, timeToMinutes(assignment.endTime));
     const key = `${assignment.date}:${assignment.staffId}`;
@@ -187,7 +185,7 @@ export function buildExportDaily(data: ShiftExportData, dates: readonly ExportDa
       entries.push({
         row: {
           staffId: staff.id,
-          staffName: staff.isRemoved ? `${staff.name}（削除済み）` : staff.name,
+          staffName: getExportStaffName(staff),
           timeLabel: `${minutesToTime(firstStart)}-${minutesToTime(lastEnd)}`,
           segments: toSegments(pieces, breaks),
         },

@@ -2,17 +2,17 @@ import { formatDateShort, formatDateWithWeekday } from "@/src/domains/shift/date
 import { countDateOnlyAssignmentsByDate } from "@/src/domains/shift/dateOnlyAssignments";
 import {
   buildDateOnlyCell,
-  type DateOnlyCellNotice,
   type DateOnlyDayStatus,
   isDateOnlyStaffWithoutRequests,
 } from "@/src/domains/shift/dateOnlyCells";
 import { calculateDateOnlyFulfillmentPercent } from "@/src/domains/shift/staffingFulfillment";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import type { AssignmentPillCell } from "./assignmentCellParts";
+import { buildAssignmentPillFields } from "./assignmentCellPresentation";
 import {
   type DayStaffingView,
   type PositionStaffingCountPresentation,
-  toPositionStaffingCount,
+  selectShownStaffingPositions,
 } from "./staffingPresentation";
 import { buildStaffNamesLabel } from "./staffNamesLabel";
 
@@ -73,12 +73,6 @@ export type DateOnlyFoldedGroupPresentation<Row> = {
 
 type GetNote = (staffId: string, date: string) => string | undefined;
 
-const formatDateOnlyCellNotice = (notice: DateOnlyCellNotice): string => {
-  if (notice.kind === "unrequested") return "希望時間外に勤務あり";
-  if (notice.kind === "notSubmitted") return "未提出";
-  return "担当外のポジション";
-};
-
 const resolveDayStatus = (date: DateOnlyDateInfo, holidaySet: ReadonlySet<string>): DateOnlyDayStatus =>
   !date.inRange ? "outOfRange" : holidaySet.has(date.iso) ? "closed" : "open";
 
@@ -95,14 +89,11 @@ type CellInput = {
 const buildCellPresentation = (input: CellInput) => {
   const { staff, shift, date, status, hasNote, isConfirmedDisplay, usesPositionColors } = input;
   const cell = buildDateOnlyCell({ shift, staff, status });
-  const assigned = cell.segment !== null;
-  const showsPositionName = assigned && usesPositionColors;
-  const noticeTexts = isConfirmedDisplay ? [] : cell.notices.map(formatDateOnlyCellNotice);
-  const showsRequestRing = !isConfirmedDisplay && cell.isRequested;
-  const isProvisional = !isConfirmedDisplay && assigned && shift?.isProvisional === true;
+  const pill = buildAssignmentPillFields(cell, { isConfirmedDisplay, usesPositionColors });
+  const isProvisional = !isConfirmedDisplay && pill.assigned && shift?.isProvisional === true;
   const descriptions = [
-    ...(showsRequestRing ? ["希望あり"] : []),
-    ...noticeTexts,
+    ...(pill.showsRequestRing ? ["希望あり"] : []),
+    ...pill.noticeTexts,
     ...(isProvisional ? ["前回の勤務を仮で入れています"] : []),
     ...(hasNote ? ["連絡事項あり"] : []),
   ];
@@ -110,16 +101,10 @@ const buildCellPresentation = (input: CellInput) => {
     key: date,
     status,
     hasNote,
-    showsRequestRing,
-    assigned,
-    pillLabel: assigned ? (showsPositionName ? (cell.segment?.positionName ?? "○") : "○") : null,
-    positionId: cell.segment?.positionId ?? null,
-    positionColor: showsPositionName ? (cell.segment?.color ?? null) : null,
-    dot: isConfirmedDisplay ? null : cell.dot,
-    noticeTexts,
+    ...pill,
     // 既存のE2Eがこの形で探すため、名前の形を変えない。ポジションを塗り分ける表示では、末尾にポジション名を添える。
-    ariaLabel: `${staff.name} ${formatDateWithWeekday(date)} ${assigned ? "勤務あり" : "勤務なし"}${
-      showsPositionName && cell.segment ? `、${cell.segment.positionName}` : ""
+    ariaLabel: `${staff.name} ${formatDateWithWeekday(date)} ${pill.assigned ? "勤務あり" : "勤務なし"}${
+      usesPositionColors && cell.segment ? `、${cell.segment.positionName}` : ""
     }`,
     ariaDescription: descriptions.length > 0 ? descriptions.join("、") : null,
   };
@@ -337,26 +322,13 @@ export type DateOnlyStaffingPresentation = {
 export const buildDateOnlyStaffingPresentation = (views: readonly DayStaffingView[]): DateOnlyStaffingPresentation => {
   // 日付選択の区切りは、終日の1つだけである。
   const days = views.flatMap((view) => (view.slots[0] ? [{ date: view.date, slot: view.slots[0] }] : []));
-  const shownPositionIds = new Set(
-    days.flatMap(({ slot }) =>
-      slot.positions
-        .filter((position) => position.required !== null || position.count > 0)
-        .map((position) => position.positionId),
-    ),
-  );
+  const { positions, toCounts } = selectShownStaffingPositions(days.map(({ slot }) => slot));
   const percent = calculateDateOnlyFulfillmentPercent(days.map(({ slot }) => ({ positions: slot.positions })));
   return {
     percent,
     // 多い分で100%を超えた日も、満たした日として同じ色で出す。
     isFulfilled: percent !== null && percent >= 100,
-    positions: (days[0]?.slot.positions ?? [])
-      .filter((position) => shownPositionIds.has(position.positionId))
-      .map((position) => ({ positionId: position.positionId, name: position.name, color: position.color })),
-    countsByDate: new Map(
-      days.map(({ date, slot }) => [
-        date,
-        slot.positions.filter((position) => shownPositionIds.has(position.positionId)).map(toPositionStaffingCount),
-      ]),
-    ),
+    positions,
+    countsByDate: new Map(days.map(({ date, slot }) => [date, toCounts(slot)])),
   };
 };

@@ -14,7 +14,7 @@ type Props = {
   holidays?: string[];
   /**
    * 見出しの右に置くもの。`rangeAssign`は、時間指定で次に新しく入れるものを選ぶ並びである。
-   * `legend`は、パターン選択で色とポジションの対応を示す、押せない凡例である。
+   * `legend`は、パターン選択で次に入れるポジションを選ぶ並びで、色とポジションの対応を示す凡例を兼ねる。
    */
   positionControl: "rangeAssign" | "legend";
   /** その日のテンプレートを日付の横に出すか。時間指定は人数の帯の見出しに出すため、falseを渡す。 */
@@ -76,7 +76,6 @@ export const DayTitle = ({ date, holidays = [], positionControl, showsTemplate =
           ) : (
             usesPositionColors && isEditable && <WorkPositionPicker />
           ))}
-        {/* パターン選択は、連絡事項を名前の横のアイコンだけで示すため、表示の切り替えを出さない。 */}
         <DisplaySettingsMenu />
       </Flex>
     </Flex>

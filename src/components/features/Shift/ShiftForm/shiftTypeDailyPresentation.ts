@@ -4,17 +4,17 @@ import {
   buildShiftTypeCells,
   isShiftTypeRestRequestWithoutWork,
   type ShiftTypeCellDot,
-  type ShiftTypeCellNotice,
 } from "@/src/domains/shift/shiftTypeCells";
 import { calculateShiftTypeFulfillmentPercent } from "@/src/domains/shift/staffingFulfillment";
 import { timeToMinutes } from "@/src/domains/shift/time";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { getOrderedShiftTypeOptions } from "@/src/domains/shop/submissionPattern";
+import { buildAssignmentPillFields } from "./assignmentCellPresentation";
 import { formatShiftTypeTimeRange } from "./shiftTypeDisplay";
 import {
   type DayStaffingView,
   type PositionStaffingCountPresentation,
-  toPositionStaffingCount,
+  selectShownStaffingPositions,
 } from "./staffingPresentation";
 import { buildStaffNamesLabel } from "./staffNamesLabel";
 
@@ -93,12 +93,6 @@ const formatShortTime = (time: string): string => {
 export const formatShiftTypeShortTimeRange = (option: Pick<ShiftTypeOptionLike, "startTime" | "endTime">): string =>
   `${formatShortTime(option.startTime)}–${formatShortTime(option.endTime)}`;
 
-const formatShiftTypeCellNotice = (notice: ShiftTypeCellNotice): string => {
-  if (notice.kind === "unrequested") return "希望時間外に勤務あり";
-  if (notice.kind === "notSubmitted") return "未提出";
-  return "担当外のポジション";
-};
-
 export function buildShiftTypeDailyPresentation({
   submissionPattern,
   shifts,
@@ -135,22 +129,13 @@ export function buildShiftTypeDailyPresentation({
       isNameMuted: !staff.isSubmitted,
       isUnsubmitted: !isConfirmedDisplay && !staff.isSubmitted,
       cells: buildShiftTypeCells({ shift, staff, options }).map((cell) => {
-        const assigned = cell.segment !== null;
-        const showsPositionName = assigned && usesPositionColors;
-        const noticeTexts = isConfirmedDisplay ? [] : cell.notices.map(formatShiftTypeCellNotice);
-        const showsRequestRing = !isConfirmedDisplay && cell.isRequested;
-        const descriptions = [...(showsRequestRing ? ["希望あり"] : []), ...noticeTexts];
+        const pill = buildAssignmentPillFields(cell, { isConfirmedDisplay, usesPositionColors });
+        const descriptions = [...(pill.showsRequestRing ? ["希望あり"] : []), ...pill.noticeTexts];
         return {
           key: cell.option.id,
           option: cell.option,
-          showsRequestRing,
-          assigned,
-          pillLabel: assigned ? (showsPositionName ? (cell.segment?.positionName ?? "○") : "○") : null,
-          positionId: cell.segment?.positionId ?? null,
-          positionColor: showsPositionName ? (cell.segment?.color ?? null) : null,
-          dot: isConfirmedDisplay ? null : cell.dot,
-          noticeTexts,
-          ariaLabel: `${staff.name} ${cell.option.name} ${assigned ? "勤務あり" : "勤務なし"}`,
+          ...pill,
+          ariaLabel: `${staff.name} ${cell.option.name} ${pill.assigned ? "勤務あり" : "勤務なし"}`,
           ariaDescription: descriptions.length > 0 ? descriptions.join("、") : null,
         };
       }),
@@ -218,16 +203,7 @@ export const buildShiftTypeStaffingPresentation = (
     const slot = slotByOptionId.get(option.id);
     return slot ? [{ option, slot }] : [];
   });
-  const shownPositionIds = new Set(
-    slots.flatMap(({ slot }) =>
-      slot.positions
-        .filter((position) => position.required !== null || position.count > 0)
-        .map((position) => position.positionId),
-    ),
-  );
-  const positions = (slots[0]?.slot.positions ?? [])
-    .filter((position) => shownPositionIds.has(position.positionId))
-    .map((position) => ({ positionId: position.positionId, name: position.name, color: position.color }));
+  const { positions, toCounts } = selectShownStaffingPositions(slots.map(({ slot }) => slot));
 
   const percent = calculateShiftTypeFulfillmentPercent(
     slots.map(({ option, slot }) => ({
@@ -241,12 +217,7 @@ export const buildShiftTypeStaffingPresentation = (
     // 多い分で100%を超えた日も、満たした日として同じ色で出す。
     isFulfilled: percent !== null && percent >= 100,
     positions,
-    countsByOptionId: new Map(
-      slots.map(({ option, slot }) => [
-        option.id,
-        slot.positions.filter((position) => shownPositionIds.has(position.positionId)).map(toPositionStaffingCount),
-      ]),
-    ),
+    countsByOptionId: new Map(slots.map(({ option, slot }) => [option.id, toCounts(slot)])),
   };
 };
 

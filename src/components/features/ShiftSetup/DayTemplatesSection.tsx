@@ -19,7 +19,7 @@ import { Empty } from "@/src/components/ui/Empty";
 import { isPositionsUnsplit } from "@/src/domains/shift/operations";
 import { DayTemplateEditor } from "./DayTemplateEditor";
 import { formatDayTemplateUsage, getDayTemplateLabel, needsDayTemplateReentry } from "./dayTemplateDrafts";
-import { SetupLockedNote, SetupSection } from "./parts";
+import { SetupCard, SetupLockedNote, SetupSection } from "./parts";
 import type { DayTemplateDraft, ShiftSetupData, ShiftSetupEditorView, ShiftSetupIntents } from "./types";
 
 /** スマートフォンで押しやすい高さを確保する、ページ上の主なボタンの高さ。 */
@@ -79,19 +79,7 @@ export function DayTemplatesSection({ setup, canWrite, isSaving, dayTemplates, i
   );
 
   // 必要人数はポジションごとに決めるため、ポジションを追加するまでは中身を見せない。
-  if (isPositionsUnsplit(setup.positions)) {
-    return (
-      <SetupSection
-        headingId="shift-setup-day-templates-heading"
-        title="必要人数"
-        step={2}
-        description={SECTION_DESCRIPTION}
-        isBusy={isSaving}
-      >
-        <SetupLockedNote>ポジションを追加すると、必要人数を設定できます</SetupLockedNote>
-      </SetupSection>
-    );
-  }
+  const isLocked = isPositionsUnsplit(setup.positions);
 
   return (
     <SetupSection
@@ -100,9 +88,11 @@ export function DayTemplatesSection({ setup, canWrite, isSaving, dayTemplates, i
       step={2}
       description={SECTION_DESCRIPTION}
       isBusy={isSaving}
-      action={drafts.length > 0 && canUseAssist ? assistButton("ghost") : undefined}
+      action={!isLocked && drafts.length > 0 && canUseAssist ? assistButton("ghost") : undefined}
     >
-      {!selectedDraft ? (
+      {isLocked ? (
+        <SetupLockedNote>ポジションを追加すると、必要人数を設定できます</SetupLockedNote>
+      ) : !selectedDraft ? (
         <Empty
           icon={LuUsers}
           title="必要人数を設定しましょう"
@@ -124,7 +114,8 @@ export function DayTemplatesSection({ setup, canWrite, isSaving, dayTemplates, i
           }
         />
       ) : (
-        <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white">
+        // テンプレートの一覧と編集を1枚のカードに入れる。
+        <SetupCard clipsOverflow={false}>
           <DayTemplateTabs
             drafts={drafts}
             selectedRowKey={selectedDraft.rowKey}
@@ -146,7 +137,7 @@ export function DayTemplatesSection({ setup, canWrite, isSaving, dayTemplates, i
             intents={intents}
             nameInputRef={nameInputRef}
           />
-        </Box>
+        </SetupCard>
       )}
     </SetupSection>
   );

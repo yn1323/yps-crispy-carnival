@@ -70,6 +70,3 @@ export const assistSituationSchema = z
   .trim()
   .min(1, "店の状況を入力してください")
   .max(SHIFT_SETUP_ASSIST_SITUATION_MAX_LENGTH, `${SHIFT_SETUP_ASSIST_SITUATION_MAX_LENGTH}文字以内で入力してください`);
-
-export type SavePositionsInput = z.infer<typeof savePositionsSchema>;
-export type BreakRuleInput = z.infer<typeof breakRuleSchema>;

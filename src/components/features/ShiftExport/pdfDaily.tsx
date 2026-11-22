@@ -1,8 +1,9 @@
 import {
   BREAK_LABEL,
   fitDailyBreakLabel,
+  fitDailyRowHeader,
   fitDailySegmentLabel,
-  getDailyCountLabels,
+  getDailyCountCells,
   getDailyHatchLines,
   getDailySegmentFill,
   getExportDailyLayout,
@@ -26,7 +27,7 @@ export const createDailyPdfPages = (
 ) => {
   const { Page, View, Text, Svg, Line } = renderer;
   const layout = getExportDailyLayout(daily);
-  const labelColumnWidthPt = layout.nameColumnWidthPt + layout.timeColumnWidthPt;
+  const { labelColumnWidthPt } = layout;
   const cellStyle = {
     borderRightWidth: BORDER_PT,
     borderBottomWidth: BORDER_PT,
@@ -129,13 +130,7 @@ export const createDailyPdfPages = (
               <View style={{ ...cellStyle, width: layout.nameColumnWidthPt }}>
                 {row && (
                   <Text style={{ maxLines: 1 }}>
-                    {
-                      fitExportText(
-                        row.staffName,
-                        layout.nameColumnWidthPt - layout.cellPaddingPt * 2,
-                        layout.fontSizePt,
-                      ).text
-                    }
+                    {fitDailyRowHeader(row.staffName, layout.nameColumnWidthPt, layout)}
                   </Text>
                 )}
               </View>
@@ -144,8 +139,7 @@ export const createDailyPdfPages = (
               </View>
               <View style={chartCellStyle}>
                 {row?.segments.map((segment) => {
-                  const leftPt = layout.toChartPt(segment.start);
-                  const widthPt = layout.toChartPt(segment.end) - leftPt;
+                  const { leftPt, widthPt } = layout.toChartSpan(segment);
                   const boxStyle = {
                     position: "absolute" as const,
                     left: leftPt,
@@ -207,52 +201,42 @@ export const createDailyPdfPages = (
           ))}
         </View>
         <View style={{ ...tableStyle, marginTop: layout.countGapPt }}>
-          {sheet.counts.map((count) => {
-            const labels = getDailyCountLabels(count);
-            return (
-              <View key={count.key} style={{ flexDirection: "row", height: layout.countRowHeightPt }} wrap={false}>
-                <View style={{ ...cellStyle, width: labelColumnWidthPt }}>
-                  <Text style={{ maxLines: 1 }}>
-                    {fitExportText(count.label, labelColumnWidthPt - layout.cellPaddingPt * 2, layout.fontSizePt).text}
-                  </Text>
-                </View>
-                <View style={chartCellStyle}>
-                  {count.segments.map((segment, index) => {
-                    if (!labels[index]) return null;
-                    const leftPt = layout.toChartPt(segment.start);
-                    const widthPt = layout.toChartPt(segment.end) - leftPt;
-                    return (
-                      <View
-                        key={segment.start}
-                        style={{
-                          position: "absolute",
-                          left: leftPt,
-                          top: 1,
-                          width: widthPt,
-                          height: countHeightPt,
-                          borderWidth: BORDER_PT,
-                          borderColor: COUNT_BORDER,
-                          justifyContent: "center",
-                        }}
-                      >
-                        <Text
-                          style={{
-                            fontSize: widthPt < 8 ? layout.minFontSizePt : layout.segmentFontSizePt,
-                            // 行の高さを決めないと、枠より高い行として文字ごと落とされる。
-                            lineHeight: 1.2,
-                            textAlign: "center",
-                            maxLines: 1,
-                          }}
-                        >
-                          {labels[index]}
-                        </Text>
-                      </View>
-                    );
-                  })}
-                </View>
+          {sheet.counts.map((count) => (
+            <View key={count.key} style={{ flexDirection: "row", height: layout.countRowHeightPt }} wrap={false}>
+              <View style={{ ...cellStyle, width: labelColumnWidthPt }}>
+                <Text style={{ maxLines: 1 }}>{fitDailyRowHeader(count.label, labelColumnWidthPt, layout)}</Text>
               </View>
-            );
-          })}
+              <View style={chartCellStyle}>
+                {getDailyCountCells(count, layout).map((cell) => (
+                  <View
+                    key={cell.start}
+                    style={{
+                      position: "absolute",
+                      left: cell.leftPt,
+                      top: 1,
+                      width: cell.widthPt,
+                      height: countHeightPt,
+                      borderWidth: BORDER_PT,
+                      borderColor: COUNT_BORDER,
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: cell.widthPt < 8 ? layout.minFontSizePt : layout.segmentFontSizePt,
+                        // 行の高さを決めないと、枠より高い行として文字ごと落とされる。
+                        lineHeight: 1.2,
+                        textAlign: "center",
+                        maxLines: 1,
+                      }}
+                    >
+                      {cell.label}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          ))}
         </View>
         <Text
           style={{

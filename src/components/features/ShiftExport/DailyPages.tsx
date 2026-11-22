@@ -3,13 +3,13 @@ import {
   BREAK_LABEL,
   type ExportDailyLayout,
   fitDailyBreakLabel,
+  fitDailyRowHeader,
   fitDailySegmentLabel,
-  getDailyCountLabels,
+  getDailyCountCells,
   getDailySegmentFill,
   getExportDailyLayout,
   getExportDailyPages,
 } from "./dailyLayout";
-import { fitExportText } from "./layout";
 import type { ExportDaily, ExportDailySegment } from "./types";
 
 type Props = {
@@ -24,8 +24,7 @@ const describeSegment = (segment: ExportDailySegment) =>
   `${segment.kind === "break" ? "休憩" : segment.label || "勤務"} ${formatRange(segment)}`;
 
 function Segment({ segment, layout }: { segment: ExportDailySegment; layout: ExportDailyLayout }) {
-  const leftPt = layout.toChartPt(segment.start);
-  const widthPt = layout.toChartPt(segment.end) - leftPt;
+  const { leftPt, widthPt } = layout.toChartSpan(segment);
   const style = {
     left: `${leftPt}pt`,
     width: `${widthPt}pt`,
@@ -133,10 +132,7 @@ export function ShiftExportDailyPages({ daily, totalPageCount }: Props) {
             row ? (
               <tr key={row.staffId} style={{ height: `${layout.rowHeightPt}pt` }}>
                 <th scope="row" title={row.staffName}>
-                  {
-                    fitExportText(row.staffName, layout.nameColumnWidthPt - layout.cellPaddingPt * 2, layout.fontSizePt)
-                      .text
-                  }
+                  {fitDailyRowHeader(row.staffName, layout.nameColumnWidthPt, layout)}
                 </th>
                 <td>{row.timeLabel}</td>
                 <td className="shift-export-daily-chart shift-export-daily-grid" style={chartStyle}>
@@ -162,42 +158,29 @@ export function ShiftExportDailyPages({ daily, totalPageCount }: Props) {
         style={{ marginTop: `${layout.countGapPt}pt` }}
       >
         <colgroup>
-          <col style={{ width: `${layout.nameColumnWidthPt + layout.timeColumnWidthPt}pt` }} />
+          <col style={{ width: `${layout.labelColumnWidthPt}pt` }} />
           <col style={{ width: `${layout.chartWidthPt}pt` }} />
         </colgroup>
         <tbody>
-          {sheet.counts.map((count) => {
-            const labels = getDailyCountLabels(count);
-            return (
-              <tr key={count.key} style={{ height: `${layout.countRowHeightPt}pt` }}>
-                <th scope="row" title={count.label}>
-                  {
-                    fitExportText(
-                      count.label,
-                      layout.nameColumnWidthPt + layout.timeColumnWidthPt - layout.cellPaddingPt * 2,
-                      layout.fontSizePt,
-                    ).text
-                  }
-                </th>
-                <td className="shift-export-daily-chart">
-                  {count.segments.map((segment, index) => {
-                    if (!labels[index]) return null;
-                    const leftPt = layout.toChartPt(segment.start);
-                    return (
-                      <span
-                        key={segment.start}
-                        className="shift-export-daily-count"
-                        title={`${formatRange(segment)} ${labels[index]}人`}
-                        style={{ left: `${leftPt}pt`, width: `${layout.toChartPt(segment.end) - leftPt}pt` }}
-                      >
-                        {labels[index]}
-                      </span>
-                    );
-                  })}
-                </td>
-              </tr>
-            );
-          })}
+          {sheet.counts.map((count) => (
+            <tr key={count.key} style={{ height: `${layout.countRowHeightPt}pt` }}>
+              <th scope="row" title={count.label}>
+                {fitDailyRowHeader(count.label, layout.labelColumnWidthPt, layout)}
+              </th>
+              <td className="shift-export-daily-chart">
+                {getDailyCountCells(count, layout).map((cell) => (
+                  <span
+                    key={cell.start}
+                    className="shift-export-daily-count"
+                    title={`${formatRange(cell)} ${cell.label}人`}
+                    style={{ left: `${cell.leftPt}pt`, width: `${cell.widthPt}pt` }}
+                  >
+                    {cell.label}
+                  </span>
+                ))}
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
       <p className="shift-export-page-number">

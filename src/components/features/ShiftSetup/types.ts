@@ -89,7 +89,7 @@ export type ShiftSetupIntents = {
   onRenameDayTemplate: (rowKey: string, name: string) => void;
   onToggleWeekday: (rowKey: string, weekday: ShiftSetupWeekday) => void;
   onToggleHoliday: (rowKey: string) => void;
-  /** 曜日をすべて外す。祝日の選択は変えない。 */
+  /** 曜日と祝日をすべて外す。「指定しない」を押したときに呼ぶ。 */
   onClearWeekdays: (rowKey: string) => void;
   onChangeSegments: (rowKey: string, segments: StaffingSegment[]) => void;
   onChangeRequiredCount: (rowKey: string, change: RequiredCountChange) => void;

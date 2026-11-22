@@ -3,8 +3,8 @@ import { LuCalendarX, LuDownload } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
 import { ShiftExportDailyPages } from "./DailyPages";
-import { getExportDailyPages } from "./dailyLayout";
-import { fitExportText, getExportNotePages, getExportPages } from "./layout";
+import { getExportDocumentPages } from "./dailyLayout";
+import { fitExportText } from "./layout";
 import { getExportNotesTitle, getExportTitle } from "./script";
 import type { ExportSchedule, ExportView } from "./types";
 import type { useExportDownload } from "./useExportDownload";
@@ -27,13 +27,9 @@ export function ShiftExportView({
   includeNotes,
   onIncludeNotesChange,
 }: Props) {
-  const isDaily = schedule.view === "daily" && schedule.daily !== null;
-  const pages = isDaily ? [] : getExportPages(schedule);
-  const dailyPageCount = isDaily && schedule.daily ? getExportDailyPages(schedule.daily).length : 0;
+  const { daily, pages, notePages, dailyPageCount, bodyPageCount, totalPageCount } = getExportDocumentPages(schedule);
+  const isDaily = daily !== null;
   const isEmptyDaily = isDaily && dailyPageCount === 0;
-  const notePages = getExportNotePages(schedule);
-  const bodyPageCount = pages.length + dailyPageCount;
-  const totalPageCount = bodyPageCount + notePages.length;
   // 選んだ形で使える項目だけを出す。日別は1日ずつ出すため、期間を分ける項目を出さない。
   const options = [
     {
@@ -137,7 +133,7 @@ export function ShiftExportView({
             minH="50dvh"
           />
         )}
-        {isDaily && schedule.daily && <ShiftExportDailyPages daily={schedule.daily} totalPageCount={totalPageCount} />}
+        {daily && <ShiftExportDailyPages daily={daily} totalPageCount={totalPageCount} />}
         {pages.map(({ period, layout, rows, isFirstPage }, pageIndex) => (
           <section
             className="shift-export-page"

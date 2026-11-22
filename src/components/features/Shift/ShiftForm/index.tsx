@@ -55,7 +55,6 @@ import { SPShiftTypeDailyView } from "./sp/ShiftTypeDailyView";
 import { SPShiftTypeOverviewView } from "./sp/ShiftTypeOverviewView";
 import {
   applyShiftDraftsAtom,
-  applyStaffSortModeAtom,
   autoCreateDialogOpenAtom,
   detailModeAtom,
   detailToggleEnabledAtom,
@@ -130,7 +129,7 @@ type ShiftFormProps = {
    */
   onChromeHiddenChange?: (isHidden: boolean) => void;
   /**
-   * 店舗が選んだスタッフの並び替え。省くと「固定」（その日の状態のまとまり → スタッフのページで決めた並び順）にする。
+   * 店舗が選んだスタッフの並び替え。省くと「固定」（スタッフのページで決めた並び順のまま）にする。
    * 表示設定で変えるには、`detailActions.requestStaffSortModeChange`を渡す。
    */
   staffSortMode?: StaffSortMode;
@@ -172,7 +171,7 @@ const ShiftFormInner = ({
   header,
   exportAction,
   onChromeHiddenChange,
-  staffSortMode = "fixed",
+  staffSortMode,
 }: ShiftFormProps) => {
   useShiftFormInit({
     shopId,
@@ -195,13 +194,8 @@ const ShiftFormInner = ({
     validationIssues,
     validationWarnings,
     newcomerOnlyPeriods,
+    staffSortMode,
   });
-
-  // 店舗が選んだ並び替えを反映する。表示設定で変えると、置く側が保存して渡し直す。
-  const applyStaffSortMode = useSetAtom(applyStaffSortModeAtom);
-  useEffect(() => {
-    applyStaffSortMode(staffSortMode);
-  }, [applyStaffSortMode, staffSortMode]);
 
   const shifts = useAtomValue(shiftsAtom);
   const onShiftsChangeRef = useRef(onShiftsChange);

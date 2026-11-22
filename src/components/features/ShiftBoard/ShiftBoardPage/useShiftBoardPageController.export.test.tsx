@@ -391,4 +391,14 @@ describe("シフトボードからの出力", () => {
 
     expect(mocks.export.mock.calls.map(([exported]) => exported.isDetailMode)).toEqual([false, true]);
   });
+
+  it("店舗が選んだスタッフの並び替えを出力へ渡し、まだ選んでいない店舗は「固定」で渡す", () => {
+    const unset = renderInitialized();
+    act(() => unset.result.current.intents.onOpenExport());
+    const workTime = renderInitialized({ ...data, shiftStaffSortMode: "workTime" });
+    act(() => workTime.result.current.intents.onOpenExport());
+
+    // 日別の出力は、この値で行の並びを決める。
+    expect(mocks.export.mock.calls.map(([exported]) => exported.staffSortMode)).toEqual(["fixed", "workTime"]);
+  });
 });

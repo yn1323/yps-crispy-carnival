@@ -222,18 +222,13 @@ export const StaffingCountBandEditor = ({
     wasInlineFormOpenRef.current = isFormOpen;
   }, [isInline, isFormOpen, getFormFocusTarget]);
 
+  /** ポインタの横位置（clientX）を、時間の軸の上の時刻（分）へ直す。刻みにはそろえない。 */
+  const toRawMinutes = (clientX: number, trackRect: DOMRect) =>
+    pixelToRawMinutes({ x: clientX - trackRect.left, timeRange, hourWidth, axisPadding: metrics.axisPadding });
+
   const { swipe, startSwipe } = useBandSwipe({
     toCellMinutes: (clientX, trackRect) =>
-      toCellStartMinutes({
-        rawMinutes: pixelToRawMinutes({
-          x: clientX - trackRect.left,
-          timeRange,
-          hourWidth,
-          axisPadding: metrics.axisPadding,
-        }),
-        range: editableRange,
-        unitMinutes,
-      }),
+      toCellStartMinutes({ rawMinutes: toRawMinutes(clientX, trackRect), range: editableRange, unitMinutes }),
     onCommit: (finished) => {
       // pointerupに続くclickだけを止める。離した場所が別の要素でclickが来ない場合に備え、すぐ戻す。
       suppressClickRef.current = true;
@@ -255,12 +250,7 @@ export const StaffingCountBandEditor = ({
     const track = event.currentTarget;
     // 帯の中で始まった操作だけを受け取る。
     if (!(event.target instanceof Node) || !track.contains(event.target)) return;
-    const rawMinutes = pixelToRawMinutes({
-      x: event.clientX - track.getBoundingClientRect().left,
-      timeRange,
-      hourWidth,
-      axisPadding: metrics.axisPadding,
-    });
+    const rawMinutes = toRawMinutes(event.clientX, track.getBoundingClientRect());
     if (rawMinutes < editableRange.startMinutes || rawMinutes > editableRange.endMinutes) return;
     const cellMinutes = toCellStartMinutes({ rawMinutes, range: editableRange, unitMinutes });
     startSwipe(

@@ -1,41 +1,36 @@
 import { Box, chakra, Flex, Text } from "@chakra-ui/react";
 import { useAtomValue, useSetAtom } from "jotai";
-import { useEffect, useMemo, useState } from "react";
-import { indexShiftsByStaffId } from "@/src/domains/shift/shiftLookup";
-import { AssignmentPill, FoldedStaffGroupToggle, PositionStaffingCount } from "../../assignmentCellParts";
+import { useState } from "react";
+import { FoldedStaffGroupToggle, PositionStaffingCount } from "../../assignmentCellParts";
 import { Avatar, StaffWarningIcon } from "../../components";
 import { ShiftStaffNoteIcon, useAllShiftDateNotes, useShiftDateNotes } from "../../dateNotes";
 import { StaffMeta } from "../../detailParts";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
+import { useRestoreRememberedWorkPosition } from "../../hooks/useRestoreRememberedWorkPosition";
+import { useShiftTypeDailyPresentation } from "../../hooks/useShiftTypeDailyPresentation";
 import {
-  buildShiftTypeDailyPresentation,
-  buildShiftTypeStaffingPresentation,
   type ShiftTypeDailyCellPresentation,
   type ShiftTypeDailyOptionPresentation,
   type ShiftTypeDailyRowPresentation,
   type ShiftTypeStaffingPresentation,
   toShiftTypeWarningMessages,
 } from "../../shiftTypeDailyPresentation";
-import { useDayStaffingView } from "../../staffingParts";
 import {
   assignShiftTypeAtom,
   changeShiftTypePositionAtom,
-  dailySortedStaffsAtom,
   detailModeAtom,
   isPositionSelectableAtom,
   issueCountByDateAtom,
   removeShiftTypeAssignmentAtom,
-  restoreRememberedWorkPositionAtom,
   selectDateWithDailyStaffOrderAtom,
   selectedDateAtom,
   shiftConfigAtom,
-  shiftsForSelectedDateAtom,
   usesPositionColorsAtom,
   warningCountByDateAtom,
 } from "../../stores";
 import { DateRail } from "../DailyView/DateRail";
 import { DayTitle } from "../DailyView/DayTitle";
-import { PositionMenuCell } from "../PositionMenuCell";
+import { AssignmentCell } from "../PositionMenuCell";
 
 const STAFF_COLUMN_WIDTH = 220;
 const OPTION_COLUMN_MIN_WIDTH = 140;
@@ -46,8 +41,6 @@ const ROW_HEIGHT = "52px";
 
 export const ShiftTypeDailyView = () => {
   const config = useAtomValue(shiftConfigAtom);
-  const shiftsForDate = useAtomValue(shiftsForSelectedDateAtom);
-  const sortedStaffs = useAtomValue(dailySortedStaffsAtom);
   const selectedDate = useAtomValue(selectedDateAtom);
   const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const issueCounts = useAtomValue(issueCountByDateAtom);
@@ -61,93 +54,37 @@ export const ShiftTypeDailyView = () => {
   const assign = useSetAtom(assignShiftTypeAtom);
   const changePosition = useSetAtom(changeShiftTypePositionAtom);
   const removeAssignment = useSetAtom(removeShiftTypeAssignmentAtom);
-  // くわしく表示のときだけ値を持つ。シンプル表示、定休日、スタッフ向けの確定シフトではnullになる。
-  const staffingView = useDayStaffingView(selectedDate);
 
-  const { dates, holidays, isReadOnly, submissionPattern, shopId, positions } = config;
-  const isConfirmedDisplay = config.displayMode === "confirmed";
+  const { dates, holidays, isReadOnly, positions } = config;
   const isShopClosedDate = holidays.includes(selectedDate);
 
-  // 前にこの店舗で最後に選んだポジションを、次に入れるポジションへ戻す。店舗とポジションが読み込まれてから行う。
-  const restoreRememberedWorkPosition = useSetAtom(restoreRememberedWorkPositionAtom);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: 店舗かポジションが変わったときに戻し直すため、値の変化を見る。
-  useEffect(() => {
-    restoreRememberedWorkPosition();
-  }, [restoreRememberedWorkPosition, shopId, positions]);
+  useRestoreRememberedWorkPosition();
   useLockedDailyStaffOrder(selectedDate);
 
-  const presentation = useMemo(
-    () =>
-      buildShiftTypeDailyPresentation({
-        submissionPattern,
-        shifts: shiftsForDate,
-        staffs: sortedStaffs,
-        shiftByStaffId: indexShiftsByStaffId(shiftsForDate),
-        isConfirmedDisplay,
-        usesPositionColors,
-        hasNote: (staffId) => allDateNotes.getNote(staffId, selectedDate) !== undefined,
-      }),
-    [
-      allDateNotes,
-      isConfirmedDisplay,
-      selectedDate,
-      shiftsForDate,
-      sortedStaffs,
-      submissionPattern,
-      usesPositionColors,
-    ],
-  );
-  const staffing = useMemo(
-    () =>
-      staffingView
-        ? buildShiftTypeStaffingPresentation(
-            staffingView,
-            presentation.options.map(({ option }) => option),
-          )
-        : null,
-    [presentation.options, staffingView],
-  );
+  // 人数と過不足（staffing）は、くわしく表示のときだけ値を持つ。シンプル表示、定休日、スタッフ向けの確定シフトではnullになる。
+  const { presentation, staffing, showsTemplate } = useShiftTypeDailyPresentation();
   // 充足率は、必要人数が1つでもある日にだけ出す。
   const fulfillment =
     staffing && staffing.percent !== null ? { percent: staffing.percent, isFulfilled: staffing.isFulfilled } : null;
-  // テンプレートの選択は、必要人数のない日でも、店舗にテンプレートがあれば出す。その日にテンプレートを当てられるようにするためである。
-  const showsTemplate =
-    staffingView !== null && (staffingView.hasRequirements || (config.staffing?.templates.length ?? 0) > 0);
 
   // 休み希望のまとまりは、日付を変えるたびに閉じた状態へ戻す。
   const [openRestDate, setOpenRestDate] = useState<string | null>(null);
   const isRestOpen = openRestDate === selectedDate;
 
-  const renderCell = (row: ShiftTypeDailyRowPresentation, cell: ShiftTypeDailyCellPresentation) => {
-    if (isReadOnly) return <AssignmentPill cell={cell} size="pc" isInteractive={false} showsNoticeTooltip />;
-    if (!cell.assigned) {
-      return (
-        <AssignmentPill
-          cell={cell}
-          size="pc"
-          isInteractive
-          showsNoticeTooltip
-          onClick={() => assign({ staff: row.staff, date: selectedDate, option: cell.option })}
-        />
-      );
-    }
-    const remove = () => removeAssignment({ staffId: row.staff.id, date: selectedDate, optionId: cell.option.id });
-    // ポジションを選び分けない表示（シンプル表示、ポジションが1つ以下の店舗）では、押すたびに付け外しする。
-    if (!isPositionSelectable) {
-      return <AssignmentPill cell={cell} size="pc" isInteractive showsNoticeTooltip onClick={remove} />;
-    }
-    return (
-      <PositionMenuCell
-        cell={cell}
-        size="pc"
-        positions={positions}
-        onChangePosition={(positionId) =>
-          changePosition({ staff: row.staff, date: selectedDate, option: cell.option, positionId })
-        }
-        onRemove={remove}
-      />
-    );
-  };
+  const renderCell = (row: ShiftTypeDailyRowPresentation, cell: ShiftTypeDailyCellPresentation) => (
+    <AssignmentCell
+      cell={cell}
+      size="pc"
+      positions={positions}
+      isReadOnly={isReadOnly}
+      isPositionSelectable={isPositionSelectable}
+      onAssign={() => assign({ staff: row.staff, date: selectedDate, option: cell.option })}
+      onChangePosition={(positionId) =>
+        changePosition({ staff: row.staff, date: selectedDate, option: cell.option, positionId })
+      }
+      onRemove={() => removeAssignment({ staffId: row.staff.id, date: selectedDate, optionId: cell.option.id })}
+    />
+  );
 
   const renderRow = (row: ShiftTypeDailyRowPresentation) => (
     <Box as="tr" key={row.key} h={ROW_HEIGHT} borderTopWidth="1px" borderColor="gray.100">

@@ -89,6 +89,25 @@ export const ChangesOrderOnMobile: Story = {
   play: async ({ canvasElement }) => expectSortModeChangesOrder(canvasElement, SAVED_ORDER_IN_SECTIONS),
 };
 
+/**
+ * 店舗が「勤務時間順」を保存している場合は、開いた時点から勤務の早い順に並び、表示設定でも「勤務時間順」が選ばれている。
+ * 「固定」へ戻すと、決めた並び順になる。
+ */
+export const OpensInSavedWorkTimeOrder: Story = {
+  name: "Opens In Saved Work Time Order",
+  args: { ...sortableArgs, staffSortMode: "workTime" },
+  globals: desktopGlobals,
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await waitFor(() => expect(readStaffOrder(canvasElement)).toEqual(WORK_TIME_ORDER));
+
+    await userEvent.click(await within(canvasElement).findByRole("button", { name: "表示設定" }));
+    await expect(await body.findByRole("menuitemradio", { name: "勤務時間順" })).toBeChecked();
+    await userEvent.click(body.getByRole("menuitemradio", { name: "固定" }));
+    await waitFor(() => expect(readStaffOrder(canvasElement)).toEqual(SAVED_ORDER));
+  },
+};
+
 const expectNoStaffSortInDisplaySettings = async (canvasElement: HTMLElement) => {
   const body = within(canvasElement.ownerDocument.body);
   await userEvent.click(await within(canvasElement).findByRole("button", { name: "表示設定" }));

@@ -12,6 +12,7 @@ import {
 import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
 import { getRecruitmentEditVersion } from "../_lib/recruitmentEditing";
 import { normalizeExactAdjacentTimeAssignments } from "../_lib/shiftAssignmentNormalization";
+import { toShiftAssignmentCore } from "../_lib/shiftAssignmentValidators";
 import { isShopAvailable } from "../_lib/shopAvailability";
 import { buildShiftTimeLabel } from "../_lib/time";
 import { normalizeEmail } from "../_lib/validation";
@@ -158,14 +159,7 @@ async function buildConfirmationStaffEntries(
           timeLabel,
         };
       });
-      const rawSnapshotAssignments = staffAssignments.map((assignment) => ({
-        date: assignment.date,
-        startTime: assignment.startTime,
-        endTime: assignment.endTime,
-        positionId: assignment.positionId,
-        ...(assignment.optionId !== undefined ? { optionId: assignment.optionId } : {}),
-        ...(assignment.breaks ? { breaks: assignment.breaks } : {}),
-      }));
+      const rawSnapshotAssignments = staffAssignments.map(toShiftAssignmentCore);
       const snapshotAssignments =
         submissionPattern.kind === "time"
           ? canonicalizeConfirmationSnapshotAssignments(rawSnapshotAssignments)

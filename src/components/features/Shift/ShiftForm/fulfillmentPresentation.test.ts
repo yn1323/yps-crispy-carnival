@@ -162,6 +162,34 @@ describe("buildDayFulfillmentView", () => {
     });
   });
 
+  it("多い時間と必要人数の指定がない時間は、不足の人数と濃さを付けず、読み上げの文で見分ける", () => {
+    const view = buildDayFulfillmentView({
+      // 10〜11時は2人、11〜12時は1人が入る。14〜16時はだれも入らない。
+      shifts: [shift("a", hall, "10:00", "12:00"), shift("b", hall, "10:00", "11:00")],
+      positions: [hall],
+      timeRange,
+      // 12〜14時は、必要人数を入れていない。
+      day: day([
+        [hall, "10:00", "12:00"],
+        [hall, "14:00", "16:00"],
+      ]),
+    });
+
+    expect(
+      view?.bands[0].segments.map(({ state, shortageLevel, label, description }) => ({
+        state,
+        shortageLevel,
+        label,
+        description,
+      })),
+    ).toEqual([
+      { state: "excess", shortageLevel: null, label: null, description: "10:00〜11:00 1人多い" },
+      { state: "even", shortageLevel: null, label: null, description: "11:00〜12:00 ちょうど" },
+      { state: "unset", shortageLevel: null, label: null, description: "12:00〜14:00 必要人数の指定なし" },
+      { state: "shortage", shortageLevel: 1, label: "−1", description: "14:00〜16:00 1人不足" },
+    ]);
+  });
+
   it("ポジションが1つだけの店舗では、帯の上にポジション名を出さない", () => {
     const view = buildDayFulfillmentView({
       shifts: [],

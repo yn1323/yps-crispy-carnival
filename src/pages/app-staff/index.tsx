@@ -195,10 +195,16 @@ function ConnectedAppStaff({
     return <AppStaffPageStateView state={{ kind: "loading" }} showStaffOrderHandle={shopFilter === "all"} />;
   }
 
-  const peopleUsage = {
-    current: summary.totalCount,
-    max: summary.maxPeople,
-    pendingInvitations: summary.pendingInvitations,
+  // 見出しの横の人数と一覧へ、同じ値を渡す。
+  const peopleCounts = {
+    peopleUsage: {
+      current: summary.totalCount,
+      max: summary.maxPeople,
+      pendingInvitations: summary.pendingInvitations,
+    },
+    peopleUsageHasOverflow: summary.totalCountHasOverflow,
+    filterResultCount: shopFilter === "all" ? undefined : summary.visibleCount,
+    filterResultCountHasOverflow: shopFilter === "all" ? false : summary.visibleCountHasOverflow,
   };
   const addStaffDisabledReason =
     shops.length === 0 ? "スタッフを追加するには、店舗が必要です。" : summary.addStaffDisabledReason;
@@ -217,14 +223,7 @@ function ConnectedAppStaff({
               search: { org: organizationId, ...(nextFilter ? { shopFilter: nextFilter } : {}) },
             })
           }
-          summary={
-            <PeopleSectionSummary
-              peopleUsage={peopleUsage}
-              peopleUsageHasOverflow={summary.totalCountHasOverflow}
-              filterResultCount={shopFilter === "all" ? undefined : summary.visibleCount}
-              filterResultCountHasOverflow={shopFilter === "all" ? false : summary.visibleCountHasOverflow}
-            />
-          }
+          summary={<PeopleSectionSummary {...peopleCounts} />}
           actions={
             <PeopleSectionHeaderActions
               onAddStaff={handleAddStaff}
@@ -239,10 +238,7 @@ function ConnectedAppStaff({
           key={shopFilter}
           hidesHeader
           people={staffOrder.people}
-          peopleUsage={peopleUsage}
-          peopleUsageHasOverflow={summary.totalCountHasOverflow}
-          filterResultCount={shopFilter === "all" ? undefined : summary.visibleCount}
-          filterResultCountHasOverflow={shopFilter === "all" ? false : summary.visibleCountHasOverflow}
+          {...peopleCounts}
           onManageManagers={handleManageManagers}
           onOpenUser={(personId) =>
             void navigate({

@@ -96,4 +96,33 @@ test.describe("必要人数設定", { tag: ["@e2e-core"] }, () => {
       await shiftBoard.expectStaffingCountDays(NEW_POSITION_NAME, required, dates.dates.length - 1);
     });
   });
+
+  test("[E2E-STAFFING-04] 設定ページで担当外にしたポジションへ勤務を入れると、シフト表が確認事項で知らせる", async ({
+    page,
+  }) => {
+    const dates = getNextWeekDates();
+    const firstDate = formatDateWithWeekday(dates.dates[0]);
+    const seed = seedManagerScenario<OpenRecruitmentSeed>("testing:seedOpenRecruitmentNotificationScenario", {
+      dates,
+      dateOnly: true,
+    });
+    assertNotificationDeliverySuppressed(seed.shopId);
+
+    await test.step("設定ページでポジションを足し、スタッフをそのポジションの担当外にして保存する", async () => {
+      const setupPage = new ShiftSetupPage(page);
+      await setupPage.goto(seed.organizationId, seed.shopId);
+      await setupPage.addPositionDraft(NEW_POSITION_NAME);
+      await setupPage.markStaffPositionUnavailable(STAFF_NAME, NEW_POSITION_NAME);
+      await setupPage.save();
+    });
+
+    await test.step("シフト表で担当外のポジションへ勤務を入れると、セルが確認事項の理由を持つ", async () => {
+      const appShifts = new AppShiftsPage(page);
+      const cells = new ShiftFormCells(page);
+      await appShifts.goto(seed.organizationId);
+      await appShifts.openRecruitment({ ...dates, shopName: SCENARIO_SHOP_NAME });
+      await cells.assignDateOnlyWithPosition(STAFF_NAME, firstDate, NEW_POSITION_NAME);
+      await cells.expectDateOnlyPositionNotice(STAFF_NAME, firstDate, NEW_POSITION_NAME, "担当外のポジション");
+    });
+  });
 });

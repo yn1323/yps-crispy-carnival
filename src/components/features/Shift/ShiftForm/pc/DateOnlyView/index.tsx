@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { compareDefaultStaffOrder } from "@/src/domains/shift/sortStaffs";
 import { useAllShiftDateNotes, useShiftDateNotes } from "../../dateNotes";
 import { buildDateOnlyStaffingPresentation, buildDateOnlyWeekPresentation } from "../../dateOnlyPresentation";
+import { useRestoreRememberedWorkPosition } from "../../hooks/useRestoreRememberedWorkPosition";
 import {
   assignDateOnlyAtom,
   changeDateOnlyPositionAtom,
@@ -11,7 +12,6 @@ import {
   isPositionSelectableAtom,
   issueCountByDateAtom,
   removeDateOnlyAssignmentAtom,
-  restoreRememberedWorkPositionAtom,
   selectedDateAtom,
   shiftConfigAtom,
   shiftsAtom,
@@ -39,7 +39,7 @@ export const DateOnlyView = () => {
   // くわしく表示のときだけ値を持つ。スタッフ向けの確定シフトでは空になる。
   const staffingViews = useAtomValue(dayStaffingViewByDateAtom);
 
-  const { dates, holidays, isReadOnly, shopId, positions, staffs } = config;
+  const { dates, holidays, isReadOnly, positions, staffs } = config;
   // 日付選択は、勤務や希望があってもなくても、スタッフのページで決めた並び順のままにする。
   const sortedStaffs = useMemo(() => [...staffs].sort(compareDefaultStaffOrder), [staffs]);
   const isConfirmedDisplay = config.displayMode === "confirmed";
@@ -50,12 +50,7 @@ export const DateOnlyView = () => {
   const selectedDate = useAtomValue(selectedDateAtom);
   const didInitWeek = useRef(false);
 
-  // 前にこの店舗で最後に選んだポジションを、次に入れるポジションへ戻す。店舗とポジションが読み込まれてから行う。
-  const restoreRememberedWorkPosition = useSetAtom(restoreRememberedWorkPositionAtom);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: 店舗かポジションが変わったときに戻し直すため、値の変化を見る。
-  useEffect(() => {
-    restoreRememberedWorkPosition();
-  }, [restoreRememberedWorkPosition, shopId, positions]);
+  useRestoreRememberedWorkPosition();
 
   useEffect(() => {
     if (didInitWeek.current || !selectedDate || weeks.length === 0) return;

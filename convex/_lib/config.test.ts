@@ -4,6 +4,7 @@ import {
   getDebugNotificationDeliveryMode,
   getDebugTrialDurationDays,
   getDevelopmentSeedConfiguration,
+  getShiftSetupAssistMode,
   isDebugModeEnabled,
 } from "./config";
 
@@ -102,6 +103,28 @@ describe("debug notification delivery mode", () => {
     expect(() => getDebugNotificationDeliveryMode()).toThrowError(
       "DEBUG_NOTIFICATION_DELIVERY_MODE must be dry-run or force-failure",
     );
+  });
+});
+
+describe("shift setup assist mode", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it.each([
+    ["未設定", "", "off"],
+    ["空白だけ", "  ", "off"],
+    ["random", "random", "random"],
+    ["前後空白付きrandom", " random ", "random"],
+  ])("SHIFT_SETUP_ASSIST_MODEが%sなら%sを返す", (_label, value, expected) => {
+    vi.stubEnv("SHIFT_SETUP_ASSIST_MODE", value);
+
+    expect(getShiftSetupAssistMode()).toBe(expected);
+  });
+
+  // 書き間違えた値で、根拠のない人数を出すAIサポートを有効にしない。
+  it.each(["RANDOM", "true", "on", "off"])("SHIFT_SETUP_ASSIST_MODEの不正値 %s を拒否する", (value) => {
+    vi.stubEnv("SHIFT_SETUP_ASSIST_MODE", value);
+
+    expect(() => getShiftSetupAssistMode()).toThrowError("SHIFT_SETUP_ASSIST_MODE must be random or unset");
   });
 });
 

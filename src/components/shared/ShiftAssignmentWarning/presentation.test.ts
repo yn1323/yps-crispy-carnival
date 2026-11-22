@@ -8,6 +8,7 @@ describe("getAssignmentWarningSettingText", () => {
       ASSIGNMENT_WARNING_TEXTS.OUTSIDE_REQUESTED_TIME,
     );
     expect(getAssignmentWarningSettingText("NOT_SUBMITTED")).toBe(ASSIGNMENT_WARNING_TEXTS.NOT_SUBMITTED);
+    expect(getAssignmentWarningSettingText("POSITION_UNAVAILABLE")).toBe(ASSIGNMENT_WARNING_TEXTS.POSITION_UNAVAILABLE);
   });
 
   it("未知の確認事項はその他の文言へ変換する", () => {

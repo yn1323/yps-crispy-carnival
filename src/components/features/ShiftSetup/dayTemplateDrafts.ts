@@ -16,7 +16,7 @@ import {
   staffingSegmentsToBars,
 } from "@/src/domains/shift/staffingSegments";
 import { formatShiftClockTimeRange, timeToMinutes } from "@/src/domains/shift/time";
-import { WEEKDAY_OPTIONS } from "./script";
+import { moveRowByKey, WEEKDAY_OPTIONS } from "./script";
 import type {
   DayTemplateDraft,
   DayTemplateInput,
@@ -237,13 +237,7 @@ export function reorderDayTemplates(
   activeRowKey: string,
   overRowKey: string,
 ): DayTemplateDraft[] {
-  const from = drafts.findIndex((draft) => draft.rowKey === activeRowKey);
-  const to = drafts.findIndex((draft) => draft.rowKey === overRowKey);
-  if (from < 0 || to < 0 || from === to) return [...drafts];
-  const next = [...drafts];
-  const [moved] = next.splice(from, 1);
-  next.splice(to, 0, moved);
-  return next;
+  return moveRowByKey(drafts, activeRowKey, overRowKey);
 }
 
 export type DayTemplateSelection = {

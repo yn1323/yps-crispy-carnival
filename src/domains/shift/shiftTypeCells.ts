@@ -1,8 +1,8 @@
+import { type AssignmentCellNotice, type CellStaff, collectAssignmentCellNotices } from "./cellNotices";
 import { isFoldedStaff } from "./foldedStaff";
-import { getPositionSkill } from "./positionSkills";
 import { isCanonicalWorkPosition } from "./positions";
 import { getRequestedShiftTypeOptionIds, type ShiftTypeOptionLike } from "./shiftTypeAssignments";
-import type { PositionSegment, ShiftData, StaffPositionSkill } from "./types";
+import type { PositionSegment, ShiftData } from "./types";
 
 // パターン選択の日別の表で、1人の1日分を、勤務パターンごとのセルへ直す純粋処理。
 // セルは「希望」と「割り当て」の2つを持ち、割り当てについて確かめたいことを理由として添える。
@@ -11,7 +11,7 @@ import type { PositionSegment, ShiftData, StaffPositionSkill } from "./types";
  * 割り当てに添える理由。希望外・未提出・担当外を確認事項として知らせる。
  * 1日に複数の勤務パターンへ入るのはふつうのことなので、勤務パターンどうしの時間の重なりは知らせない。
  */
-export type ShiftTypeCellNotice = { kind: "unrequested" } | { kind: "notSubmitted" } | { kind: "positionUnavailable" };
+export type ShiftTypeCellNotice = AssignmentCellNotice;
 
 /** 割り当てに付ける点。理由があれば橙にする。 */
 export type ShiftTypeCellDot = "orange";
@@ -25,8 +25,6 @@ export type ShiftTypeCell = {
   notices: ShiftTypeCellNotice[];
   dot: ShiftTypeCellDot | null;
 };
-
-type CellStaff = { isSubmitted: boolean; positionSkills?: readonly StaffPositionSkill[] };
 
 const findSegment = (shift: ShiftData | undefined, optionId: string): PositionSegment | null =>
   shift?.positions.filter(isCanonicalWorkPosition).find((position) => position.shiftTypeOptionId === optionId) ?? null;
@@ -46,12 +44,7 @@ export const buildShiftTypeCells = (input: {
   return options.map((option) => {
     const segment = findSegment(shift, option.id);
     const isRequested = requestedIds.has(option.id);
-    const notices: ShiftTypeCellNotice[] = [];
-    if (segment) {
-      if (!staff.isSubmitted) notices.push({ kind: "notSubmitted" });
-      else if (!isRequested) notices.push({ kind: "unrequested" });
-      if (getPositionSkill(staff, segment.positionId) === "unavailable") notices.push({ kind: "positionUnavailable" });
-    }
+    const notices = collectAssignmentCellNotices({ staff, segment, isRequested });
     return {
       option,
       isRequested,

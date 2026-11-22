@@ -3,7 +3,7 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import { seedStaff } from "../_test/scenarioBuilders";
-import { seedShop } from "../_test/seed";
+import { seedOrganizationMembership, seedShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { SHIFT_ASSIGNMENT_LIMIT } from "../constants";
 
@@ -217,6 +217,107 @@ describe("shiftView/queries", () => {
       const after = await getData();
       expect(after?.staffs.map((staff) => staff._id)).toEqual([laterStaffId, ids.staffId]);
       expect(after?.shiftStaffSortMode).toBe("workTime");
+    });
+
+    it("並び順を決めていない店舗では、あとから登録した管理者のスタッフも登録順のまま返し、管理者を先にしない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await setupConfirmedShiftView(t);
+      const managerStaffId = await t.run(async (ctx) => {
+        const userId = await seedUser(ctx, "shift_view_manager_staff");
+        await seedOrganizationMembership(ctx, { userId, shopId: ids.shopId });
+        return await seedStaff(ctx, {
+          shopId: ids.shopId,
+          name: "管理者のスタッフ",
+          email: "manager-staff@example.com",
+          userId,
+        });
+      });
+
+      const result = await t.query(api.shiftView.queries.getShiftViewData, {
+        sessionToken: ids.sessionToken,
+        accessKind: "view",
+        recruitmentId: ids.recruitmentId,
+      });
+
+      expect(result).not.toBeNull();
+      expect(result?.staffs).toEqual([
+        { _id: ids.staffId, name: "閲覧スタッフ" },
+        { _id: managerStaffId, name: "管理者のスタッフ" },
+      ]);
+    });
+
+    it("確定した勤務の休憩を返し、仮の勤務かどうかは返さない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await setupConfirmedShiftView(t);
+      await t.run(async (ctx) => {
+        // 未提出のまま確定に残った仮の勤務。スタッフには通常の勤務と同じ形で見せる。
+        await ctx.db.insert("shiftAssignments", {
+          recruitmentId: ids.recruitmentId,
+          staffId: ids.staffId,
+          date: "2026-07-21",
+          startTime: "12:00",
+          endTime: "18:00",
+          positionId: ids.positionId,
+          breaks: [{ startTime: "14:00", endTime: "14:30" }],
+          isProvisional: true,
+        });
+      });
+
+      const result = await t.query(api.shiftView.queries.getShiftViewData, {
+        sessionToken: ids.sessionToken,
+        accessKind: "view",
+        recruitmentId: ids.recruitmentId,
+      });
+
+      expect(result).not.toBeNull();
+      expect((result?.assignments ?? []).slice().sort((a, b) => a.date.localeCompare(b.date))).toStrictEqual([
+        { staffId: ids.staffId, date: "2026-07-20", startTime: "11:00", endTime: "19:00", positionId: ids.positionId },
+        {
+          staffId: ids.staffId,
+          date: "2026-07-21",
+          startTime: "12:00",
+          endTime: "18:00",
+          positionId: ids.positionId,
+          breaks: [{ startTime: "14:00", endTime: "14:30" }],
+        },
+      ]);
+    });
+
+    it("確定のあとでポジションの名前を変えて削除しても、確定した時点のポジションを返す", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await setupConfirmedShiftView(t);
+      const kitchenPositionId = await t.run(async (ctx) => {
+        const kitchenPositionId = await ctx.db.insert("positions", {
+          shopId: ids.shopId,
+          name: "キッチン",
+          color: "#c2410c",
+          sortOrder: 1,
+          isDefault: false,
+          isDeleted: false,
+        });
+        await ctx.db.patch(ids.recruitmentId, {
+          confirmedPositions: [
+            { positionId: ids.positionId, name: "ホール", color: "#3b82f6", isDefault: true },
+            { positionId: kitchenPositionId, name: "キッチン", color: "#c2410c", isDefault: false },
+          ],
+        });
+        // 確定のあとで、ホールの名前と色を変え、キッチンを削除する。
+        await ctx.db.patch(ids.positionId, { name: "フロア", color: "#7c3aed" });
+        await ctx.db.patch(kitchenPositionId, { isDeleted: true });
+        return kitchenPositionId;
+      });
+
+      const result = await t.query(api.shiftView.queries.getShiftViewData, {
+        sessionToken: ids.sessionToken,
+        accessKind: "view",
+        recruitmentId: ids.recruitmentId,
+      });
+
+      expect(result).not.toBeNull();
+      expect(result?.positions).toEqual([
+        { _id: ids.positionId, name: "ホール", color: "#3b82f6", isDefault: true },
+        { _id: kitchenPositionId, name: "キッチン", color: "#c2410c", isDefault: false },
+      ]);
     });
 
     it("割当が上限を超える場合は部分的な確定シフトを返さない", async () => {
