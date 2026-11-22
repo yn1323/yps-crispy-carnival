@@ -2,12 +2,15 @@ import { Box, Flex, Stack } from "@chakra-ui/react";
 import { useAtomValue, useSetAtom } from "jotai";
 import { type TouchEvent, useCallback, useMemo, useRef, useState } from "react";
 import { useDialog } from "@/src/components/ui/Dialog";
-import type { ShiftData } from "@/src/domains/shift/types";
+import { isTimeStaffFolded } from "@/src/domains/shift/foldedStaff";
+import type { ShiftData, StaffType } from "@/src/domains/shift/types";
+import { FoldedStaffGroupToggle } from "../../assignmentCellParts";
 import { useAllShiftDateNotes } from "../../dateNotes";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
 import { SP_LIST_PADDING_X_PX } from "../../spTimelineScale";
 import { DayTemplateMenu, useDayStaffingView } from "../../staffingParts";
+import { buildStaffNamesLabel } from "../../staffNamesLabel";
 import {
   clearShiftDraftPositionsAtom,
   dailySortedStaffsAtom,
@@ -78,7 +81,26 @@ export const SPDailyView = () => {
     () => (isReadOnly ? unassignedRows : unassignedRows.filter((row) => !row.viewModel.hasRequest)),
     [isReadOnly, unassignedRows],
   );
-  const restRows = useMemo(() => offRows.filter((row) => row.staff.isSubmitted), [offRows]);
+  const submittedOffRows = useMemo(() => offRows.filter((row) => row.staff.isSubmitted), [offRows]);
+  // 休み希望（提出済みで、その日の希望の時間がない）で、勤務も連絡事項もない人は、下にまとめてたたむ。
+  // 未提出の人はたたまない。スタッフ向けの確定シフトでは、全員をそのまま出す。
+  const isConfirmedDisplay = config.displayMode === "confirmed";
+  const foldedRows = useMemo(
+    () =>
+      isConfirmedDisplay
+        ? []
+        : submittedOffRows.filter(({ staff, shift }) =>
+            isTimeStaffFolded({ shift, staff, hasNote: dateNotes.getNote(staff.id, selectedDate) !== undefined }),
+          ),
+    [dateNotes, isConfirmedDisplay, selectedDate, submittedOffRows],
+  );
+  const restRows = useMemo(
+    () => submittedOffRows.filter((row) => !foldedRows.includes(row)),
+    [foldedRows, submittedOffRows],
+  );
+  // たたんだまとまりは、日付を変えるたびに閉じた状態へ戻す。
+  const [openFoldedDate, setOpenFoldedDate] = useState<string | null>(null);
+  const isFoldedOpen = openFoldedDate === selectedDate;
   const unsubmittedRows = useMemo(() => offRows.filter((row) => !row.staff.isSubmitted), [offRows]);
 
   const selectedStaff = useMemo(
@@ -124,6 +146,23 @@ export const SPDailyView = () => {
       shift={shift}
       viewModel={viewModel}
       onTap={() => handleCardTap(staff.id)}
+      hasError={issueStaffIds.has(staff.id)}
+      warningMessages={warningMessagesByStaffId.get(staff.id) ?? []}
+      note={dateNotes.getNote(staff.id, selectedDate)}
+      noteDate={selectedDate}
+    />
+  );
+
+  const renderRestCard = (staff: StaffType) => (
+    <SPOffCard
+      key={staff.id}
+      staffId={staff.id}
+      staffName={staff.name}
+      staff={staff}
+      label={isReadOnly ? "休み" : "休み希望"}
+      labelTone="muted"
+      onTap={() => handleCardTap(staff.id)}
+      isReadOnly={isReadOnly}
       hasError={issueStaffIds.has(staff.id)}
       warningMessages={warningMessagesByStaffId.get(staff.id) ?? []}
       note={dateNotes.getNote(staff.id, selectedDate)}
@@ -197,24 +236,7 @@ export const SPDailyView = () => {
             {restRows.length > 0 && (
               <Box>
                 <SectionHeader label="休み" count={restRows.length} hint={isReadOnly ? undefined : "タップで追加"} />
-                <Stack gap="6px">
-                  {restRows.map(({ staff }) => (
-                    <SPOffCard
-                      key={staff.id}
-                      staffId={staff.id}
-                      staffName={staff.name}
-                      staff={staff}
-                      label={isReadOnly ? "休み" : "休み希望"}
-                      labelTone="muted"
-                      onTap={() => handleCardTap(staff.id)}
-                      isReadOnly={isReadOnly}
-                      hasError={issueStaffIds.has(staff.id)}
-                      warningMessages={warningMessagesByStaffId.get(staff.id) ?? []}
-                      note={dateNotes.getNote(staff.id, selectedDate)}
-                      noteDate={selectedDate}
-                    />
-                  ))}
-                </Stack>
+                <Stack gap="6px">{restRows.map(({ staff }) => renderRestCard(staff))}</Stack>
               </Box>
             )}
             {unsubmittedRows.length > 0 && (
@@ -242,6 +264,25 @@ export const SPDailyView = () => {
                     />
                   ))}
                 </Stack>
+              </Box>
+            )}
+            {foldedRows.length > 0 && (
+              <Box>
+                <Box bg="white" borderWidth="1px" borderColor="gray.200" borderRadius="md" overflow="hidden">
+                  <FoldedStaffGroupToggle
+                    group={{
+                      label: `休み希望 ${foldedRows.length}人`,
+                      namesLabel: buildStaffNamesLabel(foldedRows.map(({ staff }) => staff.name)),
+                    }}
+                    isOpen={isFoldedOpen}
+                    onToggle={() => setOpenFoldedDate(isFoldedOpen ? null : selectedDate)}
+                  />
+                </Box>
+                {isFoldedOpen && (
+                  <Stack gap="6px" mt={2}>
+                    {foldedRows.map(({ staff }) => renderRestCard(staff))}
+                  </Stack>
+                )}
               </Box>
             )}
           </Stack>

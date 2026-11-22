@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { ShiftForm } from "..";
 import {
   allPatternsArgs,
@@ -11,6 +12,7 @@ import {
   overnightArgs,
   shiftFormDecorators,
   timeDateNotesArgs,
+  timeRestFoldArgs,
   validationWarningArgs,
 } from "./shared";
 
@@ -89,5 +91,37 @@ export const ValidationWarningIconInteractive: Story = {
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
     await expectWarningIconOpensOnTap(canvasElement);
+  },
+};
+
+/** 休み希望の人は、下に「休み希望 2人」としてたたむ。連絡事項のある人は「休み」に、未提出の人は「未提出」に出したままにする。 */
+export const TimeRestFolded: Story = {
+  name: "Rest Folded",
+  args: timeRestFoldArgs,
+  globals: mobileGlobals,
+};
+
+/** たたんだ休み希望の人は、開くとカードが並び、タップして勤務を入れられる。 */
+export const RestFoldInteractive: Story = {
+  args: timeRestFoldArgs,
+  globals: mobileGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const findCard = (staffId: string) => canvasElement.querySelector(`[data-tour="shift-row-${staffId}"]`);
+    const toggle = await canvas.findByRole("button", { name: /^休み希望 2人/ });
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(findCard("rest1")).toBeNull();
+    // 連絡事項のある休み希望の人（伊藤さん）と、未提出の人（Cさん）は、たたまない。
+    await expect(findCard("rest3")).not.toBeNull();
+    await expect(findCard("staff3")).not.toBeNull();
+
+    await userEvent.click(toggle);
+    await waitFor(() => expect(findCard("rest1")).not.toBeNull());
+    await expect(findCard("rest2")).not.toBeNull();
+
+    // 開いたカードをタップすると、勤務を入れる編集シートが開く。
+    await userEvent.click(findCard("rest1") as HTMLElement);
+    await expect(await within(document.body).findByRole("dialog")).toHaveTextContent("中村 さくら");
   },
 };

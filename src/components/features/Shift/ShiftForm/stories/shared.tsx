@@ -244,6 +244,19 @@ export const dateOnlyDateNotesArgs = {
   ],
 } satisfies ShiftFormArgs;
 
+// 休み希望（提出済みで、その日の希望の時間がない）の人を下にたたむ表示。
+// 中村さんと高橋さんはたたまれ、連絡事項のある伊藤さんと、未提出のCさん・Eさんは、たたまれない。
+export const timeRestFoldArgs = {
+  ...allPatternsArgs,
+  staffs: [
+    ...allPatternsArgs.staffs,
+    { id: "rest1", name: "中村 さくら", isSubmitted: true },
+    { id: "rest2", name: "高橋 翔", isSubmitted: true },
+    { id: "rest3", name: "伊藤 大輔", isSubmitted: true },
+  ],
+  dateNotes: [{ staffId: "rest3", date: allPatternsArgs.dates[0], note: "この日は通院のため入れません" }],
+} satisfies ShiftFormArgs;
+
 /** 表示設定から連絡事項を非表示にする。 */
 export const hideDateNotes = async (canvasElement: HTMLElement): Promise<void> => {
   await userEvent.click(await within(canvasElement).findByRole("button", { name: "表示設定" }));

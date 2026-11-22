@@ -1,3 +1,4 @@
+import { isFoldedStaff } from "./foldedStaff";
 import { getPositionSkill } from "./positionSkills";
 import { isCanonicalWorkPosition } from "./positions";
 import { getRequestedShiftTypeOptionIds, type ShiftTypeOptionLike } from "./shiftTypeAssignments";
@@ -72,13 +73,21 @@ export const buildShiftTypeCells = (input: {
   });
 };
 
-/** 休み希望（提出済みで、どの勤務パターンも希望していない）で、割り当てもない人か。表の下にまとめる対象になる。 */
+/**
+ * 休み希望（提出済みで、どの勤務パターンも希望していない）で、割り当ても連絡事項もない人か。表の下にまとめる対象になる。
+ * 判定は3つの提出方法で共通の決まり（foldedStaff）に従う。
+ */
 export const isShiftTypeRestRequestWithoutWork = (input: {
   shift: ShiftData | undefined;
   staff: Pick<CellStaff, "isSubmitted">;
+  /** その日の連絡事項があるか。連絡事項のある人は、読み落とさないよう、まとめない。 */
+  hasNote: boolean;
 }): boolean =>
-  input.staff.isSubmitted &&
-  getRequestedShiftTypeOptionIds(input.shift).length === 0 &&
-  !(input.shift?.positions ?? []).some(
-    (position) => isCanonicalWorkPosition(position) && position.shiftTypeOptionId !== undefined,
-  );
+  isFoldedStaff({
+    isSubmitted: input.staff.isSubmitted,
+    hasRequest: getRequestedShiftTypeOptionIds(input.shift).length > 0,
+    hasAssignment: (input.shift?.positions ?? []).some(
+      (position) => isCanonicalWorkPosition(position) && position.shiftTypeOptionId !== undefined,
+    ),
+    hasNote: input.hasNote,
+  });

@@ -47,7 +47,11 @@ const shift = (staffId: string, requested: string[], positions: PositionSegment[
 const build = (
   staffs: StaffType[],
   shifts: ShiftData[],
-  overrides: { isConfirmedDisplay?: boolean; usesPositionColors?: boolean } = {},
+  overrides: {
+    isConfirmedDisplay?: boolean;
+    usesPositionColors?: boolean;
+    hasNote?: (staffId: string) => boolean;
+  } = {},
 ) =>
   buildShiftTypeDailyPresentation({
     submissionPattern,
@@ -202,6 +206,15 @@ describe("buildShiftTypeDailyPresentation", () => {
       "伊藤 大輔",
       "yn1323",
     ]);
+  });
+
+  it("休み希望でも、その日の連絡事項がある人は、まとめずに通常の行へ出す", () => {
+    const presentation = build([staff("a", "中村 さくら"), staff("b", "高橋 翔")], [], {
+      hasNote: (staffId) => staffId === "a",
+    });
+
+    expect(presentation.rows.map((row) => row.staffName)).toEqual(["中村 さくら"]);
+    expect(presentation.restGroup).toMatchObject({ label: "休み希望 1人", namesLabel: "高橋" });
   });
 
   it("休み希望の人が3人以下なら、「ほか」を付けない", () => {

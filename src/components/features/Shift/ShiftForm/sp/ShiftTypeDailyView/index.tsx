@@ -95,8 +95,9 @@ export const SPShiftTypeDailyView = () => {
         shiftByStaffId: indexShiftsByStaffId(shiftsForDate),
         isConfirmedDisplay,
         usesPositionColors,
+        hasNote: (staffId) => dateNotes.getNote(staffId, selectedDate) !== undefined,
       }),
-    [isConfirmedDisplay, shiftsForDate, sortedStaffs, submissionPattern, usesPositionColors],
+    [dateNotes, isConfirmedDisplay, selectedDate, shiftsForDate, sortedStaffs, submissionPattern, usesPositionColors],
   );
   const staffing = useMemo(
     () =>

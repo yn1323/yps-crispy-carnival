@@ -1,4 +1,5 @@
 import { hasDateOnlyRequest } from "./dateOnlyAssignments";
+import { isFoldedStaff } from "./foldedStaff";
 import { getPositionSkill } from "./positionSkills";
 import { isCanonicalWorkPosition } from "./positions";
 import type { PositionSegment, ShiftData, StaffPositionSkill } from "./types";
@@ -50,13 +51,17 @@ export const buildDateOnlyCell = (input: {
 };
 
 /**
- * たたんでまとめる人か。提出済みで、渡したセルのどれにも希望と割り当てがなく、連絡事項もない人である。
+ * たたんでまとめる人か。判定は3つの提出方法で共通の決まり（foldedStaff）に従う。
  * PCの週の表は、その週の7日分のセルを渡す。スマートフォンの1日ずつのリストは、その日のセルだけを渡す。
- * 未提出の人は「希望がない」と決まっていないため、たたまない。
  */
 export const isDateOnlyStaffWithoutRequests = (input: {
   staff: Pick<CellStaff, "isSubmitted">;
   cells: ReadonlyArray<Pick<DateOnlyCell, "isRequested" | "segment">>;
   hasNote: boolean;
 }): boolean =>
-  input.staff.isSubmitted && !input.hasNote && input.cells.every((cell) => !cell.isRequested && cell.segment === null);
+  isFoldedStaff({
+    isSubmitted: input.staff.isSubmitted,
+    hasRequest: input.cells.some((cell) => cell.isRequested),
+    hasAssignment: input.cells.some((cell) => cell.segment !== null),
+    hasNote: input.hasNote,
+  });

@@ -107,6 +107,7 @@ export function buildShiftTypeDailyPresentation({
   shiftByStaffId,
   isConfirmedDisplay,
   usesPositionColors = false,
+  hasNote = () => false,
 }: {
   submissionPattern: ShiftSubmissionPattern;
   shifts: ShiftData[];
@@ -116,6 +117,8 @@ export function buildShiftTypeDailyPresentation({
   isConfirmedDisplay: boolean;
   /** ポジションを塗り分ける表示（くわしく表示で、ポジションが2つ以上）かどうか。 */
   usesPositionColors?: boolean;
+  /** その日の連絡事項がある人か。連絡事項のある休み希望の人は、まとめずに通常の行へ出す。 */
+  hasNote?: (staffId: string) => boolean;
 }): ShiftTypeDailyPresentation {
   const options = getOrderedShiftTypeOptions(submissionPattern);
   const countsByOptionId = countShiftTypeAssignments(
@@ -156,7 +159,8 @@ export function buildShiftTypeDailyPresentation({
   };
 
   const isRest = (staff: StaffType): boolean =>
-    !isConfirmedDisplay && isShiftTypeRestRequestWithoutWork({ shift: shiftByStaffId.get(staff.id), staff });
+    !isConfirmedDisplay &&
+    isShiftTypeRestRequestWithoutWork({ shift: shiftByStaffId.get(staff.id), staff, hasNote: hasNote(staff.id) });
   const restStaffs = staffs.filter(isRest);
 
   return {

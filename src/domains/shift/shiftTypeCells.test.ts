@@ -167,14 +167,21 @@ describe("buildShiftTypeCells", () => {
 });
 
 describe("isShiftTypeRestRequestWithoutWork", () => {
-  it("提出済みで希望も割り当てもない人だけを、休み希望としてまとめる", () => {
-    expect(isShiftTypeRestRequestWithoutWork({ shift: shift([], []), staff: submitted })).toBe(true);
-    expect(isShiftTypeRestRequestWithoutWork({ shift: undefined, staff: submitted })).toBe(true);
+  const isRest = (target: ShiftData | undefined, staff = submitted, hasNote = false) =>
+    isShiftTypeRestRequestWithoutWork({ shift: target, staff, hasNote });
+
+  it("提出済みで希望も割り当ても連絡事項もない人だけを、休み希望としてまとめる", () => {
+    expect(isRest(shift([], []))).toBe(true);
+    expect(isRest(undefined)).toBe(true);
   });
 
   it("休み希望でも割り当てがある人、希望がある人、未提出の人は、まとめない", () => {
-    expect(isShiftTypeRestRequestWithoutWork({ shift: shift([], [segment(EARLY)]), staff: submitted })).toBe(false);
-    expect(isShiftTypeRestRequestWithoutWork({ shift: shift(["early"], []), staff: submitted })).toBe(false);
-    expect(isShiftTypeRestRequestWithoutWork({ shift: shift([], []), staff: { isSubmitted: false } })).toBe(false);
+    expect(isRest(shift([], [segment(EARLY)]))).toBe(false);
+    expect(isRest(shift(["early"], []))).toBe(false);
+    expect(isRest(shift([], []), { isSubmitted: false })).toBe(false);
+  });
+
+  it("休み希望でも、その日の連絡事項がある人は、まとめない", () => {
+    expect(isRest(shift([], []), submitted, true)).toBe(false);
   });
 });

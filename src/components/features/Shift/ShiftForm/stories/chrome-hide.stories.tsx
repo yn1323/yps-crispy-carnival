@@ -9,10 +9,11 @@ type ShiftFormArgs = ComponentProps<typeof ShiftForm>;
 
 // 内側の入れ物を下へスクロールすると上の行を隠し、上へ戻すと表示する動きを確かめる。
 // 入れ物が画面より十分に長くなるよう、スタッフを30人にする。
+// 提出済みで希望のない人は下にたたまれるため、たたまれない未提出の人にする。
 const manyStaffs: StaffType[] = Array.from({ length: 30 }, (_, index) => ({
   id: `staff-${index + 1}`,
   name: `スタッフ${index + 1}`,
-  isSubmitted: true,
+  isSubmitted: false,
 }));
 
 /** 上の行を隠した・表示したの通知を、画面に出して確かめるためのハーネス。 */
