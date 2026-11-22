@@ -6,7 +6,6 @@ const EARLY = { id: "early", name: "早番", startTime: "09:00", endTime: "15:00
 const LATE = { id: "late", name: "遅番", startTime: "15:00", endTime: "21:00" };
 // 日をまたぐ勤務パターンは、終了を24時より後の時刻で持つ。
 const NIGHT = { id: "night", name: "夜番", startTime: "18:00", endTime: "24:00" };
-const MIDNIGHT = { id: "midnight", name: "深夜", startTime: "23:00", endTime: "29:00" };
 const options = [EARLY, LATE, NIGHT];
 
 const segment = (option: typeof EARLY, positionId = "hall"): PositionSegment => ({
@@ -104,7 +103,8 @@ describe("buildShiftTypeCells", () => {
     ]);
   });
 
-  it("時間が重なる2つの勤務パターンの両方に、相手の名前つきの理由と赤い点を付ける", () => {
+  it("時間が重なる勤務パターンに両方入っても、理由も点も付けない", () => {
+    // 遅番（15:00〜21:00）と夜番（18:00〜24:00）は重なるが、1日に複数の勤務パターンへ入るのはふつうのことである。
     const cells = buildShiftTypeCells({
       shift: shift(["late", "night"], [segment(LATE), segment(NIGHT)]),
       staff: submitted,
@@ -113,50 +113,9 @@ describe("buildShiftTypeCells", () => {
 
     expect(summarize(cells).map(({ notices, dot }) => ({ notices, dot }))).toEqual([
       { notices: [], dot: null },
-      { notices: [{ kind: "overlap", optionNames: ["夜番"] }], dot: "red" },
-      { notices: [{ kind: "overlap", optionNames: ["遅番"] }], dot: "red" },
+      { notices: [], dot: null },
+      { notices: [], dot: null },
     ]);
-  });
-
-  it("時間が隣り合うだけの勤務パターン（15時終わりと15時始まり）は、重なりにしない", () => {
-    const cells = buildShiftTypeCells({
-      shift: shift(["early", "late"], [segment(EARLY), segment(LATE)]),
-      staff: submitted,
-      options,
-    });
-
-    expect(cells.map(({ dot }) => dot)).toEqual([null, null, null]);
-  });
-
-  it("日をまたぐ勤務パターンは、24時より後の時刻で重なりを判定する", () => {
-    // 夜番（18:00〜24:00）と深夜（23:00〜翌5:00）は重なり、遅番（〜21:00）と深夜は重ならない。
-    const cells = buildShiftTypeCells({
-      shift: shift(["late", "night", "midnight"], [segment(LATE), segment(NIGHT), segment(MIDNIGHT)]),
-      staff: submitted,
-      options: [LATE, NIGHT, MIDNIGHT],
-    });
-
-    expect(cells.map(({ notices }) => notices)).toEqual([
-      [{ kind: "overlap", optionNames: ["夜番"] }],
-      [{ kind: "overlap", optionNames: ["遅番", "深夜"] }],
-      [{ kind: "overlap", optionNames: ["夜番"] }],
-    ]);
-  });
-
-  it("希望外で時間も重なる割り当ては、理由を両方並べ、点を赤にする", () => {
-    const cells = buildShiftTypeCells({
-      shift: shift(["late"], [segment(LATE), segment(NIGHT)]),
-      staff: submitted,
-      options,
-    });
-
-    expect(summarize(cells)[2]).toEqual({
-      option: "night",
-      isRequested: false,
-      position: "hall",
-      notices: [{ kind: "unrequested" }, { kind: "overlap", optionNames: ["遅番"] }],
-      dot: "red",
-    });
   });
 
   it("その日のデータがない人は、どの勤務パターンも空にする", () => {

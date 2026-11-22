@@ -182,7 +182,6 @@ export const ShiftTypeDailyView = () => {
           holidays={holidays}
           positionControl="legend"
           showsTemplate={showsTemplate}
-          templateLabel="必要人数"
           fulfillment={fulfillment}
         />
         {isShopClosedDate ? (

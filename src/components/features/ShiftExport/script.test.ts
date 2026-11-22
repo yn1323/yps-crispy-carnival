@@ -107,6 +107,67 @@ describe("buildExportSchedule", () => {
       expect(result.bodyLineCount).toBe(2);
     });
 
+    it("日付選択で「ポジション」を選ぶと、○の代わりにポジション名を設定の順で書き、PDFとExcelの名前に付ける", () => {
+      const data = createExportFixture({ positions, isDetailMode: true });
+      data.recruitment.submissionPattern = { kind: "dateOnly" };
+      data.assignments = [
+        { ...data.assignments[0], date: "2026-08-01", positionId: "kitchen" },
+        { ...data.assignments[0], date: "2026-08-01", positionId: "hall" },
+        // ポジションの付いていない勤務と、設定にないポジションの勤務は○にする。
+        { ...data.assignments[0], date: "2026-08-03", positionId: null },
+        { ...data.assignments[0], date: "2026-08-04", positionId: "removed" },
+      ];
+      const overview = buildExportSchedule(data);
+      const result = buildExportSchedule(data, false, false, "positions");
+
+      expect(overview.availableViews).toEqual(["overview", "positions"]);
+      expect(overview.rows[0].cells.slice(0, 4)).toEqual([
+        { lines: ["○"] },
+        { lines: ["-"] },
+        { lines: ["○"] },
+        { lines: ["○"] },
+      ]);
+      expect(result.view).toBe("positions");
+      expect(result.rows[0].cells.slice(0, 4)).toEqual([
+        { lines: ["ホール", "キッチン"] },
+        // 定休日は「-」のまま。
+        { lines: ["-"] },
+        { lines: ["○"] },
+        { lines: ["○"] },
+      ]);
+      expect(result.bodyLineCount).toBe(2);
+      expect(getExportFileName(result, "pdf")).toBe("シフトリ駅前店_シフト表_ポジション_2026-08-01_2026-08-31.pdf");
+      expect(getExportFileName(result, "xlsx")).toBe("シフトリ駅前店_シフト表_ポジション_2026-08-01_2026-08-31.xlsx");
+    });
+
+    it("「ポジション」は、くわしく表示でポジションが2つ以上ある日付選択の募集でだけ選べ、ほかでは一覧にする", () => {
+      // シンプル表示の勤務には既定のポジションが入るだけなので、ポジションが2つ以上あっても選べない。
+      const simple = createExportFixture({ positions, isDetailMode: false });
+      simple.recruitment.submissionPattern = { kind: "dateOnly" };
+      simple.assignments = [{ ...simple.assignments[0], positionId: "hall" }];
+      const simpleResult = buildExportSchedule(simple, false, false, "positions");
+      expect(simpleResult.availableViews).toEqual(["overview"]);
+      expect(simpleResult.view).toBe("overview");
+      expect(simpleResult.rows[0].cells[0].lines).toEqual(["○"]);
+
+      const onePosition = createExportFixture({ positions: [positions[0]], isDetailMode: true });
+      onePosition.recruitment.submissionPattern = { kind: "dateOnly" };
+      onePosition.assignments = [{ ...onePosition.assignments[0], positionId: "hall" }];
+      const onePositionResult = buildExportSchedule(onePosition, false, false, "positions");
+      expect(onePositionResult.availableViews).toEqual(["overview"]);
+      expect(onePositionResult.view).toBe("overview");
+      expect(onePositionResult.rows[0].cells[0].lines).toEqual(["○"]);
+
+      const time = buildExportSchedule(
+        createExportFixture({ positions, isDetailMode: true }),
+        false,
+        false,
+        "positions",
+      );
+      expect(time.availableViews).toEqual(["overview", "daily"]);
+      expect(time.view).toBe("overview");
+    });
+
     it("休憩の時刻が正しくない場合は帳票を作らない", () => {
       const data = createExportFixture({ positions });
       data.assignments = [{ ...data.assignments[0], breaks: [{ startTime: "13:00", endTime: "12:00" }] }];

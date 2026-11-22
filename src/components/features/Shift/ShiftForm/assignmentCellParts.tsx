@@ -19,7 +19,7 @@ export type AssignmentPillCell = {
   positionId: string | null;
   /** ピルを塗るポジションの色。ポジションを塗り分けない表示と、割り当てのないセルではnull。 */
   positionColor: string | null;
-  dot: "red" | "orange" | null;
+  dot: "orange" | null;
   /** 点の理由。点がなければ空。 */
   noticeTexts: string[];
   /** ボタンの名前。E2Eがこの名前で探すため、形を変えない。 */
@@ -44,7 +44,7 @@ const LIST_TAP_AREA = { content: '""', position: "absolute", insetX: 0, insetY: 
 
 // シンプル表示と、ポジションを塗り分けない表示の、割り当てのピルの色。
 const PLAIN_PILL_STYLE = { bg: "teal.100", color: "teal.800" } as const;
-const DOT_COLORS = { orange: "orange.400", red: "red.500" } as const;
+const DOT_COLORS = { orange: "orange.400" } as const;
 
 type PillProps = Omit<HTMLChakraProps<"button">, "children"> & {
   cell: AssignmentPillCell;
@@ -58,11 +58,13 @@ type PillProps = Omit<HTMLChakraProps<"button">, "children"> & {
 /**
  * 割り当て1つ分のセル。
  * 輪の位置と大きさは、希望と割り当ての有無で変えない。希望のないセルでも、透明な輪の分の余白を取る。
+ * 希望も割り当てもないセルは、押せるときだけ薄い灰色で塗る。
  */
 export const AssignmentPill = forwardRef<HTMLButtonElement, PillProps>(
   ({ cell, size, isInteractive, showsNoticeTooltip = false, ...rest }, ref) => {
     const descriptionId = useId();
     const sizeStyle = PILL_SIZES[size];
+    const isEmptyInteractive = isInteractive && !cell.assigned && !cell.showsRequestRing;
     const dot = cell.dot && (
       <Flex
         as="span"
@@ -103,13 +105,16 @@ export const AssignmentPill = forwardRef<HTMLButtonElement, PillProps>(
         borderWidth="1.5px"
         borderStyle="dashed"
         borderColor={cell.showsRequestRing ? "gray.400" : "transparent"}
-        bg="transparent"
+        // 希望も割り当てもない、押せるセルは、薄い灰色で押せる場所だと示す。
+        bg={isEmptyInteractive ? "gray.100" : "transparent"}
         cursor={isInteractive ? "pointer" : "default"}
         transitionProperty="colors"
         transitionDuration="faster"
         _after={size === "list" ? LIST_TAP_AREA : undefined}
-        _hover={isInteractive && !cell.assigned ? { bg: "gray.100" } : undefined}
-        _active={isInteractive ? { bg: "gray.200", transitionDuration: "0ms" } : undefined}
+        _hover={isInteractive && !cell.assigned ? { bg: isEmptyInteractive ? "gray.200" : "gray.100" } : undefined}
+        _active={
+          isInteractive ? { bg: isEmptyInteractive ? "gray.300" : "gray.200", transitionDuration: "0ms" } : undefined
+        }
         _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "2px" }}
         {...rest}
       >
@@ -314,17 +319,11 @@ export const PositionDotLegend = ({
 );
 
 /** 点の意味。ピルを押しても理由を出せない表示（スマートフォンで、押すと割り当てが外れる表示と閲覧専用）で、表の下に出す。 */
-export const AssignmentDotLegend = ({ showsRed }: { showsRed: boolean }) => (
+export const AssignmentDotLegend = () => (
   <Flex px={3} py={3} columnGap={4} rowGap={1} flexWrap="wrap" textStyle="2xs" color="gray.600">
     <Flex align="center" gap="6px">
       <Box boxSize="8px" borderRadius="full" bg="orange.400" aria-hidden />
       橙の点：確認が必要
     </Flex>
-    {showsRed && (
-      <Flex align="center" gap="6px">
-        <Box boxSize="8px" borderRadius="full" bg="red.500" aria-hidden />
-        赤の点：時間が重なる
-      </Flex>
-    )}
   </Flex>
 );

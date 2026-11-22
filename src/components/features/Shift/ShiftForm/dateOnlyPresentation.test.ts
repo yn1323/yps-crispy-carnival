@@ -124,9 +124,9 @@ describe("buildDateOnlyWeekPresentation", () => {
       positionId: "kitchen",
       positionColor: "#fb923c",
       dot: "orange",
-      noticeTexts: ["希望していない日です"],
+      noticeTexts: ["希望時間外に勤務あり"],
       ariaLabel: "山本 拓海 12/4(金) 勤務あり、製造",
-      ariaDescription: "希望していない日です",
+      ariaDescription: "希望時間外に勤務あり",
     });
   });
 
@@ -136,8 +136,8 @@ describe("buildDateOnlyWeekPresentation", () => {
     expect(row?.cells.find((cell) => cell.key === "2026-12-01")).toMatchObject({
       showsRequestRing: false,
       dot: "orange",
-      noticeTexts: ["未提出のスタッフです"],
-      ariaDescription: "未提出のスタッフです、前回の勤務を仮で入れています",
+      noticeTexts: ["未提出"],
+      ariaDescription: "未提出、前回の勤務を仮で入れています",
     });
   });
 

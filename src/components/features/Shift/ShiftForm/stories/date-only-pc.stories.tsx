@@ -120,7 +120,7 @@ export const ToggleInteractive: Story = {
     const dot = unrequested.querySelector<HTMLElement>('[data-assignment-dot="orange"]');
     await expect(dot).not.toBeNull();
     await userEvent.hover(dot?.parentElement as HTMLElement);
-    await expect(await within(document.body).findByRole("tooltip")).toHaveTextContent("希望していない日です");
+    await expect(await within(document.body).findByRole("tooltip")).toHaveTextContent("希望時間外に勤務あり");
     await expect(row.getBoundingClientRect().height).toBe(rowHeight);
 
     // 名前の横の注意のアイコンと、「×」「−」の表記は出さない。

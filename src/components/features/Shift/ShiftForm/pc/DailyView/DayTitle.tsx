@@ -1,4 +1,4 @@
-import { Box, Flex, Text } from "@chakra-ui/react";
+import { Box, Flex } from "@chakra-ui/react";
 import dayjs from "dayjs";
 import { useAtomValue } from "jotai";
 import { getWeekdayLabel } from "@/src/domains/shift/date";
@@ -19,20 +19,11 @@ type Props = {
   positionControl: "rangeAssign" | "legend";
   /** その日のテンプレートを日付の横に出すか。時間指定は人数の帯の見出しに出すため、falseを渡す。 */
   showsTemplate?: boolean;
-  /** テンプレートのメニューの左に置くラベル。 */
-  templateLabel?: string;
   /** 日付の横に出す充足率。必要人数が1つもない日と、充足率を出さない表示では渡さない。 */
   fulfillment?: { percent: number; isFulfilled: boolean } | null;
 };
 
-export const DayTitle = ({
-  date,
-  holidays = [],
-  positionControl,
-  showsTemplate = true,
-  templateLabel = "テンプレート",
-  fulfillment = null,
-}: Props) => {
+export const DayTitle = ({ date, holidays = [], positionControl, showsTemplate = true, fulfillment = null }: Props) => {
   const usesPositionColors = useAtomValue(usesPositionColorsAtom);
   // 閲覧専用の表示では、表の上の凡例（PositionLegend）が出るため、見出しには重ねて出さない。
   const isEditable = useAtomValue(isToolPaletteActiveAtom);
@@ -72,12 +63,10 @@ export const DayTitle = ({
           <FulfillmentLabel percent={fulfillment.percent} isFulfilled={fulfillment.isFulfilled} />
         )}
         {showsTemplate && staffingView && (
-          <Flex align="center" gap={2} flexShrink={0}>
-            <Text textStyle="xs" color="gray.600" whiteSpace="nowrap">
-              {templateLabel}
-            </Text>
+          // メニューのアイコンと名前でテンプレートだと分かるため、左にラベルを置かない。
+          <Box flexShrink={0}>
             <DayTemplateMenu date={date} view={staffingView} />
-          </Flex>
+          </Box>
         )}
       </Flex>
       {/* 定休日は勤務を入れられないため、入れるものの選択を出さない。 */}

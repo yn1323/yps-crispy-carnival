@@ -211,9 +211,11 @@ export const ShiftBoardPageView = ({
         preventClose={detailModeSwitchDialog.isSwitching}
       >
         <Text fontSize="sm" lineHeight="tall">
-          切り替えると下書き保存されたシフトが削除されます。
+          下書き、現在の状態が消えてしまいます。
           <br />
-          スタッフのシフト提出状況は残ります。
+          よろしいですか？
+          <br />
+          （スタッフが提出した希望は残ります）
         </Text>
       </Dialog>
 

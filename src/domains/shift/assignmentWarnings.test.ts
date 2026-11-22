@@ -306,7 +306,7 @@ describe("computeAssignmentWarnings: 担当外のポジション（POSITION_UNAV
         code: "POSITION_UNAVAILABLE",
         date: "2026-01-20",
         staffId: "staff1",
-        message: "担当外のポジションの勤務があります（キッチン）",
+        message: "担当外のポジションあり（キッチン）",
       },
     ]);
   });
@@ -369,7 +369,7 @@ describe("computeAssignmentWarnings: 担当外のポジション（POSITION_UNAV
         code: "POSITION_UNAVAILABLE",
         date: "2026-01-20",
         staffId: "staff1",
-        message: "担当外のポジションの勤務があります（キッチン・レジ）",
+        message: "担当外のポジションあり（キッチン・レジ）",
       },
     ]);
   });
@@ -414,7 +414,7 @@ describe("computeAssignmentWarnings: 担当外のポジション（POSITION_UNAV
         code: "POSITION_UNAVAILABLE",
         date: "2026-01-20",
         staffId: "staff1",
-        message: "担当外のポジションの勤務があります（キッチン）",
+        message: "担当外のポジションあり（キッチン）",
       },
     ]);
   });
@@ -432,13 +432,13 @@ describe("computeAssignmentWarnings: 担当外のポジション（POSITION_UNAV
       pattern: timePattern,
     });
 
-    expect(warnings.map((warning) => warning.message)).toEqual(["担当外のポジションの勤務があります（厨房）"]);
+    expect(warnings.map((warning) => warning.message)).toEqual(["担当外のポジションあり（厨房）"]);
   });
 
   it("ポジションの一覧にある名前を、勤務が持つ古い名前より優先する", () => {
     const warnings = runWithProfiles([shift({ ...requested, positions: [kitchen({ positionName: "旧キッチン" })] })]);
 
-    expect(warnings.map((warning) => warning.message)).toEqual(["担当外のポジションの勤務があります（キッチン）"]);
+    expect(warnings.map((warning) => warning.message)).toEqual(["担当外のポジションあり（キッチン）"]);
   });
 
   it("担当できるポジションへの割当では、既存の3種類の確認事項が変わらず出る", () => {
@@ -456,19 +456,19 @@ describe("computeAssignmentWarnings: 担当外のポジション（POSITION_UNAV
     ]);
 
     expect(warnings).toEqual([
-      { code: "NOT_SUBMITTED", date: "2026-01-20", staffId: "staff2", message: "未提出のまま勤務に入っています" },
-      { code: "OFF_REQUEST", date: "2026-01-21", staffId: "staff1", message: "休み希望の日に勤務が入っています" },
+      { code: "NOT_SUBMITTED", date: "2026-01-20", staffId: "staff2", message: "未提出" },
+      { code: "OFF_REQUEST", date: "2026-01-21", staffId: "staff1", message: "休み希望日に勤務あり" },
       {
         code: "OUTSIDE_REQUESTED_TIME",
         date: "2026-01-22",
         staffId: "staff1",
-        message: "希望時間（10:00-18:00）の外に勤務があります",
+        message: "希望時間外に勤務あり",
       },
       {
         code: "POSITION_UNAVAILABLE",
         date: "2026-01-23",
         staffId: "staff1",
-        message: "担当外のポジションの勤務があります（キッチン）",
+        message: "担当外のポジションあり（キッチン）",
       },
     ]);
   });

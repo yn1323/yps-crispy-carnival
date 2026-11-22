@@ -153,6 +153,16 @@ describe("calculateFulfillmentPercent", () => {
     expect(calculateFulfillmentPercent(bands)).toBe(50);
   });
 
+  it("不足のない日は、多い分も足して100%を超えて返す", () => {
+    // 9〜21時は2人（必要1人）。必要12人時に対し、24人時が入っている。
+    const bands = buildBands({
+      shifts: ["a", "b"].map((staffId) => shift(staffId, [work("09:00", "21:00")])),
+      bars: bars(HALL, "09:00", "21:00"),
+    });
+
+    expect(calculateFulfillmentPercent(bands)).toBe(200);
+  });
+
   it("必要人数のない時間の勤務は、分母にも分子にも入れない", () => {
     // 必要人数は9〜11時の1人だけ。17〜19時の勤務は数えない。
     const bands = buildBands({
@@ -271,6 +281,16 @@ describe("calculateShiftTypeFulfillmentPercent", () => {
     ).toBe(100);
   });
 
+  it("不足がなければ、多い分も勤務パターンの長さで重み付けして足し、100%を超えて返す", () => {
+    // 早番（6h）: 1/1、短い勤務パターン（3h）: 3/1。 (1 × 6 + 3 × 3) ÷ (1 × 6 + 1 × 3) = 166.6…% → 166%
+    expect(
+      calculateShiftTypeFulfillmentPercent([
+        { ...early, positions: [{ count: 1, required: 1 }] },
+        { ...short, positions: [{ count: 3, required: 1 }] },
+      ]),
+    ).toBe(166);
+  });
+
   it("必要人数が1つもない日はnullを返す", () => {
     expect(calculateShiftTypeFulfillmentPercent([{ ...early, positions: [{ count: 2, required: null }] }])).toBeNull();
     expect(calculateShiftTypeFulfillmentPercent([])).toBeNull();
@@ -292,9 +312,14 @@ describe("calculateDateOnlyFulfillmentPercent", () => {
     expect(calculateDateOnlyFulfillmentPercent([day([3, 1]), day([0, 2])])).toBe(33);
   });
 
-  it("すべて足りていれば100、端数は切り捨てて、99.9でも100にしない", () => {
-    expect(calculateDateOnlyFulfillmentPercent([day([2, 2]), day([5, 3])])).toBe(100);
+  it("すべてちょうどなら100、端数は切り捨てて、99.9でも100にしない", () => {
+    expect(calculateDateOnlyFulfillmentPercent([day([2, 2]), day([3, 3])])).toBe(100);
     expect(calculateDateOnlyFulfillmentPercent([day([2, 3]), day([3, 3])])).toBe(83);
+  });
+
+  it("不足がなければ、多い分も足して100%を超えて返す", () => {
+    // 配置 2+5 = 7、必要 2+3 = 5
+    expect(calculateDateOnlyFulfillmentPercent([day([2, 2]), day([5, 3])])).toBe(140);
   });
 
   it("必要人数の指定がない日とポジションは、分母にも分子にも入れない", () => {

@@ -366,10 +366,10 @@ const DayTemplateTrigger = ({ date, view }: { date: string; view: DayStaffingVie
         <chakra.button
           type="button"
           aria-label={`${formatDateWithWeekday(date)}のテンプレート: ${templateLabel}`}
-          display="flex"
+          // 列の幅いっぱいに広げ、アイコンを左、名前を中央、開く印を右の端に置く。
+          display="grid"
+          gridTemplateColumns="auto minmax(0, 1fr) auto"
           alignItems="center"
-          // 列の幅いっぱいに広げ、アイコンと名前を左、開く印を右の端に置く。
-          justifyContent="space-between"
           gap="2px"
           w="100%"
           minW={0}
@@ -379,21 +379,23 @@ const DayTemplateTrigger = ({ date, view }: { date: string; view: DayStaffingVie
           textStyle="2xs"
           fontWeight={600}
           color="gray.600"
+          // 押せる場所だと分かるよう、ふだんから薄い地を付ける。
+          bg="blackAlpha.50"
           cursor="pointer"
           transitionProperty="background"
           transitionDuration="faster"
-          _hover={{ bg: "blackAlpha.50" }}
-          _active={{ bg: "blackAlpha.100", transitionDuration: "0ms" }}
+          _hover={{ bg: "blackAlpha.100" }}
+          _active={{ bg: "blackAlpha.200", transitionDuration: "0ms" }}
           _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "1px" }}
         >
           {/* ほかの画面のテンプレートと同じ時間帯の横棒のアイコンで、必要人数のテンプレートだと分かるようにする。 */}
-          <Flex as="span" align="center" gap="2px" minW={0}>
-            <Box as="span" flexShrink={0} display="flex" color="gray.500">
-              <LuChartGantt size={12} aria-hidden />
-            </Box>
+          <Box as="span" display="flex" color="gray.500">
+            <LuChartGantt size={12} aria-hidden />
+          </Box>
+          <Flex as="span" justify="center" minW={0}>
             {name}
           </Flex>
-          <Box as="span" flexShrink={0} display="flex">
+          <Box as="span" display="flex">
             <LuChevronDown size={12} aria-hidden />
           </Box>
         </chakra.button>

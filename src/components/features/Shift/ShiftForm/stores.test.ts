@@ -1124,9 +1124,7 @@ describe("日付ごとの確認事項の件数（warningCountByDateAtom）", () 
     scope: { kind: "time" as const, start, end: "18:00" },
   });
   const setWarnings = (store: ReturnType<typeof createDetailStore>) => {
-    store.set(validationWarningsAtom, [
-      { code: "NOT_SUBMITTED", date, staffId: secondStaff.id, message: "未提出のまま勤務に入っています" },
-    ]);
+    store.set(validationWarningsAtom, [{ code: "NOT_SUBMITTED", date, staffId: secondStaff.id, message: "未提出" }]);
     store.set(newcomerOnlyPeriodsAtom, [period(date, "09:00"), period(date, "14:00"), period(nextDate, "09:00")]);
   };
 

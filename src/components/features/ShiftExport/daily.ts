@@ -105,8 +105,10 @@ export function buildExportDaily(data: ShiftExportData, dates: readonly ExportDa
 
   const positions = data.positions ?? [];
   const positionById = new Map(positions.map((position) => [position.id, position]));
-  // ポジション名は、一覧と同じく、ポジションが2つ以上ある店舗でだけ出す。
-  const showPositions = positions.length >= 2;
+  // 「シンプル」の勤務には既定のポジションが入るだけなので、ポジションの名前、色、人数の行を出さない。
+  const usesPositions = data.isDetailMode === true;
+  // ポジション名は、ポジションが2つ以上ある店舗でだけ出す。
+  const showPositions = usesPositions && positions.length >= 2;
   const optionNameById = new Map(
     pattern.kind === "shiftType" ? pattern.options.map((option) => [option.id, option.name]) : [],
   );
@@ -146,7 +148,7 @@ export function buildExportDaily(data: ShiftExportData, dates: readonly ExportDa
       if (!assignments) continue;
       const pieces = toWorkPieces(
         assignments.map(({ startTime, endTime, positionId, optionId }) => {
-          const position = positionId ? positionById.get(positionId) : undefined;
+          const position = usesPositions && positionId ? positionById.get(positionId) : undefined;
           const label = [
             optionId ? optionNameById.get(optionId) : undefined,
             showPositions ? position?.name : undefined,
@@ -158,7 +160,8 @@ export function buildExportDaily(data: ShiftExportData, dates: readonly ExportDa
             end: timeToMinutes(endTime),
             label,
             color: position?.color && COLOR_PATTERN.test(position.color) ? position.color : null,
-            positionId: positionId ?? "",
+            // シンプルでは、ポジションの違いで勤務を分けず、人数も全体で数える。
+            positionId: usesPositions ? (positionId ?? "") : "",
           };
         }),
       );

@@ -332,7 +332,7 @@ export const SPShiftTypeDailyView = () => {
                 {isRestOpen && presentation.restGroup?.rows.map(renderRow)}
               </Box>
             </Box>
-            {showsDotLegend && <AssignmentDotLegend showsRed />}
+            {showsDotLegend && <AssignmentDotLegend />}
           </Box>
         )}
       </Box>
@@ -344,7 +344,6 @@ export const SPShiftTypeDailyView = () => {
             presentation.options.find((option) => option.key === dialogCell.key)?.timeLabel ?? ""
           }`}
           noticeTexts={dialogCell.noticeTexts}
-          dot={dialogCell.dot}
           positions={positions}
           currentPositionId={dialogCell.positionId}
           onChangePosition={(positionId) => {

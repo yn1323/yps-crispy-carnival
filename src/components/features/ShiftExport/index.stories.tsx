@@ -113,7 +113,7 @@ export const ToggleSplitPeriod: Story = {
   render: () => <ShiftExportPage data={multiplePageTime} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const checkbox = canvas.getByRole("checkbox", { name: "期間を前半・後半に分ける" });
+    const checkbox = canvas.getByRole("checkbox", { name: "一覧を分割して表示する" });
     await expect(checkbox).not.toBeChecked();
 
     await userEvent.click(checkbox);
@@ -160,7 +160,7 @@ export const SplitFifteenDayPeriod: Story = {
   render: () => <ShiftExportPage data={fifteenDayDateOnly} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("checkbox", { name: "期間を前半・後半に分ける" }));
+    await userEvent.click(canvas.getByRole("checkbox", { name: "一覧を分割して表示する" }));
 
     await waitFor(() => expect(canvas.getAllByRole("table")).toHaveLength(2));
     await expect(
@@ -180,7 +180,7 @@ export const FourteenDayPeriod: Story = {
   render: () => <ShiftExportPage data={fourteenDayPeriod} />,
   play: async ({ canvasElement }) => {
     await expect(
-      within(canvasElement).queryByRole("checkbox", { name: "期間を前半・後半に分ける" }),
+      within(canvasElement).queryByRole("checkbox", { name: "一覧を分割して表示する" }),
     ).not.toBeInTheDocument();
   },
 };
@@ -190,7 +190,7 @@ export const Generating: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     for (const button of canvas.getAllByRole("button")) await expect(button).toBeDisabled();
-    await expect(canvas.getByRole("checkbox", { name: "期間を前半・後半に分ける" })).toBeDisabled();
+    await expect(canvas.getByRole("checkbox", { name: "一覧を分割して表示する" })).toBeDisabled();
   },
 };
 
@@ -381,6 +381,53 @@ export const ToggleView: Story = {
   },
 };
 
+const dateOnlyWithPositions = createExportFixture({
+  positions: [
+    { id: "hall", name: "ホール", color: "#3b82f6" },
+    { id: "kitchen", name: "キッチン", color: "#f97316" },
+  ],
+  isDetailMode: true,
+});
+dateOnlyWithPositions.recruitment.submissionPattern = { kind: "dateOnly" };
+dateOnlyWithPositions.recruitment.periodEnd = "2026-08-07";
+dateOnlyWithPositions.assignments = [
+  { ...dateOnlyWithPositions.assignments[0], date: "2026-08-01", positionId: "hall" },
+  { ...dateOnlyWithPositions.assignments[0], date: "2026-08-03", positionId: "kitchen" },
+  { ...dateOnlyWithPositions.assignments[0], staffId: "staff-1", date: "2026-08-04", positionId: "hall" },
+];
+
+/** くわしく表示でポジションが2つ以上ある日付選択の募集は、「ポジション」を選ぶと、○の代わりにポジション名を出す。 */
+export const DateOnlyPositions: Story = {
+  args: { schedule: buildExportSchedule(dateOnlyWithPositions, false, false, "positions") },
+};
+
+/**
+ * ポジションが2つ以上ある日付選択の募集では、「一覧」と「ポジション」を切り替えられる。
+ * 日別と違い、「ポジション」でもExcelを出力できる。
+ */
+export const DateOnlyToggleView: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <ShiftExportPage data={dateOnlyWithPositions} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const group = await canvas.findByRole("group", { name: "出力する形" });
+    await expect(
+      within(group)
+        .getAllByRole("button")
+        .map((button) => button.textContent),
+    ).toEqual(["一覧", "ポジション"]);
+    await expect(canvas.queryByRole("cell", { name: "キッチン" })).not.toBeInTheDocument();
+
+    await userEvent.click(within(group).getByRole("button", { name: "ポジション" }));
+
+    await expect(within(group).getByRole("button", { name: "ポジション" })).toHaveAttribute("aria-pressed", "true");
+    await expect(await canvas.findByRole("cell", { name: "キッチン" })).toBeVisible();
+    await expect(canvas.queryByRole("cell", { name: "○" })).not.toBeInTheDocument();
+    await expect(canvas.getByRole("button", { name: "Excel" })).toBeVisible();
+  },
+};
+
+/** シンプル表示か、ポジションが1つ以下の日付選択の募集は、○だけなので、形の切り替えを出さない。 */
 export const DateOnlyHidesViewToggle: Story = {
   parameters: { screenshot: { skip: true } },
   render: () => <ShiftExportPage data={dateOnly} />,

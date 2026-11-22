@@ -373,4 +373,13 @@ describe("シフトボードからの出力", () => {
       { id: kitchenId, name: "キッチン", color: "#f97316" },
     ]);
   });
+
+  it("開いている表示が「くわしく」かどうかを出力へ渡す", () => {
+    const simple = renderInitialized({ ...data, shiftDetailMode: false });
+    act(() => simple.result.current.intents.onOpenExport());
+    const detail = renderInitialized({ ...data, shiftDetailMode: true });
+    act(() => detail.result.current.intents.onOpenExport());
+
+    expect(mocks.export.mock.calls.map(([exported]) => exported.isDetailMode)).toEqual([false, true]);
+  });
 });

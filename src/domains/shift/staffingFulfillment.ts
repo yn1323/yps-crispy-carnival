@@ -47,9 +47,19 @@ export const buildFulfillmentSegments = (segments: readonly PositionStaffingBand
 };
 
 /**
+ * 足りている量と、多い分も含めた量から充足率（%）を整数に切り捨てて返す。
+ * 不足が1つでもあれば、多い分を足さずに100%未満で返す。ほかの時間の不足を隠さないためである。
+ * 不足がなければ、多い分も足して100%以上で返す。必要の合計が0ならnullを返す。
+ */
+const toFulfillmentPercent = ({ filled, total, required }: { filled: number; total: number; required: number }) => {
+  if (required === 0) return null;
+  return Math.floor(((filled === required ? total : filled) * 100) / required);
+};
+
+/**
  * その日の充足率（%）を、整数に切り捨てて返す。
  * Σ min(人数, 必要人数) × 区間の長さ ÷ Σ 必要人数 × 区間の長さ で求める。
- * 多い区間で余った人数は足さない。ほかの時間の不足を隠さないためである。
+ * 多い区間で余った人数は、ほかの時間の不足に足さない。不足がない日だけ、多い分も足して100%を超えて返す。
  * 必要人数が1つもない日はnullを返す。
  */
 export const calculateFulfillmentPercent = (
@@ -58,16 +68,18 @@ export const calculateFulfillmentPercent = (
   }>,
 ): number | null => {
   let filled = 0;
+  let total = 0;
   let required = 0;
   for (const band of bands) {
     for (const segment of band.segments) {
       if (segment.required === null) continue;
       const length = timeToMinutes(segment.end) - timeToMinutes(segment.start);
       filled += Math.min(segment.count, segment.required) * length;
+      total += segment.count * length;
       required += segment.required * length;
     }
   }
-  return required === 0 ? null : Math.floor((filled * 100) / required);
+  return toFulfillmentPercent({ filled, total, required });
 };
 
 /**
@@ -94,22 +106,25 @@ export const calculateShiftTypeFulfillmentPercent = (
 
 /**
  * 日付選択の充足率（%）を、整数に切り捨てて返す。週の見出しには表示中の週の全日、スマートフォンにはその日の1日分を渡す。
- * Σ min(配置, 必要) ÷ Σ 必要 で求め、対象は必要人数のある「日×ポジション」のすべてである。多い分は足さない。
+ * Σ min(配置, 必要) ÷ Σ 必要 で求め、対象は必要人数のある「日×ポジション」のすべてである。
+ * 多い分は、ほかの不足に足さない。不足がないときだけ、多い分も足して100%を超えて返す。
  * 日付選択の勤務は時刻を持たないため、時間の長さでは重み付けしない。必要人数が1つもなければnullを返す。
  */
 export const calculateDateOnlyFulfillmentPercent = (
   days: ReadonlyArray<{ positions: ReadonlyArray<{ count: number; required: number | null }> }>,
 ): number | null => {
   let filled = 0;
+  let total = 0;
   let required = 0;
   for (const day of days) {
     for (const position of day.positions) {
       if (position.required === null) continue;
       filled += Math.min(position.count, position.required);
+      total += position.count;
       required += position.required;
     }
   }
-  return required === 0 ? null : Math.floor((filled * 100) / required);
+  return toFulfillmentPercent({ filled, total, required });
 };
 
 /**

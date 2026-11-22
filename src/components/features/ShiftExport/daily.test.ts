@@ -119,6 +119,20 @@ describe("buildExportDaily", () => {
     expect(Math.max(...sheet.counts[0].segments.map(({ count }) => count))).toBe(3);
   });
 
+  it("シンプル表示の勤務は、ポジションの名前と色を出さず、ポジションで分けずに全体の人数を1行で出す", () => {
+    const sheet = build(createDailyExportFixture({ isDetailMode: false })).sheets[0];
+    const takahashi = sheet.rows[2];
+
+    expect(takahashi.staffName).toBe("高橋 美咲");
+    // ホールとキッチンの勤務も、1本のバーにまとめる。
+    expect(takahashi.segments).toEqual([
+      work("11:00", "16:00", "", null),
+      rest("16:00", "16:30"),
+      work("16:30", "20:00", "", null),
+    ]);
+    expect(sheet.counts.map(({ label }) => label)).toEqual(["時間帯人数"]);
+  });
+
   it("色を持たないポジションと、色でない値は、色なしとして扱う", () => {
     const data = createDailyExportFixture({
       positions: [

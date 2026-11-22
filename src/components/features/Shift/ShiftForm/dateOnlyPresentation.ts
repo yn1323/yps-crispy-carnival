@@ -74,9 +74,9 @@ export type DateOnlyFoldedGroupPresentation<Row> = {
 type GetNote = (staffId: string, date: string) => string | undefined;
 
 const formatDateOnlyCellNotice = (notice: DateOnlyCellNotice): string => {
-  if (notice.kind === "unrequested") return "希望していない日です";
-  if (notice.kind === "notSubmitted") return "未提出のスタッフです";
-  return "担当外のポジションです";
+  if (notice.kind === "unrequested") return "希望時間外に勤務あり";
+  if (notice.kind === "notSubmitted") return "未提出";
+  return "担当外のポジション";
 };
 
 const resolveDayStatus = (date: DateOnlyDateInfo, holidaySet: ReadonlySet<string>): DateOnlyDayStatus =>
@@ -354,7 +354,8 @@ export const buildDateOnlyStaffingPresentation = (views: readonly DayStaffingVie
   const percent = calculateDateOnlyFulfillmentPercent(days.map(({ slot }) => ({ positions: slot.positions })));
   return {
     percent,
-    isFulfilled: percent === 100,
+    // 多い分で100%を超えた日も、満たした日として同じ色で出す。
+    isFulfilled: percent !== null && percent >= 100,
     positions: (days[0]?.slot.positions ?? [])
       .filter((position) => shownPositionIds.has(position.positionId))
       .map((position) => ({ positionId: position.positionId, name: position.name, color: position.color })),

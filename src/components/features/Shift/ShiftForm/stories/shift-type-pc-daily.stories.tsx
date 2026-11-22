@@ -104,7 +104,7 @@ export const DateNotesInteractive: Story = {
   },
 };
 
-/** 希望どおり、希望だけ、希望外、時間の重なり、休み希望、未提出を1日に持つ代表例。 */
+/** 希望どおり、希望だけ、希望外、時間が重なる勤務パターンの両方への割り当て、休み希望、未提出を1日に持つ代表例。 */
 export const Board: Story = {
   args: shiftTypeBoardSimpleArgs,
   globals: desktopGlobals,
@@ -138,12 +138,12 @@ export const ToggleInteractive: Story = {
     // 希望していない早番に入れると、橙の点と理由が付く。
     await userEvent.click(await canvas.findByRole("button", { name: "山本 拓海 早番 勤務なし" }));
     const unrequested = await canvas.findByRole("button", { name: "山本 拓海 早番 勤務あり" });
-    await expect(unrequested).toHaveAccessibleDescription("希望していないシフトです");
+    await expect(unrequested).toHaveAccessibleDescription("希望時間外に勤務あり");
     await expect(unrequested.querySelector("[data-assignment-dot]")).toHaveAttribute("data-assignment-dot", "orange");
   },
 };
 
-/** 時間が重なる2つの勤務パターンに入れると、割り当てを止めず、両方に赤い点と理由を出す。 */
+/** 時間が重なる2つの勤務パターンに入れても、1日に複数の勤務パターンへ入るのはふつうのことなので、点も理由も出さない。 */
 export const OverlapInteractive: Story = {
   args: shiftTypeBoardSimpleArgs,
   globals: desktopGlobals,
@@ -155,15 +155,11 @@ export const OverlapInteractive: Story = {
 
     const late = await canvas.findByRole("button", { name: "吉田 蓮 遅番 勤務あり" });
     const night = await canvas.findByRole("button", { name: "吉田 蓮 夜番 勤務あり" });
-    await expect(late).toHaveAccessibleDescription("希望あり、夜番と時間が重なっています");
-    await expect(night).toHaveAccessibleDescription("希望していないシフトです、遅番と時間が重なっています");
-    for (const pill of [late, night]) {
-      await expect(pill.querySelector("[data-assignment-dot]")).toHaveAttribute("data-assignment-dot", "red");
-    }
-
-    // 時間が隣り合うだけの早番（〜15:00）と遅番（15:00〜）は、重なりにしない。
-    const matsumotoLate = await canvas.findByRole("button", { name: "松本 大和 遅番 勤務あり" });
-    await expect(matsumotoLate.querySelector("[data-assignment-dot]")).toBeNull();
+    await expect(late).toHaveAccessibleDescription("希望あり");
+    await expect(late.querySelector("[data-assignment-dot]")).toBeNull();
+    // 夜番は希望していないため、希望外の理由と橙の点だけを出す。
+    await expect(night).toHaveAccessibleDescription("希望時間外に勤務あり");
+    await expect(night.querySelector("[data-assignment-dot]")).toHaveAttribute("data-assignment-dot", "orange");
   },
 };
 
@@ -189,7 +185,7 @@ export const RestGroupInteractive: Story = {
     // 割り当てた人は通常の行へ移り、まとまりは3人になる。割り当ては希望外として点を付ける。
     await expect(await canvas.findByRole("button", { name: /^休み希望 3人/ })).toBeInTheDocument();
     const assigned = await canvas.findByRole("button", { name: "中村 さくら 早番 勤務あり" });
-    await expect(assigned).toHaveAccessibleDescription("希望していないシフトです");
+    await expect(assigned).toHaveAccessibleDescription("希望時間外に勤務あり");
     const rows = canvas.getAllByRole("row").map((row) => row.textContent ?? "");
     const restIndex = rows.findIndex((text) => text.startsWith("休み希望"));
     await expect(rows.findIndex((text) => text.startsWith("中村 さくら"))).toBeLessThan(restIndex);

@@ -69,6 +69,8 @@ const dataSchema = z.object({
     )
     .max(SHIFT_BOARD_DATE_NOTE_LIMIT)
     .default([]),
+  // デプロイ前に保存した一時データにはないため、「シンプル」として読み、ポジションを出さない。
+  isDetailMode: z.boolean().default(false),
 });
 export const snapshotSchema = z.object({
   version: z.literal(1),

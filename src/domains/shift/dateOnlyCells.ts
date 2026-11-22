@@ -20,7 +20,7 @@ export type DateOnlyCell = {
   /** この日に入っている勤務。入っていなければnull。 */
   segment: PositionSegment | null;
   notices: DateOnlyCellNotice[];
-  /** 割り当てに付ける点。理由が1つでもあれば橙にする。日付選択には時間の重なりがないため、赤はない。 */
+  /** 割り当てに付ける点。理由が1つでもあれば橙にする。 */
   dot: "orange" | null;
 };
 

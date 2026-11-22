@@ -37,7 +37,7 @@ export function ShiftExportView({
   // 選んだ形で使える項目だけを出す。日別は1日ずつ出すため、期間を分ける項目を出さない。
   const options = [
     {
-      label: "期間を前半・後半に分ける",
+      label: "一覧を分割して表示する",
       isShown: !isDaily && schedule.dates.length >= 15,
       checked: schedule.splitPeriod,
       onChange: onSplitPeriodChange,
@@ -53,8 +53,13 @@ export function ShiftExportView({
     <Box minH="100dvh" bg="gray.100">
       <Box as="header" bg="white" borderBottomWidth="1px">
         <Flex px={4} py={3} gap={3} flexWrap="wrap" align="center" justify="space-between">
-          {schedule.daily && (
-            <ViewToggle value={schedule.view} onChange={onViewChange} disabled={download.isGenerating} />
+          {schedule.availableViews.length > 1 && (
+            <ViewToggle
+              options={VIEW_OPTIONS.filter((option) => schedule.availableViews.includes(option.value))}
+              value={schedule.view}
+              onChange={onViewChange}
+              disabled={download.isGenerating}
+            />
           )}
           <Flex gap={3} marginStart="auto" align="center">
             <Button
@@ -67,7 +72,7 @@ export function ShiftExportView({
               <LuDownload />
               PDF
             </Button>
-            {/* Excelは一覧だけを出すため、日別を選んでいる間は出さない。 */}
+            {/* Excelは一覧とポジションだけを出すため、日別を選んでいる間は出さない。 */}
             {!isDaily && (
               <Button
                 flexShrink={0}
@@ -282,21 +287,24 @@ export function ShiftExportView({
 const VIEW_OPTIONS: { value: ExportView; label: string }[] = [
   { value: "overview", label: "一覧" },
   { value: "daily", label: "日別" },
+  { value: "positions", label: "ポジション" },
 ];
 
 /** 出力する形の切り替え。シフト表の「日別」「一覧」と同じ言葉を使う。 */
 function ViewToggle({
+  options,
   value,
   onChange,
   disabled,
 }: {
+  options: { value: ExportView; label: string }[];
   value: ExportView;
   onChange: (view: ExportView) => void;
   disabled: boolean;
 }) {
   return (
     <Flex role="group" aria-label="出力する形">
-      {VIEW_OPTIONS.map((option, index) => {
+      {options.map((option, index) => {
         const selected = option.value === value;
         return (
           <Button
@@ -308,7 +316,7 @@ function ViewToggle({
             disabled={disabled}
             minW="72px"
             borderStartRadius={index === 0 ? undefined : 0}
-            borderEndRadius={index === VIEW_OPTIONS.length - 1 ? undefined : 0}
+            borderEndRadius={index === options.length - 1 ? undefined : 0}
             marginStart={index === 0 ? 0 : "-1px"}
           >
             {option.label}

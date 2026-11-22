@@ -48,6 +48,8 @@ export function createDailyExportFixture(overrides: Partial<ShiftExportData> = {
       { id: "hall", name: "ホール", color: "#60a5fa" },
       { id: "kitchen", name: "キッチン", color: "#fb923c" },
     ],
+    // 日別のバーにポジションを出すのは、くわしく表示の勤務だけである。
+    isDetailMode: true,
     assignments: [
       work("staff-1", "17:00", "22:00", "hall"),
       work("staff-2", "17:00", "22:00", "kitchen"),

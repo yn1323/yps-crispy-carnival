@@ -281,7 +281,7 @@ export const PositionMenuInteractive: Story = {
     await expect(await findDayCount(canvas, "6/3\\(水\\)", "ホール 2/2")).toBeInTheDocument();
     // 希望のない日に入れたため、橙の点が付く。割り当ての前後で、行の高さは変わらない。
     await expect(hallPill.querySelector('[data-assignment-dot="orange"]')).not.toBeNull();
-    await expect(hallPill).toHaveAccessibleDescription("希望していない日です");
+    await expect(hallPill).toHaveAccessibleDescription("希望時間外に勤務あり");
     await expect(row.getBoundingClientRect().height).toBe(rowHeight);
 
     // 割り当て済みのピルを押すと、いまのポジションにチェックの付いたメニューが開く。

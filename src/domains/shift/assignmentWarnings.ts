@@ -1,6 +1,6 @@
 import { getPositionSkill } from "./positionSkills";
 import { isCanonicalWorkPosition } from "./positions";
-import { formatShiftClockTime, timeToMinutes } from "./time";
+import { timeToMinutes } from "./time";
 import type { ShiftData, StaffPositionSkill } from "./types";
 
 // 確定をブロックしない「確認事項」（ワーニング）。希望と割当の食い違いを助言として知らせる。
@@ -66,20 +66,20 @@ export function computeAssignmentWarnings(input: AssignmentWarningInput): Assign
       ),
     ];
     if (unavailableNames.length > 0) {
-      add("POSITION_UNAVAILABLE", `担当外のポジションの勤務があります（${unavailableNames.join("・")}）`);
+      add("POSITION_UNAVAILABLE", `担当外のポジションあり（${unavailableNames.join("・")}）`);
       continue;
     }
 
     // 未提出は希望データが存在しないため、休み希望・希望時間外とは別カテゴリ
     if (!isSubmittedById.get(shift.staffId)) {
-      add("NOT_SUBMITTED", "未提出のまま勤務に入っています");
+      add("NOT_SUBMITTED", "未提出");
       continue;
     }
 
     if (kind === "shiftType") {
       const requestedOptionIds = new Set(shift.requestedShiftTypeOptionIds ?? []);
       if (requestedOptionIds.size === 0) {
-        add("OFF_REQUEST", "休み希望の日に勤務が入っています");
+        add("OFF_REQUEST", "休み希望日に勤務あり");
         continue;
       }
       const unrequestedNames = [
@@ -90,14 +90,14 @@ export function computeAssignmentWarnings(input: AssignmentWarningInput): Assign
         ),
       ];
       if (unrequestedNames.length > 0) {
-        add("OUTSIDE_REQUESTED_TIME", `希望時間の外に勤務があります（${unrequestedNames.join("・")}）`);
+        add("OUTSIDE_REQUESTED_TIME", `希望時間外に勤務あり（${unrequestedNames.join("・")}）`);
       }
       continue;
     }
 
     const requestedTimes = shift.requestedTimes ?? (shift.requestedTime ? [shift.requestedTime] : []);
     if (requestedTimes.length === 0) {
-      add("OFF_REQUEST", "休み希望の日に勤務が入っています");
+      add("OFF_REQUEST", "休み希望日に勤務あり");
       continue;
     }
 
@@ -119,10 +119,7 @@ export function computeAssignmentWarnings(input: AssignmentWarningInput): Assign
         timeToMinutes(position.end) > timeToMinutes(latestEnd),
     );
     if (isOutside) {
-      add(
-        "OUTSIDE_REQUESTED_TIME",
-        `希望時間（${formatShiftClockTime(earliestStart)}-${formatShiftClockTime(latestEnd)}）の外に勤務があります`,
-      );
+      add("OUTSIDE_REQUESTED_TIME", "希望時間外に勤務あり");
     }
   }
 

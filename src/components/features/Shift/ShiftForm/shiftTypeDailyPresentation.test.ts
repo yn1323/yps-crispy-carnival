@@ -112,7 +112,7 @@ describe("buildShiftTypeDailyPresentation", () => {
         pillLabel: "キッチン",
         positionColor: "#fb923c",
         dot: "orange",
-        noticeTexts: ["希望していないシフトです"],
+        noticeTexts: ["希望時間外に勤務あり"],
       },
       {
         key: "late",
@@ -141,13 +141,13 @@ describe("buildShiftTypeDailyPresentation", () => {
     expect(row.cells[0]).toMatchObject({ pillLabel: "○", positionColor: null, positionId: "kitchen" });
   });
 
-  it("点の理由を文言にし、時間の重なりには相手の勤務パターン名を入れる", () => {
+  it("点の理由を文言にし、時間が重なる勤務パターンに両方入っても重なりは知らせない", () => {
     const [row] = build([staff("a", "小林 悠斗")], [shift("a", ["late"], [segment("late"), segment("night")])]).rows;
 
     expect(row.cells.map(({ dot, noticeTexts }) => ({ dot, noticeTexts }))).toEqual([
       { dot: null, noticeTexts: [] },
-      { dot: "red", noticeTexts: ["夜番と時間が重なっています"] },
-      { dot: "red", noticeTexts: ["希望していないシフトです", "遅番と時間が重なっています"] },
+      { dot: null, noticeTexts: [] },
+      { dot: "orange", noticeTexts: ["希望時間外に勤務あり"] },
     ]);
   });
 
@@ -157,7 +157,7 @@ describe("buildShiftTypeDailyPresentation", () => {
     }).rows;
 
     expect(row.cells.map(({ ariaLabel, ariaDescription }) => ({ ariaLabel, ariaDescription }))).toEqual([
-      { ariaLabel: "木村 湊 早番 勤務あり", ariaDescription: "希望していないシフトです" },
+      { ariaLabel: "木村 湊 早番 勤務あり", ariaDescription: "希望時間外に勤務あり" },
       { ariaLabel: "木村 湊 遅番 勤務なし", ariaDescription: "希望あり" },
       { ariaLabel: "木村 湊 夜番 勤務なし", ariaDescription: null },
     ]);
@@ -173,7 +173,7 @@ describe("buildShiftTypeDailyPresentation", () => {
       presentation.rows[0].cells.map(({ showsRequestRing, noticeTexts }) => ({ showsRequestRing, noticeTexts })),
     ).toEqual([
       { showsRequestRing: false, noticeTexts: [] },
-      { showsRequestRing: false, noticeTexts: ["未提出のスタッフです"] },
+      { showsRequestRing: false, noticeTexts: ["未提出"] },
       { showsRequestRing: false, noticeTexts: [] },
     ]);
   });
@@ -198,7 +198,7 @@ describe("buildShiftTypeDailyPresentation", () => {
     ]);
 
     expect(presentation.rows.map((row) => row.staffName)).toEqual(["森 莉子", "山口 美月"]);
-    expect(presentation.rows[1].cells[0]).toMatchObject({ dot: "orange", noticeTexts: ["希望していないシフトです"] });
+    expect(presentation.rows[1].cells[0]).toMatchObject({ dot: "orange", noticeTexts: ["希望時間外に勤務あり"] });
     expect(presentation.restGroup).toMatchObject({ label: "休み希望 4人", namesLabel: "中村・高橋・伊藤・ほか1人" });
     expect(presentation.restGroup?.rows.map((row) => row.staffName)).toEqual([
       "中村 さくら",

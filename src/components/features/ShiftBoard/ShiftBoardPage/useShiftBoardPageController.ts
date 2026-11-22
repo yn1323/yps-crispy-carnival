@@ -125,6 +125,8 @@ export type ShiftBoardExportData = {
   }[];
   positions: { id: string; name: string; color: string }[];
   dateNotes: ShiftDateNote[];
+  /** 「くわしく」表示で開いているか。「シンプル」の勤務は既定のポジションが入るだけなので、出力でポジションを出さない。 */
+  isDetailMode: boolean;
 };
 
 /** 取得中の日付メモ。出力ボタンを押した時点のメモを出力へ渡すため、取得中は出力を止める。 */
@@ -685,7 +687,7 @@ export const useShiftBoardPageController = (
   // ShiftFormは、この通知を渡した画面でだけ「シンプル / くわしく」の切り替えを出す。通知の内容は、いまは使わない。
   const handleDetailModeChange = useCallback((_isDetailMode: boolean) => {}, []);
 
-  // 「シンプル / くわしく」の切り替え。表示が変わると勤務の持ち方が合わなくなるため、この募集の下書きを削除し、
+  // 「シンプル / くわしく」の切り替え。表示が変わると勤務の持ち方が合わなくなるため、この募集の下書きと保存していない編集を捨て、
   // 選んだ表示を店舗へ保存する。保存が済むと、店舗の表示が変わったデータを受けて、ページ全体が開き直される。
   // 確定済みの募集、変更できない画面、店舗を特定できない利用箇所では切り替えを出さない。
   const canSwitchDetailMode = Boolean(setupScope) && !isReadOnly && !isConfirmed;
@@ -703,14 +705,14 @@ export const useShiftBoardPageController = (
   const hasSavedDraft = data.recruitment.draftSavedAt !== null;
   const requestDetailModeChange = useCallback(
     (isDetailMode: boolean) => {
-      // 下書き保存されたシフトがなければ、保存していない編集があっても確認せずに切り替える。
-      if (!hasSavedDraft) {
+      // 下書き保存したシフトも、保存していない編集もなければ、消えるものがないため確認せずに切り替える。
+      if (!hasSavedDraft && !hasUnsavedChanges()) {
         void runSwitchDetailMode(isDetailMode);
         return;
       }
       setPendingDetailMode(isDetailMode);
     },
-    [hasSavedDraft, runSwitchDetailMode],
+    [hasSavedDraft, hasUnsavedChanges, runSwitchDetailMode],
   );
   const confirmDetailModeSwitch = useCallback(() => {
     if (pendingDetailMode !== null) void runSwitchDetailMode(pendingDetailMode);
@@ -805,6 +807,7 @@ export const useShiftBoardPageController = (
       ),
       positions: data.positions.map((position) => ({ id: position._id, name: position.name, color: position.color })),
       dateNotes: loadedDateNotes.map(({ staffId, date, note }) => ({ staffId, date, note })),
+      isDetailMode: initialDetailMode,
     });
   }, [
     exportOrganizationId,
@@ -816,6 +819,7 @@ export const useShiftBoardPageController = (
     onExport,
     data,
     buildSaveAssignments,
+    initialDetailMode,
   ]);
 
   return {

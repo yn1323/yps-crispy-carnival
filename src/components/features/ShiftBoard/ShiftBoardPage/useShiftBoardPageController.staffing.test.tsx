@@ -319,7 +319,7 @@ describe("店舗の設定をシフト表へ渡す", () => {
         code: "POSITION_UNAVAILABLE",
         date,
         staffId: submittedStaffId,
-        message: "担当外のポジションの勤務があります（キッチン）",
+        message: "担当外のポジションあり（キッチン）",
       },
     ]);
   });
@@ -426,15 +426,19 @@ describe("表示の切り替え", () => {
     expect(mocks.switchShiftDetailMode).not.toHaveBeenCalled();
   });
 
-  it("保存済みの下書きがなければ、未保存の編集があっても確認せずに切り替える", async () => {
+  it("保存済みの下書きがなくても、未保存の編集があれば確認を出し、確認で切り替えるまで何も呼ばない", async () => {
     const { result } = renderInitialized({ staffing: emptyStaffing });
     act(() => result.current.intents.onShiftsChange(editedShift(result.current.viewModel.shiftForm.initialShifts)));
 
-    await act(async () => result.current.viewModel.shiftForm.detailActions.requestDetailModeChange?.(true));
+    await act(async () => result.current.viewModel.shiftForm.detailActions.requestDetailModeChange?.(false));
 
-    expect(result.current.viewModel.detailModeSwitchDialog.isOpen).toBe(false);
+    expect(result.current.viewModel.detailModeSwitchDialog.isOpen).toBe(true);
+    expect(mocks.switchShiftDetailMode).not.toHaveBeenCalled();
+
+    await act(async () => result.current.intents.onConfirmDetailModeSwitch());
+
     expect(mocks.switchShiftDetailMode.mock.calls).toEqual([
-      [{ recruitmentId, expectedEditVersion: 0, isDetailMode: true }],
+      [{ recruitmentId, expectedEditVersion: 0, isDetailMode: false }],
     ]);
   });
 

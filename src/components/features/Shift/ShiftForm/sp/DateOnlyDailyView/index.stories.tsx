@@ -95,7 +95,7 @@ export const PositionDialogInteractive: Story = {
     // モーダルには点の理由を出す。「削除」で割り当てを外すと、たたんだまとまりへ戻る。
     await userEvent.click(unrequested);
     const unrequestedDialog = await body.findByRole("dialog", { name: "小林 悠斗" });
-    await expect(unrequestedDialog).toHaveTextContent("希望していない日です");
+    await expect(unrequestedDialog).toHaveTextContent("希望時間外に勤務あり");
     await userEvent.click(within(unrequestedDialog).getByRole("button", { name: "削除" }));
     await waitFor(() => expect(body.queryByRole("dialog")).not.toBeInTheDocument());
     await expect(await canvas.findByRole("button", { name: /^この日の希望がない人 4人/ })).toBeInTheDocument();

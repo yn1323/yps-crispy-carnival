@@ -24,6 +24,11 @@ export type ShiftExportData = {
   positions?: { id: string; name: string; color?: string }[];
   /** 出力ボタンを押した時点の日付メモ。シフト表本体には入れず、別ページ・別シートの一覧にだけ使う。 */
   dateNotes: { staffId: string; date: string; note: string }[];
+  /**
+   * 「くわしく」表示で作った勤務か。日付選択の「ポジション」は、くわしく表示のときだけ出す。
+   * 「シンプル」の勤務には既定のポジションが入るだけで、全員が同じポジションに見えるためである。
+   */
+  isDetailMode?: boolean;
 };
 
 export type ExportDate = {
@@ -46,8 +51,11 @@ export type ExportNoteRow = {
   note: string;
 };
 
-/** 出力する形。「一覧」は人×日付の表、「日別」は1日ごとの勤務のバー。 */
-export type ExportView = "overview" | "daily";
+/**
+ * 出力する形。「一覧」は人×日付の表、「日別」は1日ごとの勤務のバー。
+ * 「ポジション」は日付選択だけの形で、一覧と同じ表のセルに「○」の代わりにポジション名を書く。
+ */
+export type ExportView = "overview" | "daily" | "positions";
 
 /** 日別のバーの1区間。時刻は分で持つ。 */
 export type ExportDailySegment =
@@ -100,8 +108,10 @@ export type ExportSchedule = {
   hasDateNotes: boolean;
   /** 「連絡事項も出力する」を選んだときだけ、日付順・スタッフ順のメモを持つ。 */
   noteRows: ExportNoteRow[];
-  /** PDFとプレビューに出す形。Excelは常に一覧を出す。 */
+  /** PDFとプレビューに出す形。Excelは一覧とポジションだけを出す。 */
   view: ExportView;
+  /** この募集で選べる形。2つ以上あるときだけ、出力画面に切り替えを出す。 */
+  availableViews: ExportView[];
   /** 日別のバー。時刻を持たない日付選択の募集ではnull。 */
   daily: ExportDaily | null;
 };

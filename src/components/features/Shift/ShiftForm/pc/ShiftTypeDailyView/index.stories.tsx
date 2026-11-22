@@ -267,7 +267,7 @@ export const DetailUnavailablePositionInteractive: Story = {
     await userEvent.click(await canvas.findByRole("button", { name: "鈴木 次郎 早番 勤務なし" }));
 
     const assigned = await canvas.findByRole("button", { name: "鈴木 次郎 早番 勤務あり" });
-    await expect(assigned).toHaveAccessibleDescription("希望していないシフトです、担当外のポジションです");
+    await expect(assigned).toHaveAccessibleDescription("希望時間外に勤務あり、担当外のポジション");
     await expect(canvas.queryByRole("button", { name: /^確認事項\d+件$/ })).not.toBeInTheDocument();
   },
 };

@@ -8,10 +8,8 @@ type Props = {
   title: string;
   /** タイトルの下に出す、勤務パターンと時間（パターン選択）、または日付（日付選択）。 */
   subtitle: string;
-  /** 点の理由。「希望していない日です」など。なければ空。 */
+  /** 点の理由。「希望時間外に勤務あり」など。なければ空。 */
   noticeTexts: readonly string[];
-  /** 理由の文字の色を決める、点の色。 */
-  dot: "red" | "orange" | null;
   positions: readonly PositionType[];
   currentPositionId: string | null;
   onChangePosition: (positionId: string) => void;
@@ -27,7 +25,6 @@ export const PositionDialog = ({
   title,
   subtitle,
   noticeTexts,
-  dot,
   positions,
   currentPositionId,
   onChangePosition,
@@ -47,7 +44,7 @@ export const PositionDialog = ({
       {subtitle}
     </Text>
     {noticeTexts.length > 0 && (
-      <Box mt={2} textStyle="xs" color={dot === "red" ? "red.700" : "orange.700"}>
+      <Box mt={2} textStyle="xs" color="orange.700">
         {noticeTexts.map((text) => (
           <Text key={text}>{text}</Text>
         ))}

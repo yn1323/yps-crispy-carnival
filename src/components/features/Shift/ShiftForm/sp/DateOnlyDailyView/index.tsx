@@ -234,7 +234,7 @@ export const SPDateOnlyDailyView = () => {
                 {presentation.foldedGroup.rows.map(renderRow)}
               </Box>
             )}
-            {showsDotLegend && <AssignmentDotLegend showsRed={false} />}
+            {showsDotLegend && <AssignmentDotLegend />}
           </Box>
         )}
       </Box>
@@ -244,7 +244,6 @@ export const SPDateOnlyDailyView = () => {
           title={dialogRow.staffName}
           subtitle={formatDateWithWeekday(activeDate)}
           noticeTexts={dialogRow.cell.noticeTexts}
-          dot={dialogRow.cell.dot}
           positions={positions}
           currentPositionId={dialogRow.cell.positionId}
           onChangePosition={(positionId) => {

@@ -26,7 +26,7 @@ const warning = (staffId: string, date: string): AssignmentWarning => ({
   code: "OUTSIDE_REQUESTED_TIME",
   staffId,
   date,
-  message: "希望時間の外に勤務があります",
+  message: "希望時間外に勤務あり",
 });
 
 describe("visibleAssignmentWarnings", () => {

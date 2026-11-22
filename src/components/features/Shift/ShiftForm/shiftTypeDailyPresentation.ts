@@ -94,10 +94,9 @@ export const formatShiftTypeShortTimeRange = (option: Pick<ShiftTypeOptionLike, 
   `${formatShortTime(option.startTime)}–${formatShortTime(option.endTime)}`;
 
 const formatShiftTypeCellNotice = (notice: ShiftTypeCellNotice): string => {
-  if (notice.kind === "unrequested") return "希望していないシフトです";
-  if (notice.kind === "notSubmitted") return "未提出のスタッフです";
-  if (notice.kind === "positionUnavailable") return "担当外のポジションです";
-  return `${notice.optionNames.join("・")}と時間が重なっています`;
+  if (notice.kind === "unrequested") return "希望時間外に勤務あり";
+  if (notice.kind === "notSubmitted") return "未提出";
+  return "担当外のポジション";
 };
 
 export function buildShiftTypeDailyPresentation({
@@ -239,7 +238,8 @@ export const buildShiftTypeStaffingPresentation = (
   );
   return {
     percent,
-    isFulfilled: percent === 100,
+    // 多い分で100%を超えた日も、満たした日として同じ色で出す。
+    isFulfilled: percent !== null && percent >= 100,
     positions,
     countsByOptionId: new Map(
       slots.map(({ option, slot }) => [

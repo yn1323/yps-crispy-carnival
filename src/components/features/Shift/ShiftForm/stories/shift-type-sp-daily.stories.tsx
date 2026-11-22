@@ -85,7 +85,6 @@ export const ToggleInteractive: Story = {
 
     // 点の理由を出す場所がないため、表の下に点の意味を出す。名前の横の注意のアイコンは出さない。
     await expect(canvas.getByText("橙の点：確認が必要")).toBeVisible();
-    await expect(canvas.getByText("赤の点：時間が重なる")).toBeVisible();
     await expect(canvas.queryByRole("button", { name: /^確認事項\d+件$/ })).not.toBeInTheDocument();
   },
 };
@@ -106,7 +105,7 @@ export const RestGroupInteractive: Story = {
 
     await expect(await canvas.findByRole("button", { name: /^休み希望 3人/ })).toBeInTheDocument();
     await expect(await canvas.findByRole("button", { name: "中村 さくら 早番 勤務あり" })).toHaveAccessibleDescription(
-      "希望していないシフトです",
+      "希望時間外に勤務あり",
     );
   },
 };

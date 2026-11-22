@@ -98,22 +98,19 @@ export const PositionDialogInteractive: Story = {
     await expect(await lateCell("勤務あり")).toHaveTextContent("キッチン");
     await expect(await canvas.findByRole("button", { name: "充足 77%" })).toBeVisible();
 
-    // 最後に選んだキッチンを覚え、次の空きのセルはキッチンで入る。夜番は遅番と時間が重なる。
+    // 最後に選んだキッチンを覚え、次の空きのセルはキッチンで入る。
+    // 夜番は遅番と時間が重なるが、重なりは知らせず、希望外の橙の点だけを出す。
     await userEvent.click(await canvas.findByRole("button", { name: "山本 拓海 夜番 勤務なし" }));
     const night = await canvas.findByRole("button", { name: "山本 拓海 夜番 勤務あり" });
     await expect(night).toHaveTextContent("キッチン");
-    await expect(night.querySelector("[data-assignment-dot]")).toHaveAttribute("data-assignment-dot", "red");
-    // 重なる相手の遅番にも、赤い点が出る。
-    await expect((await lateCell("勤務あり")).querySelector("[data-assignment-dot]")).toHaveAttribute(
-      "data-assignment-dot",
-      "red",
-    );
+    await expect(night.querySelector("[data-assignment-dot]")).toHaveAttribute("data-assignment-dot", "orange");
+    await expect((await lateCell("勤務あり")).querySelector("[data-assignment-dot]")).toBeNull();
 
     // モーダルには点の理由を出す。「削除」で割り当てを外す。
     await userEvent.click(night);
     const nightDialog = await body.findByRole("dialog", { name: "山本 拓海" });
-    await expect(nightDialog).toHaveTextContent("希望していないシフトです");
-    await expect(nightDialog).toHaveTextContent("遅番と時間が重なっています");
+    await expect(nightDialog).toHaveTextContent("希望時間外に勤務あり");
+    await expect(nightDialog).not.toHaveTextContent("時間が重なっています");
     await userEvent.click(within(nightDialog).getByRole("button", { name: "削除" }));
     await waitFor(() => expect(body.queryByRole("dialog")).not.toBeInTheDocument());
     await expect(await canvas.findByRole("button", { name: "山本 拓海 夜番 勤務なし" })).toBeInTheDocument();

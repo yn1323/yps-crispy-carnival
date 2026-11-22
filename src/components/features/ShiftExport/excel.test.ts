@@ -119,6 +119,30 @@ describe("Excelの実ファイル", () => {
     expect(sheet.querySelectorAll("sheetData > row")).toHaveLength(schedule.rows.length + 2);
   });
 
+  it("日付選択の「ポジション」は、長いポジション名を省かずに書き、折り返す", async () => {
+    const longName = "ドリンク".repeat(10);
+    const data = createExportFixture({
+      positions: [
+        { id: "hall", name: "ホール" },
+        { id: "drink", name: longName },
+      ],
+      isDetailMode: true,
+    });
+    data.recruitment.submissionPattern = { kind: "dateOnly" };
+    data.assignments = [{ ...data.assignments[0], positionId: "drink" }];
+    const schedule = buildExportSchedule(data, false, false, "positions");
+    const blob = await createShiftExcel(schedule);
+    const files = unzipSync(new Uint8Array(await blob.arrayBuffer()));
+    const sheet = parseXml(files["xl/worksheets/sheet1.xml"]);
+    const strings = parseXml(files["xl/sharedStrings.xml"]).querySelectorAll("si");
+    const styles = parseXml(files["xl/styles.xml"]);
+    const cell = sheet.querySelector('c[r="B3"]');
+    const style = styles.querySelectorAll("cellXfs > xf")[Number(cell?.getAttribute("s"))];
+
+    expect(strings[Number(cell?.querySelector("v")?.textContent)].textContent).toBe(longName);
+    expect(style.querySelector("alignment")?.getAttribute("wrapText")).toBe("1");
+  });
+
   it("期間を分けると前半・後半の順に全スタッフを出力し、それぞれの日付と印刷設定を保持する", async () => {
     const schedule = buildExportSchedule(createExportFixture(), true);
     schedule.mode = "shiftType";

@@ -363,7 +363,7 @@ export const AppOrganizationScopedDesktop: Story = {
 };
 
 /**
- * 下書きを保存した募集で「表示設定」から表示を切り替えようとすると、下書きを削除する前の確認が出る。
+ * 下書きを保存した募集か、保存していない編集があるときに「表示設定」から表示を切り替えようとすると、入れた勤務が消える前の確認が出る。
  * キャンセルすると、確認を閉じて、いまの表示のまま残る。
  */
 export const DetailModeSwitchConfirm: Story = {

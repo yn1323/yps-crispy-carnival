@@ -30,28 +30,28 @@ const warnings = [
     code: "OFF_REQUEST",
     date: "2026-01-21",
     staffId: "staff1",
-    label: "1/21(水) 鈴木太郎：休み希望の日に勤務が入っています",
+    label: "1/21(水) 鈴木太郎：休み希望日に勤務あり",
   },
   {
     key: "staff2-2026-01-22-NOT_SUBMITTED",
     code: "NOT_SUBMITTED",
     date: "2026-01-22",
     staffId: "staff2",
-    label: "1/22(木) 佐藤花子：未提出のまま勤務に入っています",
+    label: "1/22(木) 佐藤花子：未提出",
   },
   {
     key: "staff3-2026-01-23-OUTSIDE_REQUESTED_TIME",
     code: "OUTSIDE_REQUESTED_TIME",
     date: "2026-01-23",
     staffId: "staff3",
-    label: "1/23(金) 田中一郎：希望時間（10:00-18:00）の外に勤務があります",
+    label: "1/23(金) 田中一郎：希望時間外に勤務あり",
   },
   {
     key: "staff4-2026-01-24-OUTSIDE_REQUESTED_TIME",
     code: "OUTSIDE_REQUESTED_TIME",
     date: "2026-01-24",
     staffId: "staff4",
-    label: "1/24(土) 山田一郎：希望時間（9:00-15:00）の外に勤務があります",
+    label: "1/24(土) 山田一郎：希望時間外に勤務あり",
   },
 ];
 
