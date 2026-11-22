@@ -26,8 +26,8 @@ describe("E2E core result gate", () => {
   it("desktop 28件、mobile 2件の30契約を固定する", () => {
     const projects = [...EXPECTED_CORE_CONTRACTS.values()];
 
-    expect(EXPECTED_CORE_CONTRACTS.size).toBe(30);
-    expect(projects.filter((projectName) => projectName === "desktop-chromium")).toHaveLength(28);
+    expect(EXPECTED_CORE_CONTRACTS.size).toBe(31);
+    expect(projects.filter((projectName) => projectName === "desktop-chromium")).toHaveLength(29);
     expect(projects.filter((projectName) => projectName === "mobile-chrome")).toHaveLength(2);
   });
 

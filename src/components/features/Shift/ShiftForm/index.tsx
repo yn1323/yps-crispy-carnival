@@ -12,6 +12,7 @@ import type { PositionType, ShiftData, SortMode, StaffType, TimeRange, ViewMode 
 import { AutoCreateDialog } from "./AutoCreateDialog";
 import { AutoCreateButton } from "./AutoCreateDialog/entrances";
 import { BreakEditorDialog } from "./BreakEditorDialog";
+import { ChromeCollapse } from "./ChromeCollapse";
 import {
   ConfirmButton,
   ExportButton,
@@ -45,7 +46,6 @@ import { SPShiftTypeOverviewView } from "./sp/ShiftTypeOverviewView";
 import {
   applyShiftDraftsAtom,
   autoCreateDialogOpenAtom,
-  chromeHiddenAtom,
   detailModeAtom,
   detailToggleEnabledAtom,
   selectDateWithDailyStaffOrderAtom,
@@ -405,7 +405,6 @@ const Shell = ({
   children,
 }: ShellProps) => {
   const detailMode = useAtomValue(detailModeAtom);
-  const isChromeHidden = useAtomValue(chromeHiddenAtom);
   const [isAutoCreateOpen, setAutoCreateOpen] = useAtom(autoCreateDialogOpenAtom);
   const { provisionalAction } = useShiftFormDetailActions();
   // 自動作成は、勤務にポジションを持たせる「くわしく」で、未確定の募集を編集できるときだけ出す。
@@ -418,86 +417,72 @@ const Shell = ({
           <Heading as="h1">{header.mobileTitle}</Heading>
         </VisuallyHidden>
       )}
-      {/*
-        上の行（戻る、日別と一覧、保存）。内側の入れ物を下へスクロールすると、高さを0へ縮めて隠す。
-        隠している間は、中のボタンへフォーカスが移らないようにする。
-      */}
-      <Box
-        display="grid"
-        gridTemplateRows={isChromeHidden ? "0fr" : "1fr"}
-        transition="grid-template-rows 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
-        _motionReduce={{ transition: "none" }}
-        flexShrink={0}
-        data-chrome-row
-        data-chrome-hidden={isChromeHidden ? "" : undefined}
-        inert={isChromeHidden}
-      >
-        <Box minH={0} overflow="hidden">
-          <Grid
-            templateColumns={header && !compact ? "auto minmax(0, 1fr) auto" : "minmax(0, 1fr) auto"}
-            px={compact ? 3 : 5}
-            bg="white"
-            borderBottomWidth="1px"
-            borderColor="gray.200"
-            alignItems="center"
-          >
-            <Flex minW={0} align="center" alignSelf="stretch" gap={header ? { base: 3, lg: 4 } : undefined}>
-              {header && <FocusedFlowBackButton backLabel={header.backLabel} backAriaLabel={header.backAriaLabel} />}
-              {!hideViewTabs && (
-                <ViewTabs value={viewMode} onChange={setViewMode} compactSpacing={compact && Boolean(header)} />
+      {/* 上の行（戻る、日別と一覧、保存）。内側の入れ物を下へスクロールすると隠す。 */}
+      <ChromeCollapse isChromeRow>
+        <Grid
+          templateColumns={header && !compact ? "auto minmax(0, 1fr) auto" : "minmax(0, 1fr) auto"}
+          px={compact ? 3 : 5}
+          bg="white"
+          borderBottomWidth="1px"
+          borderColor="gray.200"
+          alignItems="center"
+        >
+          <Flex minW={0} align="center" alignSelf="stretch" gap={header ? { base: 3, lg: 4 } : undefined}>
+            {header && <FocusedFlowBackButton backLabel={header.backLabel} backAriaLabel={header.backAriaLabel} />}
+            {!hideViewTabs && (
+              <ViewTabs value={viewMode} onChange={setViewMode} compactSpacing={compact && Boolean(header)} />
+            )}
+          </Flex>
+          {header && !compact && (
+            <Heading
+              as="h1"
+              alignSelf="stretch"
+              display="flex"
+              alignItems="center"
+              justifyContent="center"
+              minW={0}
+              color="gray.950"
+              fontSize="lg"
+              textAlign="center"
+              truncate
+            >
+              {header.desktopTitle}
+            </Heading>
+          )}
+          {!isReadOnly || exportAction ? (
+            <Flex justifySelf="end" gap={2} align="center" py={compact ? 1 : 2} flexShrink={0}>
+              {compact && !isReadOnly ? (
+                <ActionsMenu
+                  isConfirmed={isConfirmed}
+                  isSavingDraft={isSavingDraft}
+                  isConfirming={isConfirming}
+                  onSaveDraft={onSaveDraft}
+                  onConfirm={onConfirm}
+                  exportAction={exportAction}
+                  onAutoCreate={canAutoCreate ? openAutoCreate : undefined}
+                />
+              ) : (
+                <>
+                  {/* 自動作成、下書き保存、PDF・Excel、確定の順に並べる。 */}
+                  {canAutoCreate && <AutoCreateButton onClick={openAutoCreate} />}
+                  {!isReadOnly && <SaveButton compact={compact} isSaving={isSavingDraft} onClick={onSaveDraft} />}
+                  {exportAction && <ExportButton {...exportAction} />}
+                  {!isReadOnly && (
+                    <ConfirmButton
+                      compact={compact}
+                      isConfirmed={isConfirmed}
+                      isConfirming={isConfirming}
+                      onClick={onConfirm}
+                    />
+                  )}
+                </>
               )}
             </Flex>
-            {header && !compact && (
-              <Heading
-                as="h1"
-                alignSelf="stretch"
-                display="flex"
-                alignItems="center"
-                justifyContent="center"
-                minW={0}
-                color="gray.950"
-                fontSize="lg"
-                textAlign="center"
-                truncate
-              >
-                {header.desktopTitle}
-              </Heading>
-            )}
-            {!isReadOnly || exportAction ? (
-              <Flex justifySelf="end" gap={2} align="center" py={compact ? 1 : 2} flexShrink={0}>
-                {compact && !isReadOnly ? (
-                  <ActionsMenu
-                    isConfirmed={isConfirmed}
-                    isSavingDraft={isSavingDraft}
-                    isConfirming={isConfirming}
-                    onSaveDraft={onSaveDraft}
-                    onConfirm={onConfirm}
-                    exportAction={exportAction}
-                    onAutoCreate={canAutoCreate ? openAutoCreate : undefined}
-                  />
-                ) : (
-                  <>
-                    {/* 自動作成、下書き保存、PDF・Excel、確定の順に並べる。 */}
-                    {canAutoCreate && <AutoCreateButton onClick={openAutoCreate} />}
-                    {!isReadOnly && <SaveButton compact={compact} isSaving={isSavingDraft} onClick={onSaveDraft} />}
-                    {exportAction && <ExportButton {...exportAction} />}
-                    {!isReadOnly && (
-                      <ConfirmButton
-                        compact={compact}
-                        isConfirmed={isConfirmed}
-                        isConfirming={isConfirming}
-                        onClick={onConfirm}
-                      />
-                    )}
-                  </>
-                )}
-              </Flex>
-            ) : (
-              header && <Box justifySelf="end" minW="44px" />
-            )}
-          </Grid>
-        </Box>
-      </Box>
+          ) : (
+            header && <Box justifySelf="end" minW="44px" />
+          )}
+        </Grid>
+      </ChromeCollapse>
 
       <PositionLegend />
 

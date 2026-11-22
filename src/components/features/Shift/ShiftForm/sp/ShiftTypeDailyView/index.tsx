@@ -12,6 +12,7 @@ import {
   FulfillmentLabel,
   PositionStaffingCount,
 } from "../../assignmentCellParts";
+import { ChromeCollapse } from "../../ChromeCollapse";
 import { DateIssueBadge, dateIssueBorderColor } from "../../components";
 import { DisplaySettingsMenu } from "../../DisplaySettingsMenu";
 import { ShiftStaffNoteIcon, useAllShiftDateNotes } from "../../dateNotes";
@@ -165,70 +166,73 @@ export const SPShiftTypeDailyView = () => {
 
   return (
     <Flex direction="column" flex={1} minH={0}>
-      <Box px={3} pt={3} pb={2} bg="white" borderBottomWidth="1px" borderColor="gray.100" flexShrink={0}>
-        <Flex ref={dateStripRef} gap={2} overflow="auto" pt={2} pb={1}>
-          {dates.map((iso) => {
-            const date = dayjs(iso);
-            const active = iso === selectedDate;
-            const isClosed = holidays.includes(iso);
-            const issueCount = issueCounts.get(iso) ?? 0;
-            const warningCount = warningCounts.get(iso) ?? 0;
-            const chipBorderColor = dateIssueBorderColor({
-              active,
-              issueCount,
-              warningCount,
-              activeColor: "teal.500",
-              fallbackColor: "gray.200",
-            });
-            return (
-              <Box
-                key={iso}
-                data-date-chip={iso}
-                onClick={() => selectDate(iso)}
-                position="relative"
-                flexShrink={0}
-                w="52px"
-                py="8px"
-                textAlign="center"
-                borderRadius="md"
-                borderWidth="1px"
-                borderColor={chipBorderColor}
-                bg={active ? "teal.500" : isClosed ? "gray.50" : "white"}
-                cursor="pointer"
-                transitionProperty="colors"
-                transitionDuration="faster"
-                _active={{ bg: active ? "teal.600" : "gray.100", transitionDuration: "0ms" }}
-              >
-                <DateIssueBadge issueCount={issueCount} warningCount={warningCount} />
+      {/* 日付の一覧は、表を下へスクロールすると上の行と一緒に隠す。日付の見出しは残す。 */}
+      <ChromeCollapse>
+        <Box px={3} pt={3} pb={2} bg="white" borderBottomWidth="1px" borderColor="gray.100">
+          <Flex ref={dateStripRef} gap={2} overflow="auto" pt={2} pb={1}>
+            {dates.map((iso) => {
+              const date = dayjs(iso);
+              const active = iso === selectedDate;
+              const isClosed = holidays.includes(iso);
+              const issueCount = issueCounts.get(iso) ?? 0;
+              const warningCount = warningCounts.get(iso) ?? 0;
+              const chipBorderColor = dateIssueBorderColor({
+                active,
+                issueCount,
+                warningCount,
+                activeColor: "teal.500",
+                fallbackColor: "gray.200",
+              });
+              return (
                 <Box
-                  textStyle="md"
-                  fontWeight={700}
-                  color={active ? "white" : "gray.800"}
-                  lineHeight="1.1"
-                  fontVariantNumeric="tabular-nums"
+                  key={iso}
+                  data-date-chip={iso}
+                  onClick={() => selectDate(iso)}
+                  position="relative"
+                  flexShrink={0}
+                  w="52px"
+                  py="8px"
+                  textAlign="center"
+                  borderRadius="md"
+                  borderWidth="1px"
+                  borderColor={chipBorderColor}
+                  bg={active ? "teal.500" : isClosed ? "gray.50" : "white"}
+                  cursor="pointer"
+                  transitionProperty="colors"
+                  transitionDuration="faster"
+                  _active={{ bg: active ? "teal.600" : "gray.100", transitionDuration: "0ms" }}
                 >
-                  {date.date()}
+                  <DateIssueBadge issueCount={issueCount} warningCount={warningCount} />
+                  <Box
+                    textStyle="md"
+                    fontWeight={700}
+                    color={active ? "white" : "gray.800"}
+                    lineHeight="1.1"
+                    fontVariantNumeric="tabular-nums"
+                  >
+                    {date.date()}
+                  </Box>
+                  {/* 休みは曜日と同じ行に置き、日付の高さをそろえる。 */}
+                  <Box
+                    textStyle="2xs"
+                    mt="2px"
+                    fontWeight={active ? 700 : 500}
+                    whiteSpace="nowrap"
+                    style={{ color: active ? "white" : getShiftWeekdayColor(iso) }}
+                  >
+                    {getWeekdayLabel(iso)}
+                    {isClosed && (
+                      <Box as="span" fontWeight={700} color={active ? "white" : "gray.500"}>
+                        (休)
+                      </Box>
+                    )}
+                  </Box>
                 </Box>
-                {/* 休みは曜日と同じ行に置き、日付の高さをそろえる。 */}
-                <Box
-                  textStyle="2xs"
-                  mt="2px"
-                  fontWeight={active ? 700 : 500}
-                  whiteSpace="nowrap"
-                  style={{ color: active ? "white" : getShiftWeekdayColor(iso) }}
-                >
-                  {getWeekdayLabel(iso)}
-                  {isClosed && (
-                    <Box as="span" fontWeight={700} color={active ? "white" : "gray.500"}>
-                      (休)
-                    </Box>
-                  )}
-                </Box>
-              </Box>
-            );
-          })}
-        </Flex>
-      </Box>
+              );
+            })}
+          </Flex>
+        </Box>
+      </ChromeCollapse>
 
       {selectedDay && (
         <Flex

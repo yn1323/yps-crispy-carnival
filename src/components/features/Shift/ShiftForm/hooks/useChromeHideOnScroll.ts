@@ -3,8 +3,9 @@ import { type UIEvent, useCallback, useEffect, useRef } from "react";
 import { createHideOnScrollDownTracker } from "@/src/hooks/useHideOnScrollDown";
 import { chromeHiddenAtom } from "../stores";
 
-// 隠す上の行（アプリのヘッダーとシフト表の上の行）の高さの見積もり。隠すと、その分だけスクロールする入れ物が伸びる。
-const COLLAPSIBLE_HEIGHT_ESTIMATE_PX = 120;
+// 隠す行（アプリのヘッダー、シフト表の上の行、日付選択とパターン選択のスマートフォンの日付の一覧）の高さの見積もり。
+// 隠すと、その分だけスクロールする入れ物が伸びる。
+const COLLAPSIBLE_HEIGHT_ESTIMATE_PX = 140;
 // 入れ物が伸びたあともスクロールできる内容でだけ隠す。短い内容で隠すと、伸びた分でスクロール位置が上端へ戻り、
 // 隠す・表示するを繰り返してしまう。
 const MIN_SCROLL_RANGE_TO_HIDE_PX = COLLAPSIBLE_HEIGHT_ESTIMATE_PX + 120;

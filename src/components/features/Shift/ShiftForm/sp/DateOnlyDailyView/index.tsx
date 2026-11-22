@@ -17,6 +17,7 @@ import {
   FulfillmentLabel,
   PositionStaffingCount,
 } from "../../assignmentCellParts";
+import { ChromeCollapse } from "../../ChromeCollapse";
 import { DateIssueBadge, dateIssueBorderColor } from "../../components";
 import { DisplaySettingsMenu } from "../../DisplaySettingsMenu";
 import { useAllShiftDateNotes } from "../../dateNotes";
@@ -151,14 +152,17 @@ export const SPDateOnlyDailyView = () => {
 
   return (
     <Flex direction="column" flex={1} minH={0} bg="gray.50">
-      <DateRail
-        dates={dates}
-        holidays={holidays}
-        selectedDate={activeDate}
-        issueCounts={issueCounts}
-        warningCounts={warningCounts}
-        onSelect={handleDateSelect}
-      />
+      {/* 日付の一覧は、一覧を下へスクロールすると上の行と一緒に隠す。日付の見出しは残す。 */}
+      <ChromeCollapse>
+        <DateRail
+          dates={dates}
+          holidays={holidays}
+          selectedDate={activeDate}
+          issueCounts={issueCounts}
+          warningCounts={warningCounts}
+          onSelect={handleDateSelect}
+        />
+      </ChromeCollapse>
 
       <Flex
         px={4}

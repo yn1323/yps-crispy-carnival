@@ -3,7 +3,15 @@ import { type ComponentProps, useState } from "react";
 import { expect, waitFor, within } from "storybook/test";
 import type { StaffType } from "@/src/domains/shift/types";
 import { ShiftForm } from "..";
-import { allPatternsArgs, desktopGlobals, fullscreenParameters, mobileGlobals, shiftFormDecorators } from "./shared";
+import {
+  allPatternsArgs,
+  dateOnlyArgs,
+  desktopGlobals,
+  fullscreenParameters,
+  mobileGlobals,
+  shiftFormDecorators,
+  shiftTypeArgs,
+} from "./shared";
 
 type ShiftFormArgs = ComponentProps<typeof ShiftForm>;
 
@@ -120,5 +128,47 @@ export const HidesOnMobile: Story = {
     // 見出しの行は、入れ物の上端に留まる。
     const headingRow = heading.parentElement?.parentElement as HTMLElement;
     await waitFor(() => expect(topOf(headingRow)).toBe(topOf(scroller)));
+  },
+};
+
+/**
+ * 日付選択とパターン選択のスマートフォンでは、日付の一覧が表の外にあるため、上の行と一緒に縮めて隠す。
+ * 日付の見出しは残し、上へ戻すと日付の一覧も表示する。
+ */
+const expectDateRailHidesWithChrome = async (canvasElement: HTMLElement) => {
+  const { scroller } = await expectHidesAndReveals(canvasElement);
+  const dateChip = canvasElement.querySelector<HTMLElement>("[data-date-chip]");
+  const dateRail = dateChip?.closest<HTMLElement>("[data-chrome-collapse]");
+  if (!dateRail) throw new Error("隠す行の中に日付の一覧が見つかりません");
+  // 日付の一覧のすぐ下の行が、日付の見出し（日付、テンプレート、表示設定）である。
+  const dateHeading = dateRail.nextElementSibling;
+  if (!(dateHeading instanceof HTMLElement)) throw new Error("日付の見出しが見つかりません");
+
+  scroller.scrollTop = 600;
+  await waitFor(() => expect(dateRail).toHaveAttribute("data-chrome-hidden"));
+  await waitFor(() => expect(dateRail.getBoundingClientRect().height).toBe(0));
+  await expect(dateHeading).toBeVisible();
+  await expect(dateHeading.getBoundingClientRect().height).toBeGreaterThan(0);
+
+  scroller.scrollTop = 560;
+  await waitFor(() => expect(dateRail).not.toHaveAttribute("data-chrome-hidden"));
+  await waitFor(() => expect(dateRail.getBoundingClientRect().height).toBeGreaterThan(0));
+};
+
+export const HidesDateRailOnMobileDateOnly: Story = {
+  name: "Hides Date Rail On Mobile Date Only",
+  globals: mobileGlobals,
+  args: { ...dateOnlyArgs, staffs: manyStaffs, initialShifts: [] },
+  play: async ({ canvasElement }) => {
+    await expectDateRailHidesWithChrome(canvasElement);
+  },
+};
+
+export const HidesDateRailOnMobileShiftType: Story = {
+  name: "Hides Date Rail On Mobile Shift Type",
+  globals: mobileGlobals,
+  args: { ...shiftTypeArgs, staffs: manyStaffs, initialShifts: [] },
+  play: async ({ canvasElement }) => {
+    await expectDateRailHidesWithChrome(canvasElement);
   },
 };

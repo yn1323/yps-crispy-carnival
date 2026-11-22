@@ -51,6 +51,16 @@ export class ShiftBoardPage {
     }
   }
 
+  /**
+   * くわしく表示の日付の見出しで、ポジションの「配置/必要」がその表示の日数だけ並ぶことを確認する。
+   * 見出しの「配置/必要」は、読み上げとtitleに「キッチン 1/2」の形の全文を持つ。
+   */
+  async expectStaffingCountDays(positionName: string, label: string, dayCount: number) {
+    await expect(this.page.getByTitle(`${positionName} ${label}`, { exact: true })).toHaveCount(dayCount, {
+      timeout: 20_000,
+    });
+  }
+
   async saveDraft() {
     await this.page.getByRole("button", { name: "下書き保存", exact: true }).click();
     await expect(this.page.getByText("下書きを保存しました", { exact: true })).toBeVisible();

@@ -1505,6 +1505,8 @@ export const seedOpenRecruitmentNotificationScenario = internalMutation({
     managerEmail: v.optional(v.string()),
     dates: scenarioDatesValidator,
     dateOnly: v.optional(v.boolean()),
+    // 店舗の集め方も日付選択にする。設定ページの必要人数は、店舗の集め方で入力する。
+    shopDateOnly: v.optional(v.boolean()),
     managerLineState: v.optional(lineDeliveryStateValidator),
     managerLegalConsentState: v.optional(legalConsentStateValidator),
     managerStaffLegalConsentState: v.optional(legalConsentStateValidator),
@@ -1517,6 +1519,9 @@ export const seedOpenRecruitmentNotificationScenario = internalMutation({
       managerLegalConsentState: args.managerLegalConsentState,
       managerStaffLegalConsentState: args.managerStaffLegalConsentState,
     });
+    if (args.shopDateOnly) {
+      await ctx.db.patch(shopId, { submissionPattern: { kind: "dateOnly" } });
+    }
     const recruitmentId = await createRecruitment(ctx, {
       shopId,
       dates: args.dates,
