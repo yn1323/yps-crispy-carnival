@@ -56,8 +56,10 @@ import { SPShiftTypeOverviewView } from "./sp/ShiftTypeOverviewView";
 import {
   applyShiftDraftsAtom,
   autoCreateDialogOpenAtom,
+  autoCreateShowsBreakOptionAtom,
   detailModeAtom,
   detailToggleEnabledAtom,
+  hasAutoCreateRequirementsAtom,
   selectDateWithDailyStaffOrderAtom,
   selectedDateAtom,
   shiftsAtom,
@@ -427,7 +429,9 @@ const Shell = ({
 }: ShellProps) => {
   const detailMode = useAtomValue(detailModeAtom);
   const [isAutoCreateOpen, setAutoCreateOpen] = useAtom(autoCreateDialogOpenAtom);
-  const { provisionalAction } = useShiftFormDetailActions();
+  const { provisionalAction, autoCreateAction, onOpenSetup } = useShiftFormDetailActions();
+  const hasAutoCreateRequirements = useAtomValue(hasAutoCreateRequirementsAtom);
+  const autoCreateShowsBreakOption = useAtomValue(autoCreateShowsBreakOptionAtom);
   // 自動作成は、勤務にポジションを持たせる「くわしく」で、未確定の募集を編集できるときだけ出す。
   const canAutoCreate = detailMode && !isReadOnly && !isConfirmed;
   const openAutoCreate = () => setAutoCreateOpen(true);
@@ -533,7 +537,19 @@ const Shell = ({
         </Flex>
       </ShiftFormScrollEndProvider>
       {!compact && unsubmittedStrip}
-      {canAutoCreate && <AutoCreateDialog isOpen={isAutoCreateOpen} onClose={() => setAutoCreateOpen(false)} />}
+      {canAutoCreate && (
+        <AutoCreateDialog
+          isOpen={isAutoCreateOpen}
+          onClose={() => setAutoCreateOpen(false)}
+          onCreate={autoCreateAction?.onCreate}
+          isCreating={autoCreateAction?.isLoading}
+          aiUnavailableReason={autoCreateAction?.aiUnavailableReason}
+          aiRemainingCount={autoCreateAction?.aiRemainingCount}
+          showsBreakOption={autoCreateShowsBreakOption}
+          isRequirementMissing={!hasAutoCreateRequirements}
+          onOpenSetup={onOpenSetup}
+        />
+      )}
     </Flex>
   );
 };

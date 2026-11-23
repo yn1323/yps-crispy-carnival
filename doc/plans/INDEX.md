@@ -18,7 +18,7 @@
 
 | 計画 | 状態 | 次に必要な判断 | 現在の正本 |
 |---|---|---|---|
-| [シフトの自動作成の方針](2026-11-21_シフトの自動作成_方針.md) | `reviewing` | ボタン、メニュー項目、作り方を選ぶダイアログだけを実装済み。必要人数がない店舗と日の扱い、AIの回数の単位、個人情報のヘルプ、ポジションを分けない店舗への案内を、「作成する」の処理を作るときに決める | [シフト表](../features/shift-board.md)の「自動作成」 |
+| [シフトの自動作成の方針](2026-11-21_シフトの自動作成_方針.md) | `reviewing` | 希望シフトから作るほうは[実装計画](2026-11-23_シフトの自動作成_実装計画.md)で実装済み。AIの回数の単位、個人情報のヘルプ、ポジションを分けない店舗への案内を、「作成する」の処理を作るときに決める | [シフト表](../features/shift-board.md)の「自動作成」 |
 | [人数が多い店舗のシフト作成方針](2026-11-14_人数が多い店舗のシフト作成_方針.md) | `reviewing` | 「必要」とした要素は[実装計画](2026-11-16_人数が多い店舗のシフト作成_実装計画.md)で実装済み。勤務の型、通知せずに確定する機能、実績がない店舗の初回設定の負担、店舗の要望の確かめ方を決める | 現行のシフト作成は[シフト表](../features/shift-board.md)、設定は[店舗設定](../features/shop-settings.md) |
 | [Analytics分析用JSONの仮名化出力](2026-11-09_Analytics分析用JSONの仮名化出力_設計.md) | `reviewing` | 組織・店舗・スタッフ・ユーザーはDBのIDで出力すると決定済み。対応表を画面だけに出すか、募集8件・利用日90日の範囲で足りるかを決める | [分析KPI可視化アプリ](../features/analytics-dashboard.md) |
 | [GA4計測基盤とSkill整備](2026-08-12_GA4計測基盤とSkill整備_実装計画.md) | `partially superseded` | アプリ側safe coreは監査残件実装計画へ移管済み。`ga4-measurement` Skillを別途作成するかだけを決める | [公開Web計測](../features/web-measurement.md)、[GA4・GTM運用](../manual/ga4-gtm.md) |
@@ -40,6 +40,7 @@
 | [人数が多い店舗のシフト作成](2026-11-16_人数が多い店舗のシフト作成_実装計画.md) | `repository implemented` | 13要素、設定ページ、仮の処理のAIサポート、PDF・Excel出力への反映、core E2Eの1契約を実装し、ローカルの検証は成功。実際のAIへの接続、ヘルプの追加、VRT基準画像の承認、CI、実環境への反映が残る | 方針は[人数が多い店舗のシフト作成方針](2026-11-14_人数が多い店舗のシフト作成_方針.md)。現行のシフト作成は[シフト表](../features/shift-board.md)、設定は[店舗設定](../features/shop-settings.md) |
 | [必要人数のバー入力と型の当て方](2026-11-16_必要人数のバー入力と型の当て方_実装計画.md) | `repository implemented` | 2026-11-16に承認され、実装とローカルの検証（lint、型、Logic、Convex、Behavior、build）が成功。E2Eの実行、VRT基準画像の承認、CI、実環境への反映、本番の祝日の表の投入が残る | 初版は[人数が多い店舗のシフト作成](2026-11-16_人数が多い店舗のシフト作成_実装計画.md)。現行の設定は[シフト作成の設定](../features/shift-setup.md) |
 | [希望シフトの日付メモ](2026-10-04_希望シフトの日付メモ_実装計画.md) | `repository implemented` | 提出画面、シフト表（PC・SP）、PDF・Excelのメモ一覧、プライバシーポリシー更新を実装し、ローカルのlint・型検査・全テスト・buildは成功。仮決定の項目（文字数、再同意、閲覧のみ、常時有効、保持期間、メモ一覧の初期状態）とポリシー文言の法務確認、VRT基準画像の承認、CI、実環境への反映とClarity設定の確認が残る | [希望シフト提出](../features/shift-submission.md)、[シフト表](../features/shift-board.md) |
+| [シフトの自動作成（希望シフトから作成）](2026-11-23_シフトの自動作成_実装計画.md) | `repository implemented` | 希望シフトから作る処理、過去の集計、ダイアログへの接続、主担当のテスト、core E2E 1件、機能文書の更新を実装し、lint・型検査・build・Logic/Convex/Scenario/Behavior testとcore E2Eの全契約は成功。全契約の反復、VRT、ブランチ全体のレビュー、初めて使う担当者の立場の確認、ダイアログと知らせの文言の確認、実環境への反映が残る | [シフト表](../features/shift-board.md)の「自動作成」 |
 | [LINE連携トークンの使い回し](2026-10-31_LINE連携トークン使い回し_実装計画.md) | `repository implemented` | メール経由の発行での使い回し、メール変更時の失効、主担当テスト、機能文書の更新を実装し、lint・型検査・Logic/Convex/Scenario testは成功。UI testはローカル環境でブラウザを起動できず未実行。CI・自動レビューと実環境への反映が残る | [LINE通知連携](../features/line-notification.md) |
 | [トライアル終了前のDashboard案内](2026-10-17_トライアル終了前のDashboard案内_実装計画.md) | `repository implemented` | 未契約Trialへ終了14日前・7日前・最終日の段階的な案内をDashboardに実装し、ローカルの検証は成功。表示と押下の計測、VRT基準画像の承認、CI、実環境への反映が残る | [Dashboardの課金案内](../features/trial-ending-dashboard-callout.md) |
 | [Analyticsの問い合わせ調査と利用状況の追加](2026-09-26_Analytics問い合わせ調査と利用状況の追加_実装計画.md) | `repository implemented` | 要注意の店舗、契約状態、通知の状態と検索、スタッフの行動履歴、組織の操作履歴、内部IDの表示、tokenによるマジックリンクの確認、通知の組織名・店舗名検索、契約状況・期間の店舗数からの店舗一覧の絞り込み、店舗一覧の分割取得を既存データだけで実装し、ローカルのlint・型検査・Convex/logic test・Analytics buildは成功。CI・自動レビュー、実環境への反映と実データでの表示確認が残る | [分析KPI可視化アプリ](../features/analytics-dashboard.md) |

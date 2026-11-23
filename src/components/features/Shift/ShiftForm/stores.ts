@@ -1,4 +1,5 @@
 import { atom, type Getter, type Setter } from "jotai";
+import { hasRequiredStaff } from "@/convex/shiftBoard/autoCreate/requirements";
 import type { AssignmentIssue } from "@/convex/shiftBoard/validation";
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import { getAssignmentWarningSettingText } from "@/src/components/shared/ShiftAssignmentWarning";
@@ -396,6 +397,16 @@ export const chromeHiddenAtom = atom<boolean>(false);
 // ==========================================
 // 自動作成のダイアログを開いている間はtrue。PCの上の行のボタンと、スマートフォンのメニューから開く。
 export const autoCreateDialogOpenAtom = atom<boolean>(false);
+// 自動作成のダイアログに、休憩を入れるかどうかの選択を出すか。休憩を扱うのは時間指定だけである。
+export const autoCreateShowsBreakOptionAtom = atom<boolean>(
+  (get) => get(shiftConfigAtom).submissionPattern.kind === "time",
+);
+// 募集期間に、必要人数のある日が1日でもあるか。1日もなければ、自動作成で作れる勤務がない。
+export const hasAutoCreateRequirementsAtom = atom<boolean>((get) => {
+  const config = get(shiftConfigAtom);
+  const closedDates = new Set(config.holidays);
+  return (config.staffing?.days ?? []).some((day) => !closedDates.has(day.date) && hasRequiredStaff(day.requirements));
+});
 
 // ==========================================
 // 入れるものの選択（ポジションまたは休憩）

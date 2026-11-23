@@ -34,6 +34,7 @@ export const EXPECTED_CORE_CONTRACTS = new Map([
   ["E2E-STAFFING-03", "desktop-chromium"],
   ["E2E-STAFFING-04", "desktop-chromium"],
   ["E2E-PROVISIONAL-01", "desktop-chromium"],
+  ["E2E-AUTOCREATE-01", "desktop-chromium"],
   ["E2E-MOBILE-01", "mobile-chrome"],
   ["E2E-MOBILE-02", "mobile-chrome"],
   ["E2E-MOBILE-03", "mobile-chrome"],

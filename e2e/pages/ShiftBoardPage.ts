@@ -111,6 +111,15 @@ export class ShiftBoardPage {
     ).toBeVisible();
   }
 
+  /** 「くわしく」表示の上の行から自動作成を開き、希望シフトから作る。作った勤務は下書きに入るだけで、保存はしない。 */
+  async autoCreateFromRequests() {
+    await this.page.getByRole("button", { name: "自動作成", exact: true }).click();
+    const dialog = this.page.getByRole("dialog", { name: "シフトを自動作成" });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "作成する", exact: true }).click();
+    await expect(this.page.getByText("シフトを自動作成しました", { exact: true })).toBeVisible();
+  }
+
   async saveDraft() {
     await this.page.getByRole("button", { name: "下書き保存", exact: true }).click();
     await expect(this.page.getByText("下書きを保存しました", { exact: true })).toBeVisible();

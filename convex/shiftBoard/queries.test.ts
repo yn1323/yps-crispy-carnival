@@ -1,7 +1,7 @@
 import type { TestConvex } from "convex-test";
 import { convexTest } from "convex-test";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { api } from "../_generated/api";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { api, internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import { seedStaff } from "../_test/scenarioBuilders";
 import { seedManagerShop, seedOrganizationManagerShop } from "../_test/seed";
@@ -1413,6 +1413,14 @@ describe("shiftBoard/queries", () => {
   });
 
   describe("getShiftBoardStaffing", () => {
+    // AIを使える環境かどうかは環境変数で決まるため、実行する環境に左右されないよう、設定のない状態にそろえる。
+    beforeEach(() => {
+      vi.stubEnv("ANTHROPIC_API_KEY", "");
+    });
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
     const bar = (positionId: Id<"positions">, startTime: string, endTime: string) => ({
       positionId,
       startTime,
@@ -1660,6 +1668,9 @@ describe("shiftBoard/queries", () => {
           { staffId: ids.submittedStaffId, positionSkills: [{ positionId: ids.hallPositionId, level: "newcomer" }] },
         ].sort((a, b) => a.staffId.localeCompare(b.staffId)),
         hasPreviousConfirmedRecruitment: false,
+        isAiDraftConfigured: false,
+        // 回数を設定していない環境では、既定の5回がそのまま残っている。
+        aiDraftRemainingCount: 5,
         isLocked: false,
         // 募集の集め方（時間指定）と種類が合うテンプレートだけを、設定した並び順で返す。
         templates: [
@@ -1792,6 +1803,9 @@ describe("shiftBoard/queries", () => {
         breakRule: null,
         staffProfiles: [],
         hasPreviousConfirmedRecruitment: false,
+        isAiDraftConfigured: false,
+        // 回数を設定していない環境では、既定の5回がそのまま残っている。
+        aiDraftRemainingCount: 5,
         isLocked: false,
         templates: [],
         days: PERIOD_DATES.map((date) => unsetDay(date, "none")),
@@ -2055,6 +2069,86 @@ describe("shiftBoard/queries", () => {
 
       expect(result).not.toBeNull();
       expect(result?.hasPreviousConfirmedRecruitment).toBe(expected);
+    });
+
+    describe("AIでの作成の残りの回数", () => {
+      beforeEach(() => {
+        // 1つの募集で作成できる回数は、環境変数で決める。
+        vi.stubEnv("AI_SHIFT_DRAFT_RECRUITMENT_LIMIT", "3");
+      });
+      afterEach(() => {
+        vi.unstubAllEnvs();
+      });
+
+      const insertUsage = (
+        t: TestConvex<typeof schema>,
+        ids: StaffingBoardIds,
+        usage: { recruitmentId: Id<"recruitments">; outcome: "created" | "declined" },
+      ) =>
+        t.run(async (ctx) =>
+          ctx.db.insert("aiShiftDraftUsages", {
+            organizationId: ids.organizationId,
+            shopId: ids.shopId,
+            model: "claude-haiku-5-5",
+            effort: "low",
+            maxTokens: 16000,
+            inputTokens: 1000,
+            outputTokens: 200,
+            ...usage,
+          }),
+        );
+
+      it("この募集でAIが下書きを返せた回数だけを引き、0より小さくしない", async () => {
+        const t = convexTest(schema, modules);
+        const ids = await seedStaffingBoard(t);
+        const otherRecruitmentId = await seedRecruitment(t, {
+          shopId: ids.shopId,
+          periodStart: "2026-09-01",
+          periodEnd: "2026-09-07",
+          status: "open",
+        });
+        // 応じなかった回と、別の募集の回は数えない。
+        await insertUsage(t, ids, { recruitmentId: ids.recruitmentId, outcome: "declined" });
+        await insertUsage(t, ids, { recruitmentId: otherRecruitmentId, outcome: "created" });
+        await insertUsage(t, ids, { recruitmentId: ids.recruitmentId, outcome: "created" });
+        expect((await getStaffing(t, ids))?.aiDraftRemainingCount).toBe(2);
+
+        for (let count = 0; count < 3; count += 1) {
+          await insertUsage(t, ids, { recruitmentId: ids.recruitmentId, outcome: "created" });
+        }
+        expect((await getStaffing(t, ids))?.aiDraftRemainingCount).toBe(0);
+      });
+
+      it("環境変数で回数を変えると、その回数から数える", async () => {
+        vi.stubEnv("AI_SHIFT_DRAFT_RECRUITMENT_LIMIT", "5");
+        const t = convexTest(schema, modules);
+        const ids = await seedStaffingBoard(t);
+        await insertUsage(t, ids, { recruitmentId: ids.recruitmentId, outcome: "created" });
+
+        expect((await getStaffing(t, ids))?.aiDraftRemainingCount).toBe(4);
+      });
+
+      it("回数を0にした環境では、残りを0で返す", async () => {
+        vi.stubEnv("AI_SHIFT_DRAFT_RECRUITMENT_LIMIT", "0");
+        const t = convexTest(schema, modules);
+        const ids = await seedStaffingBoard(t);
+
+        expect((await getStaffing(t, ids))?.aiDraftRemainingCount).toBe(0);
+      });
+    });
+
+    it.each([
+      ["APIキーのある環境", "test-key", true],
+      ["APIキーのない環境", "", false],
+    ])("%sでは、AIでの作成を使えるかを%sで返す", async (_label, apiKey, expected) => {
+      vi.stubEnv("ANTHROPIC_API_KEY", apiKey);
+      const t = convexTest(schema, modules);
+      const ids = await seedStaffingBoard(t);
+
+      const result = await getStaffing(t, ids);
+
+      expect(result).not.toBeNull();
+      expect(result?.isAiDraftConfigured).toBe(expected);
     });
   });
 
@@ -2374,6 +2468,394 @@ describe("shiftBoard/queries", () => {
       });
 
       await expect(getProvisional(t, ids)).rejects.toThrow("Shift assignment scope exceeds the supported limit");
+    });
+  });
+
+  describe("getAutoCreateHistory", () => {
+    const getHistory = (t: TestConvex<typeof schema>, ids: StaffingBoardIds) =>
+      t.withIdentity({ subject: STAFFING_MANAGER }).query(api.shiftBoard.queries.getAutoCreateHistory, {
+        ...ids.scope,
+        recruitmentId: ids.recruitmentId,
+      });
+    const seedPrevious = (
+      t: TestConvex<typeof schema>,
+      ids: StaffingBoardIds,
+      options?: {
+        periodStart?: string;
+        periodEnd?: string;
+        status?: "open" | "confirmed";
+        isDeleted?: boolean;
+        submissionPattern?: BoardPattern;
+      },
+    ) =>
+      seedRecruitment(t, {
+        shopId: ids.shopId,
+        periodStart: options?.periodStart ?? "2026-08-03",
+        periodEnd: options?.periodEnd ?? "2026-08-16",
+        ...(options?.status ? { status: options.status } : {}),
+        ...(options?.isDeleted ? { isDeleted: true } : {}),
+        ...(options?.submissionPattern ? { submissionPattern: options.submissionPattern } : {}),
+      });
+    /** 過去の募集に、提出と、時間つきの希望を入れる。 */
+    async function seedSubmittedSlots(
+      t: TestConvex<typeof schema>,
+      recruitmentId: Id<"recruitments">,
+      staffId: Id<"staffs">,
+      dates: string[],
+      options?: { needsResubmission?: boolean },
+    ) {
+      await t.run(async (ctx) => {
+        const submissionId = await ctx.db.insert("shiftSubmissions", {
+          recruitmentId,
+          staffId,
+          firstSubmittedAt: 1_000,
+          submittedAt: 1_000,
+          ...(options?.needsResubmission ? { needsResubmission: true } : {}),
+        });
+        for (const date of dates) {
+          await ctx.db.insert("shiftSubmissionSlots", {
+            submissionId,
+            recruitmentId,
+            staffId,
+            date,
+            startTime: "10:00",
+            endTime: "18:00",
+          });
+        }
+      });
+    }
+    const work = (staffId: Id<"staffs">, date: string, positionId: Id<"positions">) => ({
+      staffId,
+      date,
+      startTime: "10:00",
+      endTime: "18:00",
+      positionId,
+    });
+
+    it("未認証ではnullを返す", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedStaffingBoard(t);
+
+      await expect(
+        t.query(api.shiftBoard.queries.getAutoCreateHistory, { ...ids.scope, recruitmentId: ids.recruitmentId }),
+      ).resolves.toBeNull();
+    });
+
+    it("別組織の管理者と、別組織の店舗・募集の指定にはnullを返す", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedStaffingBoard(t);
+      const previousRecruitmentId = await seedPrevious(t, ids);
+      await seedSubmittedSlots(t, previousRecruitmentId, ids.submittedStaffId, ["2026-08-10"]);
+      await seedAssignments(t, previousRecruitmentId, [work(ids.submittedStaffId, "2026-08-10", ids.hallPositionId)]);
+      const asManager = t.withIdentity({ subject: STAFFING_MANAGER });
+
+      await expect(
+        t.withIdentity({ subject: STAFFING_OTHER_MANAGER }).query(api.shiftBoard.queries.getAutoCreateHistory, {
+          ...ids.scope,
+          recruitmentId: ids.recruitmentId,
+        }),
+      ).resolves.toBeNull();
+      await expect(
+        asManager.query(api.shiftBoard.queries.getAutoCreateHistory, {
+          shopId: ids.otherShopId,
+          expectedOrganizationId: ids.organizationId,
+          recruitmentId: ids.otherRecruitmentId,
+        }),
+      ).resolves.toBeNull();
+      await expect(
+        asManager.query(api.shiftBoard.queries.getAutoCreateHistory, {
+          ...ids.scope,
+          recruitmentId: ids.otherRecruitmentId,
+        }),
+      ).resolves.toBeNull();
+    });
+
+    it("過去に確定した募集がなければ、募集の数は0で、人は返さない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedStaffingBoard(t);
+
+      await expect(getHistory(t, ids)).resolves.toStrictEqual({ recruitmentCount: 0, staffs: [] });
+    });
+
+    it("シフト対象のスタッフの、希望した日数と勤務が入った日数だけを返す", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedStaffingBoard(t);
+      const previousRecruitmentId = await seedPrevious(t, ids);
+      await seedSubmittedSlots(t, previousRecruitmentId, ids.submittedStaffId, [
+        "2026-08-10",
+        "2026-08-11",
+        "2026-08-12",
+        "2026-08-13",
+      ]);
+      // 今回は未提出でも、過去に提出していれば数える。
+      await seedSubmittedSlots(t, previousRecruitmentId, ids.unsubmittedStaffId, ["2026-08-10"]);
+      // 再提出待ちのまま確定した人、シフト対象外の人、削除済みの人は数えない。
+      await seedSubmittedSlots(t, previousRecruitmentId, ids.resubmissionStaffId, ["2026-08-10"], {
+        needsResubmission: true,
+      });
+      await seedSubmittedSlots(t, previousRecruitmentId, ids.excludedStaffId, ["2026-08-10"]);
+      await seedSubmittedSlots(t, previousRecruitmentId, ids.deletedStaffId, ["2026-08-10"]);
+      await seedAssignments(t, previousRecruitmentId, [
+        work(ids.submittedStaffId, "2026-08-10", ids.hallPositionId),
+        work(ids.submittedStaffId, "2026-08-11", ids.kitchenPositionId),
+        // 仮の勤務と、削除済みのポジションの勤務は、入った日として数えない。
+        { ...work(ids.submittedStaffId, "2026-08-12", ids.hallPositionId), isProvisional: true },
+        work(ids.submittedStaffId, "2026-08-13", ids.deletedPositionId),
+        // 希望のない日の勤務は数えない。
+        work(ids.submittedStaffId, "2026-08-14", ids.hallPositionId),
+        work(ids.resubmissionStaffId, "2026-08-10", ids.hallPositionId),
+        work(ids.excludedStaffId, "2026-08-10", ids.hallPositionId),
+        work(ids.deletedStaffId, "2026-08-10", ids.hallPositionId),
+      ]);
+
+      const result = await getHistory(t, ids);
+
+      expect(result).not.toBeNull();
+      expect({
+        recruitmentCount: result?.recruitmentCount,
+        staffs: (result?.staffs ?? []).slice().sort((a, b) => a.staffId.localeCompare(b.staffId)),
+      }).toStrictEqual({
+        recruitmentCount: 1,
+        staffs: [
+          {
+            staffId: ids.submittedStaffId,
+            requestedDays: 4,
+            assignedDays: 2,
+            lastRequestedDays: 4,
+            lastAssignedDays: 2,
+            positions: [
+              { positionId: ids.hallPositionId, days: 1 },
+              { positionId: ids.kitchenPositionId, days: 1 },
+            ].sort((a, b) => a.positionId.localeCompare(b.positionId)),
+          },
+          {
+            staffId: ids.unsubmittedStaffId,
+            requestedDays: 1,
+            assignedDays: 0,
+            lastRequestedDays: 1,
+            lastAssignedDays: 0,
+            positions: [],
+          },
+        ].sort((a, b) => a.staffId.localeCompare(b.staffId)),
+      });
+    });
+
+    it("削除済み、未確定、今回より後の募集と、集め方の違う募集は数えない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedStaffingBoard(t);
+      const excludedRecruitmentIds = [
+        await seedPrevious(t, ids, { periodStart: "2026-08-03", periodEnd: "2026-08-09", isDeleted: true }),
+        await seedPrevious(t, ids, { periodStart: "2026-07-27", periodEnd: "2026-08-02", status: "open" }),
+        await seedPrevious(t, ids, { periodStart: "2026-08-24", periodEnd: "2026-08-30" }),
+        await seedPrevious(t, ids, {
+          periodStart: "2026-07-20",
+          periodEnd: "2026-07-26",
+          submissionPattern: { kind: "dateOnly" },
+        }),
+      ];
+      for (const recruitmentId of excludedRecruitmentIds) {
+        await seedSubmittedSlots(t, recruitmentId, ids.submittedStaffId, ["2026-08-03"]);
+      }
+
+      await expect(getHistory(t, ids)).resolves.toStrictEqual({ recruitmentCount: 0, staffs: [] });
+    });
+
+    it("新しい順に3つの募集までを数え、最も新しい募集を直近の1回にする", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedStaffingBoard(t);
+      const periods = [
+        // 4つ目に新しい募集は数えない。
+        { periodStart: "2026-07-20", periodEnd: "2026-07-26", requested: ["2026-07-20", "2026-07-21"] },
+        { periodStart: "2026-07-27", periodEnd: "2026-08-02", requested: ["2026-07-27"] },
+        { periodStart: "2026-08-03", periodEnd: "2026-08-09", requested: ["2026-08-03"] },
+        { periodStart: "2026-08-10", periodEnd: "2026-08-16", requested: ["2026-08-10", "2026-08-11", "2026-08-12"] },
+      ];
+      for (const period of periods) {
+        const recruitmentId = await seedPrevious(t, ids, period);
+        await seedSubmittedSlots(t, recruitmentId, ids.submittedStaffId, period.requested);
+        await seedAssignments(t, recruitmentId, [work(ids.submittedStaffId, period.requested[0], ids.hallPositionId)]);
+      }
+
+      await expect(getHistory(t, ids)).resolves.toStrictEqual({
+        recruitmentCount: 3,
+        staffs: [
+          {
+            staffId: ids.submittedStaffId,
+            requestedDays: 5,
+            assignedDays: 3,
+            lastRequestedDays: 3,
+            lastAssignedDays: 1,
+            positions: [{ positionId: ids.hallPositionId, days: 3 }],
+          },
+        ],
+      });
+    });
+
+    it("日付選択の募集では、日付の希望から数える", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedStaffingBoard(t, { submissionPattern: { kind: "dateOnly" } });
+      const previousRecruitmentId = await seedPrevious(t, ids, { submissionPattern: { kind: "dateOnly" } });
+      await t.run(async (ctx) => {
+        const submissionId = await ctx.db.insert("shiftSubmissions", {
+          recruitmentId: previousRecruitmentId,
+          staffId: ids.submittedStaffId,
+          firstSubmittedAt: 1_000,
+          submittedAt: 1_000,
+        });
+        for (const date of ["2026-08-10", "2026-08-11"]) {
+          await ctx.db.insert("shiftSubmissionDates", {
+            submissionId,
+            recruitmentId: previousRecruitmentId,
+            staffId: ids.submittedStaffId,
+            date,
+          });
+        }
+      });
+      await seedAssignments(t, previousRecruitmentId, [
+        { ...work(ids.submittedStaffId, "2026-08-10", ids.hallPositionId), startTime: "09:00", endTime: "22:00" },
+      ]);
+
+      await expect(getHistory(t, ids)).resolves.toStrictEqual({
+        recruitmentCount: 1,
+        staffs: [
+          {
+            staffId: ids.submittedStaffId,
+            requestedDays: 2,
+            assignedDays: 1,
+            lastRequestedDays: 2,
+            lastAssignedDays: 1,
+            positions: [{ positionId: ids.hallPositionId, days: 1 }],
+          },
+        ],
+      });
+    });
+
+    it("確定済みの募集では、何も数えない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedStaffingBoard(t, { status: "confirmed" });
+      const previousRecruitmentId = await seedPrevious(t, ids);
+      await seedSubmittedSlots(t, previousRecruitmentId, ids.submittedStaffId, ["2026-08-10"]);
+
+      await expect(getHistory(t, ids)).resolves.toStrictEqual({ recruitmentCount: 0, staffs: [] });
+    });
+
+    it("勤務が上限を超える募集は、一部だけを数えずに外す", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedStaffingBoard(t);
+      const previousRecruitmentId = await seedPrevious(t, ids);
+      await seedSubmittedSlots(t, previousRecruitmentId, ids.submittedStaffId, ["2026-08-10"]);
+      await t.run(async (ctx) => {
+        for (let index = 0; index <= SHIFT_ASSIGNMENT_LIMIT; index += 1) {
+          await ctx.db.insert("shiftAssignments", {
+            recruitmentId: previousRecruitmentId,
+            ...work(ids.submittedStaffId, "2026-08-10", ids.hallPositionId),
+          });
+        }
+      });
+
+      await expect(getHistory(t, ids)).resolves.toStrictEqual({ recruitmentCount: 0, staffs: [] });
+    });
+  });
+
+  describe("readAutoCreateAiInput", () => {
+    const read = (t: TestConvex<typeof schema>, recruitmentId: Id<"recruitments">) =>
+      t.query(internal.shiftBoard.queries.readAutoCreateAiInput, { recruitmentId, includesBreaks: true });
+    const bar = (positionId: Id<"positions">, startTime: string, endTime: string) => ({
+      positionId,
+      startTime,
+      endTime,
+    });
+
+    /** 提出済みのスタッフと、再提出待ちのスタッフに、希望とメモを入れる。 */
+    async function seedRequestsAndNotes(t: TestConvex<typeof schema>, ids: StaffingBoardIds) {
+      await t.run(async (ctx) => {
+        await ctx.db.insert("shiftDayTemplates", {
+          shopId: ids.shopId,
+          name: "平日",
+          weekdays: ["mon"],
+          sortOrder: 0,
+          appliesToHolidays: false,
+          requirements: { kind: "time", bars: [bar(ids.hallPositionId, "10:00", "20:00")] },
+        });
+        const submissions = await ctx.db
+          .query("shiftSubmissions")
+          .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", ids.recruitmentId))
+          .take(10);
+        for (const submission of submissions) {
+          await ctx.db.insert("shiftSubmissionSlots", {
+            submissionId: submission._id,
+            recruitmentId: ids.recruitmentId,
+            staffId: submission.staffId,
+            date: "2026-08-17",
+            startTime: "10:00",
+            endTime: "18:00",
+          });
+          for (const date of ["2026-08-17", "2026-08-30"]) {
+            await ctx.db.insert("shiftSubmissionDateNotes", {
+              submissionId: submission._id,
+              recruitmentId: ids.recruitmentId,
+              staffId: submission.staffId,
+              date,
+              note: "17時までだと助かります",
+            });
+          }
+        }
+      });
+    }
+
+    it("提出済みのシフト対象のスタッフだけを対象にし、そのスタッフの募集期間のメモだけを返す", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedStaffingBoard(t, { shopClosedDates: ["2026-08-19"] });
+      await seedRequestsAndNotes(t, ids);
+
+      const source = await read(t, ids.recruitmentId);
+
+      expect(source).not.toBeNull();
+      expect(source?.input.staffs).toEqual([{ id: ids.submittedStaffId, positionSkills: [] }]);
+      // 再提出待ちのスタッフのメモと、募集期間の外のメモは返さない。
+      expect(source?.notes).toEqual([
+        { staffId: ids.submittedStaffId, date: "2026-08-17", note: "17時までだと助かります" },
+      ]);
+      expect(source?.positions).toEqual([
+        { id: ids.hallPositionId, name: "ホール" },
+        { id: ids.kitchenPositionId, name: "キッチン" },
+        { id: ids.defaultPositionId, name: "シフト" },
+      ]);
+      expect(source?.input.dates).toEqual([
+        "2026-08-17",
+        "2026-08-18",
+        "2026-08-20",
+        "2026-08-21",
+        "2026-08-22",
+        "2026-08-23",
+      ]);
+      expect(source?.input.days.filter((day) => day.requirements !== null)).toEqual([
+        {
+          date: "2026-08-17",
+          requirements: { kind: "time", bars: [bar(ids.hallPositionId, "10:00", "20:00")] },
+        },
+      ]);
+      expect(source?.input.includesBreaks).toBe(true);
+    });
+
+    it("受け付け中でない募集はnullを返す", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedStaffingBoard(t, { status: "confirmed" });
+      await seedRequestsAndNotes(t, ids);
+
+      await expect(read(t, ids.recruitmentId)).resolves.toBeNull();
+    });
+
+    it("削除済みの募集と、削除済みの店舗の募集はnullを返す", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedStaffingBoard(t);
+      await seedRequestsAndNotes(t, ids);
+
+      await t.run(async (ctx) => ctx.db.patch(ids.otherShopId, { isDeleted: true }));
+      await expect(read(t, ids.otherRecruitmentId)).resolves.toBeNull();
+
+      await t.run(async (ctx) => ctx.db.patch(ids.recruitmentId, { isDeleted: true }));
+      await expect(read(t, ids.recruitmentId)).resolves.toBeNull();
     });
   });
 });

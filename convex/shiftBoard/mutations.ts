@@ -3,8 +3,11 @@ import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
+import { isAiShiftDraftConfigured } from "../_lib/config";
 import { isPastShiftPeriod, jstDayRangeMs } from "../_lib/dateFormat";
-import { managerMutation } from "../_lib/functions";
+import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
+import { managerMutation, resolveManagerShopAccessByTokenIdentifier } from "../_lib/functions";
+import { rateLimit } from "../_lib/rateLimits";
 import { assertRecruitmentEditVersion, isCurrentSubmission } from "../_lib/recruitmentEditing";
 import { sha256Hex } from "../_lib/sha256";
 import { normalizeExactAdjacentTimeAssignments, sortShiftBreaks } from "../_lib/shiftAssignmentNormalization";
@@ -30,6 +33,8 @@ import {
   usesConfirmedPositions,
 } from "../shiftSetup/service";
 import { getActiveStaffInShop, isShiftTargetStaff } from "../staff/service";
+import type { AiDraftSource } from "./autoCreate/ai/aiDraftPrompt";
+import { countAiDraftRemaining, loadAiDraftSource } from "./autoCreateSource";
 import { buildAssignmentIssue, SHIFT_ASSIGNMENT_VALIDATION, validateShiftAssignments } from "./validation";
 
 const PAST_SHIFT_SAVE_ERROR = "過去のシフトは保存できません。";
@@ -661,5 +666,73 @@ export const confirmRecruitment = managerMutation({
     );
     await ctx.db.patch(fanoutOperation._id, { scheduledFunctionId: fanoutScheduledFunctionId });
     return { status: "scheduled" as const, notifiedStaffCount: targetStaffIds.length };
+  },
+});
+
+export type PreparedAiDraftRequest =
+  | { status: "notConfigured" | "notFound" | "unsupported" | "limitReached" | "rateLimited" }
+  | { status: "ready"; shopId: Id<"shops">; recruitmentId: Id<"recruitments">; source: AiDraftSource };
+
+/**
+ * シフトのAI作成のactionから呼び、権限の確認、回数の確認、AIへ渡す材料の読み取りを1回で行う。
+ * 勤務は変えない。書き込むのは、続けて押した回数の消費だけである。
+ * 材料には日付メモを含むため、店舗の管理者であることを確かめたあとでだけ読む。
+ * 募集ごとの回数は、AIが下書きを返せた回の記録の数で数える。ここでは残りを確かめるだけで、記録は`recordAiDraftUsage`が足す。
+ */
+export const prepareAiDraftRequest = internalMutation({
+  args: {
+    tokenIdentifier: v.string(),
+    shopId: v.id("shops"),
+    expectedOrganizationId: v.id("organizations"),
+    recruitmentId: v.id("recruitments"),
+    includesBreaks: v.boolean(),
+  },
+  handler: async (ctx, args): Promise<PreparedAiDraftRequest> => {
+    if (!isAiShiftDraftConfigured()) return { status: "notConfigured" };
+
+    const access = await resolveManagerShopAccessByTokenIdentifier(ctx, args);
+    if (!access) return { status: "notFound" };
+    const recruitment = await getActiveRecruitmentInShop(ctx, access.shop._id, args.recruitmentId);
+    if (recruitment?.status !== "open") return { status: "notFound" };
+    if (recruitment.submissionPattern.kind !== "time") return { status: "unsupported" };
+
+    if ((await countAiDraftRemaining(ctx, recruitment._id)) <= 0) return { status: "limitReached" };
+    const short = await rateLimit(ctx, { name: "aiShiftDraftShort", key: `${access.user._id}:${access.shop._id}` });
+    if (!short.ok) return { status: "rateLimited" };
+
+    return {
+      status: "ready",
+      shopId: access.shop._id,
+      recruitmentId: recruitment._id,
+      source: await loadAiDraftSource(ctx, { shop: access.shop, recruitment, includesBreaks: args.includesBreaks }),
+    };
+  },
+});
+
+/**
+ * 外部のAIを呼んだ1回を記録する。AIがトークンを使った回だけ、返答を受け取ったあとで呼ぶ。
+ * 下書きを返せた回の記録が、その募集で使った回数になる。応じなかった回は、記録だけを残し、回数には数えない。
+ * 組織は、渡された値を使わずに、店舗から読む。
+ */
+export const recordAiDraftUsage = internalMutation({
+  args: {
+    shopId: v.id("shops"),
+    recruitmentId: v.id("recruitments"),
+    outcome: v.union(v.literal("created"), v.literal("declined")),
+    mode: v.union(v.literal("scratch"), v.literal("revise")),
+    model: v.string(),
+    effort: v.union(v.literal("low"), v.literal("medium"), v.literal("high")),
+    maxTokens: v.number(),
+    requestCount: v.number(),
+    inputTokens: v.number(),
+    outputTokens: v.number(),
+    thinkingTokens: v.optional(v.number()),
+  },
+  handler: async (ctx, args): Promise<null> => {
+    const shop = await ctx.db.get(args.shopId);
+    // 呼んでいる間に店舗が消えた場合は、組織を特定できないため記録しない。
+    if (!shop) return null;
+    await ctx.db.insert("aiShiftDraftUsages", { organizationId: shop.organizationId, ...args });
+    return null;
   },
 });

@@ -76,6 +76,10 @@ export type ShiftBoardStaffingData = {
     positionSkills: Array<{ positionId: Id<"positions">; level: "unavailable" | "newcomer" | "lead" }>;
   }>;
   hasPreviousConfirmedRecruitment: boolean;
+  /** シフトのAI作成を使える環境か。 */
+  isAiDraftConfigured: boolean;
+  /** この募集で、AIでの作成をあと何回使えるか。 */
+  aiDraftRemainingCount: number;
   /** 確定済みで、テンプレートの当て直しとその日だけの変更ができない。 */
   isLocked: boolean;
   /** その日に当てられるテンプレート。 */

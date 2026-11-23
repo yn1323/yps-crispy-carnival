@@ -150,7 +150,7 @@ describe("development seed internal mutations", () => {
         "free-over-limit",
         "trial-daily",
       ],
-      tableCount: 64,
+      tableCount: 65,
     });
   });
 

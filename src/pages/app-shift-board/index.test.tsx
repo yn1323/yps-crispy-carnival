@@ -142,6 +142,8 @@ const staffing = {
   breakRule: { minWorkMinutes: 360, breakMinutes: 60 },
   staffProfiles: [],
   hasPreviousConfirmedRecruitment: true,
+  isAiDraftConfigured: false,
+  aiDraftRemainingCount: 3,
   isLocked: false,
   templates: [{ _id: "template-1", name: "通常" }],
   days: [

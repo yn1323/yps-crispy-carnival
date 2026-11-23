@@ -1509,6 +1509,8 @@ export const seedOpenRecruitmentNotificationScenario = internalMutation({
     shopDateOnly: v.optional(v.boolean()),
     // 店舗のシフト表を「くわしく」で開く。休憩など、くわしく表示でだけ入れられる内容の前提にする。
     shopDetailMode: v.optional(v.boolean()),
+    // 管理者自身のスタッフが、募集の全日に日付選択の希望を提出済みの状態にする。希望から勤務を作る操作の前提にする。
+    managerStaffSubmittedDates: v.optional(v.boolean()),
     managerLineState: v.optional(lineDeliveryStateValidator),
     managerLegalConsentState: v.optional(legalConsentStateValidator),
     managerStaffLegalConsentState: v.optional(legalConsentStateValidator),
@@ -1534,6 +1536,18 @@ export const seedOpenRecruitmentNotificationScenario = internalMutation({
       ...(args.dateOnly ? { submissionPattern: { kind: "dateOnly" as const } } : {}),
       reminderScheduledAt: getReminderScheduledAt(args.dates.deadline),
     });
+    if (args.managerStaffSubmittedDates) {
+      const submittedAt = Date.now();
+      const submissionId = await ctx.db.insert("shiftSubmissions", {
+        recruitmentId,
+        staffId: managerStaffId,
+        firstSubmittedAt: submittedAt,
+        submittedAt,
+      });
+      for (const date of args.dates.dates) {
+        await ctx.db.insert("shiftSubmissionDates", { submissionId, recruitmentId, staffId: managerStaffId, date });
+      }
+    }
     await setStaffLineDeliveryState(ctx, {
       staffId: managerStaffId,
       shopId,

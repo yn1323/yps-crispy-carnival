@@ -241,6 +241,8 @@ const newcomerOnlyStaffing: ShiftBoardStaffingData = {
     },
   ],
   hasPreviousConfirmedRecruitment: false,
+  isAiDraftConfigured: false,
+  aiDraftRemainingCount: 3,
   isLocked: false,
   templates: [],
   days: [],

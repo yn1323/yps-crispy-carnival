@@ -949,6 +949,36 @@ const schema = defineSchema({
     name: v.string(),
   }).index("by_date", ["date"]),
 
+  // シフトのAI作成で、外部のAIを呼んだ1回ごとの記録。利用料の把握と、組織・店舗ごとの利用量の確認に使う。
+  // AIがトークンを使った回だけを作る。AIを呼ばなかった回と、AIへ届かずに失敗した回は作らない。
+  // 個人情報、メモ、AIの応答の本文は持たない。運営者が読み、店舗の画面には出さない。
+  // 行は増えるだけで、変更も削除もしない。下書きを返せた行の数が、その募集で使った回数になる。
+  aiShiftDraftUsages: defineTable({
+    organizationId: v.id("organizations"),
+    shopId: v.id("shops"),
+    recruitmentId: v.id("recruitments"),
+    // "created"は下書きを返せた回。"declined"は、AIが応じなかったか、返答が途中で切れた回。どちらも利用料がかかる。
+    outcome: v.union(v.literal("created"), v.literal("declined")),
+    // 呼んだときの設定。環境変数を変えたあとも、その回に使った値が分かるように残す。
+    // 作り方は、この項目を足す前の記録では持たない。その記録は、下書きを見直す作り方（"revise"）で呼んだものである。
+    mode: v.optional(v.union(v.literal("scratch"), v.literal("revise"))),
+    model: v.string(),
+    effort: v.union(v.literal("low"), v.literal("medium"), v.literal("high")),
+    maxTokens: v.number(),
+    // 1回の作成で、AIを呼んだ回数。日ごとに分けて呼んだ場合に2以上になる。トークン数は、その合計である。
+    // この項目を足す前の記録では持たない。その記録は、1回だけ呼んだものである。
+    requestCount: v.optional(v.number()),
+    inputTokens: v.number(),
+    // 考えた分を含む、返答の全体。
+    outputTokens: v.number(),
+    // 返答のうち、考えた分。AIが内訳を返さなかった回は持たない。
+    thinkingTokens: v.optional(v.number()),
+  })
+    .index("by_organizationId", ["organizationId"])
+    .index("by_shopId", ["shopId"])
+    // 1つの募集で作成できた回数を数えるために使う。
+    .index("by_recruitmentId_and_outcome", ["recruitmentId", "outcome"]),
+
   // 募集を確定した時点の、日ごとの必要人数。確定済みのシフト表は、テンプレートを直してもこの内容を表示する。
   // テンプレートが当たらない日は行を作らない。
   recruitmentStaffingSnapshots: defineTable({

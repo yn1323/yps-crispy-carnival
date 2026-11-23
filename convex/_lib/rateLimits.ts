@@ -1,5 +1,6 @@
 import { defineRateLimits } from "convex-helpers/server/rateLimit";
 import {
+  AI_SHIFT_DRAFT_SHORT_LIMIT,
   CONTACT_TURNSTILE_GLOBAL_SHORT_LIMIT,
   DAY_MS,
   HOUR_MS,
@@ -243,6 +244,15 @@ export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
     rate: SHIFT_SETUP_ASSIST_SHORT_LIMIT,
     period: MINUTE_MS,
     capacity: SHIFT_SETUP_ASSIST_SHORT_LIMIT,
+  },
+
+  // シフトのAI作成: userId+shopId 単位。
+  // 作成には十数秒かかるため、結果を待たずに続けて押した分の利用料を抑える。
+  aiShiftDraftShort: {
+    kind: "token bucket",
+    rate: AI_SHIFT_DRAFT_SHORT_LIMIT,
+    period: MINUTE_MS,
+    capacity: AI_SHIFT_DRAFT_SHORT_LIMIT,
   },
 
   // 明示的なアカウント削除受付: issuer+subjectのSHA-256 hash単位。

@@ -44,6 +44,19 @@ export type ShiftFormDetailActions = {
   /** 未提出者へ前回の勤務を仮で入れる。前回確定した募集がない場合は渡さない。 */
   provisionalAction?: { onInsert: () => void; isLoading: boolean };
   /**
+   * 希望シフトから勤務を自動で作り、下書きを置き換える。作り終えるか、作れずに終わると解決する。
+   * 作れずに終わり、ダイアログを開いたままAIの手直しを外して作り直せるようにする場合は、falseで解決する。
+   * 渡さない場合、自動作成のダイアログの「作成する」は閉じるだけになる。
+   */
+  autoCreateAction?: {
+    onCreate: (method: "rule" | "ai", options: { includesBreaks: boolean }) => Promise<boolean>;
+    isLoading: boolean;
+    /** AIで作れない理由。AIで作れる場合は渡さない。 */
+    aiUnavailableReason?: "notConfigured" | "unsupported";
+    /** この募集で、AIでの作成をあと何回使えるか。0なら、AIの選択肢を選べなくする。 */
+    aiRemainingCount?: number;
+  };
+  /**
    * 「シンプル / くわしく」の切り替えを、画面の外で受け付ける。渡した場合、表示設定で選んでも、その場では切り替えない。
    * 切り替えで下書きを削除する画面が、確認してから開き直すために使う。
    */

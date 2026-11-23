@@ -1,7 +1,9 @@
 import { ConvexError, type Infer, v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
+import { isAiShiftDraftConfigured } from "../_lib/config";
 import { generateDateRange, getWeekday, isPastShiftPeriod } from "../_lib/dateFormat";
+import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
 import { managerQuery, organizationQuery } from "../_lib/functions";
 import { getRecruitmentEditVersion, isCurrentSubmission } from "../_lib/recruitmentEditing";
 import { normalizeExactAdjacentTimeAssignments } from "../_lib/shiftAssignmentNormalization";
@@ -40,6 +42,8 @@ import {
   toPositionSkillsDto,
 } from "../shiftSetup/service";
 import { isShiftTargetStaff, listShiftTargetStaffsInShop } from "../staff/service";
+import type { AiDraftSource } from "./autoCreate/ai/aiDraftPrompt";
+import { countAiDraftRemaining, loadAiDraftSource, loadAutoCreateHistory } from "./autoCreateSource";
 
 const shiftBoardWriteBlockReasonValidator = v.union(
   v.literal("paymentResultPending"),
@@ -433,6 +437,10 @@ export const getShiftBoardStaffing = managerQuery({
         v.object({ staffId: v.id("staffs"), positionSkills: v.array(staffPositionSkillValidator) }),
       ),
       hasPreviousConfirmedRecruitment: v.boolean(),
+      // シフトのAI作成を使える環境か。使えない環境では、自動作成のダイアログでAIを選べなくする。
+      isAiDraftConfigured: v.boolean(),
+      // この募集で、AIでの作成をあと何回使えるか。0なら、自動作成のダイアログでAIを選べなくする。
+      aiDraftRemainingCount: v.number(),
       // 確定済みで、テンプレートの当て直しと「この日だけ変える」ができない。
       isLocked: v.boolean(),
       // まとめて当てるメニューに出すテンプレート。募集の集め方と種類が合うテンプレートだけを返す。
@@ -495,6 +503,8 @@ export const getShiftBoardStaffing = managerQuery({
         .map((staff) => ({ staffId: staff._id, positionSkills: toPositionSkillsDto(staff, positions) }))
         .filter((profile) => profile.positionSkills.length > 0),
       hasPreviousConfirmedRecruitment: previousRecruitment !== null,
+      isAiDraftConfigured: isAiShiftDraftConfigured(),
+      aiDraftRemainingCount: await countAiDraftRemaining(ctx, recruitment._id),
       isLocked,
       templates: hidesTemplates
         ? []
@@ -629,6 +639,59 @@ export const getProvisionalAssignments = managerQuery({
       activePositionIds: new Set(positions.map((position) => position._id)),
       defaultPositionId: defaultPosition._id,
     });
+  },
+});
+
+/**
+ * シフトの自動作成が参考にする、過去の確定シフトの集計を返す。
+ * 直近に確定した募集のうち、今回と希望シフトの集め方が同じものを、人ごとの日数に数える。
+ * 希望と勤務そのものは返さず、数だけを返す。日付メモは読まない。
+ * 保存はしない。画面が「作成する」を押したときに1回だけ読む。
+ */
+export const getAutoCreateHistory = managerQuery({
+  args: { recruitmentId: v.id("recruitments") },
+  returns: v.union(
+    v.object({
+      // 集計に使った募集の数。
+      recruitmentCount: v.number(),
+      // 希望を1日以上出したことのある、いまシフト対象のスタッフだけを返す。
+      staffs: v.array(
+        v.object({
+          staffId: v.id("staffs"),
+          requestedDays: v.number(),
+          assignedDays: v.number(),
+          lastRequestedDays: v.number(),
+          lastAssignedDays: v.number(),
+          positions: v.array(v.object({ positionId: v.id("positions"), days: v.number() })),
+        }),
+      ),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const { shop } = ctx;
+    if (!shop) return null;
+
+    const recruitment = await getActiveRecruitmentInShop(ctx, shop._id, args.recruitmentId);
+    if (!recruitment) return null;
+    if (recruitment.status !== "open") return { recruitmentCount: 0, staffs: [] };
+
+    return await loadAutoCreateHistory(ctx, shop, recruitment);
+  },
+});
+
+/**
+ * シフトのAI作成の試作が、材料を読むために使う。
+ * 日付メモは要配慮の情報を含みうるため、内部からだけ呼ぶ。受け付け中でない募集と、削除済みの店舗はnullを返す。
+ */
+export const readAutoCreateAiInput = internalQuery({
+  args: { recruitmentId: v.id("recruitments"), includesBreaks: v.boolean() },
+  handler: async (ctx, args): Promise<AiDraftSource | null> => {
+    const recruitment = await ctx.db.get(args.recruitmentId);
+    if (!recruitment || recruitment.isDeleted || recruitment.status !== "open") return null;
+    const shop = await ctx.db.get(recruitment.shopId);
+    if (!shop || shop.isDeleted) return null;
+    return await loadAiDraftSource(ctx, { shop, recruitment, includesBreaks: args.includesBreaks });
   },
 });
 

@@ -86,6 +86,9 @@ export const ORGANIZATION_SELF_CREATED_LIMIT = 3;
 export const ORGANIZATION_CREATE_DAILY_LIMIT = 10;
 export const SHIFT_BOARD_SHIFT_REQUEST_LIMIT = 2000;
 export const SHIFT_ASSIGNMENT_LIMIT = 2000;
+// シフトの自動作成が参考にする、直近に確定した募集の数。
+// 1つの募集で読むのは勤務、希望、提出の各上限までで、3つの募集を読んでも1回の実行の読み取り上限に収まる。
+export const AUTO_CREATE_HISTORY_RECRUITMENT_LIMIT = 3;
 // スタッフ個別通知の再送上限。actorを替えた回避も組織単位の上限で抑止する。
 export const STAFF_NOTIFICATION_RESEND_ACTOR_DAILY_LIMIT = 10;
 export const STAFF_NOTIFICATION_RESEND_ORGANIZATION_DAILY_LIMIT = 20;
@@ -240,3 +243,9 @@ export const SHIFT_BREAK_RULE_MAX_MINUTES = 24 * 60;
 // AIサポートへ渡す店の状況。保存もログ出力もしないが、外部へ渡す将来の入力として上限を持つ。
 export const SHIFT_SETUP_ASSIST_SITUATION_MAX_LENGTH = 500;
 export const SHIFT_SETUP_ASSIST_SHORT_LIMIT = 5;
+// シフトのAI作成。外部のAIの利用料がかかるため、続けて押す回数と、1つの募集で作成できる回数を抑える。
+export const AI_SHIFT_DRAFT_SHORT_LIMIT = 2;
+// 1つの募集（シフト）でAIが作成できる回数の既定。時間がたっても戻らない。環境変数のAI_SHIFT_DRAFT_RECRUITMENT_LIMITで変えられる。
+export const AI_SHIFT_DRAFT_RECRUITMENT_LIMIT_DEFAULT = 5;
+// 環境変数で設定できる回数の最大。使った回の記録を、この件数まで読んで数えるため、上限を持つ。
+export const AI_SHIFT_DRAFT_RECRUITMENT_LIMIT_MAX = 1000;

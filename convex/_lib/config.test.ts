@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   assertDevelopmentSeedEnabled,
+  getAiShiftDraftRecruitmentLimit,
+  getAiShiftDraftSettings,
+  getAnthropicApiKey,
   getDebugNotificationDeliveryMode,
   getDebugTrialDurationDays,
   getDevelopmentSeedConfiguration,
@@ -224,5 +227,90 @@ describe("development seed guard", () => {
     vi.stubEnv("DEBUG_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER", `  ${PRIMARY_AUTH_TOKEN_IDENTIFIER}  `);
 
     expect(assertDevelopmentSeedEnabled().primaryAuthTokenIdentifier).toBe(PRIMARY_AUTH_TOKEN_IDENTIFIER);
+  });
+});
+
+describe("AI shift draft settings", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("設定していない項目は既定の値を使う", () => {
+    vi.stubEnv("AI_SHIFT_DRAFT_MODE", "");
+    vi.stubEnv("AI_SHIFT_DRAFT_DAYS_PER_REQUEST", "");
+    vi.stubEnv("AI_SHIFT_DRAFT_MODEL", "");
+    vi.stubEnv("AI_SHIFT_DRAFT_EFFORT", "");
+    vi.stubEnv("AI_SHIFT_DRAFT_MAX_TOKENS", "");
+
+    expect(getAiShiftDraftSettings()).toEqual({
+      mode: "revise",
+      model: "claude-haiku-5-5",
+      effort: "low",
+      maxTokens: 16000,
+      daysPerRequest: 1,
+    });
+  });
+
+  it("モデル、考える量、返答の上限を、それぞれの環境変数から読む", () => {
+    vi.stubEnv("AI_SHIFT_DRAFT_MODE", "scratch");
+    vi.stubEnv("AI_SHIFT_DRAFT_DAYS_PER_REQUEST", "7");
+    vi.stubEnv("AI_SHIFT_DRAFT_MODEL", " claude-opus-5-5 ");
+    vi.stubEnv("AI_SHIFT_DRAFT_EFFORT", "high");
+    vi.stubEnv("AI_SHIFT_DRAFT_MAX_TOKENS", "8000");
+
+    expect(getAiShiftDraftSettings()).toEqual({
+      mode: "scratch",
+      model: "claude-opus-5-5",
+      effort: "high",
+      maxTokens: 8000,
+      daysPerRequest: 7,
+    });
+  });
+
+  it.each([
+    ["AI_SHIFT_DRAFT_MODE", "auto", "AI_SHIFT_DRAFT_MODE must be scratch or revise"],
+    ["AI_SHIFT_DRAFT_DAYS_PER_REQUEST", "32", "AI_SHIFT_DRAFT_DAYS_PER_REQUEST must be an integer between 0 and 31"],
+    ["AI_SHIFT_DRAFT_DAYS_PER_REQUEST", "1.5", "AI_SHIFT_DRAFT_DAYS_PER_REQUEST must be an integer between 0 and 31"],
+    ["AI_SHIFT_DRAFT_MODEL", "gpt-5", "AI_SHIFT_DRAFT_MODEL must be a Claude model ID"],
+    ["AI_SHIFT_DRAFT_EFFORT", "max", "AI_SHIFT_DRAFT_EFFORT must be low, medium, or high"],
+    ["AI_SHIFT_DRAFT_MAX_TOKENS", "1000", "AI_SHIFT_DRAFT_MAX_TOKENS must be an integer between 1024 and 128000"],
+    ["AI_SHIFT_DRAFT_MAX_TOKENS", "200000", "AI_SHIFT_DRAFT_MAX_TOKENS must be an integer between 1024 and 128000"],
+    ["AI_SHIFT_DRAFT_MAX_TOKENS", "1e4", "AI_SHIFT_DRAFT_MAX_TOKENS must be an integer between 1024 and 128000"],
+  ])("%sの想定しない値 %s を、既定に戻さずに拒否する", (name, value, message) => {
+    vi.stubEnv(name, value);
+
+    expect(() => getAiShiftDraftSettings()).toThrowError(message);
+  });
+
+  it("APIキーがなければ失敗する", () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", " ");
+
+    expect(() => getAnthropicApiKey()).toThrowError("ANTHROPIC_API_KEY is not configured");
+  });
+});
+
+describe("AI shift draft recruitment limit", () => {
+  it("設定していなければ、既定の回数を使う", () => {
+    vi.stubEnv("AI_SHIFT_DRAFT_RECRUITMENT_LIMIT", "");
+
+    expect(getAiShiftDraftRecruitmentLimit()).toBe(5);
+  });
+
+  it.each([
+    ["5", 5],
+    [" 100 ", 100],
+    // 0は、どの募集でもAIを使えない設定である。
+    ["0", 0],
+    ["1000", 1000],
+  ])("環境変数の %s を回数として読む", (value, expected) => {
+    vi.stubEnv("AI_SHIFT_DRAFT_RECRUITMENT_LIMIT", value);
+
+    expect(getAiShiftDraftRecruitmentLimit()).toBe(expected);
+  });
+
+  it.each(["-1", "1.5", "1e2", "many", "1001"])("想定しない値 %s を、既定に戻さずに拒否する", (value) => {
+    vi.stubEnv("AI_SHIFT_DRAFT_RECRUITMENT_LIMIT", value);
+
+    expect(() => getAiShiftDraftRecruitmentLimit()).toThrowError(
+      "AI_SHIFT_DRAFT_RECRUITMENT_LIMIT must be an integer between 0 and 1000",
+    );
   });
 });

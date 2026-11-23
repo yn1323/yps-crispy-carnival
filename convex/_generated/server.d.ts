@@ -30,6 +30,13 @@ import type { DataModel } from "./dataModel.js";
 type Env = {
   readonly CONVEX_CLOUD_URL: string;
   readonly CONVEX_SITE_URL: string;
+  readonly AI_SHIFT_DRAFT_DAYS_PER_REQUEST: string | undefined;
+  readonly AI_SHIFT_DRAFT_EFFORT: string | undefined;
+  readonly AI_SHIFT_DRAFT_MAX_TOKENS: string | undefined;
+  readonly AI_SHIFT_DRAFT_MODE: string | undefined;
+  readonly AI_SHIFT_DRAFT_MODEL: string | undefined;
+  readonly AI_SHIFT_DRAFT_RECRUITMENT_LIMIT: string | undefined;
+  readonly ANTHROPIC_API_KEY: string | undefined;
   readonly APP_URL: string | undefined;
   readonly CLERK_JWT_ISSUER_DOMAIN: string | undefined;
   readonly CLERK_SECRET_KEY: string | undefined;
