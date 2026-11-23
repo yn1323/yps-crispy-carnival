@@ -74,8 +74,13 @@ const createVrtProject = (
       name,
       browser: {
         enabled: true,
-        // browser.viewportはiframeだけを変えるため、撮影する外側pageにも同じ寸法を渡す。
-        provider: playwright({ contextOptions: { viewport } }),
+        provider: playwright({
+          // 画面の一部だけを描き直すと、角丸のふちが数階調だけ違う画になることがある。
+          // 続けて撮った2枚が一致せず撮影が失敗するため、描き直すときはタイル全体を描かせる。
+          launchOptions: { args: ["--disable-partial-raster"] },
+          // browser.viewportはiframeだけを変えるため、撮影する外側pageにも同じ寸法を渡す。
+          contextOptions: { viewport },
+        }),
         headless: true,
         viewport,
         instances: [{ browser: "chromium" }],
