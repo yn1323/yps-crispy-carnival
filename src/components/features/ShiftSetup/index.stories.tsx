@@ -643,6 +643,10 @@ export const PendingChanges: Story = {
     const canvas = within(canvasElement);
     await userEvent.click(within(canvas.getByRole("group", { name: "通常" })).getByRole("button", { name: "日曜日" }));
     await pressStaffLevelCell(canvas, "高橋 美咲", "レジ", "担当外");
+    // 押したマスに残るフォーカスの枠線は、操作の直後とその後で角の描かれ方がわずかに違い、撮影が安定しない。
+    // このStoryで見せるのは変更後の値なので、フォーカスを外して枠線を撮影に入れない。
+    const pressed = canvasElement.ownerDocument.activeElement;
+    if (pressed instanceof HTMLElement) pressed.blur();
   },
 };
 
