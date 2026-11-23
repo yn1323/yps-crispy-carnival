@@ -297,6 +297,13 @@ import type * as staffRegistration_schemas from "../staffRegistration/schemas.js
 import type * as staffRegistration_service from "../staffRegistration/service.js";
 import type * as staffRegistration_verificationCode from "../staffRegistration/verificationCode.js";
 import type * as testing from "../testing.js";
+import type * as userSeed_actions from "../userSeed/actions.js";
+import type * as userSeed_builders from "../userSeed/builders.js";
+import type * as userSeed_guard from "../userSeed/guard.js";
+import type * as userSeed_maxBuilders from "../userSeed/maxBuilders.js";
+import type * as userSeed_mutations from "../userSeed/mutations.js";
+import type * as userSeed_queries from "../userSeed/queries.js";
+import type * as userSeed_service from "../userSeed/service.js";
 
 import type {
   ApiFromModules,
@@ -594,6 +601,13 @@ declare const fullApi: ApiFromModules<{
   "staffRegistration/service": typeof staffRegistration_service;
   "staffRegistration/verificationCode": typeof staffRegistration_verificationCode;
   testing: typeof testing;
+  "userSeed/actions": typeof userSeed_actions;
+  "userSeed/builders": typeof userSeed_builders;
+  "userSeed/guard": typeof userSeed_guard;
+  "userSeed/maxBuilders": typeof userSeed_maxBuilders;
+  "userSeed/mutations": typeof userSeed_mutations;
+  "userSeed/queries": typeof userSeed_queries;
+  "userSeed/service": typeof userSeed_service;
 }>;
 
 /**

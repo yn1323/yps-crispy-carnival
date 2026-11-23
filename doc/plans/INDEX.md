@@ -31,6 +31,7 @@
 
 | 計画 | 状態 | 未完了条件 | 現在の正本 |
 |---|---|---|---|
+| [ユーザー単位の確認用データ投入（/seed、/seed-max）](2026-11-22_ユーザー単位の確認用データ投入_実装計画.md) | `repository implemented` | `/seed`は、実装、Convex Function Test、ローカルでの通しの実行まで完了。`/seed-max`は、実装、Convex Function Test、ローカルでの通しの実行まで完了し、画面での確認が残る。どちらも、PR環境とdevelopでの実行が残る | [開発用seed](../manual/development-seed.md) |
 | [パターン選択の表示と操作を整理](2026-11-22_パターン選択の表示と操作を整理.md) | `implemented locally` | 実装とローカルの検証は完了。依頼者が画面で確かめ、Pull Requestで見た目の差分（VRT）を確認する | [シフト表](../features/shift-board.md)の「パターン選択の日別」 |
 | [日付選択の表示と操作を整理](2026-11-22_日付選択の表示と操作を整理.md) | `implemented locally` | 実装とローカルの検証は完了。依頼者が画面で確かめ、Pull Requestで見た目の差分（VRT）を確認する | [シフト表](../features/shift-board.md)の「日付選択の表」 |
 | [充足度表示を時間軸の帯に変更](2026-11-20_充足度表示を時間軸の帯に変更.md) | `repository implemented` | 時間指定のスマートフォンの「くわしく」表示で、人数のカードを充足率の1行と充足の帯に変え、ローカルのlint・型検査・Logic・Behaviorは成功。PCの帯を同じ形へそろえること、VRT基準画像の承認、CI、実環境への反映が残る | [シフト表](../features/shift-board.md) |
