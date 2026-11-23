@@ -282,6 +282,56 @@ describe("buildSlotAssignments（日付選択）", () => {
     expect(result.hasShortage).toBe(false);
   });
 
+  it("必要人数の多いポジションに人が集まる場合も、先にどのポジションにも1人ずつ入れる", () => {
+    const result = buildSlotAssignments(
+      dateOnlyInput({
+        staffs: [staff("a"), staff("b"), staff("c")],
+        requestedDates: ["a", "b", "c"].flatMap((staffId) => requestDates(staffId, [DAY1])),
+        // ホールは3人、キッチンは1人が必要で、入れるのは3人である。
+        days: [dateOnlyDay(DAY1, { hall: 3, kitchen: 1 })],
+      }),
+    );
+
+    const positions = result.shifts.map((shift) => shift.segments[0].positionId).sort();
+    expect(positions).toEqual(["hall", "hall", "kitchen"]);
+    expect(result.hasShortage).toBe(true);
+  });
+
+  it("だれもいないポジションが残る場合は、2人以上いるポジションから、担当できる人を移す", () => {
+    const result = buildSlotAssignments(
+      dateOnlyInput({
+        // キッチンに入れるのは「x」だけである。期間の開始日を変えて、ホールの1人目にだれが選ばれても同じ結果になることを確かめる。
+        staffs: [staff("x"), staff("y", { kitchen: "unavailable" })],
+        requestedDates: [...requestDates("x", [DAY1]), ...requestDates("y", [DAY1])],
+        days: [dateOnlyDay(DAY1, { hall: 2, kitchen: 1 })],
+      }),
+    );
+    const other = buildSlotAssignments(
+      dateOnlyInput({
+        periodStart: DAY2,
+        staffs: [staff("x"), staff("y", { kitchen: "unavailable" })],
+        requestedDates: [...requestDates("x", [DAY1]), ...requestDates("y", [DAY1])],
+        days: [dateOnlyDay(DAY1, { hall: 2, kitchen: 1 })],
+      }),
+    );
+
+    expect(summarize(result)).toEqual([`${DAY1} x kitchen`, `${DAY1} y hall`]);
+    expect(summarize(other)).toEqual([`${DAY1} x kitchen`, `${DAY1} y hall`]);
+  });
+
+  it("1人しかいないポジションからは、だれもいないポジションへ移さない", () => {
+    const result = buildSlotAssignments(
+      dateOnlyInput({
+        staffs: [staff("a")],
+        requestedDates: requestDates("a", [DAY1]),
+        days: [dateOnlyDay(DAY1, { hall: 1, kitchen: 1 })],
+      }),
+    );
+
+    expect(summarize(result)).toEqual([`${DAY1} a hall`]);
+    expect(result.hasShortage).toBe(true);
+  });
+
   it("不足の残った枠へ、別の枠にいる人を移し、空いた枠を別の候補で埋める", () => {
     const result = buildSlotAssignments(
       dateOnlyInput({

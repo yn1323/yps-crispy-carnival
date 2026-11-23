@@ -39,7 +39,6 @@ import { sumStaffWorkTotals } from "@/src/domains/shift/workTotals";
 import { DEFAULT_TIME_PATTERN } from "@/src/domains/shop/submissionPattern";
 import { buildDayFulfillmentView } from "./fulfillmentPresentation";
 import { readLastPositionId, storeLastPositionId } from "./lastPositionStorage";
-import { readRangeAssignHintDismissed, storeRangeAssignHintDismissed } from "./rangeAssignHintStorage";
 import { buildDayStaffingView, type DayStaffingView, selectStaffingShifts } from "./staffingPresentation";
 import type { ShiftFormStaffing } from "./types";
 
@@ -362,7 +361,6 @@ export const assignShiftRangeAtom = atom(
       shiftDraftsAtom,
       drafts.map((item) => (item.id === shiftId ? updated : item)),
     );
-    set(dismissRangeAssignHintAtom);
     return "changed";
   },
 );
@@ -418,21 +416,6 @@ export const selectedPositionIdAtom = atom<string | null>(null);
 export const breakToolActiveAtom = atom<boolean>(false);
 // 休憩を編集中の日。nullのときは休憩の編集を閉じている。
 export const breakEditorTargetAtom = atom<{ staffId: string; date: string } | null>(null);
-
-// ==========================================
-// バーの範囲を選んで入れる操作の案内
-// ==========================================
-// この画面で案内を消したあとはtrue。nullの間は、端末に覚えた値を使う。
-const rangeAssignHintDismissedOverrideAtom = atom<boolean | null>(null);
-// 一度でもバーの範囲を選んでポジションか休憩を入れた端末では、案内を出さない。
-export const isRangeAssignHintDismissedAtom = atom(
-  (get) => get(rangeAssignHintDismissedOverrideAtom) ?? readRangeAssignHintDismissed(),
-);
-const dismissRangeAssignHintAtom = atom(null, (get, set) => {
-  if (get(isRangeAssignHintDismissedAtom)) return;
-  storeRangeAssignHintDismissed();
-  set(rangeAssignHintDismissedOverrideAtom, true);
-});
 
 // ==========================================
 // 派生atom

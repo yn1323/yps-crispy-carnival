@@ -12,7 +12,6 @@ import {
   detailModeAtom,
   isBreakToolActiveAtom,
   isPositionSelectableAtom,
-  isRangeAssignHintDismissedAtom,
   isToolPaletteActiveAtom,
   nextWorkPositionAtom,
   paintsPositionColorAtom,
@@ -128,7 +127,6 @@ const rangeChipIdleStyle = {
  * ポジションを押すと、次に新しく入れる勤務のポジションが変わる。勤務のバーのメニューでポジションを選んだときも、同じ選択が変わる。
  * 「休憩」を押すと、勤務のバーの上をなぞった範囲が休憩になる。メニューで休憩を選んでも、この選択は変わらない。
  * 選んだポジションは店舗ごとに端末へ覚える。休憩の選択は覚えず、開き直すとポジションの選択に戻る。
- * 案内は、一度でも範囲を選んで入れた端末では出さない。
  */
 export const RangeAssignPalette = () => {
   const isActive = useAtomValue(isToolPaletteActiveAtom);
@@ -136,7 +134,6 @@ export const RangeAssignPalette = () => {
   const isBreakTool = useAtomValue(isBreakToolActiveAtom);
   const nextWorkPosition = useAtomValue(nextWorkPositionAtom);
   const { positions } = useAtomValue(shiftConfigAtom);
-  const isHintDismissed = useAtomValue(isRangeAssignHintDismissedAtom);
   const rememberWorkPosition = useSetAtom(rememberWorkPositionAtom);
   const setBreakTool = useSetAtom(breakToolActiveAtom);
   if (!isActive) return null;
@@ -148,11 +145,6 @@ export const RangeAssignPalette = () => {
   return (
     // くわしく表示へ切り替えたときに、勤務のバーの色と合わせて、ふわっと出す。
     <Flex align="center" gap={4} minW={0} animation="fade-in 320ms ease-out" _motionReduce={{ animation: "none" }}>
-      {!isHintDismissed && (
-        <Text textStyle="xs" color="gray.600" whiteSpace="nowrap">
-          {isUnsplit ? "バーをなぞると 休憩を入れられます" : "バーをなぞると ポジションを変えられます"}
-        </Text>
-      )}
       <Flex
         role={isUnsplit ? "group" : "radiogroup"}
         aria-label="入れるもの"

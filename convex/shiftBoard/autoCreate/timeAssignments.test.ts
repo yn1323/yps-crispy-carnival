@@ -585,6 +585,65 @@ describe("buildTimeAssignments", () => {
     expect(result.hasShortage).toBe(false);
   });
 
+  it("必要人数の多いポジションに人が集まる場合も、だれもいないポジションを先に埋める", () => {
+    const result = buildTimeAssignments(
+      timeInput({
+        staffs: [staff("a"), staff("b"), staff("c")],
+        requestedSlots: ["a", "b", "c"].map((staffId) => request(staffId, DAY1, "10:00", "16:00")),
+        // ホールは3人、キッチンは1人が必要で、入れるのは3人である。
+        days: [timeDay(DAY1, [...bars("hall", "10:00", "16:00", 3), ...bars("kitchen", "10:00", "16:00")])],
+      }),
+    );
+
+    expect(
+      summarize(result)
+        .map((line) => line.slice(2))
+        .sort(),
+    ).toEqual(["10:00-16:00 hall", "10:00-16:00 hall", "10:00-16:00 kitchen"]);
+    expect(result.hasShortage).toBe(true);
+  });
+
+  it("だれもいないポジションが残る場合は、2人以上いるポジションから、担当できる人を移す", () => {
+    const result = buildTimeAssignments(
+      timeInput({
+        staffs: [staff("a", { kitchen: "unavailable" }), staff("b", { kitchen: "unavailable" }), staff("c")],
+        requestedSlots: ["a", "b", "c"].map((staffId) => request(staffId, DAY1, "10:00", "16:00")),
+        // ホールは4人が必要なので、人を入れる順ではホールが先に3人になる。
+        days: [timeDay(DAY1, [...bars("hall", "10:00", "16:00", 4), ...bars("kitchen", "10:00", "16:00")])],
+      }),
+    );
+
+    // キッチンを担当できるcだけを、勤務の時間を変えずにキッチンへ移す。
+    expect(summarize(result)).toEqual(["a 10:00-16:00 hall", "b 10:00-16:00 hall", "c 10:00-16:00 kitchen"]);
+  });
+
+  it("だれもいないポジションへ移すのは、元のポジションに1人以上が残る時間だけである", () => {
+    const result = buildTimeAssignments(
+      timeInput({
+        staffs: [staff("a"), staff("b")],
+        requestedSlots: [request("a", DAY1, "10:00", "16:00"), request("b", DAY1, "13:00", "16:00")],
+        days: [timeDay(DAY1, [...bars("hall", "10:00", "16:00", 3), ...bars("kitchen", "10:00", "16:00")])],
+      }),
+    );
+
+    // 10:00から13:00はaだけなので、ホールに残す。2人がそろう13:00からは、1人をキッチンへ移す。
+    // 勤務の途中でポジションが替わらないよう、13:00から入るbを移す。
+    expect(summarize(result)).toEqual(["a 10:00-16:00 hall", "b 13:00-16:00 kitchen"]);
+  });
+
+  it("だれもいない時間が1時間に満たないポジションへは、移さない", () => {
+    const result = buildTimeAssignments(
+      timeInput({
+        staffs: [staff("a"), staff("b")],
+        requestedSlots: ["a", "b"].map((staffId) => request(staffId, DAY1, "10:00", "16:00")),
+        days: [timeDay(DAY1, [...bars("hall", "10:00", "16:00", 2), ...bars("kitchen", "12:00", "12:30")])],
+      }),
+    );
+
+    expect(summarize(result)).toEqual(["a 10:00-16:00 hall", "b 10:00-16:00 hall"]);
+    expect(result.hasShortage).toBe(true);
+  });
+
   it("6時間45分以上の勤務に45分の休憩を、勤務の開始と終了から1時間以上離して入れる", () => {
     const result = buildTimeAssignments(
       timeInput({
@@ -879,16 +938,31 @@ describe("buildTimeAssignments", () => {
   it("伸ばすと休憩が長くなる勤務は、休憩の時間を埋めるためには伸ばさない", () => {
     const result = buildTimeAssignments(
       timeInput({
+        staffs: [staff("a", { kitchen: "unavailable" }), staff("b")],
+        requestedSlots: [request("a", DAY1, "09:00", "19:00"), request("b", DAY1, "13:00", "20:30")],
+        days: [timeDay(DAY1, [...bars("hall", "09:00", "19:00"), ...bars("kitchen", "14:30", "20:30")])],
+      }),
+    );
+
+    // aは9:00から19:00（10時間）で、休憩は13:30から14:30に入る。bはキッチンの14:30から20:30（6時間）で休憩がない。
+    // aの休憩を埋めるためにbを13:30まで伸ばすと7時間になり、bに休憩が要るようになるため、伸ばさない。
+    // ホールはaだけなので、休憩をどこへ動かしても、だれもいない時間は短くならない。休憩は勤務の中央のままにする。
+    expect(summarize(result)).toEqual(["a 09:00-19:00 hall 休憩 13:30-14:30", "b 14:30-20:30 kitchen"]);
+    expect(result.hasShortage).toBe(true);
+  });
+
+  it("休憩でだれもいなくなる時間が埋まらない場合は、同じポジションにほかの人がいる時刻へ休憩を動かす", () => {
+    const result = buildTimeAssignments(
+      timeInput({
         staffs: [staff("a"), staff("b")],
         requestedSlots: [request("a", DAY1, "09:00", "19:00"), request("b", DAY1, "13:00", "20:30")],
         days: [timeDay(DAY1, [...bars("hall", "09:00", "19:00"), ...bars("hall", "14:30", "20:30")])],
       }),
     );
 
-    // aは9:00から19:00（10時間）で、休憩は13:30から14:30に入る。bは14:30から20:30（6時間）で休憩がない。
-    // aの休憩を埋めるためにbを13:30まで伸ばすと7時間になり、bに休憩が要るようになるため、伸ばさない。
-    expect(summarize(result)).toEqual(["a 09:00-19:00 hall 休憩 13:30-14:30", "b 14:30-20:30 hall"]);
-    expect(result.hasShortage).toBe(true);
+    // aの休憩を勤務の中央（13:30から14:30）に置くと、ホールにだれもいなくなる。bは伸ばすと休憩が要るため、伸ばせない。
+    // bのいる14:30からへ休憩を動かし、ホールに1人を残す。
+    expect(summarize(result)).toEqual(["a 09:00-19:00 hall 休憩 14:30-15:30", "b 14:30-20:30 hall"]);
   });
 
   it("勤務と休憩は、本人の希望の時間の内側に収まる", () => {

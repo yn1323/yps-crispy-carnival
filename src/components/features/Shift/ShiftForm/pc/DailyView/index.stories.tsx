@@ -7,7 +7,6 @@ import { DEFAULT_TIME_PATTERN } from "@/src/domains/shop/submissionPattern";
 import { ShiftForm } from "../..";
 import { TIME_AXIS_PADDING_PX } from "../../constants";
 import { lastPositionStorageKey } from "../../lastPositionStorage";
-import { RANGE_ASSIGN_HINT_STORAGE_KEY } from "../../rangeAssignHintStorage";
 import { mockStaffs, mockTimeRange, withPositionSkills } from "../../stories/fixtures";
 import { desktopGlobals, fullscreenParameters, shiftFormDecorators } from "../../stories/shared";
 import {
@@ -149,7 +148,6 @@ const detailArgs = {
 
 const LAST_POSITION_KEY = lastPositionStorageKey(detailArgs.shopId);
 const clearRememberedState = () => {
-  localStorage.removeItem(RANGE_ASSIGN_HINT_STORAGE_KEY);
   localStorage.removeItem(LAST_POSITION_KEY);
 };
 
@@ -158,7 +156,7 @@ const meta = {
   component: ShiftForm,
   parameters: fullscreenParameters,
   decorators: shiftFormDecorators,
-  // 案内を出すかどうかと、最後に選んだポジションは、端末に覚える。前のStoryの操作を引き継がない。
+  // 最後に選んだポジションは、端末に覚える。前のStoryの操作を引き継がない。
   beforeEach: () => {
     clearRememberedState();
     return clearRememberedState;
@@ -313,8 +311,6 @@ const expectNoRangeMenu = () =>
   waitFor(() => expect(within(document.body).queryByRole("menu")).not.toBeInTheDocument());
 const getSelections = (row: HTMLElement) => Array.from(row.querySelectorAll("[data-range-selection]"));
 
-const HINT_TEXT = "バーをなぞると ポジションを変えられます";
-
 /** 日付の見出しの「入れるもの」。次に新しく入れるポジション、または休憩を選ぶ。 */
 const findPalette = async (canvasElement: HTMLElement) =>
   within(await within(canvasElement).findByRole("radiogroup", { name: "入れるもの" }));
@@ -324,7 +320,7 @@ const findNextPositionChip = async (canvasElement: HTMLElement) =>
 
 /**
  * 勤務のバーの一部をなぞると、その範囲を選び、メニューでキッチンを選ぶと区間が分かれる。
- * 入れてあった休憩は残る。一度入れると、日付の見出しの案内が消える。
+ * 入れてあった休憩は残る。
  */
 export const DetailRangeAssignInteractive: Story = {
   name: "Detail Range Assign Interactive",
@@ -332,11 +328,9 @@ export const DetailRangeAssignInteractive: Story = {
   globals: desktopGlobals,
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
     const row = await findRow(canvasElement, "staff1");
     const staffing = within(await findStaffingSection(canvasElement));
     await expect(getWorkBarColors(row)).toEqual([HALL_RGB]);
-    await expect(await canvas.findByText(HINT_TEXT)).toBeInTheDocument();
     // まだ選んでいない端末では、一覧の先頭のホールが、次に入れるポジションになる。
     await expect(await findNextPositionChip(canvasElement)).toHaveTextContent("ホール");
     // Aさんが抜ける前は、14:00〜18:00のホールはちょうど1人。
@@ -359,7 +353,6 @@ export const DetailRangeAssignInteractive: Story = {
     await expect(await staffing.findByRole("button", { name: "キッチン 15:00〜17:00 3/1 ＋2" })).toBeInTheDocument();
     // ポジションを変えても、入れてあった休憩は残る。
     await expect(getBreakBars(row)).toHaveLength(1);
-    await waitFor(() => expect(canvas.queryByText(HINT_TEXT)).not.toBeInTheDocument());
 
     // 選んだキッチンを覚え、次に新しく入れる勤務にも使う。日付の見出しの選択もキッチンに変わる。
     await expect(await findNextPositionChip(canvasElement)).toHaveTextContent("キッチン");
@@ -512,8 +505,6 @@ export const DetailRangeAssignCancelInteractive: Story = {
     await expect(getWorkBarColors(row)).toEqual([KITCHEN_RGB]);
     await expect(getBreakBars(row)).toHaveLength(0);
     await expect(row).toHaveTextContent("12:00–20:00");
-    // 何も入れていないため、案内は出たままにする。
-    await expect(canvas.getByText(HINT_TEXT)).toBeInTheDocument();
   },
 };
 

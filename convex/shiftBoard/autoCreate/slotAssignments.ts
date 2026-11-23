@@ -127,10 +127,18 @@ function hasNonNewcomer(context: SelectionContext, slot: Slot): boolean {
   return slot.members.some((staffId) => !isNewcomer(context, staffId, slot.positionId));
 }
 
+/** だれもいない枠を先にし、その中では元の並びを保つ。 */
+function emptySlotsFirst(slots: readonly Slot[]): Slot[] {
+  return [...slots.filter((slot) => slot.members.length === 0), ...slots.filter((slot) => slot.members.length > 0)];
+}
+
 /**
  * 日付選択とパターン選択の勤務を作る。
- * 1回目は1人を1日に1つの枠だけへ入れる。そのあと、不足の残った枠を入れ替えで見直す。
- * パターン選択では最後に、不足の残った枠へ、その日すでに別の勤務パターンに入っている人を入れる。
+ * 1回目は1人を1日に1つの枠だけへ入れる。まずどの枠にも1人ずつ入れ、そのあと必要人数まで埋める。
+ * 必要人数の多い枠に人が集まり、ほかの枠が0人のまま残ることを防ぐためである。
+ * そのあと、不足の残った枠を入れ替えで見直す。
+ * パターン選択では、不足の残った枠へ、その日すでに別の勤務パターンに入っている人を入れる。
+ * 最後に、だれもいない枠が残っていれば、2人以上いる枠から1人を移す。
  */
 export function buildSlotAssignments(input: AutoCreateInput): AutoCreateResult {
   const slots = buildSlots(input);
@@ -167,22 +175,24 @@ export function buildSlotAssignments(input: AutoCreateInput): AutoCreateResult {
 
   const ordered = slots.slice().sort(compareSlotScarcity);
 
-  // 1回目: 1人を1日に1つの枠だけへ入れる。
-  for (const slot of ordered) {
-    while (slot.members.length < slot.required) {
-      const picked = pickCandidate(
-        context,
-        slot.positionId,
-        slot.candidates.filter((staffId) => isFree(staffId, slot.date)),
-        { prefersNonNewcomer: !hasNonNewcomer(context, slot) },
-      );
-      if (!picked) break;
-      join(slot, picked);
+  // 1回目: 1人を1日に1つの枠だけへ入れる。先にどの枠にも1人ずつ入れてから、必要人数まで埋める。
+  for (const limit of [1, Number.POSITIVE_INFINITY]) {
+    for (const slot of ordered) {
+      while (slot.members.length < Math.min(slot.required, limit)) {
+        const picked = pickCandidate(
+          context,
+          slot.positionId,
+          slot.candidates.filter((staffId) => isFree(staffId, slot.date)),
+          { prefersNonNewcomer: !hasNonNewcomer(context, slot) },
+        );
+        if (!picked) break;
+        join(slot, picked);
+      }
     }
   }
 
-  // 入れ替え: 不足の残った枠へ、同じ日の別の枠にいる人を移し、空いた枠を別の候補で埋める。
-  for (const slot of ordered) {
+  // 入れ替え: 不足の残った枠へ、同じ日の別の枠にいる人を移し、空いた枠を別の候補で埋める。だれもいない枠から先に見直す。
+  for (const slot of emptySlotsFirst(ordered)) {
     while (slot.members.length < slot.required) {
       const movers = slot.candidates
         .filter((staffId) => !slot.members.includes(staffId))
@@ -218,9 +228,10 @@ export function buildSlotAssignments(input: AutoCreateInput): AutoCreateResult {
     }
   }
 
-  // パターン選択の2つ目: 不足の残った枠へ、その日すでに別の勤務パターンに入っている人を入れる。
-  if (input.pattern.kind === "shiftType") {
-    for (const slot of ordered) {
+  // パターン選択の2つ目: 不足の残った枠へ、その日すでに別の勤務パターンに入っている人を入れる。だれもいない枠から先に入れる。
+  const fillWithSecondOption = () => {
+    if (input.pattern.kind !== "shiftType") return;
+    for (const slot of emptySlotsFirst(ordered)) {
       while (slot.members.length < slot.required) {
         const picked = pickCandidate(
           context,
@@ -237,7 +248,40 @@ export function buildSlotAssignments(input: AutoCreateInput): AutoCreateResult {
         join(slot, picked);
       }
     }
+  };
+  fillWithSecondOption();
+
+  // だれもいない枠へ、同じ日の2人以上いる枠から1人を移す。移す人はその日の勤務を持ったままなので、入った日数は変えない。
+  // 移す元は、必要人数に対して埋まっている割合の高い枠を先にする。元の枠が見習いだけになる移し方は、ほかに移せる人がいない場合だけにする。
+  let hasMoved = false;
+  for (const slot of ordered) {
+    if (slot.members.length > 0) continue;
+    const movers = slot.candidates.flatMap((staffId) => {
+      const cell = cells.get(cellKey(staffId, slot.date));
+      const source = cell?.slots.length === 1 ? cell.slots[0] : undefined;
+      if (!cell || !source || source.members.length < 2) return [];
+      const leavesNewcomersOnly =
+        hasNonNewcomer(context, source) &&
+        source.members.every((other) => other === staffId || isNewcomer(context, other, source.positionId));
+      return [{ staffId, cell, source, leavesNewcomersOnly }];
+    });
+    if (movers.length === 0) continue;
+    const mover = movers.reduce((best, item) => {
+      const order =
+        Number(item.leavesNewcomersOnly) - Number(best.leavesNewcomersOnly) ||
+        Number(isNewcomer(context, item.staffId, slot.positionId)) -
+          Number(isNewcomer(context, best.staffId, slot.positionId)) ||
+        best.source.members.length * item.source.required - item.source.members.length * best.source.required ||
+        compareCandidates(context, slot.positionId, item.staffId, best.staffId);
+      return order < 0 ? item : best;
+    });
+    mover.source.members = mover.source.members.filter((staffId) => staffId !== mover.staffId);
+    slot.members.push(mover.staffId);
+    mover.cell.slots = [slot];
+    hasMoved = true;
   }
+  // 移して1人減った枠を、別の勤務パターンに入っている人で埋め直す。
+  if (hasMoved) fillWithSecondOption();
 
   const shifts: AutoCreatedShift[] = [];
   for (const cell of cells.values()) {

@@ -22,7 +22,6 @@ import {
   detailModeAtom,
   isBreakToolActiveAtom,
   isPositionSelectableAtom,
-  isRangeAssignHintDismissedAtom,
   isToolPaletteActiveAtom,
   lockDailyStaffOrderAtom,
   newcomerOnlyPeriodsAtom,
@@ -868,18 +867,6 @@ describe("勤務の範囲へのポジションと休憩の割当（assignShiftRa
 
     expect(store.get(breakToolActiveAtom)).toBe(false);
     expect(store.get(nextWorkPositionAtom)).toEqual(kitchen);
-  });
-
-  it("ポジションか休憩を一度入れると、案内を出さなくなる。何も変わらない操作では出したままにする", () => {
-    const store = createDetailStore();
-    store.set(replaceShiftDraftsAtom, [worked()]);
-    expect(store.get(isRangeAssignHintDismissedAtom)).toBe(false);
-
-    assign(store, "10:00", "12:00", { kind: "position", positionId: position.id });
-    expect(store.get(isRangeAssignHintDismissedAtom)).toBe(false);
-
-    assign(store, "10:00", "12:00", { kind: "position", positionId: kitchen.id });
-    expect(store.get(isRangeAssignHintDismissedAtom)).toBe(true);
   });
 });
 

@@ -338,12 +338,18 @@ function addShift(
   addAssignedAmount(context, staffId, range.end - range.start);
 }
 
-/** そのマスの勤務に、そのポジションで見習いでない人がいるか。 */
-function hasNonNewcomerAt(state: DayState, context: SelectionContext, position: number, cell: number): boolean {
+/** そのマスの勤務に、そのポジションで見習いでない人がいるか。`exceptStaffId`の人は数えない。休憩中の人も数えない。 */
+function hasNonNewcomerAt(
+  state: DayState,
+  context: SelectionContext,
+  position: number,
+  cell: number,
+  exceptStaffId?: string,
+): boolean {
   for (const shift of state.shifts.values()) {
-    if (shift.cellPositions[cell] === position && !isNewcomer(context, shift.staffId, state.positions[position])) {
-      return true;
-    }
+    if (shift.staffId === exceptStaffId || shift.cellPositions[cell] !== position) continue;
+    if (shift.breakRange && shift.breakRange.start <= cell && cell < shift.breakRange.end) continue;
+    if (!isNewcomer(context, shift.staffId, state.positions[position])) return true;
   }
   return false;
 }
@@ -371,7 +377,7 @@ function fillWithFreeStaff(state: DayState, context: SelectionContext): boolean 
   let changed = false;
 
   for (;;) {
-    let target: { position: number; cell: number; count: number; shortfall: number } | null = null;
+    let target: { position: number; cell: number; count: number; shortfall: number; isEmpty: boolean } | null = null;
     for (let position = 0; position < positionCount; position += 1) {
       for (let cell = 0; cell < cellCount; cell += 1) {
         if (unfillable[position][cell] || !isShort(state, position, cell)) continue;
@@ -381,15 +387,20 @@ function fillWithFreeStaff(state: DayState, context: SelectionContext): boolean 
           continue;
         }
         const shortfall = state.demand[position][cell] - state.work[position][cell];
-        // 候補の人数 ÷ 不足の人数が小さいマスを選ぶ。同じなら、候補の少ないマス、早い時刻、並びが先のポジションの順にする。
+        const isEmpty = state.work[position][cell] === 0;
+        // だれもいないマスを、すでに人のいるマスより先に選ぶ。必要人数の多いポジションに人が集まり、ほかのポジションが0人のまま残ることを防ぐためである。
+        // その中では、候補の人数 ÷ 不足の人数が小さいマスを選ぶ。同じなら、候補の少ないマス、早い時刻、並びが先のポジションの順にする。
         // 候補の少ないマスを先にするのは、その時間に入れる人が、ほかの時間で先に使われるのを防ぐためである。
         const scarcity: number = target ? count * target.shortfall - target.count * shortfall : -1;
         if (
           !target ||
           scarcity < 0 ||
-          (scarcity === 0 && (count < target.count || (count === target.count && cell < target.cell)))
+          (scarcity === 0 &&
+            (isEmpty !== target.isEmpty
+              ? isEmpty
+              : count < target.count || (count === target.count && cell < target.cell)))
         ) {
-          target = { position, cell, count, shortfall };
+          target = { position, cell, count, shortfall, isEmpty };
         }
       }
     }
@@ -669,6 +680,81 @@ function extendShifts(state: DayState, context: SelectionContext, options: { all
   return changed;
 }
 
+/** 勤務の中で、同じポジションが続く区間の数。1時間に満たない区間がある場合は0を返す。 */
+function countUsablePositionRuns(shift: DayShift, cellPositions: readonly number[]): number {
+  let count = 0;
+  let runStart = shift.start;
+  for (let cell = shift.start + 1; cell <= shift.end; cell += 1) {
+    if (cell < shift.end && cellPositions[cell] === cellPositions[runStart]) continue;
+    if (cell - runStart < MIN_POSITION_CELLS) return 0;
+    count += 1;
+    runStart = cell;
+  }
+  return count;
+}
+
+/**
+ * だれもいないポジションへ、同じ時間に2人以上いるポジションから、担当できる人を移す。
+ * 勤務の始まりと終わりは変えず、ポジションだけを変えるため、勤務時間の合計と、だれが入るかは変わらない。
+ * 移す範囲は30分単位で、移したあとも、勤務の中の各ポジションが1時間以上続く範囲に限る。
+ * 元のポジションには、休憩中でない人を必ず1人以上残す。休憩を入れたあとは、休憩で人がいなくなった時間も同じように埋める。
+ * 移せる範囲が複数ある場合は、いちばん長い範囲を選ぶ。同じなら、移した先と元のポジションで見習いだけになる時間の短い人、
+ * 勤務の中でポジションの替わる回数が少ない人、早い時刻、並びが先のポジション、スタッフのIDの順にする。
+ */
+function rebalanceEmptyPositions(state: DayState, context: SelectionContext): void {
+  for (;;) {
+    let best: { shift: DayShift; position: number; range: Range; newcomerOnlyCells: number; runCount: number } | null =
+      null;
+    for (let position = 0; position < state.positions.length; position += 1) {
+      const isEmptyAt = (cell: number) => state.demand[position][cell] > 0 && state.work[position][cell] === 0;
+      for (const shift of state.shifts.values()) {
+        if (!getSkilledPositions(state, context, shift.staffId).includes(position)) continue;
+        const { breakRange } = shift;
+        const isMovableAt = (cell: number) => {
+          // 休憩中のマスは、移しても働く人が増えないため、移す範囲に入れない。
+          if (breakRange && breakRange.start <= cell && cell < breakRange.end) return false;
+          const current = shift.cellPositions[cell];
+          return current !== position && isEmptyAt(cell) && state.work[current][cell] >= 2;
+        };
+        for (let start = shift.start; start < shift.end; start += SHIFT_UNIT_CELLS) {
+          for (let end = start; end < shift.end && isMovableAt(end); end += 1) {
+            const length = end + 1 - start;
+            if ((end + 1) % SHIFT_UNIT_CELLS !== 0 || length < MIN_POSITION_CELLS) continue;
+            if (best && length < best.range.end - best.range.start) continue;
+            const cellPositions = shift.cellPositions.slice();
+            for (let cell = start; cell <= end; cell += 1) cellPositions[cell] = position;
+            const runCount = countUsablePositionRuns(shift, cellPositions);
+            if (runCount === 0) continue;
+            // 移した先と元のポジションで、働く人が見習いだけになるマスの数。
+            let newcomerOnlyCells = isNewcomer(context, shift.staffId, state.positions[position]) ? length : 0;
+            for (let cell = start; cell <= end; cell += 1) {
+              const current = shift.cellPositions[cell];
+              if (isNewcomer(context, shift.staffId, state.positions[current])) continue;
+              if (!hasNonNewcomerAt(state, context, current, cell, shift.staffId)) newcomerOnlyCells += 1;
+            }
+            const candidate = { shift, position, range: { start, end: end + 1 }, newcomerOnlyCells, runCount };
+            const order: number = best
+              ? best.range.end - best.range.start - length ||
+                candidate.newcomerOnlyCells - best.newcomerOnlyCells ||
+                candidate.runCount - best.runCount ||
+                start - best.range.start ||
+                position - best.position ||
+                compareText(shift.staffId, best.shift.staffId)
+              : -1;
+            if (order < 0) best = candidate;
+          }
+        }
+      }
+    }
+    if (!best) break;
+    for (let cell = best.range.start; cell < best.range.end; cell += 1) {
+      state.work[best.shift.cellPositions[cell]][cell] -= 1;
+      state.work[best.position][cell] += 1;
+      best.shift.cellPositions[cell] = best.position;
+    }
+  }
+}
+
 function removeBreak(state: DayState, shift: DayShift): void {
   if (!shift.breakRange) return;
   for (let cell = shift.breakRange.start; cell < shift.breakRange.end; cell += 1) {
@@ -686,6 +772,8 @@ type BreakCandidate = {
   samePositionOverlap: number;
   /** 休憩の中央が、勤務の中央の前後2時間より外にある。 */
   isFarFromCenter: boolean;
+  /** 休憩の間に、そのポジションで働く人がだれもいなくなるマスの数。休憩を入れたあとの見直しでだけ比べる。 */
+  emptiedCells: number;
   /** ポジションを問わず、同時に休憩している人数。 */
   overlap: number;
   /** 勤務の中央と、休憩の中央の離れ具合。マスの半分を1とする。 */
@@ -723,46 +811,93 @@ function placeBreaks(state: DayState): void {
   for (const shift of shifts) {
     removeBreak(state, shift);
     shift.needsBreakPlacement = false;
-    const span = shift.end - shift.start;
-    const length = Math.ceil(getRequiredBreakMinutes(span * CELL_MINUTES) / CELL_MINUTES);
-    if (length === 0) continue;
+    const best = listBreakCandidates(state, shift).reduce<BreakCandidate | null>(
+      (picked, candidate) => (!picked || compareBreakCandidates(candidate, picked) < 0 ? candidate : picked),
+      null,
+    );
+    if (best) setBreak(state, shift, best.start);
+  }
+}
 
-    // 勤務の開始と終了から1時間離せない短い勤務では、15分だけ離す。休憩は勤務の頭とお尻に接して置けない。
-    const margin = span >= length + BREAK_MARGIN_CELLS * 2 ? BREAK_MARGIN_CELLS : 1;
-    let best: BreakCandidate | null = null;
-    for (let start = shift.start + margin; start + length <= shift.end - margin; start += 1) {
-      // 人数はどれも、休憩の間でいちばん大きい値を見る。
-      let samePositionOverlap = 0;
-      let overlap = 0;
-      let deficit = 0;
-      for (let cell = start; cell < start + length; cell += 1) {
-        const position = shift.cellPositions[cell];
-        samePositionOverlap = Math.max(samePositionOverlap, state.onBreak[position][cell]);
-        overlap = Math.max(
-          overlap,
-          state.onBreak.reduce((total, cells) => total + cells[cell], 0),
-        );
-        deficit = Math.max(deficit, state.demand[position][cell] - (state.work[position][cell] - 1));
-      }
-      const distance = Math.abs(start * 2 + length - (shift.start + shift.end));
-      const candidate: BreakCandidate = {
-        start,
-        samePositionOverlap,
-        isFarFromCenter: distance > BREAK_STAGGER_RANGE_CELLS * 2,
-        overlap,
-        distance,
-        deficit,
-      };
-      if (!best || compareBreakCandidates(candidate, best) < 0) best = candidate;
-    }
-    if (!best) continue;
+/** 休憩の長さ（マスの数）。休憩の要らない勤務は0。 */
+function getBreakCells(shift: DayShift): number {
+  return Math.ceil(getRequiredBreakMinutes((shift.end - shift.start) * CELL_MINUTES) / CELL_MINUTES);
+}
 
-    shift.breakRange = { start: best.start, end: best.start + length };
-    for (let cell = best.start; cell < best.start + length; cell += 1) {
+/** 休憩の入っていない勤務について、休憩を置ける時刻の候補を、早い順に返す。 */
+function listBreakCandidates(state: DayState, shift: DayShift): BreakCandidate[] {
+  const span = shift.end - shift.start;
+  const length = getBreakCells(shift);
+  if (length === 0) return [];
+
+  // 勤務の開始と終了から1時間離せない短い勤務では、15分だけ離す。休憩は勤務の頭とお尻に接して置けない。
+  const margin = span >= length + BREAK_MARGIN_CELLS * 2 ? BREAK_MARGIN_CELLS : 1;
+  const candidates: BreakCandidate[] = [];
+  for (let start = shift.start + margin; start + length <= shift.end - margin; start += 1) {
+    // 人数はどれも、休憩の間でいちばん大きい値を見る。
+    let samePositionOverlap = 0;
+    let overlap = 0;
+    let deficit = 0;
+    let emptiedCells = 0;
+    for (let cell = start; cell < start + length; cell += 1) {
       const position = shift.cellPositions[cell];
-      state.work[position][cell] -= 1;
-      state.onBreak[position][cell] += 1;
+      samePositionOverlap = Math.max(samePositionOverlap, state.onBreak[position][cell]);
+      overlap = Math.max(
+        overlap,
+        state.onBreak.reduce((total, cells) => total + cells[cell], 0),
+      );
+      deficit = Math.max(deficit, state.demand[position][cell] - (state.work[position][cell] - 1));
+      if (state.demand[position][cell] > 0 && state.work[position][cell] === 1) emptiedCells += 1;
     }
+    const distance = Math.abs(start * 2 + length - (shift.start + shift.end));
+    candidates.push({
+      start,
+      samePositionOverlap,
+      isFarFromCenter: distance > BREAK_STAGGER_RANGE_CELLS * 2,
+      emptiedCells,
+      overlap,
+      distance,
+      deficit,
+    });
+  }
+  return candidates;
+}
+
+function setBreak(state: DayState, shift: DayShift, start: number): void {
+  const end = start + getBreakCells(shift);
+  shift.breakRange = { start, end };
+  for (let cell = start; cell < end; cell += 1) {
+    const position = shift.cellPositions[cell];
+    state.work[position][cell] -= 1;
+    state.onBreak[position][cell] += 1;
+  }
+}
+
+/**
+ * 休憩の間、そのポジションで働く人がだれもいなくなる勤務の休憩を、ほかの人がいる時刻へ動かす。
+ * 勤務を伸ばすか、人を入れて埋め直したあとにも、だれもいない時間が残る休憩だけを対象にする。
+ * 動かす先は、休憩の中央が勤務の中央の前後2時間に入る時刻に限り、だれもいなくなる時間がいちばん短い時刻にする。
+ * だれもいなくなる時間が短くならない場合は、動かさない。
+ */
+function moveBreaksOffEmptyPositions(state: DayState): void {
+  const shifts = [...state.shifts.values()].sort((a, b) => a.start - b.start || compareText(a.staffId, b.staffId));
+  for (const shift of shifts) {
+    const current = shift.breakRange;
+    if (!current) continue;
+    removeBreak(state, shift);
+    const candidates = listBreakCandidates(state, shift);
+    const currentCandidate = candidates.find((candidate) => candidate.start === current.start);
+    const best = candidates
+      .filter((candidate) => !candidate.isFarFromCenter)
+      .reduce<BreakCandidate | null>(
+        (picked, candidate) =>
+          !picked || (candidate.emptiedCells - picked.emptiedCells || compareBreakCandidates(candidate, picked)) < 0
+            ? candidate
+            : picked,
+        null,
+      );
+    const isBetter = best && currentCandidate && best.emptiedCells < currentCandidate.emptiedCells;
+    setBreak(state, shift, best && isBetter ? best.start : current.start);
   }
 }
 
@@ -795,8 +930,9 @@ function toCreatedShifts(state: DayState, date: string, boardStart: number): Aut
 
 /**
  * 時間指定の勤務を作る。
- * 1つのポジションの勤務を入れ、複数のポジションをつなぎ、勤務を伸ばしてから、休憩を入れる。
+ * 1つのポジションの勤務を入れ、複数のポジションをつなぎ、勤務を伸ばしてから、だれもいないポジションへ人を移し、休憩を入れる。
  * 休憩で足りなくなった時間は、勤務を伸ばすか、まだ勤務のない希望者を入れて埋め直す。
+ * それでも休憩の間だれもいないポジションが残る場合は、休憩を動かすか、人を移す。
  */
 export function buildTimeAssignments(input: AutoCreateInput): AutoCreateResult {
   if (input.pattern.kind !== "time")
@@ -848,6 +984,7 @@ export function buildTimeAssignments(input: AutoCreateInput): AutoCreateResult {
     fillWithFreeStaff(state, context);
     composeForFreeStaff(state, context);
     extendShifts(state, context, { allowsLongerBreak: true });
+    rebalanceEmptyPositions(state, context);
     if (input.includesBreaks) {
       trimShiftsJustOverNoBreakSpan(state, context);
       placeBreaks(state);
@@ -858,6 +995,8 @@ export function buildTimeAssignments(input: AutoCreateInput): AutoCreateResult {
         trimShiftsJustOverNoBreakSpan(state, context);
         placeBreaks(state);
       }
+      moveBreaksOffEmptyPositions(state);
+      rebalanceEmptyPositions(state, context);
     }
 
     for (const [staffId, potential] of state.potentialCells) {
