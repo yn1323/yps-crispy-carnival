@@ -66,17 +66,17 @@ describe("legal/mutations", () => {
       return [state, events] as const;
     });
 
-    expect(state?.termsConsentVersion).toBe("staff-terms-consent-2026-05-09");
-    expect(state?.privacyConsentVersion).toBe("staff-privacy-consent-2026-08-26");
-    expect(state?.termsDocumentVersion).toBe("staff-terms-doc-2026-08-26");
-    expect(state?.privacyDocumentVersion).toBe("staff-privacy-doc-2026-10-04");
+    expect(state?.termsConsentVersion).toBe("staff-terms-consent-2026-11-25");
+    expect(state?.privacyConsentVersion).toBe("staff-privacy-consent-2026-11-25");
+    expect(state?.termsDocumentVersion).toBe("staff-terms-doc-2026-11-25");
+    expect(state?.privacyDocumentVersion).toBe("staff-privacy-doc-2026-11-25");
     expect(state?.method).toBe("staff_email_link");
     expect(events).toHaveLength(1);
     expect(events[0].method).toBe("staff_email_link");
-    expect(events[0].termsConsentVersion).toBe("staff-terms-consent-2026-05-09");
-    expect(events[0].privacyConsentVersion).toBe("staff-privacy-consent-2026-08-26");
-    expect(events[0].termsDocumentVersion).toBe("staff-terms-doc-2026-08-26");
-    expect(events[0].privacyDocumentVersion).toBe("staff-privacy-doc-2026-10-04");
+    expect(events[0].termsConsentVersion).toBe("staff-terms-consent-2026-11-25");
+    expect(events[0].privacyConsentVersion).toBe("staff-privacy-consent-2026-11-25");
+    expect(events[0].termsDocumentVersion).toBe("staff-terms-doc-2026-11-25");
+    expect(events[0].privacyDocumentVersion).toBe("staff-privacy-doc-2026-11-25");
   });
 
   it("期限切れトークンでは同意できない", async () => {
@@ -218,18 +218,18 @@ describe("legal/mutations", () => {
     });
 
     expect(shopId).toBeDefined();
-    expect(state?.termsConsentVersion).toBe("manager-terms-consent-2026-08-27-2");
-    expect(state?.privacyConsentVersion).toBe("manager-privacy-consent-2026-08-26");
-    expect(state?.termsDocumentVersion).toBe("manager-terms-doc-2026-08-27-2");
-    expect(state?.privacyDocumentVersion).toBe("manager-privacy-doc-2026-11-24");
+    expect(state?.termsConsentVersion).toBe("manager-terms-consent-2026-11-25");
+    expect(state?.privacyConsentVersion).toBe("manager-privacy-consent-2026-11-25");
+    expect(state?.termsDocumentVersion).toBe("manager-terms-doc-2026-11-25");
+    expect(state?.privacyDocumentVersion).toBe("manager-privacy-doc-2026-11-25");
     expect(state?.method).toBe("manager_reconsent");
     expect(events).toHaveLength(1);
     expect(events[0].shopId).toBe(shopId);
     expect(events[0].method).toBe("manager_reconsent");
-    expect(events[0].termsConsentVersion).toBe("manager-terms-consent-2026-08-27-2");
-    expect(events[0].privacyConsentVersion).toBe("manager-privacy-consent-2026-08-26");
-    expect(events[0].termsDocumentVersion).toBe("manager-terms-doc-2026-08-27-2");
-    expect(events[0].privacyDocumentVersion).toBe("manager-privacy-doc-2026-11-24");
+    expect(events[0].termsConsentVersion).toBe("manager-terms-consent-2026-11-25");
+    expect(events[0].privacyConsentVersion).toBe("manager-privacy-consent-2026-11-25");
+    expect(events[0].termsDocumentVersion).toBe("manager-terms-doc-2026-11-25");
+    expect(events[0].privacyDocumentVersion).toBe("manager-privacy-doc-2026-11-25");
   });
 
   it("管理ユーザーの再同意要否は同意要求版で判定する", async () => {
@@ -244,8 +244,8 @@ describe("legal/mutations", () => {
         subjectType: "user",
         userId,
         shopId,
-        termsConsentVersion: "manager-terms-consent-2026-08-27-2",
-        privacyConsentVersion: "manager-privacy-consent-2026-08-26",
+        termsConsentVersion: "manager-terms-consent-2026-11-25",
+        privacyConsentVersion: "manager-privacy-consent-2026-11-25",
         termsDocumentVersion: "manager-terms-doc-old",
         privacyDocumentVersion: "manager-privacy-doc-old",
         consentedAt: Date.now() - 1000,
@@ -283,7 +283,7 @@ describe("legal/mutations", () => {
       if (!state) throw new Error("missing state");
       await ctx.db.patch(state._id, {
         termsConsentVersion: "manager-terms-consent-2026-08-26",
-        privacyConsentVersion: "manager-privacy-consent-2026-08-26",
+        privacyConsentVersion: "manager-privacy-consent-2026-11-25",
       });
     });
 
