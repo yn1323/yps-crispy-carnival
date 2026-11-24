@@ -488,6 +488,8 @@ const Shell = ({
               px={3}
               color="gray.950"
               fontSize="lg"
+              // flexの子に分けると読み上げの名前に空白が入るため、見出しの名前は1つの文字列で渡す。
+              aria-label={`${header.shopName}：${header.periodTitle}`}
             >
               {/* 長い店舗名は省略し、期間は必ず全部を出す。 */}
               <Box as="span" minW={0} truncate title={header.shopName}>
