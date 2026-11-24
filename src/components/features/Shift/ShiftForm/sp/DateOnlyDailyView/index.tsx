@@ -20,7 +20,6 @@ import {
   type DateOnlyDayRowPresentation,
   type DateOnlyStaffingPresentation,
 } from "../../dateOnlyPresentation";
-import { ProvisionalBadge } from "../../detailParts";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import { useRestoreRememberedWorkPosition } from "../../hooks/useRestoreRememberedWorkPosition";
 import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
@@ -420,8 +419,6 @@ const StaffRow = ({
         <Text textStyle="sm" fontWeight={600} color={row.isNameMuted ? "gray.500" : "gray.800"} truncate>
           {row.staffName}
         </Text>
-        {/* 仮の勤務は、名前の横の「仮」だけで示す。点線は希望の輪に使うためである。 */}
-        {row.isProvisional && <ProvisionalBadge />}
         {row.isUnsubmitted && (
           <Text textStyle="2xs" fontWeight={600} flexShrink={0} style={{ color: "#b45309" }}>
             未提出

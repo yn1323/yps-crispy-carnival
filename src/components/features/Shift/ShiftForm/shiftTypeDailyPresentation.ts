@@ -57,8 +57,6 @@ export type ShiftTypeDailyCellPresentation = {
 export type ShiftTypeDailyRowPresentation = {
   key: string;
   staff: StaffType;
-  /** 表示中の日の勤務。スタッフ名に添える「仮」に使う。 */
-  shift: ShiftData | undefined;
   staffName: string;
   isNameMuted: boolean;
   /** 名前に「未提出」を添えるか。 */
@@ -124,7 +122,6 @@ export function buildShiftTypeDailyPresentation({
     return {
       key: staff.id,
       staff,
-      shift,
       staffName: staff.name,
       isNameMuted: !staff.isSubmitted,
       isUnsubmitted: !isConfirmedDisplay && !staff.isSubmitted,

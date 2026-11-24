@@ -3,7 +3,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useMemo, useState } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
 import { IssueCountBadge } from "../../components";
-import { PositionMark, StaffMeta } from "../../detailParts";
+import { PositionMark } from "../../detailParts";
 import {
   detailModeAtom,
   selectDateWithDailyStaffOrderAtom,
@@ -208,7 +208,6 @@ const DayStaffList = ({ rows }: { rows: DateOnlyOverviewStaffRowViewModel[] }) =
             <Text as="span" textStyle="caption" fontWeight={600} color="gray.800" minW={0}>
               {staff.name}
             </Text>
-            <StaffMeta staff={staff.staff} showTotal={false} />
           </Flex>
           <Box as="span" color="gray.700" minW={0}>
             <PositionMark segment={staff.segment} />

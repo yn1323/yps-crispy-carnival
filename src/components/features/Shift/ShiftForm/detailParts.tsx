@@ -22,7 +22,7 @@ import {
 } from "./stores";
 
 // ==========================================
-// 画面の外へ出す操作（設定ページへの移動、その日の必要人数、仮の勤務）
+// 画面の外へ出す操作（設定ページへの移動、その日の必要人数）
 // ==========================================
 /** その日の必要人数を変える操作。成功したらtrueを返す。失敗は呼び出し先が利用者へ伝える。 */
 export type ShiftFormDayStaffingActions = {
@@ -40,8 +40,6 @@ export type ShiftFormDetailActions = {
   onOpenSetup?: () => void;
   /** その日の必要人数を変える操作。渡さない場合は、テンプレートの名前だけを出す。 */
   dayStaffingActions?: ShiftFormDayStaffingActions;
-  /** 未提出者へ前回の勤務を仮で入れる。前回確定した募集がない場合は渡さない。 */
-  provisionalAction?: { onInsert: () => void; isLoading: boolean };
   /**
    * 希望シフトから勤務を自動で作り、下書きを置き換える。作り終えるか、作れずに終わると解決する。
    * 作れずに終わり、ダイアログを開いたままAIの手直しを外して作り直せるようにする場合は、falseで解決する。
@@ -349,41 +347,10 @@ export const BreakMark = ({ shift, compact = false }: { shift: ShiftData | undef
 };
 
 // ==========================================
-// スタッフ名に添える印（仮の勤務、合計）
+// スタッフ名に添える合計
 // ==========================================
-/** 前回の勤務を仮で入れた勤務があることを、スタッフ名に添えて示す。 */
-export const ProvisionalBadge = () => (
-  <Box
-    as="span"
-    px="6px"
-    py="0"
-    borderRadius="full"
-    borderWidth="1px"
-    borderStyle="dashed"
-    borderColor="gray.500"
-    color="gray.700"
-    textStyle="2xs"
-    fontWeight={700}
-    flexShrink={0}
-    title="前回の勤務を仮で入れています"
-  >
-    仮
-  </Box>
-);
-
-/**
- * くわしく表示のときだけ、スタッフ名に添える印を出す。
- * `shift`には、表示中の日の勤務を渡す。週や期間を並べる表では渡さない。
- */
-export const StaffMeta = ({
-  staff,
-  shift,
-  showTotal = true,
-}: {
-  staff: StaffType;
-  shift?: ShiftData;
-  showTotal?: boolean;
-}) => {
+/** くわしく表示のときだけ、スタッフ名に勤務時間の合計を添える。 */
+export const StaffMeta = ({ staff, showTotal = true }: { staff: StaffType; showTotal?: boolean }) => {
   const detailMode = useAtomValue(detailModeAtom);
   const totals = useAtomValue(staffWorkTotalsAtom);
   const config = useAtomValue(shiftConfigAtom);
@@ -392,17 +359,13 @@ export const StaffMeta = ({
   // 人ごとの合計は担当者が偏りを確かめるためのもので、スタッフ向けの確定シフト表示には出さない。
   const total = config.displayMode === "confirmed" ? undefined : totals.get(staff.id);
   // 担当外は名前の横に出さない。担当外のポジションへ入れたときだけ、確認事項で知らせる。
-  const hasContent = shift?.isProvisional || (showTotal && total);
-  if (!hasContent) return null;
+  if (!showTotal || !total) return null;
 
   return (
     <Flex align="center" gap={1} minW={0} flexWrap="nowrap">
-      {shift?.isProvisional && <ProvisionalBadge />}
-      {showTotal && total && (
-        <Text textStyle="2xs" color="gray.600" fontVariantNumeric="tabular-nums" whiteSpace="nowrap">
-          計 {formatStaffWorkTotal(total)}
-        </Text>
-      )}
+      <Text textStyle="2xs" color="gray.600" fontVariantNumeric="tabular-nums" whiteSpace="nowrap">
+        計 {formatStaffWorkTotal(total)}
+      </Text>
     </Flex>
   );
 };

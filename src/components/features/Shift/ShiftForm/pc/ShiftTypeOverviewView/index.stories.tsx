@@ -69,7 +69,7 @@ const detailShifts: ShiftData[] = [
   shift("staff3", "2026-05-21", [["late", hall]]),
   shift("staff4", "2026-05-21", [["night", register]]),
   shift("staff4", "2026-05-26", [["morning", register]]),
-  shift("staff6", "2026-05-22", [["morning", kitchen]], { isProvisional: true }),
+  shift("staff6", "2026-05-22", [["morning", kitchen]]),
 ];
 
 const detailArgs = {

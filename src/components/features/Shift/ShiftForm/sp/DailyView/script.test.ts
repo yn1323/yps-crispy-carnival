@@ -277,7 +277,7 @@ describe("buildSPShiftEditResult", () => {
     ]);
   });
 
-  it("ポジションを変えていない行は、IDとポジションと希望・休憩・仮の印を保ったまま時刻だけ置き換える", () => {
+  it("ポジションを変えていない行は、IDとポジションと希望・休憩を保ったまま時刻だけ置き換える", () => {
     const shift = shiftOf(
       [
         { id: "break-before", positionId: "break", positionName: "休憩", color: "#000", start: "11:00", end: "12:00" },
@@ -296,7 +296,6 @@ describe("buildSPShiftEditResult", () => {
         requestedTimes: [{ start: "12:00", end: "14:00" }],
         requestedShiftTypeOptionIds: ["legacy-request"],
         breaks: [{ start: "12:30", end: "12:45" }],
-        isProvisional: true,
       },
     );
     const originalShift = structuredClone(shift);

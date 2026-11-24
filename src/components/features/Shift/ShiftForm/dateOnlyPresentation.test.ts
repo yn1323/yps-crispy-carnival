@@ -38,18 +38,13 @@ const segment = (position: typeof HALL): PositionSegment => ({
   end: "22:00",
 });
 
-const shift = (
-  target: StaffType,
-  date: string,
-  input: { requested?: boolean; position?: typeof HALL; isProvisional?: boolean },
-): ShiftData => ({
+const shift = (target: StaffType, date: string, input: { requested?: boolean; position?: typeof HALL }): ShiftData => ({
   id: `shift-${target.id}-${date}`,
   staffId: target.id,
   staffName: target.name,
   date,
   requestedTime: input.requested ? { start: "09:00", end: "22:00" } : null,
   positions: input.position ? [segment(input.position)] : [],
-  ...(input.isProvisional ? { isProvisional: true } : {}),
 });
 
 const shifts: ShiftData[] = [
@@ -59,8 +54,8 @@ const shifts: ShiftData[] = [
   // 山口: 希望はなく、12/2の連絡事項だけがある。
   // 山本: 希望のない12/4に入っている。
   shift(yamamoto, "2026-12-04", { position: KITCHEN }),
-  // 佐藤（未提出）: 12/1に前回の勤務を仮で入れている。
-  shift(sato, "2026-12-01", { position: HALL, isProvisional: true }),
+  // 佐藤（未提出）: 12/1に入っている。
+  shift(sato, "2026-12-01", { position: HALL }),
   // 定休日と期間外に残った希望と勤務は、出さない。
   shift(nakamura, "2026-12-03", { requested: true, position: HALL }),
   shift(nakamura, "2026-11-30", { requested: true, position: HALL }),
@@ -131,14 +126,14 @@ describe("buildDateOnlyWeekPresentation", () => {
     });
   });
 
-  it("未提出の人は「未提出」を添え、仮で入れた勤務には「仮」を添えて、未提出の理由を付ける", () => {
+  it("未提出の人は「未提出」を添え、割り当てには橙の点と未提出の理由を付ける", () => {
     const row = buildWeek().rows.find((item) => item.key === sato.id);
-    expect(row).toMatchObject({ isUnsubmitted: true, isNameMuted: true, isProvisional: true });
+    expect(row).toMatchObject({ isUnsubmitted: true, isNameMuted: true });
     expect(row?.cells.find((cell) => cell.key === "2026-12-01")).toMatchObject({
       showsRequestRing: false,
       dot: "orange",
       noticeTexts: ["未提出"],
-      ariaDescription: "未提出、前回の勤務を仮で入れています",
+      ariaDescription: "未提出",
     });
   });
 
@@ -248,7 +243,7 @@ describe("buildDateOnlyWeekPresentation", () => {
     expect(cells.filter((cell) => cell.showsRequestRing || cell.dot !== null || cell.noticeTexts.length > 0)).toEqual(
       [],
     );
-    expect(week.rows.filter((row) => row.isUnsubmitted || row.isProvisional)).toEqual([]);
+    expect(week.rows.filter((row) => row.isUnsubmitted)).toEqual([]);
     expect(cells.filter((cell) => cell.assigned).map((cell) => cell.ariaLabel)).toEqual([
       "小林 悠斗 12/1(火) 勤務あり、販売",
       "山本 拓海 12/4(金) 勤務あり、製造",

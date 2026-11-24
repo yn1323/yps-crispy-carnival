@@ -556,8 +556,8 @@ describe("休憩の決まりの初期値", () => {
   });
 });
 
-describe("勤務がなくなった日の休憩と仮の印", () => {
-  const provisionalDraft = () =>
+describe("勤務がなくなった日の休憩", () => {
+  const draftWithBreak = () =>
     draft({
       requestedTime: { start: "09:00", end: "18:00" },
       positions: [
@@ -565,39 +565,37 @@ describe("勤務がなくなった日の休憩と仮の印", () => {
         workSegment(kitchen, "12:00", "18:00", { id: "segment-2", shiftTypeOptionId: earlyOption.id }),
       ],
       breaks: [{ start: "13:00", end: "14:00" }],
-      isProvisional: true,
     });
   const clearedDraft = { ...draft({ requestedTime: { start: "09:00", end: "18:00" } }) };
 
-  it("勤務をまとめて消すと、休憩と仮の印も消える", () => {
+  it("勤務をまとめて消すと、休憩も消える", () => {
     const store = createDetailStore();
-    store.set(replaceShiftDraftsAtom, [provisionalDraft()]);
+    store.set(replaceShiftDraftsAtom, [draftWithBreak()]);
 
     store.set(clearShiftDraftPositionsAtom, { staffId: staff.id, date });
 
     expect(store.get(shiftsAtom)).toStrictEqual([clearedDraft]);
   });
 
-  it("最後の勤務区間を削除すると、休憩と仮の印も消え、戻り値にも残らない", () => {
+  it("最後の勤務区間を削除すると、休憩も消え、戻り値にも残らない", () => {
     const store = createDetailStore();
-    const shift = provisionalDraft();
+    const shift = draftWithBreak();
     store.set(replaceShiftDraftsAtom, [shift]);
 
     const afterFirst = store.set(deleteShiftPositionAtom, { shiftId: shift.id, positionIds: ["segment-1"] });
-    expect(afterFirst).toMatchObject({ breaks: [{ start: "13:00", end: "14:00" }], isProvisional: true });
+    expect(afterFirst).toMatchObject({ breaks: [{ start: "13:00", end: "14:00" }] });
 
     const afterLast = store.set(deleteShiftPositionAtom, { shiftId: shift.id, positionIds: ["segment-2"] });
     expect(afterLast).toStrictEqual(clearedDraft);
     expect(store.get(shiftsAtom)).toStrictEqual([clearedDraft]);
   });
 
-  it("日付選択の勤務を外すと、休憩と仮の印も消える", () => {
+  it("日付選択の勤務を外すと、休憩も消える", () => {
     const store = createDetailStore({ submissionPattern: dateOnlyPattern });
     store.set(replaceShiftDraftsAtom, [
       draft({
         positions: [workSegment(position, "09:00", "18:00")],
         breaks: [{ start: "12:00", end: "13:00" }],
-        isProvisional: true,
       }),
     ]);
 
@@ -606,13 +604,12 @@ describe("勤務がなくなった日の休憩と仮の印", () => {
     expect(store.get(shiftsAtom)).toStrictEqual([draft()]);
   });
 
-  it("最後の勤務パターンを外すと、休憩と仮の印も消える", () => {
+  it("最後の勤務パターンを外すと、休憩も消える", () => {
     const store = createDetailStore({ submissionPattern: shiftTypePattern });
     store.set(replaceShiftDraftsAtom, [
       draft({
         positions: [workSegment(position, "09:00", "17:00", { shiftTypeOptionId: earlyOption.id })],
         breaks: [{ start: "12:00", end: "13:00" }],
-        isProvisional: true,
       }),
     ]);
 
@@ -621,20 +618,20 @@ describe("勤務がなくなった日の休憩と仮の印", () => {
     expect(store.get(shiftsAtom)).toStrictEqual([draft()]);
   });
 
-  it("勤務が残る変更では、休憩と仮の印を残す", () => {
+  it("勤務が残る変更では、休憩を残す", () => {
     const store = createDetailStore();
-    const shift = provisionalDraft();
+    const shift = draftWithBreak();
     store.set(replaceShiftDraftsAtom, [shift]);
 
     store.set(upsertShiftDraftAtom, { ...shift, positions: [workSegment(position, "09:00", "18:00")] });
 
-    expect(store.get(shiftsAtom)).toMatchObject([{ breaks: [{ start: "13:00", end: "14:00" }], isProvisional: true }]);
+    expect(store.get(shiftsAtom)).toMatchObject([{ breaks: [{ start: "13:00", end: "14:00" }] }]);
   });
 
-  it("変えていないほかの日の休憩と仮の印は残す", () => {
+  it("変えていないほかの日の休憩は残す", () => {
     const store = createDetailStore();
-    const other = { ...provisionalDraft(), id: "shift-other", staffId: secondStaff.id };
-    store.set(replaceShiftDraftsAtom, [provisionalDraft(), other]);
+    const other = { ...draftWithBreak(), id: "shift-other", staffId: secondStaff.id };
+    store.set(replaceShiftDraftsAtom, [draftWithBreak(), other]);
 
     store.set(clearShiftDraftPositionsAtom, { staffId: staff.id, date });
 
@@ -717,7 +714,7 @@ describe("勤務の範囲へのポジションと休憩の割当（assignShiftRa
 
   it("選んだ範囲だけを指定したポジションにし、ほかの値は変えない", () => {
     const store = createDetailStore();
-    const shift = worked({ breaks: [{ start: "15:00", end: "16:00" }], isProvisional: true });
+    const shift = worked({ breaks: [{ start: "15:00", end: "16:00" }] });
     const other = draft({ id: "shift-other", staffId: secondStaff.id });
     store.set(replaceShiftDraftsAtom, [shift, other]);
 
@@ -875,20 +872,19 @@ describe("画面の外で組み立てた編集結果の取り込み（applyShift
     const store = createDetailStore({ staffing: staffingWith(breakRule) });
     const current = [draft(), draft({ id: "shift-other", staffId: secondStaff.id })];
     store.set(replaceShiftDraftsAtom, current);
-    const provisional = {
+    const assigned = {
       ...current[1],
       positions: [workSegment(kitchen, "10:00", "18:00")],
-      isProvisional: true,
     };
 
     let received: ShiftData[] | undefined;
     store.set(applyShiftDraftsAtom, (shifts) => {
       received = shifts;
-      return [shifts[0], provisional];
+      return [shifts[0], assigned];
     });
 
     expect(received).toBe(current);
-    expect(store.get(shiftsAtom)).toStrictEqual([current[0], provisional]);
+    expect(store.get(shiftsAtom)).toStrictEqual([current[0], assigned]);
   });
 });
 
@@ -936,7 +932,6 @@ describe("閲覧専用のくわしく表示", () => {
         workSegment(position, "13:00", "18:00", { id: "segment-2" }),
       ],
       breaks: [{ start: "15:00", end: "16:00" }],
-      isProvisional: true,
     });
     const shifts = [shift];
     store.set(replaceShiftDraftsAtom, shifts);

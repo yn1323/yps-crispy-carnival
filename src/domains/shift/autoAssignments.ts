@@ -19,14 +19,14 @@ type ApplyInput = {
 
 /**
  * 下書きの勤務を、自動作成の結果ですべて置き換える。
- * 結果にない日は、手で入れた勤務も仮の勤務も消す。希望は変えない。
+ * 結果にない日は、手で入れた勤務も消す。希望は変えない。
  */
 export const applyAutoAssignments = (input: ApplyInput): ShiftData[] => {
   const positionById = new Map(input.positions.map((position) => [position.id, position]));
   const createdByCell = new Map(input.created.map((item) => [`${item.staffId}|${item.date}`, item]));
 
   return input.shifts.map((shift) => {
-    const { breaks: _breaks, isProvisional: _isProvisional, ...rest } = shift;
+    const { breaks: _breaks, ...rest } = shift;
     const created = createdByCell.get(`${shift.staffId}|${shift.date}`);
     const segments = (created?.segments ?? []).flatMap((segment, index) => {
       const position = positionById.get(segment.positionId);

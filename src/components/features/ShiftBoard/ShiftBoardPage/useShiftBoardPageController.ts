@@ -602,7 +602,7 @@ export const useShiftBoardPageController = (
     }
   });
 
-  // 表示設定と「くわしく」表示の操作（設定ページ、その日の必要人数、仮の勤務、表示の切り替え、スタッフの並び替え）。
+  // 表示設定と「くわしく」表示の操作（設定ページ、その日の必要人数、自動作成、表示の切り替え、スタッフの並び替え）。
   const {
     detailActions,
     applyShiftsRef,
@@ -620,7 +620,6 @@ export const useShiftBoardPageController = (
     shopScope,
     staffs,
     positions,
-    shiftsRef,
     isReadOnly,
     isConfirmed,
     hasUnsavedChanges,

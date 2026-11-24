@@ -4,7 +4,6 @@ import { useState } from "react";
 import { FoldedStaffGroupToggle, PositionStaffingCount } from "../../assignmentCellParts";
 import { Avatar, StaffWarningIcon } from "../../components";
 import { ShiftStaffNoteIcon, useAllShiftDateNotes, useShiftDateNotes } from "../../dateNotes";
-import { StaffMeta } from "../../detailParts";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import { useRestoreRememberedWorkPosition } from "../../hooks/useRestoreRememberedWorkPosition";
 import { useShiftTypeDailyPresentation } from "../../hooks/useShiftTypeDailyPresentation";
@@ -18,7 +17,6 @@ import {
 import {
   assignShiftTypeAtom,
   changeShiftTypePositionAtom,
-  detailModeAtom,
   isPositionSelectableAtom,
   issueCountByDateAtom,
   removeShiftTypeAssignmentAtom,
@@ -48,7 +46,6 @@ export const ShiftTypeDailyView = () => {
   const allDateNotes = useAllShiftDateNotes();
   // 連絡事項の列は、表示設定で連絡事項を表示していて、募集期間に1件でもあるときに出す。日付を変えても列の有無を変えない。
   const showsNoteColumn = useShiftDateNotes().hasNotes;
-  const detailMode = useAtomValue(detailModeAtom);
   const usesPositionColors = useAtomValue(usesPositionColorsAtom);
   const isPositionSelectable = useAtomValue(isPositionSelectableAtom);
   const assign = useSetAtom(assignShiftTypeAtom);
@@ -92,7 +89,6 @@ export const ShiftTypeDailyView = () => {
         row={row}
         note={allDateNotes.getNote(row.staff.id, selectedDate)}
         date={selectedDate}
-        detailMode={detailMode}
         hasNoteColumn={showsNoteColumn}
       />
       {row.cells.map((cell) => (
@@ -245,13 +241,11 @@ const StaffCell = ({
   row,
   note,
   date,
-  detailMode,
   hasNoteColumn,
 }: {
   row: ShiftTypeDailyRowPresentation;
   note?: string;
   date: string;
-  detailMode: boolean;
   hasNoteColumn: boolean;
 }) => (
   <Box as="td" px={4} py={0}>
@@ -261,8 +255,6 @@ const StaffCell = ({
         <Text textStyle="sm" fontWeight={500} color={row.isNameMuted ? "gray.500" : "gray.800"} truncate>
           {row.staffName}
         </Text>
-        {/* 仮の勤務は、名前の下の「仮」だけで示す。点線は希望の輪に使うためである。 */}
-        {detailMode && <StaffMeta staff={row.staff} shift={row.shift} showTotal={false} />}
       </Flex>
       {row.isUnsubmitted && (
         <Text textStyle="2xs" fontWeight={600} flexShrink={0} style={{ color: "#b45309" }}>

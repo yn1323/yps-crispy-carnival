@@ -9,7 +9,6 @@ export type NormalizableShiftAssignment = {
   positionId: string;
   optionId?: string;
   breaks?: ReadonlyArray<{ startTime: string; endTime: string }>;
-  isProvisional?: boolean;
 };
 
 /** 休憩を開始順に並べる。保存、比較、表示で同じ順序を使う。 */
@@ -125,10 +124,9 @@ export function normalizeExactAdjacentTimeAssignments<T extends NormalizableShif
           output.push(cluster[0]);
           continue;
         }
-        // 統合しても休憩を落とさない。仮の印は、統合するすべての勤務が仮のときだけ残す。
-        const { breaks: _breaks, isProvisional: _isProvisional, ...first } = cluster[0].assignment;
+        // 統合しても休憩を落とさない。
+        const { breaks: _breaks, ...first } = cluster[0].assignment;
         const breaks = mergeTouchingShiftBreaks(cluster.flatMap(({ assignment }) => assignment.breaks ?? []));
-        const isProvisional = cluster.every(({ assignment }) => assignment.isProvisional === true);
         output.push({
           index: Math.min(...cluster.map(({ index }) => index)),
           assignment: {
@@ -136,7 +134,6 @@ export function normalizeExactAdjacentTimeAssignments<T extends NormalizableShif
             startTime: cluster[0].assignment.startTime,
             endTime: cluster[cluster.length - 1].assignment.endTime,
             ...(breaks.length > 0 ? { breaks } : {}),
-            ...(isProvisional ? { isProvisional: true } : {}),
           } as T,
         });
       }

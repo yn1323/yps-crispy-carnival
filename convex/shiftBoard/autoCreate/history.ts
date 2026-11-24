@@ -8,7 +8,7 @@ export type AutoCreateHistoryRecruitment<StaffId extends string = string, Positi
   submittedStaffIds: readonly StaffId[];
   /** 希望のある日。同じ人の同じ日が複数あってもよい。 */
   requestedDays: ReadonlyArray<{ staffId: StaffId; date: string }>;
-  /** 確定した勤務。仮の勤務は渡さない。 */
+  /** 確定した勤務。 */
   assignments: ReadonlyArray<{ staffId: StaffId; date: string; positionId: PositionId }>;
 };
 

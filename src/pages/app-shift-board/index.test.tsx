@@ -141,7 +141,6 @@ function AppScreen({ showsShiftBoard }: { showsShiftBoard: boolean }) {
 const staffing = {
   breakRule: { minWorkMinutes: 360, breakMinutes: 60 },
   staffProfiles: [],
-  hasPreviousConfirmedRecruitment: true,
   isAiDraftConfigured: false,
   aiDraftRemainingCount: 3,
   isLocked: false,

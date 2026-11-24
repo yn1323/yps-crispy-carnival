@@ -8,7 +8,7 @@ import { isPastShiftPeriod, jstDayRangeMs } from "../_lib/dateFormat";
 import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { managerMutation, resolveManagerShopAccessByTokenIdentifier } from "../_lib/functions";
 import { rateLimit } from "../_lib/rateLimits";
-import { assertRecruitmentEditVersion, isCurrentSubmission } from "../_lib/recruitmentEditing";
+import { assertRecruitmentEditVersion } from "../_lib/recruitmentEditing";
 import { sha256Hex } from "../_lib/sha256";
 import { normalizeExactAdjacentTimeAssignments, sortShiftBreaks } from "../_lib/shiftAssignmentNormalization";
 import { shiftAssignmentBreakValidator, toShiftAssignmentCore } from "../_lib/shiftAssignmentValidators";
@@ -208,24 +208,6 @@ async function listSavedAssignments(ctx: MutationCtx, recruitmentId: Id<"recruit
   return assignments;
 }
 
-/**
- * 仮の勤務のうち、提出済みスタッフのものを返す。仮の勤務を入れたあとで提出したスタッフには、希望を優先する。
- * 仮の勤務がなければ、提出を読まない。
- */
-async function listStaleProvisionalAssignments<T extends { staffId: Id<"staffs">; isProvisional?: boolean }>(
-  ctx: MutationCtx,
-  recruitmentId: Id<"recruitments">,
-  assignments: readonly T[],
-): Promise<T[]> {
-  if (!assignments.some((assignment) => assignment.isProvisional)) return [];
-  const submissions = await ctx.db
-    .query("shiftSubmissions")
-    .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
-    .take(SHIFT_BOARD_STAFF_LIMIT);
-  const submittedStaffIds = new Set(submissions.filter(isCurrentSubmission).map((submission) => submission.staffId));
-  return assignments.filter((assignment) => assignment.isProvisional && submittedStaffIds.has(assignment.staffId));
-}
-
 export const saveShiftAssignments = managerMutation({
   args: {
     recruitmentId: v.id("recruitments"),
@@ -239,8 +221,6 @@ export const saveShiftAssignments = managerMutation({
         positionId: v.optional(v.id("positions")),
         optionId: v.optional(v.string()),
         breaks: v.optional(v.array(shiftAssignmentBreakValidator)),
-        // 未提出者へ前回確定の勤務を引き継いだ「仮の勤務」。提出済みスタッフの分は保存しない。
-        isProvisional: v.optional(v.boolean()),
       }),
     ),
   },
@@ -304,22 +284,12 @@ export const saveShiftAssignments = managerMutation({
     const defaultPositionId =
       (hasConfirmedPositions ? recruitmentPositions.find((position) => position.isDefault)?._id : undefined) ??
       (await ensureDefaultPosition(ctx, ctx.shop._id));
-    // 仮の勤務は未提出者のものだけを保存する。画面を開いている間に提出したスタッフの仮の勤務は、
-    // 希望を優先するために保存しない。開き直すと、そのスタッフの希望が勤務の候補として出る。
-    const staleProvisionalAssignments = new Set(
-      await listStaleProvisionalAssignments(ctx, args.recruitmentId, args.assignments),
-    );
-    const resolvedAssignments = args.assignments
-      .filter((assignment) => !staleProvisionalAssignments.has(assignment))
-      .map(({ breaks, isProvisional, ...assignment }) => ({
-        ...assignment,
-        positionId: assignment.positionId ?? defaultPositionId,
-        // 休憩を扱うのは時間指定だけである。パターン選択と日付選択は、受け取っても保存しない。
-        ...(submissionPattern.kind === "time" && breaks && breaks.length > 0
-          ? { breaks: sortShiftBreaks(breaks) }
-          : {}),
-        ...(isProvisional ? { isProvisional: true } : {}),
-      }));
+    const resolvedAssignments = args.assignments.map(({ breaks, ...assignment }) => ({
+      ...assignment,
+      positionId: assignment.positionId ?? defaultPositionId,
+      // 休憩を扱うのは時間指定だけである。パターン選択と日付選択は、受け取っても保存しない。
+      ...(submissionPattern.kind === "time" && breaks && breaks.length > 0 ? { breaks: sortShiftBreaks(breaks) } : {}),
+    }));
     const canonicalAssignments =
       submissionPattern.kind === "time"
         ? normalizeExactAdjacentTimeAssignments(resolvedAssignments)
@@ -343,7 +313,6 @@ export const saveShiftAssignments = managerMutation({
           positionId: assignment.positionId,
           ...(assignment.optionId ? { optionId: assignment.optionId } : {}),
           ...(assignment.breaks ? { breaks: assignment.breaks } : {}),
-          ...(assignment.isProvisional ? { isProvisional: true } : {}),
         }),
       ),
     );
@@ -469,17 +438,7 @@ export const confirmRecruitment = managerMutation({
     }
 
     const shopClosedDateSet = new Set(recruitment.shopClosedDates);
-    const savedAssignments = await listSavedAssignments(ctx, args.recruitmentId);
-    // 仮の勤務を入れたあとで提出したスタッフには、希望を優先する。
-    // 画面を通さない確定でも、提出済みスタッフの仮の勤務を確定内容に残さない。
-    const staleProvisionalAssignments = await listStaleProvisionalAssignments(
-      ctx,
-      args.recruitmentId,
-      savedAssignments,
-    );
-    await Promise.all(staleProvisionalAssignments.map((assignment) => ctx.db.delete(assignment._id)));
-    const staleProvisionalIds = new Set(staleProvisionalAssignments.map((assignment) => assignment._id));
-    const existingAssignments = savedAssignments.filter((assignment) => !staleProvisionalIds.has(assignment._id));
+    const existingAssignments = await listSavedAssignments(ctx, args.recruitmentId);
     const closedDateAssignments =
       shopClosedDateSet.size > 0
         ? existingAssignments.filter((assignment) => shopClosedDateSet.has(assignment.date))

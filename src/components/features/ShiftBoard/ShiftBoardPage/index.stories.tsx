@@ -240,7 +240,6 @@ const newcomerOnlyStaffing: ShiftBoardStaffingData = {
       positionSkills: [{ positionId: "position-1" as Id<"positions">, level: "newcomer" }],
     },
   ],
-  hasPreviousConfirmedRecruitment: false,
   isAiDraftConfigured: false,
   aiDraftRemainingCount: 3,
   isLocked: false,

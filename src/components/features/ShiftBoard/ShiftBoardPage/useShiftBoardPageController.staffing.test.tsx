@@ -14,7 +14,6 @@ const mocks = vi.hoisted(() => ({
   applyTemplateReference: Symbol("applyDayTemplateToDates"),
   switchDetailModeReference: Symbol("switchShiftDetailMode"),
   setStaffSortModeReference: Symbol("setShiftStaffSortMode"),
-  provisionalQueryReference: Symbol("getProvisionalAssignments"),
   autoCreateHistoryQueryReference: Symbol("getAutoCreateHistory"),
   createAiDraftReference: Symbol("createAiDraft"),
   save: vi.fn(),
@@ -45,10 +44,7 @@ vi.mock("@/convex/_generated/api", () => ({
         setShiftStaffSortMode: mocks.setStaffSortModeReference,
       },
       actions: { createAiDraft: mocks.createAiDraftReference },
-      queries: {
-        getProvisionalAssignments: mocks.provisionalQueryReference,
-        getAutoCreateHistory: mocks.autoCreateHistoryQueryReference,
-      },
+      queries: { getAutoCreateHistory: mocks.autoCreateHistoryQueryReference },
     },
     shiftSetup: {
       mutations: {
@@ -120,7 +116,6 @@ const data: ShiftBoardData = {
 const emptyStaffing: ShiftBoardStaffingData = {
   breakRule: null,
   staffProfiles: [],
-  hasPreviousConfirmedRecruitment: false,
   isAiDraftConfigured: false,
   aiDraftRemainingCount: 3,
   isLocked: false,
@@ -342,7 +337,7 @@ describe("店舗の設定をシフト表へ渡す", () => {
 });
 
 describe("店舗の設定を渡さない利用箇所", () => {
-  it("設定、スタッフの属性、休憩の初期値、仮の勤務の操作を足さず、表示の初期状態をシンプルにする", () => {
+  it("設定、スタッフの属性、休憩の初期値を足さず、表示の初期状態をシンプルにする", () => {
     const { result } = renderInitialized();
     const { shiftForm } = result.current.viewModel;
 
@@ -353,7 +348,6 @@ describe("店舗の設定を渡さない利用箇所", () => {
     ]);
     expect(shiftForm.initialShifts.map((shift) => Object.hasOwn(shift, "breaks"))).toEqual([false, false]);
     expect(shiftForm.initialDetailMode).toBe(false);
-    expect(shiftForm.detailActions.provisionalAction).toBeUndefined();
     expect(shiftForm.validationWarnings).toEqual([]);
   });
 });
@@ -542,210 +536,6 @@ describe("表示の切り替え", () => {
       expect(result.current.viewModel.shiftForm.canSwitchDetailMode).toBe(false);
       expect(result.current.viewModel.shiftForm.detailActions.requestDetailModeChange).toBeUndefined();
     }
-  });
-});
-
-describe("前回の勤務を仮で入れる操作を出す条件", () => {
-  const withPrevious: ShiftBoardStaffingData = { ...emptyStaffing, hasPreviousConfirmedRecruitment: true };
-
-  it("前回確定があり、未提出者がいて、未確定で、書き込める場合に出す", () => {
-    const { result } = renderController({ staffing: withPrevious });
-
-    expect(result.current.viewModel.shiftForm.detailActions.provisionalAction).toEqual({
-      onInsert: expect.any(Function),
-      isLoading: false,
-    });
-  });
-
-  it.each<[string, RenderOptions]>([
-    ["前回確定した募集がない", { staffing: emptyStaffing }],
-    ["店舗の設定が渡されない", {}],
-    [
-      "未提出者がいない",
-      {
-        data: { ...data, staffs: data.staffs.map((staff) => ({ ...staff, isSubmitted: true })) },
-        staffing: withPrevious,
-      },
-    ],
-    [
-      "未提出なのが削除済みのスタッフだけ",
-      {
-        data: {
-          ...data,
-          staffs: data.staffs.map((staff) => (staff.isSubmitted ? staff : { ...staff, isRemoved: true })),
-        },
-        staffing: withPrevious,
-      },
-    ],
-    [
-      "募集が確定済み",
-      {
-        data: { ...data, recruitment: { ...data.recruitment, status: "confirmed", confirmedAt: 1 } },
-        staffing: withPrevious,
-      },
-    ],
-    [
-      "閲覧専用",
-      {
-        data: { ...data, canWriteBusinessData: false, businessWriteBlockReason: "usageLimitExceeded" },
-        staffing: withPrevious,
-      },
-    ],
-    ["組織・店舗scopeがない", { staffing: withPrevious, wrapper: ({ children }) => children }],
-    ["組織・店舗scopeが別の店舗を指す", { staffing: withPrevious, wrapper: OtherShopScope }],
-  ])("%s場合は出さない", (_label, options) => {
-    const { result } = renderController(options);
-
-    expect(Object.hasOwn(result.current.viewModel.shiftForm.detailActions, "provisionalAction")).toBe(false);
-  });
-});
-
-describe("前回の勤務を仮で入れる", () => {
-  const withPrevious: ShiftBoardStaffingData = { ...emptyStaffing, hasPreviousConfirmedRecruitment: true };
-  const candidate = {
-    staffId: unsubmittedStaffId,
-    date,
-    startTime: "11:00",
-    endTime: "17:00",
-    positionId: hallId,
-    breaks: [{ startTime: "13:00", endTime: "14:00" }],
-  };
-
-  function renderWithApply(currentData: ShiftBoardData = data) {
-    const hook = renderInitialized({ data: currentData, staffing: withPrevious });
-    const apply = vi.fn<(update: (current: ShiftData[]) => ShiftData[]) => void>();
-    hook.result.current.viewModel.shiftForm.applyShiftsRef.current = apply;
-    return { ...hook, apply };
-  }
-
-  const insert = async (result: { current: ReturnType<typeof useShiftBoardPageController> }) => {
-    await act(async () => {
-      result.current.viewModel.shiftForm.detailActions.provisionalAction?.onInsert();
-    });
-  };
-
-  it("この店舗と募集の候補を取得し、未提出者の勤務のない日へ仮の印付きで入れる", async () => {
-    mocks.convexQuery.mockResolvedValue([
-      candidate,
-      { ...candidate, staffId: submittedStaffId, startTime: "09:00", endTime: "12:00" },
-    ]);
-    const { result, apply } = renderWithApply();
-    const initialShifts = result.current.viewModel.shiftForm.initialShifts;
-
-    await insert(result);
-
-    expect(mocks.convexQuery).toHaveBeenCalledExactlyOnceWith(mocks.provisionalQueryReference, {
-      shopId,
-      expectedOrganizationId: organizationId,
-      recruitmentId,
-    });
-    expect(apply).toHaveBeenCalledTimes(1);
-    const applied = apply.mock.calls[0][0](initialShifts);
-    expect(applied).toEqual([
-      initialShifts[0],
-      {
-        ...initialShifts[1],
-        positions: [
-          {
-            id: `seg-${unsubmittedStaffId}-${date}-provisional-0`,
-            positionId: hallId,
-            positionName: "ホール",
-            color: "#0d9488",
-            start: "11:00",
-            end: "17:00",
-          },
-        ],
-        breaks: [{ start: "13:00", end: "14:00" }],
-        isProvisional: true,
-      },
-    ]);
-    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "前回の勤務を1日分、仮で入れました" });
-    expect(mocks.save).not.toHaveBeenCalled();
-  });
-
-  it("日付選択は休憩を扱わないため、前回の勤務の休憩を引き継がずに仮で入れる", async () => {
-    mocks.convexQuery.mockResolvedValue([candidate]);
-    const { result, apply } = renderWithApply({ ...data, submissionPattern: { kind: "dateOnly" } });
-    const initialShifts = result.current.viewModel.shiftForm.initialShifts;
-
-    await insert(result);
-
-    expect(apply).toHaveBeenCalledTimes(1);
-    const inserted = apply.mock.calls[0][0](initialShifts).filter((shift) => shift.isProvisional);
-    expect(inserted).toHaveLength(1);
-    expect(inserted[0].staffId).toBe(unsubmittedStaffId);
-    expect(inserted[0].positions.map((position) => position.positionId)).toEqual([hallId]);
-    expect(Object.hasOwn(inserted[0], "breaks")).toBe(false);
-  });
-
-  it("画面で編集したあとの勤務を基準にし、勤務を入れた日には仮の勤務を入れない", async () => {
-    mocks.convexQuery.mockResolvedValue([candidate]);
-    const { result, apply } = renderWithApply();
-    const edited = result.current.viewModel.shiftForm.initialShifts.map((shift) =>
-      shift.staffId === unsubmittedStaffId
-        ? {
-            ...shift,
-            positions: [
-              {
-                id: "seg-manual",
-                positionId: hallId,
-                positionName: "ホール",
-                color: "#0d9488",
-                start: "09:00",
-                end: "12:00",
-              },
-            ],
-          }
-        : shift,
-    );
-    act(() => result.current.intents.onShiftsChange(edited));
-
-    await insert(result);
-
-    expect(apply).not.toHaveBeenCalled();
-    expect(mocks.toast).toHaveBeenCalledExactlyOnceWith({
-      title: "仮で入れられる前回の勤務がありませんでした",
-      type: "info",
-    });
-    expect(mocks.showSuccessToast).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    ["候補が1件もない", []],
-    ["募集を確認できず候補がnullで返る", null],
-  ])("%s場合は、勤務を変えずに案内だけを出す", async (_label, candidates) => {
-    mocks.convexQuery.mockResolvedValue(candidates);
-    const { result, apply } = renderWithApply();
-
-    await insert(result);
-
-    expect(apply).not.toHaveBeenCalled();
-    expect(mocks.toast).toHaveBeenCalledExactlyOnceWith({
-      title: "仮で入れられる前回の勤務がありませんでした",
-      type: "info",
-    });
-    expect(mocks.showSuccessToast).not.toHaveBeenCalled();
-  });
-
-  it("候補の取得に失敗した場合は、勤務を変えずにエラーを知らせる", async () => {
-    const error = new Error("network");
-    mocks.convexQuery.mockRejectedValue(error);
-    const { result, apply } = renderWithApply();
-
-    await insert(result);
-
-    expect(apply).not.toHaveBeenCalled();
-    expect(mocks.showErrorToast).toHaveBeenCalledExactlyOnceWith(error);
-    expect(mocks.showSuccessToast).not.toHaveBeenCalled();
-  });
-
-  it("シフト表が取り込みを受け付ける前は、候補を取得しない", async () => {
-    const { result } = renderInitialized({ staffing: withPrevious });
-
-    await insert(result);
-
-    expect(mocks.convexQuery).not.toHaveBeenCalled();
-    expect(mocks.showSuccessToast).not.toHaveBeenCalled();
   });
 });
 
@@ -1169,10 +959,7 @@ describe("その日の必要人数の変更と設定ページへの導線", () =
     ["組織・店舗scopeがない", ({ children }) => children],
     ["組織・店舗scopeが別の店舗を指す", OtherShopScope],
   ])("%s利用箇所には、くわしく表示の操作を1つも出さない", (_label, wrapper) => {
-    const { result } = renderController({
-      staffing: { ...emptyStaffing, hasPreviousConfirmedRecruitment: true },
-      wrapper,
-    });
+    const { result } = renderController({ staffing: emptyStaffing, wrapper });
 
     expect(result.current.viewModel.shiftForm.detailActions).toEqual({});
   });

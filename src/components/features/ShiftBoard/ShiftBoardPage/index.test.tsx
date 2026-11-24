@@ -30,7 +30,7 @@ vi.mock("@/convex/_generated/api", () => ({
         switchShiftDetailMode: "switchShiftDetailMode",
         setShiftStaffSortMode: "setShiftStaffSortMode",
       },
-      queries: { getProvisionalAssignments: "getProvisionalAssignments" },
+      queries: { getAutoCreateHistory: "getAutoCreateHistory" },
     },
     shiftSetup: { mutations: { applyDayTemplateToDates: "applyDayTemplateToDates" } },
   },

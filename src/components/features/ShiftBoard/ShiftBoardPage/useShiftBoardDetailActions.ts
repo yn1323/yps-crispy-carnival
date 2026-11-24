@@ -1,6 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useConvex } from "convex/react";
-import { type MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { buildAutoAssignments } from "@/convex/shiftBoard/autoCreate/buildAutoAssignments";
@@ -8,7 +8,6 @@ import type { ShiftFormDetailActions } from "@/src/components/features/Shift/Shi
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { toaster } from "@/src/components/ui/toaster";
 import { applyAutoAssignments } from "@/src/domains/shift/autoAssignments";
-import { insertProvisionalAssignments } from "@/src/domains/shift/provisionalAssignments";
 import type { PositionType, ShiftData, StaffSortMode, StaffType } from "@/src/domains/shift/types";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
@@ -27,8 +26,6 @@ type Input = {
   shopScope: ManagerShopScope | null;
   staffs: readonly StaffType[];
   positions: readonly PositionType[];
-  /** いま画面にある勤務。仮の勤務を入れる先を読むために使う。 */
-  shiftsRef: MutableRefObject<ShiftData[]>;
   isReadOnly: boolean;
   isConfirmed: boolean;
   hasUnsavedChanges: () => boolean;
@@ -38,8 +35,8 @@ type Input = {
 
 /**
  * シフト表の表示設定と「くわしく」表示の操作を持つ。
- * 設定ページを開く、その日のテンプレートを当て直す、前回の勤務を仮で入れる、勤務を自動で作る、
- * 「シンプル / くわしく」を切り替える、スタッフの並び替えを変える、の6つである。
+ * 設定ページを開く、その日のテンプレートを当て直す、勤務を自動で作る、
+ * 「シンプル / くわしく」を切り替える、スタッフの並び替えを変える、の5つである。
  * 勤務の保存と確定は持たない。
  */
 export const useShiftBoardDetailActions = ({
@@ -50,7 +47,6 @@ export const useShiftBoardDetailActions = ({
   shopScope,
   staffs,
   positions,
-  shiftsRef,
   isReadOnly,
   isConfirmed,
   hasUnsavedChanges,
@@ -94,35 +90,6 @@ export const useShiftBoardDetailActions = ({
       (await runApplyDayTemplate(targetDates, templateId)) ?? false,
     [runApplyDayTemplate],
   );
-
-  const { run: handleInsertProvisional, isRunning: isInsertingProvisional } = useSingleFlight(async () => {
-    if (!shopScope || !applyShiftsRef.current) return;
-    try {
-      const candidates = await convex.query(api.shiftBoard.queries.getProvisionalAssignments, {
-        shopId: shopScope.shopId as Id<"shops">,
-        expectedOrganizationId: shopScope.expectedOrganizationId as Id<"organizations">,
-        recruitmentId,
-      });
-      const unsubmittedStaffIds = new Set(staffs.filter((staff) => !staff.isSubmitted).map((staff) => staff.id));
-      const result = insertProvisionalAssignments({
-        shifts: shiftsRef.current,
-        // パターン選択と日付選択は休憩を扱わないため、前回の勤務の休憩を引き継がない。
-        candidates: (candidates ?? []).map((candidate) =>
-          data.submissionPattern.kind === "time" ? candidate : { ...candidate, breaks: undefined },
-        ),
-        unsubmittedStaffIds,
-        positions,
-      });
-      if (result.insertedCount === 0) {
-        toaster.create({ title: "仮で入れられる前回の勤務がありませんでした", type: "info" });
-        return;
-      }
-      applyShiftsRef.current(() => result.shifts);
-      showSuccessToast({ title: `前回の勤務を${result.insertedCount}日分、仮で入れました` });
-    } catch (error) {
-      showErrorToast(error);
-    }
-  });
 
   // 希望シフトからの自動作成。過去の確定シフトの集計を1回だけ読み、画面の中で勤務を作って、下書きをすべて置き換える。
   // 保存はしない。置き換えた下書きは保存済みの内容と違うため、保存していない変更として扱われる。
@@ -251,13 +218,6 @@ export const useShiftBoardDetailActions = ({
   }, [pendingDetailMode, runSwitchDetailMode]);
   const cancelDetailModeSwitch = useCallback(() => setPendingDetailMode(null), []);
 
-  const hasUnsubmittedStaff = staffs.some((staff) => !staff.isSubmitted && !staff.isRemoved);
-  const canInsertProvisional =
-    Boolean(shopScope) &&
-    !isReadOnly &&
-    !isConfirmed &&
-    hasUnsubmittedStaff &&
-    staffing?.hasPreviousConfirmedRecruitment === true;
   // 自動作成は必要人数から作るため、店舗の設定を読めた画面でだけ使える。
   const canAutoCreate = Boolean(shopScope) && !isReadOnly && !isConfirmed && staffing !== undefined;
   // 確定済みの募集は、確定した時点の必要人数を残すため、テンプレートの当て直しを出さない。
@@ -272,9 +232,6 @@ export const useShiftBoardDetailActions = ({
               isPending: isApplyingDayTemplate,
             },
           }
-        : {}),
-      ...(canInsertProvisional
-        ? { provisionalAction: { onInsert: handleInsertProvisional, isLoading: isInsertingProvisional } }
         : {}),
       ...(canAutoCreate
         ? {
@@ -296,12 +253,9 @@ export const useShiftBoardDetailActions = ({
       requestStaffSortModeChange,
       shopScope,
       canEditDayStaffing,
-      canInsertProvisional,
       handleOpenSetup,
       handleApplyDayTemplate,
       isApplyingDayTemplate,
-      handleInsertProvisional,
-      isInsertingProvisional,
       canAutoCreate,
       handleAutoCreate,
       isAutoCreating,

@@ -3,7 +3,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useMemo, useState } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
 import { IssueCountBadge } from "../../components";
-import { BreakMark, PositionMark, StaffMeta } from "../../detailParts";
+import { BreakMark, PositionMark } from "../../detailParts";
 import {
   detailModeAtom,
   selectDateWithDailyStaffOrderAtom,
@@ -200,7 +200,6 @@ const DayStaffList = ({ rows }: { rows: OverviewStaffRowViewModel[] }) => {
               <Box color="gray.800" fontWeight={600} minW={0}>
                 {staff.name}
               </Box>
-              <StaffMeta staff={staff.staff} showTotal={false} />
             </Flex>
             {/* 時刻の右端をそろえるため、休憩の印は時刻の左に置く。 */}
             <BreakMark shift={staff.shift} compact />

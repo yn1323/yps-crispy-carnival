@@ -246,11 +246,10 @@ describe("shiftView/queries", () => {
       ]);
     });
 
-    it("確定した勤務の休憩を返し、仮の勤務かどうかは返さない", async () => {
+    it("確定した勤務の休憩を返す", async () => {
       const t = convexTest(schema, modules);
       const ids = await setupConfirmedShiftView(t);
       await t.run(async (ctx) => {
-        // 未提出のまま確定に残った仮の勤務。スタッフには通常の勤務と同じ形で見せる。
         await ctx.db.insert("shiftAssignments", {
           recruitmentId: ids.recruitmentId,
           staffId: ids.staffId,
@@ -259,7 +258,6 @@ describe("shiftView/queries", () => {
           endTime: "18:00",
           positionId: ids.positionId,
           breaks: [{ startTime: "14:00", endTime: "14:30" }],
-          isProvisional: true,
         });
       });
 

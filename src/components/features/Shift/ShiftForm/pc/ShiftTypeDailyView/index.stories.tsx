@@ -25,7 +25,7 @@ import {
 type ShiftFormArgs = ComponentProps<typeof ShiftForm>;
 
 // ==========================================
-// くわしく表示のfixture（ポジション3つ、必要人数あり、熟練度あり、仮の勤務あり）
+// くわしく表示のfixture（ポジション3つ、必要人数あり、熟練度あり、未提出者の勤務あり）
 // ==========================================
 const hall: PositionType = { id: "hall", name: "ホール", color: "#60a5fa", isDefault: true };
 const kitchen: PositionType = { id: "kitchen", name: "キッチン", color: "#fb923c", isDefault: false };
@@ -83,8 +83,8 @@ const detailShifts: ShiftData[] = [
   // レジでは見習い。
   shift("staff4", firstDate, [["night", register]]),
   shift("staff5", firstDate, [], { requestedShiftTypeOptionIds: [] }),
-  // 未提出者へ入れた仮の勤務。
-  shift("staff6", firstDate, [["morning", kitchen]], { requestedShiftTypeOptionIds: [], isProvisional: true }),
+  // 未提出者へ入れた勤務。
+  shift("staff6", firstDate, [["morning", kitchen]], { requestedShiftTypeOptionIds: [] }),
   // 2日目。人ごとの合計に効く。
   shift("staff1", secondDate, [["morning", hall]]),
   shift("staff2", secondDate, [["late", kitchen]]),
@@ -121,7 +121,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** 複数ポジション、必要人数（足りない人数、見習いだけの印）、熟練度、仮の勤務を1画面で確かめる。 */
+/** 複数ポジション、必要人数（足りない人数、見習いだけの印）、熟練度、未提出者の勤務を1画面で確かめる。 */
 export const Detail: Story = {
   args: detailArgs,
   globals: desktopGlobals,

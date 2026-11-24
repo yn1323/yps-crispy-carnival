@@ -14,7 +14,6 @@ import { ChromeCollapse } from "../../ChromeCollapse";
 import { ShiftFormScrollEnd, StaffWarningIcon } from "../../components";
 import { DisplaySettingsMenu } from "../../DisplaySettingsMenu";
 import { ShiftStaffNoteIcon, useAllShiftDateNotes } from "../../dateNotes";
-import { StaffMeta } from "../../detailParts";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import { useRestoreRememberedWorkPosition } from "../../hooks/useRestoreRememberedWorkPosition";
 import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
@@ -31,7 +30,6 @@ import { DayTemplateMenu } from "../../staffingParts";
 import {
   assignShiftTypeAtom,
   changeShiftTypePositionAtom,
-  detailModeAtom,
   isPositionSelectableAtom,
   issueCountByDateAtom,
   removeShiftTypeAssignmentAtom,
@@ -58,7 +56,6 @@ export const SPShiftTypeDailyView = () => {
   const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const issueCounts = useAtomValue(issueCountByDateAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
-  const detailMode = useAtomValue(detailModeAtom);
   const isPositionSelectable = useAtomValue(isPositionSelectableAtom);
   const assign = useSetAtom(assignShiftTypeAtom);
   const changePosition = useSetAtom(changeShiftTypePositionAtom);
@@ -102,12 +99,7 @@ export const SPShiftTypeDailyView = () => {
 
   const renderRow = (row: ShiftTypeDailyRowPresentation) => (
     <Box as="tr" key={row.key} h={ROW_HEIGHT} borderTopWidth="1px" borderColor="gray.100">
-      <StaffCell
-        row={row}
-        note={dateNotes.getNote(row.staff.id, selectedDate)}
-        date={selectedDate}
-        detailMode={detailMode}
-      />
+      <StaffCell row={row} note={dateNotes.getNote(row.staff.id, selectedDate)} date={selectedDate} />
       {row.cells.map((cell) => (
         <Box as="td" key={cell.key} px="2px" py={0}>
           <Flex justify="center">
@@ -276,17 +268,7 @@ export const SPShiftTypeDailyView = () => {
   );
 };
 
-const StaffCell = ({
-  row,
-  note,
-  date,
-  detailMode,
-}: {
-  row: ShiftTypeDailyRowPresentation;
-  note?: string;
-  date: string;
-  detailMode: boolean;
-}) => (
+const StaffCell = ({ row, note, date }: { row: ShiftTypeDailyRowPresentation; note?: string; date: string }) => (
   <Box as="td" ps={3} pe={1} py={0}>
     {/* 名前の幅を取るため、スマートフォンではアバターを出さない。 */}
     <Flex align="center" minW={0}>
@@ -303,8 +285,6 @@ const StaffCell = ({
             未提出
           </Text>
         )}
-        {/* 仮の勤務は、名前の下の「仮」だけで示す。点線は希望の輪に使うためである。 */}
-        {detailMode && <StaffMeta staff={row.staff} shift={row.shift} showTotal={false} />}
       </Flex>
     </Flex>
   </Box>

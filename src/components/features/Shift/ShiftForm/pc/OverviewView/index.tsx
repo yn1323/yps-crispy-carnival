@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
 import type { WeekStart } from "@/src/domains/shift/date";
 import { IssueCountBadge } from "../../components";
-import { BreakMark, PositionMark, StaffMeta } from "../../detailParts";
+import { BreakMark, PositionMark } from "../../detailParts";
 import {
   detailModeAtom,
   selectDateWithDailyStaffOrderAtom,
@@ -222,8 +222,6 @@ const WeekTable = ({ week, onDateClick, detailMode }: WeekTableProps) => (
                     未提出
                   </Box>
                 )}
-                {/* 合計は右端の「計」の列に週ごとに出すため、名前には熟練度の印だけを添える。 */}
-                {detailMode && <StaffMeta staff={row.staff} showTotal={false} />}
               </Flex>
             </Box>
             {row.cells.map((cell) => (

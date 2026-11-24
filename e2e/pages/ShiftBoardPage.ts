@@ -103,14 +103,6 @@ export class ShiftBoardPage {
       .click();
   }
 
-  /** くわしく表示の未提出の帯から、前回確定した募集の同じ曜日の勤務を、未提出者へ仮で入れる。 */
-  async insertPreviousShiftsAsProvisional(insertedDayCount: number) {
-    await this.page.getByRole("button", { name: "前回の勤務を仮で入れる", exact: true }).click();
-    await expect(
-      this.page.getByText(`前回の勤務を${insertedDayCount}日分、仮で入れました`, { exact: true }),
-    ).toBeVisible();
-  }
-
   /** 「くわしく」表示の上の行から自動作成を開き、希望シフトから作る。作った勤務は下書きに入るだけで、保存はしない。 */
   async autoCreateFromRequests() {
     await this.page.getByRole("button", { name: "自動作成", exact: true }).click();

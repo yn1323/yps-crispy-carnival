@@ -1237,7 +1237,6 @@ describe("shiftBoard/queries", () => {
     positionId: Id<"positions">;
     optionId?: string;
     breaks?: Array<{ startTime: string; endTime: string }>;
-    isProvisional?: boolean;
   };
 
   async function seedAssignments(
@@ -1260,8 +1259,8 @@ describe("shiftBoard/queries", () => {
           a.date.localeCompare(b.date) || a.staffId.localeCompare(b.staffId) || a.startTime.localeCompare(b.startTime),
       );
 
-  describe("getShiftBoardData（ポジション、休憩、仮の勤務）", () => {
-    it("割当の休憩と仮の印を返し、提出済みスタッフの仮の勤務は返さない", async () => {
+  describe("getShiftBoardData（ポジション、休憩）", () => {
+    it("割当の休憩とポジションを返す", async () => {
       const t = convexTest(schema, modules);
       const ids = await seedStaffingBoard(t);
       await seedAssignments(t, ids.recruitmentId, [
@@ -1275,15 +1274,6 @@ describe("shiftBoard/queries", () => {
             { startTime: "12:00", endTime: "13:00" },
             { startTime: "15:00", endTime: "15:15" },
           ],
-          isProvisional: true,
-        },
-        {
-          staffId: ids.submittedStaffId,
-          date: "2026-08-17",
-          startTime: "10:00",
-          endTime: "18:00",
-          positionId: ids.hallPositionId,
-          isProvisional: true,
         },
         {
           staffId: ids.submittedStaffId,
@@ -1293,14 +1283,12 @@ describe("shiftBoard/queries", () => {
           positionId: ids.kitchenPositionId,
           breaks: [{ startTime: "12:00", endTime: "12:30" }],
         },
-        // 再提出待ちは提出済みとして扱わないため、仮の勤務を残す。
         {
           staffId: ids.resubmissionStaffId,
           date: "2026-08-19",
           startTime: "17:00",
           endTime: "22:00",
           positionId: ids.defaultPositionId,
-          isProvisional: true,
         },
       ]);
 
@@ -1325,7 +1313,6 @@ describe("shiftBoard/queries", () => {
               { startTime: "12:00", endTime: "13:00" },
               { startTime: "15:00", endTime: "15:15" },
             ],
-            isProvisional: true,
           },
           {
             staffId: ids.submittedStaffId,
@@ -1341,7 +1328,6 @@ describe("shiftBoard/queries", () => {
             startTime: "17:00",
             endTime: "22:00",
             positionId: ids.defaultPositionId,
-            isProvisional: true,
           },
         ]),
       );
@@ -1667,7 +1653,6 @@ describe("shiftBoard/queries", () => {
           },
           { staffId: ids.submittedStaffId, positionSkills: [{ positionId: ids.hallPositionId, level: "newcomer" }] },
         ].sort((a, b) => a.staffId.localeCompare(b.staffId)),
-        hasPreviousConfirmedRecruitment: false,
         isAiDraftConfigured: false,
         // 回数を設定していない環境では、既定の5回がそのまま残っている。
         aiDraftRemainingCount: 5,
@@ -1802,7 +1787,6 @@ describe("shiftBoard/queries", () => {
       await expect(getStaffing(t, ids)).resolves.toEqual({
         breakRule: null,
         staffProfiles: [],
-        hasPreviousConfirmedRecruitment: false,
         isAiDraftConfigured: false,
         // 回数を設定していない環境では、既定の5回がそのまま残っている。
         aiDraftRemainingCount: 5,
@@ -2031,46 +2015,6 @@ describe("shiftBoard/queries", () => {
       ]);
     });
 
-    it.each([
-      {
-        name: "開始日が前の確定済みの募集がある",
-        previous: { periodStart: "2026-08-03", periodEnd: "2026-08-16" },
-        expected: true,
-      },
-      {
-        name: "開始日が前の募集が未確定",
-        previous: { periodStart: "2026-08-03", periodEnd: "2026-08-16", status: "open" as const },
-        expected: false,
-      },
-      {
-        name: "開始日が前の確定済みの募集が削除済み",
-        previous: { periodStart: "2026-08-03", periodEnd: "2026-08-16", isDeleted: true },
-        expected: false,
-      },
-      {
-        name: "確定済みの募集の開始日が後",
-        previous: { periodStart: "2026-08-24", periodEnd: "2026-08-30" },
-        expected: false,
-      },
-      {
-        name: "確定済みの募集が別組織の店舗のもの",
-        previous: { periodStart: "2026-08-03", periodEnd: "2026-08-16", inOtherShop: true },
-        expected: false,
-      },
-    ])("$name 場合、hasPreviousConfirmedRecruitmentは$expected", async ({ previous, expected }) => {
-      const t = convexTest(schema, modules);
-      const ids = await seedStaffingBoard(t);
-      const { inOtherShop, ...recruitment } = { inOtherShop: false, ...previous };
-      await seedRecruitment(t, { shopId: inOtherShop ? ids.otherShopId : ids.shopId, ...recruitment });
-
-      const result = await t
-        .withIdentity({ subject: STAFFING_MANAGER })
-        .query(api.shiftBoard.queries.getShiftBoardStaffing, { ...ids.scope, recruitmentId: ids.recruitmentId });
-
-      expect(result).not.toBeNull();
-      expect(result?.hasPreviousConfirmedRecruitment).toBe(expected);
-    });
-
     describe("AIでの作成の残りの回数", () => {
       beforeEach(() => {
         // 1つの募集で作成できる回数は、環境変数で決める。
@@ -2149,325 +2093,6 @@ describe("shiftBoard/queries", () => {
 
       expect(result).not.toBeNull();
       expect(result?.isAiDraftConfigured).toBe(expected);
-    });
-  });
-
-  describe("getProvisionalAssignments", () => {
-    const getProvisional = (t: TestConvex<typeof schema>, ids: StaffingBoardIds) =>
-      t.withIdentity({ subject: STAFFING_MANAGER }).query(api.shiftBoard.queries.getProvisionalAssignments, {
-        ...ids.scope,
-        recruitmentId: ids.recruitmentId,
-      });
-    const seedPrevious = (
-      t: TestConvex<typeof schema>,
-      ids: StaffingBoardIds,
-      options?: { submissionPattern?: BoardPattern },
-    ) =>
-      seedRecruitment(t, {
-        shopId: ids.shopId,
-        periodStart: "2026-08-03",
-        periodEnd: "2026-08-16",
-        ...(options?.submissionPattern ? { submissionPattern: options.submissionPattern } : {}),
-      });
-
-    it("未認証ではnullを返す", async () => {
-      const t = convexTest(schema, modules);
-      const ids = await seedStaffingBoard(t);
-
-      await expect(
-        t.query(api.shiftBoard.queries.getProvisionalAssignments, { ...ids.scope, recruitmentId: ids.recruitmentId }),
-      ).resolves.toBeNull();
-    });
-
-    it("別組織の管理者と、別組織の店舗・募集の指定にはnullを返す", async () => {
-      const t = convexTest(schema, modules);
-      const ids = await seedStaffingBoard(t);
-      const previousRecruitmentId = await seedPrevious(t, ids);
-      await seedAssignments(t, previousRecruitmentId, [
-        {
-          staffId: ids.unsubmittedStaffId,
-          date: "2026-08-10",
-          startTime: "10:00",
-          endTime: "18:00",
-          positionId: ids.hallPositionId,
-        },
-      ]);
-      const asManager = t.withIdentity({ subject: STAFFING_MANAGER });
-
-      await expect(
-        t.withIdentity({ subject: STAFFING_OTHER_MANAGER }).query(api.shiftBoard.queries.getProvisionalAssignments, {
-          ...ids.scope,
-          recruitmentId: ids.recruitmentId,
-        }),
-      ).resolves.toBeNull();
-      await expect(
-        asManager.query(api.shiftBoard.queries.getProvisionalAssignments, {
-          shopId: ids.otherShopId,
-          expectedOrganizationId: ids.organizationId,
-          recruitmentId: ids.otherRecruitmentId,
-        }),
-      ).resolves.toBeNull();
-      await expect(
-        asManager.query(api.shiftBoard.queries.getProvisionalAssignments, {
-          ...ids.scope,
-          recruitmentId: ids.otherRecruitmentId,
-        }),
-      ).resolves.toBeNull();
-    });
-
-    it("未提出のシフト対象スタッフだけに、前回確定の同じ曜日の最後の日の勤務を写し、定休日を除く", async () => {
-      const t = convexTest(schema, modules);
-      const ids = await seedStaffingBoard(t, { shopClosedDates: ["2026-08-19"] });
-      const previousRecruitmentId = await seedPrevious(t, ids);
-      const monday = { date: "2026-08-10", startTime: "10:00", endTime: "18:00", positionId: ids.hallPositionId };
-      await seedAssignments(t, previousRecruitmentId, [
-        // 前回の期間に月曜日は2回ある。最後の月曜日（08-10）だけを写す。
-        {
-          staffId: ids.unsubmittedStaffId,
-          date: "2026-08-03",
-          startTime: "09:00",
-          endTime: "12:00",
-          positionId: ids.kitchenPositionId,
-        },
-        {
-          staffId: ids.unsubmittedStaffId,
-          date: "2026-08-10",
-          startTime: "12:00",
-          endTime: "18:00",
-          positionId: ids.hallPositionId,
-          breaks: [{ startTime: "14:00", endTime: "14:30" }],
-        },
-        {
-          staffId: ids.unsubmittedStaffId,
-          date: "2026-08-11",
-          startTime: "09:00",
-          endTime: "13:00",
-          positionId: ids.defaultPositionId,
-        },
-        // 今回の水曜日（08-19）は定休日なので写さない。
-        {
-          staffId: ids.unsubmittedStaffId,
-          date: "2026-08-12",
-          startTime: "09:00",
-          endTime: "13:00",
-          positionId: ids.defaultPositionId,
-        },
-        // 最後の木曜日（08-13）に勤務がなければ、前の木曜日（08-06）の勤務は写さない。
-        {
-          staffId: ids.unsubmittedStaffId,
-          date: "2026-08-06",
-          startTime: "09:00",
-          endTime: "13:00",
-          positionId: ids.defaultPositionId,
-        },
-        // 再提出待ちのスタッフは未提出として扱う。
-        { ...monday, staffId: ids.resubmissionStaffId },
-        // 提出済み、シフト対象外、削除済みのスタッフには写さない。
-        { ...monday, staffId: ids.submittedStaffId },
-        { ...monday, staffId: ids.excludedStaffId },
-        { ...monday, staffId: ids.deletedStaffId },
-      ]);
-
-      const result = await getProvisional(t, ids);
-
-      expect(result).not.toBeNull();
-      expect(byDateAndStaff(result ?? [])).toStrictEqual(
-        byDateAndStaff([
-          {
-            staffId: ids.unsubmittedStaffId,
-            date: "2026-08-17",
-            startTime: "12:00",
-            endTime: "18:00",
-            positionId: ids.hallPositionId,
-            breaks: [{ startTime: "14:00", endTime: "14:30" }],
-          },
-          { ...monday, staffId: ids.resubmissionStaffId, date: "2026-08-17" },
-          {
-            staffId: ids.unsubmittedStaffId,
-            date: "2026-08-18",
-            startTime: "09:00",
-            endTime: "13:00",
-            positionId: ids.defaultPositionId,
-          },
-        ]),
-      );
-    });
-
-    it("確定済みの募集のうち、開始日が今回より前で最も新しいものを前回として使う", async () => {
-      const t = convexTest(schema, modules);
-      const ids = await seedStaffingBoard(t);
-      const olderRecruitmentId = await seedRecruitment(t, {
-        shopId: ids.shopId,
-        periodStart: "2026-07-20",
-        periodEnd: "2026-07-26",
-      });
-      const previousRecruitmentId = await seedPrevious(t, ids);
-      const laterRecruitmentId = await seedRecruitment(t, {
-        shopId: ids.shopId,
-        periodStart: "2026-08-24",
-        periodEnd: "2026-08-30",
-      });
-      const base = { staffId: ids.unsubmittedStaffId, positionId: ids.hallPositionId };
-      await seedAssignments(t, olderRecruitmentId, [
-        { ...base, date: "2026-07-20", startTime: "09:00", endTime: "12:00" },
-      ]);
-      await seedAssignments(t, previousRecruitmentId, [
-        { ...base, date: "2026-08-10", startTime: "13:00", endTime: "17:00" },
-      ]);
-      await seedAssignments(t, laterRecruitmentId, [
-        { ...base, date: "2026-08-24", startTime: "18:00", endTime: "22:00" },
-      ]);
-
-      await expect(getProvisional(t, ids)).resolves.toStrictEqual([
-        { ...base, date: "2026-08-17", startTime: "13:00", endTime: "17:00" },
-      ]);
-    });
-
-    it("確定済みの募集では、空を返す", async () => {
-      const t = convexTest(schema, modules);
-      const ids = await seedStaffingBoard(t, { status: "confirmed" });
-      const previousRecruitmentId = await seedPrevious(t, ids);
-      await seedAssignments(t, previousRecruitmentId, [
-        {
-          staffId: ids.unsubmittedStaffId,
-          date: "2026-08-10",
-          startTime: "10:00",
-          endTime: "18:00",
-          positionId: ids.hallPositionId,
-        },
-      ]);
-
-      await expect(getProvisional(t, ids)).resolves.toEqual([]);
-    });
-
-    it.each([
-      { name: "前の募集がない", previous: null },
-      { name: "前の募集が未確定", previous: { status: "open" as const } },
-      { name: "前の確定済みの募集が削除済み", previous: { isDeleted: true } },
-      { name: "前の確定済みの募集と募集方式が違う", previous: { submissionPattern: { kind: "dateOnly" as const } } },
-    ])("$name 場合は、空を返す", async ({ previous }) => {
-      const t = convexTest(schema, modules);
-      const ids = await seedStaffingBoard(t);
-      if (previous) {
-        const previousRecruitmentId = await seedRecruitment(t, {
-          shopId: ids.shopId,
-          periodStart: "2026-08-03",
-          periodEnd: "2026-08-16",
-          ...previous,
-        });
-        await seedAssignments(t, previousRecruitmentId, [
-          {
-            staffId: ids.unsubmittedStaffId,
-            date: "2026-08-10",
-            startTime: "10:00",
-            endTime: "18:00",
-            positionId: ids.hallPositionId,
-          },
-        ]);
-      }
-
-      await expect(getProvisional(t, ids)).resolves.toEqual([]);
-    });
-
-    it("時間指定では、今回の受付時間の外に出る勤務を除く", async () => {
-      const t = convexTest(schema, modules);
-      const ids = await seedStaffingBoard(t, {
-        submissionPattern: { kind: "time", startTime: "10:00", endTime: "20:00" },
-      });
-      const previousRecruitmentId = await seedPrevious(t, ids);
-      const base = { staffId: ids.unsubmittedStaffId, positionId: ids.hallPositionId };
-      await seedAssignments(t, previousRecruitmentId, [
-        { ...base, date: "2026-08-10", startTime: "09:30", endTime: "13:00" },
-        { ...base, date: "2026-08-11", startTime: "17:00", endTime: "20:30" },
-        { ...base, date: "2026-08-12", startTime: "10:00", endTime: "20:00" },
-      ]);
-
-      await expect(getProvisional(t, ids)).resolves.toStrictEqual([
-        { ...base, date: "2026-08-19", startTime: "10:00", endTime: "20:00" },
-      ]);
-    });
-
-    it("パターン選択では、今回の募集に同じ時間で残っている勤務パターンの勤務だけを写す", async () => {
-      const early = { id: "early", name: "早番", startTime: "09:00", endTime: "15:00", sortOrder: 0 };
-      const late = { id: "late", name: "遅番", startTime: "15:00", endTime: "22:00", sortOrder: 1 };
-      const night = { id: "night", name: "夜番", startTime: "22:00", endTime: "26:00", sortOrder: 2 };
-      const t = convexTest(schema, modules);
-      const ids = await seedStaffingBoard(t, {
-        // 今回の募集では夜番が消え、遅番の時間が変わっている。
-        submissionPattern: { kind: "shiftType", options: [early, { ...late, startTime: "16:00" }] },
-      });
-      const previousRecruitmentId = await seedPrevious(t, ids, {
-        submissionPattern: { kind: "shiftType", options: [early, late, night] },
-      });
-      const base = { staffId: ids.unsubmittedStaffId, positionId: ids.hallPositionId };
-      await seedAssignments(t, previousRecruitmentId, [
-        { ...base, date: "2026-08-10", startTime: "09:00", endTime: "15:00", optionId: "early" },
-        { ...base, date: "2026-08-11", startTime: "22:00", endTime: "26:00", optionId: "night" },
-        { ...base, date: "2026-08-12", startTime: "15:00", endTime: "22:00", optionId: "late" },
-      ]);
-
-      await expect(getProvisional(t, ids)).resolves.toStrictEqual([
-        { ...base, date: "2026-08-17", startTime: "09:00", endTime: "15:00", optionId: "early" },
-      ]);
-    });
-
-    it("日付選択でも、前回確定の同じ曜日の勤務を写す", async () => {
-      const t = convexTest(schema, modules);
-      const ids = await seedStaffingBoard(t, { submissionPattern: { kind: "dateOnly" } });
-      const previousRecruitmentId = await seedPrevious(t, ids, { submissionPattern: { kind: "dateOnly" } });
-      const base = { staffId: ids.unsubmittedStaffId, positionId: ids.hallPositionId };
-      await seedAssignments(t, previousRecruitmentId, [
-        { ...base, date: "2026-08-15", startTime: "09:00", endTime: "22:00" },
-      ]);
-
-      await expect(getProvisional(t, ids)).resolves.toStrictEqual([
-        { ...base, date: "2026-08-22", startTime: "09:00", endTime: "22:00" },
-      ]);
-    });
-
-    it("削除済みのポジションの勤務は、既定のポジションへ置き換えて写す", async () => {
-      const t = convexTest(schema, modules);
-      const ids = await seedStaffingBoard(t);
-      const previousRecruitmentId = await seedPrevious(t, ids);
-      await seedAssignments(t, previousRecruitmentId, [
-        {
-          staffId: ids.unsubmittedStaffId,
-          date: "2026-08-10",
-          startTime: "10:00",
-          endTime: "18:00",
-          positionId: ids.deletedPositionId,
-        },
-      ]);
-
-      await expect(getProvisional(t, ids)).resolves.toStrictEqual([
-        {
-          staffId: ids.unsubmittedStaffId,
-          date: "2026-08-17",
-          startTime: "10:00",
-          endTime: "18:00",
-          positionId: ids.defaultPositionId,
-        },
-      ]);
-    });
-
-    it("前回確定の勤務が上限を超える場合は、一部だけの候補を返さない", async () => {
-      const t = convexTest(schema, modules);
-      const ids = await seedStaffingBoard(t);
-      const previousRecruitmentId = await seedPrevious(t, ids);
-      await t.run(async (ctx) => {
-        for (let index = 0; index <= SHIFT_ASSIGNMENT_LIMIT; index += 1) {
-          await ctx.db.insert("shiftAssignments", {
-            recruitmentId: previousRecruitmentId,
-            staffId: ids.unsubmittedStaffId,
-            date: "2026-08-10",
-            startTime: "10:00",
-            endTime: "18:00",
-            positionId: ids.hallPositionId,
-          });
-        }
-      });
-
-      await expect(getProvisional(t, ids)).rejects.toThrow("Shift assignment scope exceeds the supported limit");
     });
   });
 
@@ -2598,8 +2223,7 @@ describe("shiftBoard/queries", () => {
       await seedAssignments(t, previousRecruitmentId, [
         work(ids.submittedStaffId, "2026-08-10", ids.hallPositionId),
         work(ids.submittedStaffId, "2026-08-11", ids.kitchenPositionId),
-        // 仮の勤務と、削除済みのポジションの勤務は、入った日として数えない。
-        { ...work(ids.submittedStaffId, "2026-08-12", ids.hallPositionId), isProvisional: true },
+        // 削除済みのポジションの勤務は、入った日として数えない。
         work(ids.submittedStaffId, "2026-08-13", ids.deletedPositionId),
         // 希望のない日の勤務は数えない。
         work(ids.submittedStaffId, "2026-08-14", ids.hallPositionId),

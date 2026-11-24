@@ -58,14 +58,6 @@ export class ShiftFormCells {
     ).toHaveAccessibleDescription(new RegExp(escapeRegExp(notice)), { timeout: SHIFT_FORM_DATA_TIMEOUT });
   }
 
-  /** 勤務のセルが、前回の勤務を仮で入れたものとして読み上げられることを確認する。 */
-  async expectDateOnlyProvisional(staffName: string, dateLabel: string) {
-    await expect(this.dateOnlyCell(staffName, dateLabel, true)).toHaveAccessibleDescription(
-      /前回の勤務を仮で入れています/,
-      { timeout: SHIFT_FORM_DATA_TIMEOUT },
-    );
-  }
-
   async selectDailyDate(isoDate: string) {
     const chip = this.page.getByRole("tablist", { name: "日付選択" }).locator(`[data-date-chip="${isoDate}"]`);
     await expect(chip).toBeVisible({ timeout: SHIFT_FORM_DATA_TIMEOUT });

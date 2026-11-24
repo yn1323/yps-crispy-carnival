@@ -90,8 +90,8 @@ const detailShifts: ShiftData[] = [
   shift("staff5", "2026-06-02", hall),
   shift("staff5", "2026-06-03", null),
   shift("staff5", "2026-06-06", register),
-  // 未提出者へ入れた仮の勤務。
-  shift("staff6", "2026-06-04", kitchen, { requestedTime: null, requestedTimes: [], isProvisional: true }),
+  // 未提出者へ入れた勤務。
+  shift("staff6", "2026-06-04", kitchen, { requestedTime: null, requestedTimes: [] }),
 ];
 
 const dateOnlyTemplate = (id: string, name: string, counts: Array<[PositionType, number]>): StoryTemplate => ({
@@ -160,7 +160,7 @@ export const Board: Story = {
   globals: desktopGlobals,
 };
 
-/** 複数ポジション、必要人数（足りない人数、多い人数、見習いだけの印、その日だけのテンプレート）、仮の勤務を1画面で確かめる。 */
+/** 複数ポジション、必要人数（足りない人数、多い人数、見習いだけの印、その日だけのテンプレート）、未提出者の勤務を1画面で確かめる。 */
 export const Detail: Story = {
   args: detailArgs,
   globals: desktopGlobals,

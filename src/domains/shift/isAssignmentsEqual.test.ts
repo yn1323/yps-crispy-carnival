@@ -84,16 +84,8 @@ describe("isAssignmentsEqual", () => {
     expect(isAssignmentsEqual([{ ...base, breaks }, other], [base, { ...other, breaks }])).toBe(false);
   });
 
-  test("仮の印の有無: 不一致", () => {
-    expect(isAssignmentsEqual([base], [{ ...base, isProvisional: true }])).toBe(false);
-  });
-
-  test("仮の印がfalseと未指定: 一致", () => {
-    expect(isAssignmentsEqual([{ ...base, isProvisional: false }], [base])).toBe(true);
-  });
-
-  test("休憩と仮の印が同じ: 一致", () => {
-    const withDetail = { ...base, breaks: [{ startTime: "12:00", endTime: "13:00" }], isProvisional: true };
-    expect(isAssignmentsEqual([withDetail], [structuredClone(withDetail)])).toBe(true);
+  test("休憩が同じ: 一致", () => {
+    const withBreak = { ...base, breaks: [{ startTime: "12:00", endTime: "13:00" }] };
+    expect(isAssignmentsEqual([withBreak], [structuredClone(withBreak)])).toBe(true);
   });
 });

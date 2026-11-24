@@ -345,66 +345,10 @@ describe("buildAssignments: 休憩", () => {
   });
 });
 
-describe("buildAssignments: 仮の勤務", () => {
-  it.each(["time", "shiftType", "dateOnly"] as const)("%sで、仮の勤務の日のすべての勤務へ仮の印を付ける", (kind) => {
+describe("buildAssignments: 休憩のない勤務", () => {
+  it.each(["time", "shiftType", "dateOnly", undefined] as const)("%sで、休憩の項目を足さない", (kind) => {
     const shifts = [
-      makeShift({
-        isProvisional: true,
-        positions: [
-          segment({ id: "seg-1", start: "09:00", end: "12:00" }),
-          segment({ id: "seg-2", start: "13:00", end: "18:00" }),
-        ],
-      }),
-    ];
-
-    expect(buildAssignments(shifts, new Set(), { submissionPatternKind: kind })).toStrictEqual([
-      {
-        staffId: "staff1",
-        date: "2026-01-20",
-        startTime: "09:00",
-        endTime: "12:00",
-        positionId: "pos1",
-        isProvisional: true,
-      },
-      {
-        staffId: "staff1",
-        date: "2026-01-20",
-        startTime: "13:00",
-        endTime: "18:00",
-        positionId: "pos1",
-        isProvisional: true,
-      },
-    ]);
-  });
-
-  it("時間指定で隣り合う仮の勤務を1件にまとめても、仮の印を残す", () => {
-    const shifts = [
-      makeShift({
-        isProvisional: true,
-        positions: [
-          segment({ id: "seg-1", start: "09:00", end: "12:00" }),
-          segment({ id: "seg-2", start: "12:00", end: "18:00" }),
-        ],
-      }),
-    ];
-
-    expect(buildAssignments(shifts, new Set(), { submissionPatternKind: "time" })).toStrictEqual([
-      {
-        staffId: "staff1",
-        date: "2026-01-20",
-        startTime: "09:00",
-        endTime: "18:00",
-        positionId: "pos1",
-        isProvisional: true,
-      },
-    ]);
-  });
-});
-
-describe("buildAssignments: 休憩も仮の印もない勤務", () => {
-  it.each(["time", "shiftType", "dateOnly", undefined] as const)("%sで、休憩と仮の印の項目を足さない", (kind) => {
-    const shifts = [
-      makeShift({ positions: [segment({ shiftTypeOptionId: "morning" })], breaks: [], isProvisional: false }),
+      makeShift({ positions: [segment({ shiftTypeOptionId: "morning" })], breaks: [] }),
       makeShift({
         id: "shift-staff2-2026-01-20",
         staffId: "staff2",
@@ -425,7 +369,7 @@ describe("buildAssignments: 休憩も仮の印もない勤務", () => {
     ]);
   });
 
-  it("時間指定で隣り合う勤務をまとめた結果にも、休憩と仮の印の項目を足さない", () => {
+  it("時間指定で隣り合う勤務をまとめた結果にも、休憩の項目を足さない", () => {
     const shifts = [
       makeShift({
         positions: [
@@ -504,50 +448,17 @@ describe("canonicalizeTimeAssignments", () => {
     ]);
   });
 
-  it("仮の印は、まとめる勤務の両方が仮のときだけ残す", () => {
-    expect(
-      canonicalizeTimeAssignments([
-        assignment("10:00", "14:00", { isProvisional: true }),
-        assignment("14:00", "18:00", { isProvisional: true }),
-      ]),
-    ).toStrictEqual([assignment("10:00", "18:00", { isProvisional: true })]);
-
-    expect(
-      canonicalizeTimeAssignments([
-        assignment("10:00", "14:00", { isProvisional: true }),
-        assignment("14:00", "18:00"),
-      ]),
-    ).toStrictEqual([assignment("10:00", "18:00")]);
-
-    expect(
-      canonicalizeTimeAssignments([
-        assignment("10:00", "14:00"),
-        assignment("14:00", "18:00", { isProvisional: true }),
-      ]),
-    ).toStrictEqual([assignment("10:00", "18:00")]);
-  });
-
-  it("3件以上が続く場合も、1件でも仮でない勤務があれば仮の印を外す", () => {
-    expect(
-      canonicalizeTimeAssignments([
-        assignment("10:00", "12:00", { isProvisional: true }),
-        assignment("12:00", "14:00", { isProvisional: true }),
-        assignment("14:00", "18:00"),
-      ]),
-    ).toStrictEqual([assignment("10:00", "18:00")]);
-  });
-
-  it("まとめない勤務の休憩と仮の印は、そのまま残す", () => {
+  it("まとめない勤務の休憩は、そのまま残す", () => {
     const separated = [
-      assignment("10:00", "12:00", { breaks: [{ startTime: "11:00", endTime: "11:15" }], isProvisional: true }),
+      assignment("10:00", "12:00", { breaks: [{ startTime: "11:00", endTime: "11:15" }] }),
       assignment("13:00", "18:00", { breaks: [{ startTime: "15:00", endTime: "16:00" }] }),
-      assignment("18:00", "20:00", { positionId: "pos2", isProvisional: true }),
+      assignment("18:00", "20:00", { positionId: "pos2" }),
     ];
 
     expect(canonicalizeTimeAssignments(separated)).toStrictEqual(separated);
   });
 
-  it("休憩も仮の印もない勤務をまとめた結果に、項目を足さない", () => {
+  it("休憩のない勤務をまとめた結果に、休憩の項目を足さない", () => {
     expect(canonicalizeTimeAssignments([assignment("10:00", "14:00"), assignment("14:00", "18:00")])).toStrictEqual([
       { staffId: "staff1", date: "2026-01-20", startTime: "10:00", endTime: "18:00", positionId: "pos1" },
     ]);

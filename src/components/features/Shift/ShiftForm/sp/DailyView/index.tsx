@@ -135,13 +135,11 @@ export const SPDailyView = () => {
     [clearShiftPositions, selectedDate],
   );
 
-  const renderDailyCard = ({ staff, shift, viewModel }: (typeof rows)[number]) => (
+  const renderDailyCard = ({ staff, viewModel }: (typeof rows)[number]) => (
     <SPDailyCard
       key={staff.id}
       staffId={staff.id}
       staffName={staff.name}
-      staff={staff}
-      shift={shift}
       viewModel={viewModel}
       onTap={() => handleCardTap(staff.id)}
       hasError={issueStaffIds.has(staff.id)}
@@ -156,7 +154,6 @@ export const SPDailyView = () => {
       key={staff.id}
       staffId={staff.id}
       staffName={staff.name}
-      staff={staff}
       label={isReadOnly ? "休み" : "休み希望"}
       labelTone="muted"
       onTap={() => handleCardTap(staff.id)}
@@ -240,7 +237,6 @@ export const SPDailyView = () => {
                       key={staff.id}
                       staffId={staff.id}
                       staffName={staff.name}
-                      staff={staff}
                       label="未提出"
                       labelTone="warning"
                       onTap={() => handleCardTap(staff.id)}

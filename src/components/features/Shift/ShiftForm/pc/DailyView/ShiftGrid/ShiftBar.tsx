@@ -3,7 +3,7 @@ import { useAtomValue } from "jotai";
 import { memo } from "react";
 import type { LinkedResizeTarget, ShiftData, TimeRange } from "@/src/domains/shift/types";
 import { useWorkColor } from "../../../detailParts";
-import { detailModeAtom, hourWidthAtom } from "../../../stores";
+import { hourWidthAtom } from "../../../stores";
 import { buildShiftBarViewModel } from "./script";
 
 type ShiftBarProps = {
@@ -76,7 +76,6 @@ export const ShiftBar = memo(function ShiftBar({
   breakResize,
 }: ShiftBarProps) {
   const hourWidth = useAtomValue(hourWidthAtom);
-  const detailMode = useAtomValue(detailModeAtom);
   const getWorkColor = useWorkColor();
   const viewModel = buildShiftBarViewModel({
     shift,
@@ -136,9 +135,6 @@ export const ShiftBar = memo(function ShiftBar({
           width={`${bar.width}px`}
           height="22px"
           boxShadow={BAR_SHADOW}
-          // 仮の勤務は、点線の枠で確定前の候補であることを示す。
-          outline={detailMode && shift.isProvisional ? "1.5px dashed rgba(255,255,255,0.9)" : undefined}
-          outlineOffset="-3px"
           style={{ background: getWorkColor(bar, BAR_BG) }}
           css={POSITION_REVEAL_CSS}
           {...BORDER_RADIUS_PROPS[bar.edgeShape]}

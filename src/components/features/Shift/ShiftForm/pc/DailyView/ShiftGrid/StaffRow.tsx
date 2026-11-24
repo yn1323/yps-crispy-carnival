@@ -4,7 +4,6 @@ import type { MinuteRange } from "@/src/domains/shift/breaks";
 import type { DragMode, LinkedResizeTarget, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
 import { Avatar, IssueDot, issueToneEmphasis, resolveIssueTone, StaffWarningIcon } from "../../../components";
 import { ShiftDateNoteText, ShiftStaffNoteIcon } from "../../../dateNotes";
-import { StaffMeta } from "../../../detailParts";
 import { DragPreview } from "./DragPreview";
 import { GridLines } from "./GridLines";
 import { NonEditableTimeOverlay } from "./NonEditableTimeOverlay";
@@ -130,7 +129,6 @@ export const StaffRow = memo(function StaffRow({
             <Text textStyle="sm" fontWeight={500} color={status === "not_submitted" ? "gray.500" : "gray.800"} truncate>
               {staff.name}
             </Text>
-            <StaffMeta staff={staff} shift={shift} showTotal={false} />
           </Flex>
           <Flex align="center" gap={1} ml="auto" flexShrink={0}>
             {!isReadOnly && status === "no_request" && (

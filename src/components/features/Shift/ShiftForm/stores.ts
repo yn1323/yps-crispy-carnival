@@ -96,7 +96,7 @@ export const replaceShiftDraftsAtom = atom(null, (_get, set, shifts: ShiftData[]
 const hasWork = (shift: ShiftData | undefined): boolean => shift?.positions.some(isCanonicalWorkPosition) ?? false;
 
 // 編集の前後を比べ、勤務の有無が変わった日にだけ決まりを当てる。
-// - 勤務がなくなった日は、休憩と「仮」の印も消す。
+// - 勤務がなくなった日は、休憩も消す。
 // - 勤務が新しくできた日は、時間指定のくわしく表示のときだけ、店舗の休憩の決まりから休憩の初期値を入れる
 //   （日付選択は勤務の長さがないため、パターン選択は休憩を扱わないため、入れない）。
 const applyShiftEditRules = (get: Getter, previous: ShiftData[], next: ShiftData[]): ShiftData[] => {
@@ -107,8 +107,8 @@ const applyShiftEditRules = (get: Getter, previous: ShiftData[], next: ShiftData
     const before = previousById.get(shift.id);
     if (before === shift) return shift;
     if (!hasWork(shift)) {
-      if (shift.breaks === undefined && shift.isProvisional === undefined) return shift;
-      const { breaks: _breaks, isProvisional: _isProvisional, ...rest } = shift;
+      if (shift.breaks === undefined) return shift;
+      const { breaks: _breaks, ...rest } = shift;
       return rest;
     }
     // シンプル表示は休憩を見せないため、見えない休憩を足さない。くわしく表示のときだけ初期値を入れる。
@@ -365,7 +365,7 @@ export const assignShiftRangeAtom = atom(
   },
 );
 
-/** 未提出者の仮の勤務など、画面の外で組み立てた編集結果を取り込む。 */
+/** 自動作成した勤務など、画面の外で組み立てた編集結果を取り込む。 */
 export const applyShiftDraftsAtom = atom(null, (get, set, update: (current: ShiftData[]) => ShiftData[]) => {
   if (get(shiftConfigAtom).isReadOnly) return;
   set(shiftDraftsAtom, update(get(shiftDraftsAtom)));

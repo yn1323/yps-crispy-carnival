@@ -8,7 +8,6 @@ export type ComparableAssignment = {
   positionId?: string;
   optionId?: string;
   breaks?: ReadonlyArray<{ startTime: string; endTime: string }>;
-  isProvisional?: boolean;
 };
 
 const toKey = (assignment: ComparableAssignment): string =>
@@ -23,7 +22,6 @@ const toKey = (assignment: ComparableAssignment): string =>
       .map((item) => `${item.startTime}-${item.endTime}`)
       .sort()
       .join(","),
-    assignment.isProvisional ? "provisional" : "",
   ].join("|");
 
 /** 並び順を無視して、2つのシフト割り当てリストが同じ内容かを判定する */

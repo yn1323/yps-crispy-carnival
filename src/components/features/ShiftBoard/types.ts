@@ -56,7 +56,6 @@ export type ShiftBoardData = {
     positionId: Id<"positions">;
     optionId?: string | null;
     breaks?: Array<{ startTime: string; endTime: string }>;
-    isProvisional?: boolean;
   }>;
   positions: Array<{
     _id: Id<"positions">;
@@ -75,7 +74,6 @@ export type ShiftBoardStaffingData = {
     staffId: Id<"staffs">;
     positionSkills: Array<{ positionId: Id<"positions">; level: "unavailable" | "newcomer" | "lead" }>;
   }>;
-  hasPreviousConfirmedRecruitment: boolean;
   /** シフトのAI作成を使える環境か。 */
   isAiDraftConfigured: boolean;
   /** この募集で、AIでの作成をあと何回使えるか。 */

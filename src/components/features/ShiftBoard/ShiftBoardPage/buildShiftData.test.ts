@@ -461,8 +461,8 @@ describe("buildShiftData", () => {
   });
 });
 
-describe("buildShiftData: 保存済みの休憩と仮の印", () => {
-  it("保存済みの勤務の休憩と仮の印を読み込む", () => {
+describe("buildShiftData: 保存済みの休憩", () => {
+  it("保存済みの勤務の休憩を読み込む", () => {
     const shifts = buildShiftData(
       makeData({
         shiftAssignments: [
@@ -476,7 +476,6 @@ describe("buildShiftData: 保存済みの休憩と仮の印", () => {
               { startTime: "15:00", endTime: "15:15" },
               { startTime: "12:00", endTime: "13:00" },
             ],
-            isProvisional: true,
           },
         ],
       }),
@@ -508,7 +507,6 @@ describe("buildShiftData: 保存済みの休憩と仮の印", () => {
           { start: "12:00", end: "13:00" },
           { start: "15:00", end: "15:15" },
         ],
-        isProvisional: true,
       },
     ]);
   });
@@ -584,31 +582,7 @@ describe("buildShiftData: 保存済みの休憩と仮の印", () => {
     ]);
   });
 
-  it("仮の印は、その日の保存済みの勤務がすべて仮のときだけ付ける", () => {
-    const shifts = buildShiftData(
-      makeData({
-        shiftAssignments: [
-          { staffId, date, startTime: "09:00", endTime: "12:00", positionId, isProvisional: true },
-          { staffId, date, startTime: "13:00", endTime: "18:00", positionId, isProvisional: true },
-          { staffId: secondStaffId, date, startTime: "09:00", endTime: "12:00", positionId, isProvisional: true },
-          { staffId: secondStaffId, date, startTime: "13:00", endTime: "18:00", positionId },
-          { staffId, date: secondDate, startTime: "09:00", endTime: "12:00", positionId, isProvisional: false },
-        ],
-      }),
-      [staff, secondStaff],
-      [date, secondDate],
-    );
-
-    expect(shifts.map((shift) => [shift.staffId, shift.date, Object.hasOwn(shift, "isProvisional")])).toEqual([
-      [staffId, date, true],
-      [staffId, secondDate, false],
-      [secondStaffId, date, false],
-      [secondStaffId, secondDate, false],
-    ]);
-    expect(shifts[0].isProvisional).toBe(true);
-  });
-
-  it("店休日は、保存済みの勤務に休憩と仮の印があっても空セルにする", () => {
+  it("店休日は、保存済みの勤務に休憩があっても空セルにする", () => {
     const shifts = buildShiftData(
       makeData({
         recruitment: { shopClosedDates: [date] },
@@ -620,7 +594,6 @@ describe("buildShiftData: 保存済みの休憩と仮の印", () => {
             endTime: "18:00",
             positionId,
             breaks: [{ startTime: "12:00", endTime: "13:00" }],
-            isProvisional: true,
           },
         ],
       }),
@@ -640,7 +613,7 @@ describe("buildShiftData: 保存済みの休憩と仮の印", () => {
     ]);
   });
 
-  it("休憩も仮の印もない保存済みの勤務には、項目を足さない", () => {
+  it("休憩のない保存済みの勤務には、休憩の項目を足さない", () => {
     const shifts = buildShiftData(
       makeData({
         shiftAssignments: [{ staffId, date, startTime: "10:00", endTime: "18:00", positionId, breaks: [] }],
@@ -652,7 +625,6 @@ describe("buildShiftData: 保存済みの休憩と仮の印", () => {
     expect(shifts).toHaveLength(1);
     expect(shifts[0].positions).toHaveLength(1);
     expect(Object.hasOwn(shifts[0], "breaks")).toBe(false);
-    expect(Object.hasOwn(shifts[0], "isProvisional")).toBe(false);
   });
 });
 
@@ -669,33 +641,28 @@ describe("buildShiftData: 休憩を扱わない提出方法", () => {
     ["日付選択", { kind: "dateOnly" }, { startTime: "09:00", endTime: "22:00" }],
   ] satisfies Array<
     [string, ShiftBoardData["submissionPattern"], { startTime: string; endTime: string; optionId?: string }]
-  >)(
-    "%sは、保存済みの勤務に休憩が残っていても読み込まず、勤務と仮の印だけを読み込む",
-    (_label, submissionPattern, time) => {
-      const shifts = buildShiftData(
-        makeData({
-          submissionPattern,
-          shiftAssignments: [
-            {
-              staffId,
-              date,
-              ...time,
-              positionId,
-              breaks: [{ startTime: "12:00", endTime: "13:00" }],
-              isProvisional: true,
-            },
-          ],
-        }),
-        [staff],
-        [date],
-      );
+  >)("%sは、保存済みの勤務に休憩が残っていても読み込まず、勤務だけを読み込む", (_label, submissionPattern, time) => {
+    const shifts = buildShiftData(
+      makeData({
+        submissionPattern,
+        shiftAssignments: [
+          {
+            staffId,
+            date,
+            ...time,
+            positionId,
+            breaks: [{ startTime: "12:00", endTime: "13:00" }],
+          },
+        ],
+      }),
+      [staff],
+      [date],
+    );
 
-      expect(shifts).toHaveLength(1);
-      expect(shifts[0].positions.map((position) => position.positionId)).toEqual([positionId]);
-      expect(shifts[0].isProvisional).toBe(true);
-      expect(Object.hasOwn(shifts[0], "breaks")).toBe(false);
-    },
-  );
+    expect(shifts).toHaveLength(1);
+    expect(shifts[0].positions.map((position) => position.positionId)).toEqual([positionId]);
+    expect(Object.hasOwn(shifts[0], "breaks")).toBe(false);
+  });
 });
 
 describe("buildShiftData: 希望から勤務の候補を作らない（くわしく）", () => {

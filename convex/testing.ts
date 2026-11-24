@@ -1558,7 +1558,7 @@ export const seedOpenRecruitmentNotificationScenario = internalMutation({
   },
 });
 
-/** 募集の編集・削除E2Eと、前回の勤務を仮で入れるE2Eで使う、同じ店舗に募集中の募集2件だけがある前提を作る。 */
+/** 募集の編集・削除E2Eで使う、同じ店舗に募集中の募集2件だけがある前提を作る。 */
 export const seedRecruitmentManagementScenario = internalMutation({
   args: {
     managerAuthTokenIdentifier: v.string(),

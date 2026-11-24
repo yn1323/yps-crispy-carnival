@@ -71,10 +71,9 @@ async function readAutoCreateHistoryRecruitment(
   return {
     submittedStaffIds: submissions.filter(isCurrentSubmission).map((submission) => submission.staffId),
     requestedDays: requestedDays.map(({ staffId, date }) => ({ staffId, date })),
-    // 仮の勤務は希望のない日に入れたものなので、希望が通った日として数えない。
     // いまの設定にないポジションは、自動作成で入れる先にならないため除く。
     assignments: assignments
-      .filter((assignment) => !assignment.isProvisional && activePositionIds.has(assignment.positionId))
+      .filter((assignment) => activePositionIds.has(assignment.positionId))
       .map(({ staffId, date, positionId }) => ({ staffId, date, positionId })),
   };
 }

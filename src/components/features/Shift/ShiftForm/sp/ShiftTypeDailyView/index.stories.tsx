@@ -18,7 +18,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** 複数ポジション、必要人数、熟練度、仮の勤務を1画面で確かめる。勤務パターンが4つでも横スクロールにしない。 */
+/** 複数ポジション、必要人数、熟練度、未提出者の勤務を1画面で確かめる。勤務パターンが4つでも横スクロールにしない。 */
 export const Detail: Story = {
   args: shiftTypeDetailArgs,
   globals: mobileGlobals,

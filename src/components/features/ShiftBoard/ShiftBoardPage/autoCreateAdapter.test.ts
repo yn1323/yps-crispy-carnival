@@ -76,7 +76,6 @@ const baseStaffing = (
     { staffId: staffId("c"), positionSkills: [{ positionId: kitchenId, level: "unavailable" }] },
     { staffId: staffId("d"), positionSkills: [{ positionId: hallId, level: "newcomer" }] },
   ],
-  hasPreviousConfirmedRecruitment: false,
   isAiDraftConfigured: false,
   aiDraftRemainingCount: 3,
   isLocked: false,

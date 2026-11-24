@@ -1,10 +1,8 @@
 import { Box, Flex, Text } from "@chakra-ui/react";
 import { useAtomValue } from "jotai";
-import type { ReactNode } from "react";
-import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { IssueDot, issueToneEmphasis, resolveIssueTone, StaffWarningIcon } from "../../components";
 import { ShiftDateNoteBlock, ShiftStaffNoteIcon } from "../../dateNotes";
-import { PositionMark, StaffMeta } from "../../detailParts";
+import { PositionMark } from "../../detailParts";
 import { getSPCardPaddingXPx, SP_CARD_BORDER_PX } from "../../spTimelineScale";
 import { detailModeAtom, paintsPositionColorAtom, usesPositionColorsAtom } from "../../stores";
 import type { SPDailyCardViewModel, SPDailyDetailItem } from "./script";
@@ -18,8 +16,6 @@ const EXPLICIT_BREAK_STYLE = {
   backgroundImage:
     "repeating-linear-gradient(45deg, rgba(156,163,175,0.6), rgba(156,163,175,0.6) 3px, transparent 3px, transparent 6px)",
 };
-// 仮の勤務は、点線の枠で確定前の候補であることを示す。
-const PROVISIONAL_BAR_PROPS = { outline: "1.5px dashed rgba(255,255,255,0.9)", outlineOffset: "-3px" };
 // その日の最初と最後の端だけを丸め、勤務と勤務、勤務と休憩の境目は角を付けない。
 const WORK_BAR_RADIUS_PROPS = {
   isolated: { borderRadius: "sm" },
@@ -55,27 +51,6 @@ const DetailItem = ({ item, showsTime }: { item: SPDailyDetailItem; showsTime: b
     )}
   </Flex>
 );
-
-/** スタッフ名。くわしく表示のときだけ、名前の下に熟練度と仮の印を添える。期間の合計は日別のカードでは出さない（その日の合計に見えるため）。 */
-const StaffNameBlock = ({
-  staff,
-  shift,
-  children,
-}: {
-  staff: StaffType | undefined;
-  shift: ShiftData | undefined;
-  /** シンプル表示と同じ見た目の名前。 */
-  children: (layout: { flex?: number }) => ReactNode;
-}) => {
-  const detailMode = useAtomValue(detailModeAtom);
-  if (!detailMode || !staff) return children({ flex: 1 });
-  return (
-    <Flex direction="column" gap="2px" flex={1} minW={0}>
-      {children({})}
-      <StaffMeta staff={staff} shift={shift} showTotal={false} />
-    </Flex>
-  );
-};
 
 export const SectionHeader = ({ label, count, hint }: { label: string; count: number; hint?: string }) => (
   <Flex align="baseline" gap={2} mb={2} px={1}>
@@ -116,9 +91,6 @@ const Avatar = ({ name, size = 28 }: { name: string; size?: number }) => (
 type DailyCardProps = {
   staffId: string;
   staffName: string;
-  /** くわしく表示で印を出すためのスタッフと、その日の勤務。 */
-  staff?: StaffType;
-  shift?: ShiftData;
   viewModel: SPDailyCardViewModel;
   onTap: () => void;
   hasError?: boolean;
@@ -130,8 +102,6 @@ type DailyCardProps = {
 export const SPDailyCard = ({
   staffId,
   staffName,
-  staff,
-  shift,
   viewModel,
   onTap,
   hasError = false,
@@ -185,13 +155,9 @@ export const SPDailyCard = ({
       <Flex align="center" gap={2} mb={2}>
         {tone && <IssueDot tone={tone} />}
         <Avatar name={staffName} size={28} />
-        <StaffNameBlock staff={staff} shift={shift}>
-          {(layout) => (
-            <Box textStyle="sm" fontWeight={600} color="gray.800" {...layout}>
-              {staffName}
-            </Box>
-          )}
-        </StaffNameBlock>
+        <Box textStyle="sm" fontWeight={600} color="gray.800" flex={1}>
+          {staffName}
+        </Box>
         <StaffWarningIcon messages={warningMessages} openOn="tap" />
         <ShiftStaffNoteIcon notes={note ? [{ date: noteDate, note }] : []} openOn="tap" />
         {viewModel.assignedTimeLabel && (
@@ -246,7 +212,6 @@ export const SPDailyCard = ({
             bg="teal.500"
             {...WORK_BAR_RADIUS_PROPS[bar.edgeShape]}
             style={paintsPositionColor ? { background: bar.color } : undefined}
-            {...(detailMode && shift?.isProvisional ? PROVISIONAL_BAR_PROPS : undefined)}
           />
         ))}
         {viewModel.breakBars.map((bar) => (
@@ -289,7 +254,6 @@ export const SPDailyCard = ({
 export const SPOffCard = ({
   staffId,
   staffName,
-  staff,
   label,
   labelTone,
   onTap,
@@ -301,8 +265,6 @@ export const SPOffCard = ({
 }: {
   staffId: string;
   staffName: string;
-  /** くわしく表示で印を出すためのスタッフ。 */
-  staff?: StaffType;
   label: string;
   labelTone: "warning" | "muted";
   onTap: () => void;
@@ -347,13 +309,9 @@ export const SPOffCard = ({
       <Flex align="center" gap="10px">
         {tone && <IssueDot tone={tone} />}
         <Avatar name={staffName} size={24} />
-        <StaffNameBlock staff={staff} shift={undefined}>
-          {(layout) => (
-            <Box textStyle="sm" fontWeight={600} color="gray.600" {...layout}>
-              {staffName}
-            </Box>
-          )}
-        </StaffNameBlock>
+        <Box textStyle="sm" fontWeight={600} color="gray.600" flex={1}>
+          {staffName}
+        </Box>
         <StaffWarningIcon messages={warningMessages} openOn="tap" />
         <ShiftStaffNoteIcon notes={note ? [{ date: noteDate, note }] : []} openOn="tap" />
         <Box textStyle="2xs" fontWeight={600} style={{ color: labelTone === "warning" ? "#b45309" : "#a1a1aa" }}>

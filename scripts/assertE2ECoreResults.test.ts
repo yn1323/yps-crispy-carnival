@@ -23,11 +23,11 @@ function report(overrides: Record<string, { projectName?: string; status?: strin
 }
 
 describe("E2E core result gate", () => {
-  it("desktop 33件、mobile 3件の36契約を固定する", () => {
+  it("desktop 32件、mobile 3件の35契約を固定する", () => {
     const projects = [...EXPECTED_CORE_CONTRACTS.values()];
 
-    expect(EXPECTED_CORE_CONTRACTS.size).toBe(36);
-    expect(projects.filter((projectName) => projectName === "desktop-chromium")).toHaveLength(33);
+    expect(EXPECTED_CORE_CONTRACTS.size).toBe(35);
+    expect(projects.filter((projectName) => projectName === "desktop-chromium")).toHaveLength(32);
     expect(projects.filter((projectName) => projectName === "mobile-chrome")).toHaveLength(3);
   });
 

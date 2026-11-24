@@ -13,7 +13,6 @@ export type ShiftAssignmentDraft<StaffId extends string = string, PositionId ext
   optionId?: string;
   positionId?: PositionId;
   breaks?: Array<{ startTime: string; endTime: string }>;
-  isProvisional?: boolean;
 };
 
 type CanonicalizableTimeAssignment = {
@@ -24,7 +23,6 @@ type CanonicalizableTimeAssignment = {
   optionId?: string | null;
   positionId?: string;
   breaks?: ReadonlyArray<{ startTime: string; endTime: string }>;
-  isProvisional?: boolean;
 };
 
 export type BuildAssignmentsOptions<PositionId extends string = string> = {
@@ -32,12 +30,12 @@ export type BuildAssignmentsOptions<PositionId extends string = string> = {
   submissionPatternKind?: "time" | "dateOnly" | "shiftType";
 };
 
-// 隣接する勤務を1件にまとめるとき、休憩を落とさず、仮の印は両方が仮のときだけ残す。
+// 隣接する勤務を1件にまとめるとき、休憩を落とさない。
 const mergeAdjacentAssignment = <Assignment extends CanonicalizableTimeAssignment>(
   previous: Assignment,
   current: Assignment,
 ): Assignment => {
-  const { breaks: _breaks, isProvisional: _isProvisional, ...rest } = previous;
+  const { breaks: _breaks, ...rest } = previous;
   // 境目をまたいでいた休憩は、まとめた勤務の中で1件に戻す。
   const breaks = mergeBreaks(
     [...(previous.breaks ?? []), ...(current.breaks ?? [])].map((item) => ({
@@ -49,7 +47,6 @@ const mergeAdjacentAssignment = <Assignment extends CanonicalizableTimeAssignmen
     ...rest,
     endTime: current.endTime,
     ...(breaks.length > 0 ? { breaks } : {}),
-    ...(previous.isProvisional && current.isProvisional ? { isProvisional: true } : {}),
   } as Assignment;
 };
 
@@ -162,7 +159,6 @@ export const buildAssignments = <StaffId extends string = string, PositionId ext
             ? { positionId: options.defaultPositionId }
             : {}),
         ...(breaks.length > 0 ? { breaks: breaks.map((item) => ({ startTime: item.start, endTime: item.end })) } : {}),
-        ...(s.isProvisional ? { isProvisional: true } : {}),
       };
     });
   });

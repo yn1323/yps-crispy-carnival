@@ -103,9 +103,9 @@ type ShiftFormProps = {
   initialDetailMode?: boolean;
   /** 渡した場合だけ「シンプル / くわしく」の切り替えを出し、切り替えを通知する。 */
   onDetailModeChange?: (isDetailMode: boolean) => void;
-  /** 設定ページへの移動、その日の必要人数、仮の勤務など、画面の外へ出す操作。 */
+  /** 設定ページへの移動、その日の必要人数、自動作成など、画面の外へ出す操作。 */
   detailActions?: ShiftFormDetailActions;
-  /** 画面の外で組み立てた編集結果（仮の勤務の差し込みなど）を取り込むための受け口。 */
+  /** 画面の外で組み立てた編集結果（自動作成した勤務など）を取り込むための受け口。 */
   applyShiftsRef?: MutableRefObject<((update: (current: ShiftData[]) => ShiftData[]) => void) | null>;
   onShiftsChange?: (shifts: ShiftData[]) => void;
   onViewModeChange?: (mode: ViewMode) => void;
@@ -438,7 +438,7 @@ const Shell = ({
 }: ShellProps) => {
   const detailMode = useAtomValue(detailModeAtom);
   const [isAutoCreateOpen, setAutoCreateOpen] = useAtom(autoCreateDialogOpenAtom);
-  const { provisionalAction, autoCreateAction, onOpenSetup } = useShiftFormDetailActions();
+  const { autoCreateAction, onOpenSetup } = useShiftFormDetailActions();
   const hasAutoCreateRequirements = useAtomValue(hasAutoCreateRequirementsAtom);
   const autoCreateShowsBreakOption = useAtomValue(autoCreateShowsBreakOptionAtom);
   // 自動作成は、勤務にポジションを持たせる「くわしく」で、未確定の募集を編集できるときだけ出す。
@@ -450,7 +450,6 @@ const Shell = ({
         names={unsubmittedNames}
         reminderStatus={reminderStatus}
         onOpenDetails={onOpenUnsubmittedDetails}
-        provisionalAction={detailMode ? provisionalAction : undefined}
       />
     ) : null;
   return (

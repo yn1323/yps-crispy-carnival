@@ -35,7 +35,7 @@ vi.mock("@/convex/_generated/api", () => ({
         switchShiftDetailMode: mocks.switchDetailModeReference,
         setShiftStaffSortMode: mocks.setStaffSortModeReference,
       },
-      queries: { getProvisionalAssignments: Symbol("getProvisionalAssignments") },
+      queries: { getAutoCreateHistory: Symbol("getAutoCreateHistory") },
     },
     shiftSetup: {
       mutations: {

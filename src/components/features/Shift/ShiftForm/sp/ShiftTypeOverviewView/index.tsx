@@ -3,7 +3,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useMemo, useState } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
 import { IssueCountBadge } from "../../components";
-import { BreakMark, PositionMark, StaffMeta } from "../../detailParts";
+import { BreakMark, PositionMark } from "../../detailParts";
 import { getShiftTypeOptionColor } from "../../shiftTypeOptionStyles";
 import {
   detailModeAtom,
@@ -190,7 +190,6 @@ const DayShiftTypeStaffList = ({ rows }: { rows: ShiftTypeOverviewStaffRowViewMo
               <Box color="gray.800" fontWeight={600} minW={0} truncate>
                 {staff.name}
               </Box>
-              <StaffMeta staff={staff.staff} showTotal={false} />
               <BreakMark shift={staff.shift} compact />
             </Flex>
           ) : (

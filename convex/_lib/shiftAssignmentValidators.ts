@@ -36,16 +36,9 @@ export const shiftAssignmentReadValidator = shiftAssignmentCoreValidator.extend(
   staffId: v.id("staffs"),
 });
 
-/** 管理者のシフト表だけが扱う割当DTO。仮の勤務の印はスタッフ向けの閲覧へ返さない。 */
-export const shiftBoardAssignmentValidator = shiftAssignmentReadValidator.extend({
-  isProvisional: v.optional(v.boolean()),
-});
-
 /** shiftAssignments tableへ保存する割当。 */
 export const persistedShiftAssignmentValidator = shiftAssignmentReadValidator.extend({
   recruitmentId: v.id("recruitments"),
-  // 未提出者へ前回確定の勤務を引き継いだ「仮の勤務」。省略は通常の勤務を表し、backfillは不要。
-  isProvisional: v.optional(v.boolean()),
 });
 
 /** staff単位の確定通知snapshotにはcoreだけを保存する。 */

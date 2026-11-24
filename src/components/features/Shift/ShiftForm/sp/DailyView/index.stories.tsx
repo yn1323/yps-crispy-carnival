@@ -33,7 +33,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * 複数ポジション、休憩、熟練度、仮の勤務と、日付の見出しの下の充足を1画面で確かめる。
+ * 複数ポジション、休憩、熟練度、未提出者の勤務と、日付の見出しの下の充足を1画面で確かめる。
  * 充足は閉じた状態で、充足率と進捗バーの1行だけを出す。
  */
 export const Detail: Story = {
@@ -377,7 +377,7 @@ export const FulfillmentAlignsWithCardBarsInteractive: Story = {
         .find((segment) => segment.getAttribute("aria-label")?.startsWith(`${start}〜`));
     const tick12 = section.querySelector('[data-tick-minutes="720"]');
     const hourLine12 = section.querySelector('[data-hour-line-minutes="720"]');
-    // Aさんは12時から休憩に入り、Cさんの仮の勤務は13時から始まる。
+    // Aさんは12時から休憩に入り、Cさんの勤務は13時から始まる。
     const cardA = canvasElement.querySelector('[data-tour="shift-row-staff1"]');
     const cardC = canvasElement.querySelector('[data-tour="shift-row-staff3"]');
     // カードの中で、時刻に合わせて置くバーは絶対配置で描く。アバターなどの色の付いた要素と分ける。

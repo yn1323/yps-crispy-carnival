@@ -16,7 +16,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** 複数ポジション、必要人数（足りない人数、見習いだけの印）、仮の勤務を1画面で確かめる。 */
+/** 複数ポジション、必要人数（足りない人数、見習いだけの印）、未提出者の勤務を1画面で確かめる。 */
 export const Detail: Story = {
   args: dateOnlyDetailArgs,
   globals: mobileGlobals,

@@ -44,8 +44,6 @@ type RowBase = {
   isNameMuted: boolean;
   /** 名前に「未提出」を添えるか。 */
   isUnsubmitted: boolean;
-  /** 名前に「仮」を添えるか。表示中の日に、前回の勤務を仮で入れた勤務がある。 */
-  isProvisional: boolean;
 };
 
 /** PCの週の表の1行。 */
@@ -90,11 +88,9 @@ const buildCellPresentation = (input: CellInput) => {
   const { staff, shift, date, status, hasNote, isConfirmedDisplay, usesPositionColors } = input;
   const cell = buildDateOnlyCell({ shift, staff, status });
   const pill = buildAssignmentPillFields(cell, { isConfirmedDisplay, usesPositionColors });
-  const isProvisional = !isConfirmedDisplay && pill.assigned && shift?.isProvisional === true;
   const descriptions = [
     ...(pill.showsRequestRing ? ["希望あり"] : []),
     ...pill.noticeTexts,
-    ...(isProvisional ? ["前回の勤務を仮で入れています"] : []),
     ...(hasNote ? ["連絡事項あり"] : []),
   ];
   const presentation: DateOnlyCellPresentation = {
@@ -108,16 +104,15 @@ const buildCellPresentation = (input: CellInput) => {
     }`,
     ariaDescription: descriptions.length > 0 ? descriptions.join("、") : null,
   };
-  return { presentation, cell, isProvisional };
+  return { presentation, cell };
 };
 
-const toRowBase = (staff: StaffType, isConfirmedDisplay: boolean, isProvisional: boolean): RowBase => ({
+const toRowBase = (staff: StaffType, isConfirmedDisplay: boolean): RowBase => ({
   key: staff.id,
   staff,
   staffName: staff.name,
   isNameMuted: !staff.isSubmitted,
   isUnsubmitted: !isConfirmedDisplay && !staff.isSubmitted,
-  isProvisional,
 });
 
 const indexShifts = (shifts: readonly ShiftData[]): Map<string, ShiftData> =>
@@ -200,11 +195,7 @@ export const buildDateOnlyWeekPresentation = ({
       return note ? [{ date: date.iso, dateLabel: formatDateShort(date.iso), note }] : [];
     });
     const row: DateOnlyWeekRowPresentation = {
-      ...toRowBase(
-        staff,
-        isConfirmedDisplay,
-        cells.some((cell) => cell.isProvisional),
-      ),
+      ...toRowBase(staff, isConfirmedDisplay),
       cells: cells.map((cell) => cell.presentation),
       notes,
     };
@@ -269,7 +260,7 @@ export const buildDateOnlyDayPresentation = ({
 
   const built = staffs.map((staff) => {
     const note = getNote(staff.id, date) ?? null;
-    const { presentation, cell, isProvisional } = buildCellPresentation({
+    const { presentation, cell } = buildCellPresentation({
       staff,
       shift: shiftByStaffDate.get(`${staff.id}-${date}`),
       date,
@@ -279,7 +270,7 @@ export const buildDateOnlyDayPresentation = ({
       usesPositionColors,
     });
     const row: DateOnlyDayRowPresentation = {
-      ...toRowBase(staff, isConfirmedDisplay, isProvisional),
+      ...toRowBase(staff, isConfirmedDisplay),
       cell: presentation,
       note,
     };

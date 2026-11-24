@@ -103,19 +103,18 @@ describe("applyAutoAssignments", () => {
     ]);
   });
 
-  it("結果にない日は、手で入れた勤務、休憩、仮の勤務を消し、希望を残す", () => {
+  it("結果にない日は、手で入れた勤務と休憩を消し、希望を残す", () => {
     const manual = cell("a", DAY1, {
       positions: [manualSegment("a", DAY1)],
       breaks: [{ start: "10:00", end: "10:30" }],
     });
-    const provisional = cell("b", DAY1, {
+    const manualWithoutRequest = cell("b", DAY1, {
       requestedTime: null,
       requestedTimes: undefined,
       positions: [manualSegment("b", DAY1)],
-      isProvisional: true,
     });
 
-    const result = applyAutoAssignments({ shifts: [manual, provisional], created: [], positions: POSITIONS });
+    const result = applyAutoAssignments({ shifts: [manual, manualWithoutRequest], created: [], positions: POSITIONS });
 
     expect(result).toEqual([cell("a", DAY1), cell("b", DAY1, { requestedTime: null, requestedTimes: undefined })]);
   });
@@ -124,7 +123,6 @@ describe("applyAutoAssignments", () => {
     const manual = cell("a", DAY1, {
       positions: [manualSegment("a", DAY1)],
       breaks: [{ start: "10:00", end: "10:30" }],
-      isProvisional: true,
     });
 
     const result = applyAutoAssignments({

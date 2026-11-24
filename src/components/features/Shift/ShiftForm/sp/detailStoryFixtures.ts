@@ -22,7 +22,7 @@ import {
 } from "../stories/staffingHarness";
 
 // スマートフォンの「くわしく表示」のStoryで共有するfixture。
-// 複数ポジション、必要人数あり（不足、多い人数、見習いだけ）、休憩あり、熟練度あり、仮の勤務ありを1画面で確かめられるようにする。
+// 複数ポジション、必要人数あり（不足、多い人数、見習いだけ）、休憩あり、熟練度あり、未提出者の勤務ありを1画面で確かめられるようにする。
 
 type ShiftFormArgs = ComponentProps<typeof ShiftForm>;
 
@@ -107,8 +107,8 @@ export const timeDetailShifts: ShiftData[] = [
     requestedTime: { start: "11:00", end: "19:00" },
     breaks: [{ start: "15:00", end: "15:30" }],
   }),
-  // 未提出者へ入れた仮の勤務。
-  timeShift("staff3", timeDetailDate, [[hall, "13:00", "17:00"]], { isProvisional: true }),
+  // 未提出者へ入れた勤務。
+  timeShift("staff3", timeDetailDate, [[hall, "13:00", "17:00"]]),
   // レジでは見習い。勤務と勤務の間が空いている。
   timeShift(
     "staff4",
@@ -210,11 +210,8 @@ const shiftTypeDetailShifts: ShiftData[] = [
   // 見習い。
   shiftTypeShift("staff4", shiftTypeDate, [["night", register]]),
   shiftTypeShift("staff5", shiftTypeDate, [], { requestedShiftTypeOptionIds: [] }),
-  // 未提出者へ入れた仮の勤務。
-  shiftTypeShift("staff6", shiftTypeDate, [["morning", kitchen]], {
-    requestedShiftTypeOptionIds: [],
-    isProvisional: true,
-  }),
+  // 未提出者へ入れた勤務。
+  shiftTypeShift("staff6", shiftTypeDate, [["morning", kitchen]], { requestedShiftTypeOptionIds: [] }),
   // 2日目。人ごとの合計に効く。
   shiftTypeShift("staff1", shiftTypeNextDate, [["morning", hall]]),
   shiftTypeShift("staff2", shiftTypeNextDate, [["late", kitchen]]),
@@ -319,8 +316,8 @@ const dateOnlyDetailShifts: ShiftData[] = [
   dateOnlyShift("staff3", dateOnlyDate, null),
   // 見習い。
   dateOnlyShift("staff4", dateOnlyDate, register),
-  // 未提出者へ入れた仮の勤務。
-  dateOnlyShift("staff6", dateOnlyDate, hall, { requestedTime: null, requestedTimes: [], isProvisional: true }),
+  // 未提出者へ入れた勤務。
+  dateOnlyShift("staff6", dateOnlyDate, hall, { requestedTime: null, requestedTimes: [] }),
   // 2日目。人ごとの合計に効く。
   dateOnlyShift("staff1", dateOnlyNextDate, hall),
   dateOnlyShift("staff4", dateOnlyNextDate, kitchen),

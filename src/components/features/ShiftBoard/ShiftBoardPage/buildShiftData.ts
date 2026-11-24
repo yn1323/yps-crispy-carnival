@@ -96,7 +96,6 @@ export const buildShiftData = (
       positionId: Id<"positions">;
       optionId: string | null;
       breaks: ShiftTimeRange[];
-      isProvisional: boolean;
     }>
   >();
   const displayAssignments =
@@ -116,7 +115,6 @@ export const buildShiftData = (
         data.submissionPattern.kind === "time"
           ? (assignment.breaks ?? []).map((item) => ({ start: item.startTime, end: item.endTime }))
           : [],
-      isProvisional: assignment.isProvisional === true,
     });
     assignmentMap.set(key, assignments);
   }
@@ -240,9 +238,6 @@ export const buildShiftData = (
         requestedShiftTypeOptionIds,
         positions: positionSegments,
         ...(savedBreaks.length > 0 ? { breaks: savedBreaks } : {}),
-        ...(assignments.length > 0 && assignments.every((assignment) => assignment.isProvisional)
-          ? { isProvisional: true }
-          : {}),
       };
       shifts.push(shift);
     }

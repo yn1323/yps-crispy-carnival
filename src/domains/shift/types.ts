@@ -20,8 +20,6 @@ export type ShiftData = {
   positions: PositionSegment[];
   // その日の休憩。勤務区間とは独立に持ち、保存と集計のときに勤務時間の内側へ切り詰める。
   breaks?: ShiftTimeRange[];
-  // 未提出者へ前回確定の勤務を引き継いだ「仮の勤務」
-  isProvisional?: boolean;
 };
 
 // ポジション色セグメント

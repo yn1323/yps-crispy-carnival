@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
 import type { WeekStart } from "@/src/domains/shift/date";
 import { IssueCountBadge } from "../../components";
-import { BreakMark, PositionMark, StaffMeta } from "../../detailParts";
+import { BreakMark, PositionMark } from "../../detailParts";
 import {
   detailModeAtom,
   selectDateWithDailyStaffOrderAtom,
@@ -215,7 +215,6 @@ const ShiftTypeOverviewRow = ({ row, detailMode }: { row: ShiftTypeOverviewRowVi
           <Text fontSize="sm" fontWeight={700} color={row.isStaffNameMuted ? "gray.500" : "gray.800"} truncate>
             {row.staffName}
           </Text>
-          <StaffMeta staff={row.staff} showTotal={false} />
         </Flex>
       ) : (
         <Text fontSize="sm" fontWeight={700} color={row.isStaffNameMuted ? "gray.500" : "gray.800"} truncate>
