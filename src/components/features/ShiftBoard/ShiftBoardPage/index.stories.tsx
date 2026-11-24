@@ -335,6 +335,31 @@ export const AppOrganizationScoped: Story = {
   render: renderAppShiftBoard,
 };
 
+/**
+ * 連絡事項のあるカードが下まで並んでも、ページ全体はスクロールできない。
+ * カードの中の読み上げ専用の文字がシフト表の枠の外へはみ出すと、表の最後からさらに下へ、ページごとスクロールできてしまう。
+ */
+export const AppOrganizationScopedWithDateNotesBehavior: Story = {
+  ...AppOrganizationScoped,
+  name: "Behavior: 連絡事項のあるカードが並んでも、ページ全体はスクロールできない",
+  tags: ["vrt-mobile1"],
+  args: {
+    dateNotes: mockData.staffs.map((staff) => ({
+      staffId: staff._id,
+      date: "2026-01-20",
+      note: "この日は早めに上がりたいです",
+    })),
+  },
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findAllByText("この日は早めに上がりたいです")).not.toHaveLength(0);
+
+    const page = canvasElement.ownerDocument.documentElement;
+    await expect(page.scrollHeight).toBe(page.clientHeight);
+  },
+};
+
 export const AppOrganizationScopedActionsOpen: Story = {
   ...AppOrganizationScoped,
   name: "App Organization Scoped Actions Open",

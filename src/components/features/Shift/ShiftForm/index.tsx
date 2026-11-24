@@ -137,6 +137,13 @@ type ShiftFormProps = {
   staffSortMode?: StaffSortMode;
 };
 
+/**
+ * シフト表の中の絶対配置の要素（読み上げ専用の文字など）を、シフト表の枠の中に収める。
+ * 位置の基準になる要素が表の外（body）だと、表の中のスクロールについて動かず、枠で切り取られもしない。
+ * 下のほうのカードにある読み上げ専用の文字がページ全体の高さを押し広げ、表の外までスクロールできてしまう。
+ */
+const FORM_ROOT_CONTAINMENT = { position: "relative" } as const;
+
 const ShiftFormInner = ({
   shopId,
   staffs,
@@ -278,6 +285,7 @@ const ShiftFormInner = ({
         h="100%"
         minH={0}
         overflow="hidden"
+        {...FORM_ROOT_CONTAINMENT}
         bg="gray.50"
         onScrollCapture={handleScrollCapture}
       >
@@ -324,6 +332,7 @@ const ShiftFormInner = ({
       h="100%"
       minH={0}
       overflow="hidden"
+      {...FORM_ROOT_CONTAINMENT}
       bg="gray.50"
       onScrollCapture={handleScrollCapture}
     >
