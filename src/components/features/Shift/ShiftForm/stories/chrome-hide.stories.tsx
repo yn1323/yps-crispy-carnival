@@ -49,8 +49,8 @@ const meta = {
     staffs: manyStaffs,
     initialShifts: [],
     header: {
-      desktopTitle: "テスト店舗：1/20 〜 26",
-      mobileTitle: "1/20 〜 26",
+      shopName: "テスト店舗",
+      periodTitle: "1/20 〜 26",
       backLabel: "前の画面へ戻る",
       backAriaLabel: "前の画面へ戻る",
     },

@@ -162,8 +162,8 @@ function AppShiftBoardQuery({
           layout="app"
           onChromeHiddenChange={onChromeHiddenChange}
           header={{
-            desktopTitle: `${shopScope.shopName}：${periodTitle}`,
-            mobileTitle: periodTitle,
+            shopName: shopScope.shopName,
+            periodTitle,
             backLabel: "前の画面へ戻る",
             backAriaLabel: "前の画面へ戻る",
           }}

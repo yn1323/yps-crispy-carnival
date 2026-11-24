@@ -39,7 +39,7 @@ const meta = {
   globals: mobileGlobals,
   args: {
     ...allPatternsArgs,
-    header: { desktopTitle: "店舗：1/23", mobileTitle: "1/23" },
+    header: { shopName: "店舗", periodTitle: "1/23" },
   },
   render: (args) => <ActionHarness {...args} />,
 } satisfies Meta<typeof ShiftForm>;

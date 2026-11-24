@@ -184,25 +184,23 @@ const DayShiftTypeStaffList = ({ rows }: { rows: ShiftTypeOverviewStaffRowViewMo
     <Stack gap="6px">
       {rows.map((staff) => (
         <Flex key={staff.key} align={detailMode ? "flex-start" : "center"} gap={2} textStyle="tableDense">
-          {detailMode ? (
-            // くわしく表示: 名前の横に熟練度と休憩の印を出す。名前は折り返さず、勤務パターンの側を折り返す。
-            <Flex flexShrink={0} maxW="60%" align="center" gap="6px" minH="20px">
-              <Box color="gray.800" fontWeight={600} minW={0} truncate>
-                {staff.name}
-              </Box>
-              <BreakMark shift={staff.shift} compact />
-            </Flex>
-          ) : (
-            <Box color="gray.800" fontWeight={600} flex={1} minW={0}>
+          {/* 名前の幅は行の半分までにし、長い名前は1行で省略する。残りの幅を勤務パターンに使い、名前と重ねない。 */}
+          <Flex flexShrink={0} maxW="50%" align="center" gap="6px" minH={detailMode ? "20px" : undefined}>
+            <Box color="gray.800" fontWeight={600} minW={0} truncate>
               {staff.name}
             </Box>
-          )}
-          <Flex gap={1} justify="flex-end" wrap="wrap" {...(detailMode ? { flex: 1, minW: 0 } : undefined)}>
+            {/* くわしく表示: 名前の横に休憩の印を出す。 */}
+            {detailMode && <BreakMark shift={staff.shift} compact />}
+          </Flex>
+          <Flex flex={1} minW={0} gap={1} justify="flex-end" wrap="wrap">
             {staff.optionChips.map((option) => {
               const color = getShiftTypeOptionColor(option.colorIndex);
               return (
-                <Box
+                <Flex
                   key={option.key}
+                  align="center"
+                  minW={0}
+                  maxW="100%"
                   px={2}
                   py="2px"
                   borderRadius="full"
@@ -211,10 +209,13 @@ const DayShiftTypeStaffList = ({ rows }: { rows: ShiftTypeOverviewStaffRowViewMo
                   textStyle="2xs"
                   fontWeight={700}
                 >
-                  {option.label}
+                  {/* 長い勤務パターンの名前は、1行に収めて省略する。 */}
+                  <Box as="span" minW={0} truncate>
+                    {option.label}
+                  </Box>
                   {/* くわしく表示: 勤務パターンの色は保ち、ポジションを名前と色の丸で添える。 */}
                   {detailMode && <PositionChipMark segment={option.segment} />}
-                </Box>
+                </Flex>
               );
             })}
           </Flex>
@@ -228,7 +229,17 @@ const DayShiftTypeStaffList = ({ rows }: { rows: ShiftTypeOverviewStaffRowViewMo
 const PositionChipMark = ({ segment }: { segment: ShiftTypeOverviewOptionChipViewModel["segment"] }) => {
   if (!segment) return null;
   return (
-    <Box as="span" display="inline-flex" ml="6px" verticalAlign="middle" color="gray.700" _empty={{ display: "none" }}>
+    // ポジションの名前が長くても、勤務パターンの名前の幅を半分は残す。
+    <Box
+      as="span"
+      display="inline-flex"
+      flexShrink={0}
+      minW={0}
+      maxW="50%"
+      ml="6px"
+      color="gray.700"
+      _empty={{ display: "none" }}
+    >
       <PositionMark segment={segment} />
     </Box>
   );

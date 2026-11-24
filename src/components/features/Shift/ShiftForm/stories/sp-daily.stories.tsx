@@ -33,6 +33,19 @@ export const TimeBasic: Story = {
   globals: mobileGlobals,
 };
 
+/** スタッフの名前が長いときは、1行に収めて省略する。 */
+export const TimeLongStaffNames: Story = {
+  name: "Long Staff Names",
+  args: {
+    ...allPatternsArgs,
+    staffs: allPatternsArgs.staffs.map((staff) => ({
+      ...staff,
+      name: `${staff.name}（上限の文字数で表示を確かめるための長い名前です）`,
+    })),
+  },
+  globals: mobileGlobals,
+};
+
 export const TimeHalfHourBusinessHours: Story = {
   name: "Half Hour Business Hours",
   args: halfHourBusinessHoursArgs,

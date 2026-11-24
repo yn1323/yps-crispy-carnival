@@ -155,7 +155,7 @@ export const SPDailyCard = ({
       <Flex align="center" gap={2} mb={2}>
         {tone && <IssueDot tone={tone} />}
         <Avatar name={staffName} size={28} />
-        <Box textStyle="sm" fontWeight={600} color="gray.800" flex={1}>
+        <Box textStyle="sm" fontWeight={600} color="gray.800" flex={1} minW={0} truncate>
           {staffName}
         </Box>
         <StaffWarningIcon messages={warningMessages} openOn="tap" />
@@ -309,7 +309,7 @@ export const SPOffCard = ({
       <Flex align="center" gap="10px">
         {tone && <IssueDot tone={tone} />}
         <Avatar name={staffName} size={24} />
-        <Box textStyle="sm" fontWeight={600} color="gray.600" flex={1}>
+        <Box textStyle="sm" fontWeight={600} color="gray.600" flex={1} minW={0} truncate>
           {staffName}
         </Box>
         <StaffWarningIcon messages={warningMessages} openOn="tap" />

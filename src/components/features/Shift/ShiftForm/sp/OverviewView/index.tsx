@@ -178,7 +178,7 @@ const DayStaffList = ({ rows }: { rows: OverviewStaffRowViewModel[] }) => {
       <Stack gap="5px">
         {rows.map((staff) => (
           <Flex key={staff.key} align="center" gap={2} textStyle="tableDense">
-            <Box color="gray.800" fontWeight={600} flex={1} minW={0}>
+            <Box color="gray.800" fontWeight={600} flex={1} minW={0} truncate>
               {staff.name}
             </Box>
             <Box color="teal.700" fontWeight={600} fontVariantNumeric="tabular-nums">
@@ -197,7 +197,7 @@ const DayStaffList = ({ rows }: { rows: OverviewStaffRowViewModel[] }) => {
         <Box key={staff.key}>
           <Flex align="center" gap={2} textStyle="tableDense">
             <Flex flex={1} minW={0} align="center" gap="6px">
-              <Box color="gray.800" fontWeight={600} minW={0}>
+              <Box color="gray.800" fontWeight={600} minW={0} truncate>
                 {staff.name}
               </Box>
             </Flex>

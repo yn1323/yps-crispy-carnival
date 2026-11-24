@@ -30,6 +30,20 @@ export const TimeBasic: Story = {
   args: allPatternsArgs,
 };
 
+/** 見出しの店舗名が長いときは、店舗名だけを省略し、期間は全部を出す。 */
+export const TimeLongShopName: Story = {
+  name: "Long Shop Name",
+  args: {
+    ...allPatternsArgs,
+    header: {
+      shopName: "上限の文字数で表示を確かめるための長い店舗名です".repeat(4),
+      periodTitle: "1/23 〜 2/5",
+      backLabel: "前の画面へ戻る",
+      backAriaLabel: "前の画面へ戻る",
+    },
+  },
+};
+
 export const TimeHalfHourBusinessHours: Story = {
   name: "Half Hour Business Hours",
   args: halfHourBusinessHoursArgs,

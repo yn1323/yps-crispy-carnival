@@ -75,8 +75,10 @@ export { shouldDefaultToDetailMode } from "./staffingPresentation";
 export type { ShiftFormDayRequirements, ShiftFormStaffing, ShiftFormStaffingDay } from "./types";
 
 export type ShiftFormHeader = {
-  desktopTitle: string;
-  mobileTitle: string;
+  /** PCの見出しで、期間の前に出す店舗名。長い名前は省略して出す。 */
+  shopName: string;
+  /** 募集期間。PCでは店舗名の後ろに、スマートフォンではこれだけを見出しにする。 */
+  periodTitle: string;
   backLabel?: string;
   backAriaLabel?: string;
 };
@@ -456,7 +458,7 @@ const Shell = ({
     <Flex direction="column" h="100%" minH={0}>
       {header && compact && (
         <VisuallyHidden asChild>
-          <Heading as="h1">{header.mobileTitle}</Heading>
+          <Heading as="h1">{header.periodTitle}</Heading>
         </VisuallyHidden>
       )}
       {/* 上の行（戻る、日別と一覧、保存）。内側の入れ物を下へスクロールすると隠す。 */}
@@ -483,12 +485,17 @@ const Shell = ({
               alignItems="center"
               justifyContent="center"
               minW={0}
+              px={3}
               color="gray.950"
               fontSize="lg"
-              textAlign="center"
-              truncate
             >
-              {header.desktopTitle}
+              {/* 長い店舗名は省略し、期間は必ず全部を出す。 */}
+              <Box as="span" minW={0} truncate title={header.shopName}>
+                {header.shopName}
+              </Box>
+              <Box as="span" flexShrink={0} whiteSpace="nowrap">
+                ：{header.periodTitle}
+              </Box>
             </Heading>
           )}
           {!isReadOnly || exportAction ? (

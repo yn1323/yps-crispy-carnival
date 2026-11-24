@@ -7,6 +7,7 @@ import {
   shiftTypeArgs,
   shiftTypeValidationWarningArgs,
 } from "./shared";
+import { shiftTypeBoardLongNamesArgs } from "./shiftTypeBoardFixtures";
 
 const meta = {
   title: "Features/Shift/ShiftForm/Shift Type/PC/Overview",
@@ -20,6 +21,20 @@ type Story = StoryObj<typeof meta>;
 
 export const Basic: Story = {
   args: { ...shiftTypeArgs, initialViewMode: "overview" },
+  globals: desktopGlobals,
+};
+
+/** くわしく表示で名前が長いときは、スタッフ・勤務パターン・ポジションをそれぞれ1行に収めて省略する。 */
+export const LongNames: Story = {
+  name: "Long Names",
+  args: { ...shiftTypeBoardLongNamesArgs, initialViewMode: "overview" },
+  globals: desktopGlobals,
+};
+
+/** シンプル表示で名前が長いときも、スタッフと勤務パターンを1行に収めて省略する。 */
+export const LongNamesSimple: Story = {
+  name: "Long Names Simple",
+  args: { ...shiftTypeBoardLongNamesArgs, initialDetailMode: false, initialViewMode: "overview" },
   globals: desktopGlobals,
 };
 

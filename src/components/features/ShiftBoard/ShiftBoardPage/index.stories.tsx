@@ -312,8 +312,8 @@ const renderAppShiftBoard = (args: ComponentProps<typeof ShiftBoardPage>) => (
             {...args}
             layout="app"
             header={{
-              desktopTitle: "yn1323店舗：1/20 〜 26",
-              mobileTitle: "1/20 〜 26",
+              shopName: "yn1323店舗",
+              periodTitle: "1/20 〜 26",
               backLabel: "シフト一覧へ戻る",
               backAriaLabel: "シフト一覧へ戻る",
             }}

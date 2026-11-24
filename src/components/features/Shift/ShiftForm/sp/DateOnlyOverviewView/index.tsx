@@ -191,7 +191,7 @@ const DayStaffList = ({ rows }: { rows: DateOnlyOverviewStaffRowViewModel[] }) =
     return (
       <Stack gap="5px">
         {rows.map((staff) => (
-          <Text key={staff.key} textStyle="caption" fontWeight={600} color="gray.800">
+          <Text key={staff.key} textStyle="caption" fontWeight={600} color="gray.800" truncate>
             {staff.name}
           </Text>
         ))}
@@ -205,7 +205,7 @@ const DayStaffList = ({ rows }: { rows: DateOnlyOverviewStaffRowViewModel[] }) =
       {rows.map((staff) => (
         <Flex key={staff.key} as="span" align="center" gap={2}>
           <Flex as="span" flex={1} minW={0} align="center" gap="6px">
-            <Text as="span" textStyle="caption" fontWeight={600} color="gray.800" minW={0}>
+            <Text as="span" textStyle="caption" fontWeight={600} color="gray.800" minW={0} truncate>
               {staff.name}
             </Text>
           </Flex>

@@ -213,8 +213,14 @@ const WeekTable = ({ week, onDateClick, detailMode }: WeekTableProps) => (
         {week.rows.map((row) => (
           <Box as="tr" key={row.key} borderBottomWidth="1px" borderColor="gray.100">
             <Box as="td" style={{ padding: "10px 18px" }}>
-              <Flex align="center" gap="10px">
-                <Box textStyle="sm" fontWeight={600} color={row.isUnsubmitted ? "gray.500" : "gray.800"}>
+              <Flex align="center" gap="10px" minW={0}>
+                <Box
+                  textStyle="sm"
+                  fontWeight={600}
+                  color={row.isUnsubmitted ? "gray.500" : "gray.800"}
+                  minW={0}
+                  truncate
+                >
                   {row.name}
                 </Box>
                 {row.isUnsubmitted && (

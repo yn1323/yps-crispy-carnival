@@ -467,7 +467,8 @@ function StaffAvatar() {
 
 function StaffName({ name }: { name: string }) {
   return (
-    <Text flex={1} minW={0} fontSize="sm" fontWeight="semibold" color="gray.900" overflowWrap="anywhere">
+    // 長い名前は1行で省略し、全文をtitleに出す。
+    <Text flex={1} minW={0} fontSize="sm" fontWeight="semibold" color="gray.900" truncate title={name}>
       {name}
     </Text>
   );

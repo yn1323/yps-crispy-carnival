@@ -48,7 +48,7 @@ vi.mock("@/src/components/features/ShiftBoard", () => ({
   }: {
     data: { shopId: string };
     layout?: string;
-    header?: { desktopTitle: string };
+    header?: { shopName: string; periodTitle: string };
     dateNotes?: unknown;
     staffing?: unknown;
     onChromeHiddenChange?: (isHidden: boolean) => void;
@@ -69,7 +69,11 @@ vi.mock("@/src/components/features/ShiftBoard", () => ({
       >
         {data.shopId}
       </output>
-      {header && <h1>{header.desktopTitle}</h1>}
+      {header && (
+        <h1>
+          {header.shopName}：{header.periodTitle}
+        </h1>
+      )}
     </>
   ),
 }));

@@ -167,6 +167,26 @@ export const shiftTypeBoardDetailArgs = {
   detailActions: { onOpenSetup: () => {}, dayStaffingActions: { onApplyTemplate: async () => true, isPending: false } },
 } satisfies ShiftFormArgs;
 
+const LONG_NAME_SUFFIX = "（上限の文字数で表示を確かめるための長い名前です）";
+
+/** くわしく表示で、スタッフ・勤務パターン・ポジションの名前をすべて長くする。どれも1行に収めて省略する。 */
+export const shiftTypeBoardLongNamesArgs = {
+  ...shiftTypeBoardDetailArgs,
+  staffs: staffs.map((staff) => ({ ...staff, name: `${staff.name}${LONG_NAME_SUFFIX}` })),
+  positions: positions.map((position) => ({ ...position, name: `${position.name}${LONG_NAME_SUFFIX}` })),
+  initialShifts: shifts.map((item) => ({
+    ...item,
+    positions: item.positions.map((segment) => ({
+      ...segment,
+      positionName: `${segment.positionName}${LONG_NAME_SUFFIX}`,
+    })),
+  })),
+  submissionPattern: {
+    kind: "shiftType",
+    options: options.map((option) => ({ ...option, name: `${option.name}${LONG_NAME_SUFFIX}` })),
+  },
+} satisfies ShiftFormArgs;
+
 /** 前のStoryで覚えたポジションを消す。空きのセルへ入るポジションを、店舗の先頭のポジションから始めるためである。 */
 export const clearRememberedBoardPosition = () => {
   localStorage.removeItem(lastPositionStorageKey(boardShopId));

@@ -36,7 +36,7 @@ const meta = {
     staffing,
     onSaveDraft: () => {},
     onConfirm: () => {},
-    header: { desktopTitle: "店舗：1/23", mobileTitle: "1/23" },
+    header: { shopName: "店舗", periodTitle: "1/23" },
   },
 } satisfies Meta<typeof ShiftForm>;
 

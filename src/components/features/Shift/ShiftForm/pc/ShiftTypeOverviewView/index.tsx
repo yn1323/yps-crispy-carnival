@@ -243,6 +243,24 @@ const ShiftTypeOverviewRow = ({ row, detailMode }: { row: ShiftTypeOverviewRowVi
   </Box>
 );
 
+/** 勤務パターンのバッジ。長い名前は1行に収めて省略し、全文をtitleに出す。 */
+const OverviewBadge = ({ badge }: { badge: { label: string; bg: string; color: string } }) => (
+  <Box
+    maxW="100%"
+    px={2}
+    py="2px"
+    borderRadius="full"
+    bg={badge.bg}
+    color={badge.color}
+    fontSize="xs"
+    fontWeight={700}
+    truncate
+    title={badge.label}
+  >
+    {badge.label}
+  </Box>
+);
+
 const ShiftTypeOverviewCell = ({ cell, detailMode }: { cell: ShiftTypeOverviewCellViewModel; detailMode: boolean }) => (
   <Box as="td" px={2} py={2} textAlign="center" bg={cell.isClosed ? "gray.100" : undefined} verticalAlign="middle">
     {cell.content.kind === "closed" ? (
@@ -254,9 +272,7 @@ const ShiftTypeOverviewCell = ({ cell, detailMode }: { cell: ShiftTypeOverviewCe
       <Flex gap={1} justify="center" align="flex-start" wrap="wrap">
         {cell.content.badges.map((badge) => (
           <Flex key={badge.key} direction="column" align="center" gap="3px" minW={0} maxW="100%">
-            <Box px={2} py="2px" borderRadius="full" bg={badge.bg} color={badge.color} fontSize="xs" fontWeight={700}>
-              {badge.label}
-            </Box>
+            <OverviewBadge badge={badge} />
             {/* ポジションが1つの店舗では、熟練度の印がある勤務だけ出す。 */}
             {badge.position && (
               <Flex maxW="100%" minW={0} color="gray.700" _empty={{ display: "none" }}>
@@ -274,18 +290,7 @@ const ShiftTypeOverviewCell = ({ cell, detailMode }: { cell: ShiftTypeOverviewCe
     ) : cell.content.kind === "assignments" ? (
       <Flex gap={1} justify="center" wrap="wrap">
         {cell.content.badges.map((badge) => (
-          <Box
-            key={badge.key}
-            px={2}
-            py="2px"
-            borderRadius="full"
-            bg={badge.bg}
-            color={badge.color}
-            fontSize="xs"
-            fontWeight={700}
-          >
-            {badge.label}
-          </Box>
+          <OverviewBadge key={badge.key} badge={badge} />
         ))}
       </Flex>
     ) : (
