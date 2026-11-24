@@ -1430,7 +1430,8 @@ export const removePersonFromOrganization = authenticatedMutation({
   },
 });
 
-async function removeManagerRoleForActor(
+/** 画面の「管理者権限を外す」の本体。確認用データの入れ直し（userSeed）からも呼ぶ。 */
+export async function removeManagerRoleForActor(
   ctx: MutationCtx,
   args: { personId: Id<"organizationPeople">; requestId: string },
   actor: AccountDeletionOrganizationActor,

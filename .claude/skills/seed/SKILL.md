@@ -7,6 +7,7 @@ disable-model-invocation: true
 # 確認用データを入れる
 
 管理者ユーザーに、3つの集め方の店舗、スタッフ、必要人数、4つの状態の募集、希望とメモ、割り当てをまとめて入れる。
+管理者は本人のほかに3人を入れ、管理者とスタッフの一部をシフトの対象から外し、スタッフの一部をLINE連携済みにする。
 入れ先は画面で作ったユーザーである。ユーザーがまだいない実行先では、実行先の環境変数が指すClerk利用者のユーザーを作ってから入れる。
 このスキルは、ユーザーが `/seed` で起動した場合だけ使う。
 
@@ -91,6 +92,8 @@ npx convex run userSeed/mutations:ensureSeedUser '{}' --deployment <deployment>
 - 消す組織: `canDelete`が`true`の組織の名前。
 - 残す組織: `canDelete`が`false`の組織の名前と`reason`。ほかの管理者がいる組織や有料契約の組織は消さない。
 
+ほかの管理者が確認用の管理者（`/seed`が入れた管理者）だけの組織は、`canDelete`が`true`で返る。この組織は、確認用の管理者の権限を外してから消す。
+
 消す組織が0件なら、確認を取らずに5章の投入へ進んでよい（何も消さないため）。
 developでは、消す組織が0件でも投入してよいかを必ず聞く。
 
@@ -112,6 +115,7 @@ npx convex run userSeed/mutations:seedUserOrganization '{"userId":"<userId>"}' -
 - 実行先、ユーザーの名前、消した組織と残した組織。
 - ユーザーを作った場合は、そのこと。名前は「確認用ユーザー」で、そのClerk利用者でログインすると、初期設定なしで入れたデータが出る。
 - 作った組織の名前と、店舗ごとの募集（期間、状態、提出数、希望の数、メモの数、割り当ての数）。
+- 管理者の数（`managerCount`）と、LINE連携済みにしたスタッフの数（`lineLinkedStaffCount`）。店舗ごとにシフトの対象から外した人は、`doc/manual/user-seed.md`の表のとおりである。
 - `noteMismatchCount`。0でなければ、メモと希望が食い違っていることを不具合として伝える。
 - `randomSeed`。同じ内容を作り直したいときは、`seedUserOrganization`へ`"randomSeed"`を渡す。
 - PR環境では、プッシュでpreviewが作り直されるとデータが消えるため、そのたびに`/seed`が要ること。

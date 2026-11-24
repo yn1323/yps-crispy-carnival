@@ -1,10 +1,11 @@
 import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
+import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { assertDevelopmentSeedEnabled } from "../_lib/config";
 import { todayJST } from "../_lib/dateFormat";
 import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { generateUUID } from "../_lib/uuid";
-import { beginAccountDeletionOrganizationDeletion } from "../organization/mutations";
+import { beginAccountDeletionOrganizationDeletion, removeManagerRoleForActor } from "../organization/mutations";
 import { getOrganizationCreationAvailability } from "../setup/service";
 import { seedUserOrganizationGraph } from "./builders";
 import { assertUserSeedEnabled } from "./guard";
@@ -78,6 +79,8 @@ export const ensureSeedUser = internalMutation({
 /**
  * 選んだユーザーが唯一の有効な管理者である組織を、画面からの組織削除と同じ処理で論理削除する。
  * 権限や連絡手段の後片付けは既存のcleanup jobが行う。ほかの管理者がいる組織は消さずに返す。
+ * ほかの管理者が確認用の管理者だけの組織は、画面の「管理者権限を外す」と同じ処理でその権限を外してから消す。
+ * 権限を外したあとで、有料契約などの理由で消せないと分かった場合は、全体を失敗させて何も変えない。
  */
 export const resetUserOrganizations = internalMutation({
   args: { userId: v.id("users") },
@@ -102,8 +105,13 @@ export const resetUserOrganizations = internalMutation({
         });
         continue;
       }
+      const actor = { organization: entry.organization, person: entry.person, member: entry.member };
+      for (const personId of entry.coManagerPersonIds) {
+        const requestId = await toAuditRequestKey(`user-seed:${generateUUID()}`);
+        await removeManagerRoleForActor(ctx, { personId, requestId }, actor);
+      }
       await beginAccountDeletionOrganizationDeletion(ctx, {
-        actor: { organization: entry.organization, person: entry.person, member: entry.member },
+        actor,
         accountUserId: user._id,
         requestId: `user-seed:${generateUUID()}`,
         now,
@@ -116,6 +124,7 @@ export const resetUserOrganizations = internalMutation({
 
 /**
  * 選んだユーザーに、Trialの組織と3つの集め方の店舗を作り、確認に使うデータを入れる。
+ * 管理者本人のほかの管理者、シフトの対象から外した人、LINE連携済みのスタッフも入れる。
  * `randomSeed`を省くと実行時刻から決め、使った値を結果に返す。
  */
 export const seedUserOrganization = internalMutation({
@@ -124,6 +133,8 @@ export const seedUserOrganization = internalMutation({
     organizationId: v.id("organizations"),
     organizationName: v.string(),
     randomSeed: v.number(),
+    managerCount: v.number(),
+    lineLinkedStaffCount: v.number(),
     noteMismatchCount: v.number(),
     shops: v.array(
       v.object({

@@ -2,12 +2,20 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { addDays, generateDateRange, getWeekday } from "../_lib/dateFormat";
 import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
+import { generateUUID } from "../_lib/uuid";
 import { getLegalConsentVersions } from "../legal/documents";
 import { recordStaffLegalConsent } from "../legal/service";
+import {
+  listActiveStaffsForOrganizationPerson,
+  upsertLineProviderUser,
+  upsertOrganizationPersonLineLink,
+  upsertStaffLineAccount,
+} from "../line/service";
 import { buildConfirmationSnapshotSignature } from "../notification/confirmationSnapshots";
 import { recordOrganizationAuditEvent } from "../organization/audit";
 import { calculateTrialEndsAt } from "../organizationBilling/policy";
 import { resolveRecruitmentStaffingDays } from "../shiftSetup/service";
+import { userSeedCoManagerAuthTokenIdentifier } from "./service";
 
 // 確認用データの中身。DBへ直接書き、通知やcronの予約（scheduler）は使わない。
 // スタッフのメールアドレスは@example.comにし、管理者本人のメールアドレスへは何も送らない。
@@ -38,6 +46,31 @@ export const USER_SEED_STAFF_NAMES = [
 ] as const;
 
 export const USER_SEED_STAFF_EMAIL_DOMAIN = "example.com";
+
+/** 管理者本人のほかに入れる管理者。ユーザーの行はログインできない識別子で作る。 */
+export const USER_SEED_CO_MANAGERS = [
+  { name: "石川 誠", email: `devmanager01@${USER_SEED_STAFF_EMAIL_DOMAIN}` },
+  { name: "藤井 香織", email: `devmanager02@${USER_SEED_STAFF_EMAIL_DOMAIN}` },
+  { name: "岡田 修", email: `devmanager03@${USER_SEED_STAFF_EMAIL_DOMAIN}` },
+] as const;
+
+/** `/seed`の店舗ごとに、シフトの対象から外すスタッフの数。 */
+export const USER_SEED_EXCLUDED_STAFF_COUNT = 3;
+
+/** LINE連携済みにするスタッフの数。 */
+export const USER_SEED_LINE_LINKED_STAFF_COUNT = 8;
+
+/** シフトの対象から外す人。`managers`の"self"は管理者本人、数字は`USER_SEED_CO_MANAGERS`の位置。 */
+export type ShiftExclusion = { staffCount: number; managers: ReadonlyArray<"self" | number> };
+
+/** `/seed`の店舗ごとの、シフトの対象から外す管理者。本人もほかの管理者も、どこか1店舗で外れる。 */
+const USER_SEED_EXCLUDED_MANAGERS: Record<ShopKey, ShiftExclusion["managers"]> = {
+  time: [1],
+  dateOnly: ["self", 2],
+  shiftType: [0],
+};
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** 日付選択の勤務は時刻を持たないため、シフト表と同じ既定の受付時間で保存する。 */
 const DATE_ONLY_ASSIGNMENT_TIME: Slot = { startTime: "09:00", endTime: "22:00" };
@@ -90,7 +123,7 @@ export type ShopDefinition = {
   positions: Array<{ name: string; color: string }>;
   /** 希望を出す日の割合。 */
   workRate: number;
-  /** 全員をシフトの対象にする。省くと、1人をシフトの対象から外す。 */
+  /** スタッフの全員をシフトの対象にする。省くと、`insertShop`へ渡した数（既定は1人）をシフトの対象から外す。 */
   keepsAllStaffInShift?: boolean;
 };
 
@@ -392,13 +425,15 @@ export type SeedShop = {
   definition: ShopDefinition;
   shopId: Id<"shops">;
   positions: Array<Doc<"positions">>;
-  /** 管理者本人を含む、シフト対象のスタッフ。 */
+  /** シフト対象のスタッフ。`isManager`は管理者本人だけがtrueで、ほかの管理者はスタッフと同じに扱う。 */
   staffs: Array<{ staffId: Id<"staffs">; name: string; isManager: boolean; skills: Map<Id<"positions">, string> }>;
-  /** 店舗に所属するスタッフの数。管理者本人と、シフトの対象から外した人を含む。 */
+  /** 店舗に所属するスタッフの数。管理者と、シフトの対象から外した人を含む。 */
   staffCount: number;
 };
 
 export type SeedStaffPerson = { personId: Id<"organizationPeople">; name: string; email: string };
+
+export type SeedCoManager = SeedStaffPerson & { userId: Id<"users"> };
 
 export type UserSeedRecruitmentSummary = {
   key: UserSeedRecruitmentKey;
@@ -421,6 +456,9 @@ export type UserSeedResult = {
   organizationId: Id<"organizations">;
   organizationName: string;
   randomSeed: number;
+  /** 有効な管理者の数。管理者本人を含む。 */
+  managerCount: number;
+  lineLinkedStaffCount: number;
   shops: UserSeedShopSummary[];
   noteMismatchCount: number;
 };
@@ -436,9 +474,15 @@ export async function seedUserOrganizationGraph(
   const { user, today, now } = args;
   const random = createSeedRandom(args.randomSeed);
 
-  const { organizationId, managerPersonId } = await insertOrganization(ctx, {
+  const { organizationId, managerPersonId, managerMemberId } = await insertOrganization(ctx, {
     user,
     name: USER_SEED_ORGANIZATION_NAME,
+    now,
+  });
+  const coManagers = await insertCoManagers(ctx, {
+    organizationId,
+    owner: user,
+    inviterMemberId: managerMemberId,
     now,
   });
   const staffPeople = await insertStaffPeople(ctx, {
@@ -456,6 +500,11 @@ export async function seedUserOrganizationGraph(
       user,
       managerPersonId,
       staffPeople,
+      coManagers,
+      shiftExclusion: {
+        staffCount: USER_SEED_EXCLUDED_STAFF_COUNT,
+        managers: USER_SEED_EXCLUDED_MANAGERS[definition.key],
+      },
       today,
       now,
       random,
@@ -463,11 +512,15 @@ export async function seedUserOrganizationGraph(
     shops.push(result.summary);
     noteMismatchCount += result.noteMismatchCount;
   }
+  // 店舗ごとのスタッフの行へも連携を書くため、店舗を作り終えてから入れる。
+  const lineLinkedStaffCount = await insertLineLinks(ctx, { organizationId, staffPeople, now, random });
 
   return {
     organizationId,
     organizationName: USER_SEED_ORGANIZATION_NAME,
     randomSeed: args.randomSeed,
+    managerCount: coManagers.length + 1,
+    lineLinkedStaffCount,
     shops,
     noteMismatchCount,
   };
@@ -549,6 +602,102 @@ export async function insertStaffPeople(
   return staffPeople;
 }
 
+/**
+ * 管理者本人のほかの管理者を入れる。ユーザーの行は入れ先のユーザーごとに決まった識別子で作り、入れ直しても増やさない。
+ * この識別子はClerkのissuerと合わないため、ログインには使えない。
+ */
+async function insertCoManagers(
+  ctx: MutationCtx,
+  args: {
+    organizationId: Id<"organizations">;
+    owner: Doc<"users">;
+    inviterMemberId: Id<"organizationMembers">;
+    now: number;
+  },
+): Promise<SeedCoManager[]> {
+  const { organizationId, owner, now } = args;
+  const coManagers: SeedCoManager[] = [];
+  for (const [index, { name, email }] of USER_SEED_CO_MANAGERS.entries()) {
+    const authTokenIdentifier = userSeedCoManagerAuthTokenIdentifier(owner._id, index);
+    const existing = await ctx.db
+      .query("users")
+      .withIndex("by_authTokenIdentifier", (q) => q.eq("authTokenIdentifier", authTokenIdentifier))
+      .unique();
+    if (existing && (existing.isDeleted || existing.accountDeletionRequestedAt !== undefined)) {
+      throw new Error("User seed co-manager user is deleted");
+    }
+    const userId =
+      existing?._id ??
+      (await ctx.db.insert("users", {
+        authTokenIdentifier,
+        name,
+        email,
+        emailNormalized: email,
+        role: "manager",
+        isDeleted: false,
+      }));
+    const personId = await ctx.db.insert("organizationPeople", {
+      organizationId,
+      userId,
+      name,
+      email,
+      emailNormalized: email,
+      status: "active",
+      lineLinkGeneration: 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await ctx.db.insert("organizationMembers", {
+      organizationId,
+      personId,
+      userId,
+      status: "active",
+      invitedByMemberId: args.inviterMemberId,
+      createdAt: now,
+      updatedAt: now,
+    });
+    coManagers.push({ personId, userId, name, email });
+  }
+  return coManagers;
+}
+
+/**
+ * スタッフの一部をLINE連携済みにする。本来の連携と同じ3種類の行（LINEの利用者、人物との連携、店舗ごとのスタッフの連携）を書く。
+ * LINEの利用者のIDは、LINEが発行する形と違う値にする。この値を宛先にした送信は、だれにも届かない。
+ * 入れ直す前の組織の連携が後片付けを待っている間も重ならないよう、IDは毎回別の値にする。
+ */
+async function insertLineLinks(
+  ctx: MutationCtx,
+  args: { organizationId: Id<"organizations">; staffPeople: SeedStaffPerson[]; now: number; random: Random },
+): Promise<number> {
+  const { organizationId, now, random } = args;
+  const linkedPeople = shuffle(random, args.staffPeople).slice(0, USER_SEED_LINE_LINKED_STAFF_COUNT);
+  for (const person of linkedPeople) {
+    const linkedAt = now - randomInt(random, 1, 30) * DAY_MS;
+    const lineUserId = `U_USER_SEED_${generateUUID()}`;
+    const { provider } = await upsertLineProviderUser(ctx, {
+      lineUserId,
+      following: true,
+      observedAt: linkedAt,
+      source: "oauth",
+    });
+    await upsertOrganizationPersonLineLink(ctx, {
+      organizationId,
+      organizationPersonId: person.personId,
+      lineProviderUserId: provider._id,
+      linkedAt,
+    });
+    const staffs = await listActiveStaffsForOrganizationPerson(ctx, {
+      organizationId,
+      organizationPersonId: person.personId,
+    });
+    for (const staff of staffs) {
+      await upsertStaffLineAccount(ctx, { staffId: staff._id, shopId: staff.shopId, lineUserId, following: true });
+    }
+  }
+  return linkedPeople.length;
+}
+
 /** `/seed`の1店舗ぶん。店舗、必要人数、4つの状態の募集を入れる。 */
 export async function insertStandardShop(
   ctx: MutationCtx,
@@ -558,6 +707,8 @@ export async function insertStandardShop(
     user: Doc<"users">;
     managerPersonId: Id<"organizationPeople">;
     staffPeople: SeedStaffPerson[];
+    coManagers?: SeedCoManager[];
+    shiftExclusion?: ShiftExclusion;
     today: string;
     now: number;
     random: Random;
@@ -592,10 +743,17 @@ export async function insertShop(
     user: Doc<"users">;
     managerPersonId: Id<"organizationPeople">;
     staffPeople: SeedStaffPerson[];
+    /** 管理者本人のほかの管理者。省くと入れない。 */
+    coManagers?: SeedCoManager[];
+    /** シフトの対象から外す人。省くと、スタッフを1人だけ外す。 */
+    shiftExclusion?: ShiftExclusion;
     random: Random;
   },
 ): Promise<SeedShop> {
   const { definition, organizationId, random } = args;
+  const coManagers = args.coManagers ?? [];
+  const exclusion = args.shiftExclusion ?? { staffCount: 1, managers: [] };
+  const excludedManagers = new Set(exclusion.managers);
   const shopId = await ctx.db.insert("shops", {
     organizationId,
     name: definition.name,
@@ -627,16 +785,42 @@ export async function insertShop(
     email: args.user.email,
     emailNormalized: args.user.emailNormalized,
     userId: args.user._id,
-    excludedFromShift: false,
+    excludedFromShift: excludedManagers.has("self"),
     isDeleted: false,
   });
   await recordStaffLegalConsent(ctx, { staffId: managerStaffId, shopId, method: "manager_setup" });
 
-  const staffs: SeedShop["staffs"] = [
-    { staffId: managerStaffId, name: args.user.name, isManager: true, skills: new Map() },
-  ];
-  // 各店舗で1人を、シフトの対象から外す。
-  const excludedIndex = definition.keepsAllStaffInShift ? -1 : randomInt(random, 0, args.staffPeople.length - 1);
+  const staffs: SeedShop["staffs"] = [];
+  if (!excludedManagers.has("self")) {
+    staffs.push({ staffId: managerStaffId, name: args.user.name, isManager: true, skills: new Map() });
+  }
+  // ほかの管理者は、シフトに入るスタッフと同じに扱う。希望を出し、割り当ても受ける。
+  for (const [index, coManager] of coManagers.entries()) {
+    const staffId = await ctx.db.insert("staffs", {
+      shopId,
+      organizationId,
+      organizationPersonId: coManager.personId,
+      name: coManager.name,
+      email: coManager.email,
+      emailNormalized: coManager.email,
+      userId: coManager.userId,
+      excludedFromShift: excludedManagers.has(index),
+      isDeleted: false,
+    });
+    await recordStaffLegalConsent(ctx, { staffId, shopId, method: "manager_setup" });
+    if (excludedManagers.has(index)) continue;
+    staffs.push({ staffId, name: coManager.name, isManager: false, skills: new Map() });
+  }
+
+  const excludedStaffCount = definition.keepsAllStaffInShift ? 0 : exclusion.staffCount;
+  const excludedIndexes = new Set(
+    excludedStaffCount > 0
+      ? shuffle(
+          random,
+          args.staffPeople.map((_, index) => index),
+        ).slice(0, excludedStaffCount)
+      : [],
+  );
   for (const [index, person] of args.staffPeople.entries()) {
     const positionSkills: Array<{ positionId: Id<"positions">; level: "unavailable" | "newcomer" }> = [];
     if (random() < 0.15) positionSkills.push({ positionId: positions[0]._id, level: "newcomer" });
@@ -645,7 +829,7 @@ export async function insertShop(
       if (roll < 0.35) positionSkills.push({ positionId: position._id, level: "unavailable" });
       else if (roll < 0.5) positionSkills.push({ positionId: position._id, level: "newcomer" });
     }
-    const isExcluded = index === excludedIndex;
+    const isExcluded = excludedIndexes.has(index);
     const staffId = await ctx.db.insert("staffs", {
       shopId,
       organizationId,
@@ -665,7 +849,7 @@ export async function insertShop(
       skills: new Map(positionSkills.map((skill) => [skill.positionId, skill.level])),
     });
   }
-  return { definition, shopId, positions, staffs, staffCount: args.staffPeople.length + 1 };
+  return { definition, shopId, positions, staffs, staffCount: args.staffPeople.length + coManagers.length + 1 };
 }
 
 export type TemplateIds = { weekday: Id<"shiftDayTemplates">; weekend: Id<"shiftDayTemplates"> };

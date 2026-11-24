@@ -4,6 +4,7 @@ import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { seedOrganizationManagerShop, seedOrganizationMembership, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { getOrganizationPersonLineState } from "../line/service";
 import { buildConfirmationSnapshotSignature } from "../notification/confirmationSnapshots";
 import { USER_SEED_PRODUCTION_DEPLOYMENT_NAME } from "./guard";
 
@@ -323,6 +324,173 @@ describe("userSeed", () => {
     });
   });
 
+  describe("入れ直し", () => {
+    it("ほかの管理者が確認用の管理者だけの組織は、その権限を外してから消し、ユーザーを増やさずに入れ直せる", async () => {
+      enableUserSeed();
+      const t = convexTest(schema, modules);
+      const userId = await t.run(async (ctx) => seedUser(ctx, "seed_again", "again@example.test"));
+      const first = await t.mutation(internal.userSeed.mutations.seedUserOrganization, {
+        userId,
+        randomSeed: RANDOM_SEED,
+      });
+
+      const listed = await t.query(internal.userSeed.queries.listUsers, {});
+      expect(
+        listed.map((user) =>
+          user.organizations.map(({ organizationId, canDelete, reason }) => ({
+            organizationId,
+            canDelete,
+            reason,
+          })),
+        ),
+      ).toEqual([[{ organizationId: first.organizationId, canDelete: true, reason: null }]]);
+
+      const reset = await t.mutation(internal.userSeed.mutations.resetUserOrganizations, { userId });
+
+      expect(reset).toEqual({
+        deleted: [{ organizationId: first.organizationId, name: "シフトリ確認用グループ" }],
+        kept: [],
+      });
+      const afterReset = await t.run(async (ctx) => {
+        const members = await ctx.db
+          .query("organizationMembers")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", first.organizationId))
+          .collect();
+        return {
+          isDeleted: (await ctx.db.get(first.organizationId))?.isDeleted,
+          memberStatuses: members.map((member) => (member.userId === userId ? "本人" : member.status)).sort(),
+        };
+      });
+      expect(afterReset).toEqual({ isDeleted: true, memberStatuses: ["removed", "removed", "removed", "本人"] });
+
+      const second = await t.mutation(internal.userSeed.mutations.seedUserOrganization, {
+        userId,
+        randomSeed: RANDOM_SEED,
+      });
+
+      expect(second.managerCount).toBe(4);
+      // 入れ先のユーザーと、ほかの管理者3人。入れ直してもユーザーは増えない。
+      expect((await readUsers(t)).length).toBe(4);
+      const relisted = await t.query(internal.userSeed.queries.listUsers, {});
+      expect(
+        relisted.map((user) =>
+          user.organizations.map(({ organizationId, canDelete }) => ({ organizationId, canDelete })),
+        ),
+      ).toEqual([[{ organizationId: second.organizationId, canDelete: true }]]);
+    });
+
+    it("消したあとの後片付けが、LINE連携とほかの管理者を入れた組織でも最後まで進む", async () => {
+      enableUserSeed();
+      const t = convexTest(schema, modules);
+      const userId = await t.run(async (ctx) => seedUser(ctx, "seed_cleanup", "cleanup@example.test"));
+      await t.mutation(internal.userSeed.mutations.seedUserOrganization, { userId, randomSeed: RANDOM_SEED });
+      await t.mutation(internal.userSeed.mutations.resetUserOrganizations, { userId });
+
+      // 後片付けは少しずつ進む。終わるまで、予約された処理を1つずつ進める。
+      for (let iteration = 0; iteration < 3000; iteration += 1) {
+        vi.advanceTimersByTime(0);
+        await t.finishInProgressScheduledFunctions();
+        const completed = await t.run(
+          async (ctx) => (await ctx.db.query("deletionCleanupJobs").first())?.status === "completed",
+        );
+        if (completed) break;
+      }
+
+      const jobs = await t.run(async (ctx) =>
+        (await ctx.db.query("deletionCleanupJobs").collect()).map(({ scope, status }) => ({ scope, status })),
+      );
+      expect(jobs).toEqual([{ scope: "organization", status: "completed" }]);
+      const failedJobs = await t.run(async (ctx) =>
+        (await ctx.db.system.query("_scheduled_functions").collect())
+          .filter((job) => job.state.kind === "failed")
+          .map((job) => job.name),
+      );
+      expect(failedJobs).toEqual([]);
+      const remainingLine = await t.run(async (ctx) => ({
+        links: (await ctx.db.query("organizationPersonLineLinks").collect()).filter((link) => !link.isDeleted).length,
+        accounts: (await ctx.db.query("staffLineAccounts").collect()).filter((account) => !account.isDeleted).length,
+        providers: (await ctx.db.query("lineProviderUsers").collect()).filter((provider) => !provider.isDeleted).length,
+      }));
+      expect(remainingLine).toEqual({ links: 0, accounts: 0, providers: 0 });
+    });
+
+    it("画面で招待した管理者もいる組織は、確認用の管理者がいても消さず、だれの権限も外さない", async () => {
+      enableUserSeed();
+      const t = convexTest(schema, modules);
+      const userId = await t.run(async (ctx) => seedUser(ctx, "seed_shared", "shared@example.test"));
+      const seeded = await t.mutation(internal.userSeed.mutations.seedUserOrganization, {
+        userId,
+        randomSeed: RANDOM_SEED,
+      });
+      await t.run(async (ctx) => {
+        const partnerUserId = await seedUser(ctx, "seed_shared_partner");
+        const shop = await ctx.db
+          .query("shops")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+          .first();
+        if (!shop) throw new Error("Seeded shop was not found");
+        await seedOrganizationMembership(ctx, { userId: partnerUserId, shopId: shop._id });
+      });
+
+      const reset = await t.mutation(internal.userSeed.mutations.resetUserOrganizations, { userId });
+
+      expect(reset).toEqual({
+        deleted: [],
+        kept: [
+          {
+            organizationId: seeded.organizationId,
+            name: "シフトリ確認用グループ",
+            reason: "組織を削除するには、先にほかの管理者の権限を外してください。",
+          },
+        ],
+      });
+      const after = await t.run(async (ctx) => {
+        const members = await ctx.db
+          .query("organizationMembers")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+          .collect();
+        return {
+          isDeleted: (await ctx.db.get(seeded.organizationId))?.isDeleted,
+          memberStatuses: members.map((member) => member.status),
+        };
+      });
+      expect(after).toEqual({ isDeleted: false, memberStatuses: ["active", "active", "active", "active", "active"] });
+      expect(await readScheduledFunctionNames(t)).toEqual([]);
+    });
+
+    it("ほかのユーザーのために作った確認用の管理者は、自分の組織の確認用の管理者として扱わない", async () => {
+      enableUserSeed();
+      const t = convexTest(schema, modules);
+      const { userId, otherCoManagerUserId } = await t.run(async (ctx) => {
+        const ownerId = await seedUser(ctx, "seed_owner_a", "owner-a@example.test");
+        const otherOwnerId = await seedUser(ctx, "seed_owner_b", "owner-b@example.test");
+        const coManagerId = await seedUser(ctx, "seed_other_co_manager");
+        await ctx.db.patch(coManagerId, {
+          authTokenIdentifier: `https://seed.example.test|user-seed-${otherOwnerId}-manager-1`,
+        });
+        return { userId: ownerId, otherCoManagerUserId: coManagerId };
+      });
+      const seeded = await t.mutation(internal.userSeed.mutations.seedUserOrganization, {
+        userId,
+        randomSeed: RANDOM_SEED,
+      });
+      await t.run(async (ctx) => {
+        const shop = await ctx.db
+          .query("shops")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+          .first();
+        if (!shop) throw new Error("Seeded shop was not found");
+        await seedOrganizationMembership(ctx, { userId: otherCoManagerUserId, shopId: shop._id });
+      });
+
+      const reset = await t.mutation(internal.userSeed.mutations.resetUserOrganizations, { userId });
+
+      expect(reset.deleted).toEqual([]);
+      expect(reset.kept.map(({ organizationId }) => organizationId)).toEqual([seeded.organizationId]);
+      expect(await t.run(async (ctx) => (await ctx.db.get(seeded.organizationId))?.isDeleted)).toBe(false);
+    });
+  });
+
   describe("seedUserOrganization", () => {
     async function seedForFreshUser() {
       enableUserSeed();
@@ -335,7 +503,7 @@ describe("userSeed", () => {
       return { t, userId, result };
     }
 
-    it("Trialの組織に3つの集め方の店舗と4つの状態の募集を作り、メモと希望を食い違わせない", async () => {
+    it("Trialの組織に3つの集め方の店舗と4つの状態の募集を作り、管理者4人とシフトから外した人を入れ、メモと希望を食い違わせない", async () => {
       const { t, userId, result } = await seedForFreshUser();
 
       expect(result.randomSeed).toBe(RANDOM_SEED);
@@ -368,8 +536,16 @@ describe("userSeed", () => {
               name: shop.name,
               pattern: shop.submissionPattern.kind,
               staffCount: staffs.length,
-              excludedCount: staffs.filter((staff) => staff.excludedFromShift).length,
-              managerStaffCount: staffs.filter((staff) => staff.userId === userId).length,
+              excludedStaffCount: staffs.filter((staff) => !staff.userId && staff.excludedFromShift).length,
+              // 管理者は、本人を「本人」、ほかの管理者を名前で示す。
+              managers: staffs
+                .filter((staff) => staff.userId)
+                .map((staff) => (staff.userId === userId ? "本人" : staff.name))
+                .sort(),
+              excludedManagers: staffs
+                .filter((staff) => staff.userId && staff.excludedFromShift)
+                .map((staff) => (staff.userId === userId ? "本人" : staff.name))
+                .sort(),
               recruitmentStatuses: recruitments
                 .map((recruitment) => `${recruitment.periodStart}:${recruitment.status}`)
                 .sort(),
@@ -380,42 +556,50 @@ describe("userSeed", () => {
           organizationName: organization?.name,
           createdByUserId: organization?.createdByUserId,
           billingKind: billing?.state.kind,
-          activeManagers: members.filter((member) => member.status === "active").map((member) => member.userId),
+          activeManagerCount: members.filter((member) => member.status === "active").length,
           perShop,
         };
       });
 
+      const managers = ["岡田 修", "本人", "石川 誠", "藤井 香織"];
       expect(snapshot).toEqual({
         organizationName: "シフトリ確認用グループ",
         createdByUserId: userId,
         billingKind: "trial",
-        activeManagers: [userId],
+        activeManagerCount: 4,
         perShop: [
           {
             name: "時間指定",
             pattern: "time",
-            staffCount: 21,
-            excludedCount: 1,
-            managerStaffCount: 1,
+            staffCount: 24,
+            excludedStaffCount: 3,
+            managers,
+            excludedManagers: ["藤井 香織"],
             recruitmentStatuses: ["2026-11-12:confirmed", "2026-11-19:confirmed", "2026-11-26:open", "2026-12-03:open"],
           },
           {
             name: "日付選択",
             pattern: "dateOnly",
-            staffCount: 21,
-            excludedCount: 1,
-            managerStaffCount: 1,
+            staffCount: 24,
+            excludedStaffCount: 3,
+            managers,
+            excludedManagers: ["岡田 修", "本人"],
             recruitmentStatuses: ["2026-11-12:confirmed", "2026-11-19:confirmed", "2026-11-26:open", "2026-12-03:open"],
           },
           {
             name: "パターン選択",
             pattern: "shiftType",
-            staffCount: 21,
-            excludedCount: 1,
-            managerStaffCount: 1,
+            staffCount: 24,
+            excludedStaffCount: 3,
+            managers,
+            excludedManagers: ["石川 誠"],
             recruitmentStatuses: ["2026-11-12:confirmed", "2026-11-19:confirmed", "2026-11-26:open", "2026-12-03:open"],
           },
         ],
+      });
+      expect({ managerCount: result.managerCount, lineLinkedStaffCount: result.lineLinkedStaffCount }).toEqual({
+        managerCount: 4,
+        lineLinkedStaffCount: 8,
       });
       for (const shop of result.shops) {
         expect(shop.recruitments.map((recruitment) => recruitment.submittedCount > 0)).toEqual([
@@ -446,7 +630,8 @@ describe("userSeed", () => {
           ...requests.map((request) => request.email),
         ];
       });
-      expect(emails.length).toBe(61);
+      // スタッフ20人とほかの管理者3人が3店舗ぶんと、登録申請の1件。
+      expect(emails.length).toBe(70);
       expect(emails.filter((email) => !email.endsWith("@example.com"))).toEqual([]);
     });
 
@@ -543,6 +728,155 @@ describe("userSeed", () => {
         readCounts.push(board?.shiftAssignments.length ?? -1);
       }
       expect(readCounts).toEqual(expectedAssignmentCounts);
+    });
+
+    it("シフトから外した人には希望も割り当ても入れず、シフトに入るほかの管理者には希望を入れる", async () => {
+      const { t, userId, result } = await seedForFreshUser();
+
+      const counts = await t.run(async (ctx) => {
+        const staffs = await ctx.db
+          .query("staffs")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", result.organizationId))
+          .collect();
+        const submissions = await ctx.db.query("shiftSubmissions").collect();
+        const assignments = await ctx.db.query("shiftAssignments").collect();
+        const submissionCountOf = (staff: (typeof staffs)[number]) =>
+          submissions.filter((submission) => submission.staffId === staff._id).length;
+        const assignmentCountOf = (staff: (typeof staffs)[number]) =>
+          assignments.filter((assignment) => assignment.staffId === staff._id).length;
+        const excluded = staffs.filter((staff) => staff.excludedFromShift);
+        const coManagersInShift = staffs.filter(
+          (staff) => staff.userId && staff.userId !== userId && !staff.excludedFromShift,
+        );
+        return {
+          excludedCount: excluded.length,
+          excludedSubmissions: excluded.map(submissionCountOf).reduce((a, b) => a + b, 0),
+          excludedAssignments: excluded.map(assignmentCountOf).reduce((a, b) => a + b, 0),
+          coManagerInShiftCount: coManagersInShift.length,
+          coManagersWithoutSubmission: coManagersInShift.filter((staff) => submissionCountOf(staff) === 0).length,
+        };
+      });
+
+      expect(counts).toEqual({
+        // スタッフ3人が3店舗ぶんと、管理者の4人。
+        excludedCount: 13,
+        excludedSubmissions: 0,
+        excludedAssignments: 0,
+        // ほかの管理者3人が3店舗ぶんの9件から、外した3件を引く。
+        coManagerInShiftCount: 6,
+        coManagersWithoutSubmission: 0,
+      });
+    });
+
+    it("スタッフ8人をLINE連携済みにし、その人の全店舗のスタッフへ同じ連携を書く。管理者は連携しない", async () => {
+      const { t, result } = await seedForFreshUser();
+
+      const snapshot = await t.run(async (ctx) => {
+        const people = await ctx.db
+          .query("organizationPeople")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", result.organizationId))
+          .collect();
+        const states = await Promise.all(
+          people.map(async (person) => ({
+            person,
+            state: await getOrganizationPersonLineState(ctx, {
+              organizationId: result.organizationId,
+              organizationPersonId: person._id,
+            }),
+          })),
+        );
+        const linked = states.filter(({ state }) => state?.status !== "unlinked");
+        const providers = await ctx.db.query("lineProviderUsers").collect();
+        const accounts = await ctx.db.query("staffLineAccounts").collect();
+        const staffs = await ctx.db
+          .query("staffs")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", result.organizationId))
+          .collect();
+        const linkedPersonIds = new Set(linked.map(({ person }) => person._id));
+        const lineUserIdByPerson = new Map<string, Set<string>>();
+        for (const account of accounts) {
+          const staff = staffs.find((candidate) => candidate._id === account.staffId);
+          const key = String(staff?.organizationPersonId);
+          lineUserIdByPerson.set(key, (lineUserIdByPerson.get(key) ?? new Set()).add(account.lineUserId));
+        }
+        return {
+          peopleCount: people.length,
+          linkedStatuses: linked.map(({ state }) => state?.status),
+          linkedManagerCount: linked.filter(({ person }) => person.userId).length,
+          providerCount: providers.length,
+          uniqueLineUserIdCount: new Set(providers.map((provider) => provider.lineUserId)).size,
+          fakeLineUserIdCount: providers.filter((provider) => provider.lineUserId.startsWith("U_USER_SEED_")).length,
+          // 連携済みの人の全店舗のスタッフにだけ、連携の行がある。
+          accountStaffIds: accounts.map((account) => account.staffId).sort(),
+          linkedStaffIds: staffs
+            .filter((staff) => linkedPersonIds.has(staff.organizationPersonId))
+            .map((staff) => staff._id)
+            .sort(),
+          // 1人の連携は、どの店舗でも同じLINEの利用者を指す。
+          peopleWithOneLineUserId: [...lineUserIdByPerson.values()].filter((ids) => ids.size === 1).length,
+          deletedOrUnfollowedAccountCount: accounts.filter((account) => account.isDeleted || !account.following).length,
+        };
+      });
+
+      expect(snapshot.accountStaffIds).toEqual(snapshot.linkedStaffIds);
+      expect({ ...snapshot, accountStaffIds: snapshot.accountStaffIds.length, linkedStaffIds: undefined }).toEqual({
+        // 管理者4人とスタッフ20人。
+        peopleCount: 24,
+        linkedStatuses: Array.from({ length: 8 }, () => "linked_following"),
+        linkedManagerCount: 0,
+        providerCount: 8,
+        uniqueLineUserIdCount: 8,
+        fakeLineUserIdCount: 8,
+        // 8人が3店舗ぶん。
+        accountStaffIds: 24,
+        linkedStaffIds: undefined,
+        peopleWithOneLineUserId: 8,
+        deletedOrUnfollowedAccountCount: 0,
+      });
+    });
+
+    it("ほかの管理者のユーザーはログインできない識別子で作り、入れ先の一覧に出さず、入れ先にもできない", async () => {
+      const { t, userId } = await seedForFreshUser();
+
+      const users = await readUsers(t);
+      const coManagers = users.filter((user) => user._id !== userId);
+      expect(
+        coManagers.map(({ authTokenIdentifier, name, email, isDeleted }) => ({
+          authTokenIdentifier,
+          name,
+          email,
+          isDeleted,
+        })),
+      ).toEqual([
+        {
+          authTokenIdentifier: `https://seed.example.test|user-seed-${userId}-manager-1`,
+          name: "石川 誠",
+          email: "devmanager01@example.com",
+          isDeleted: false,
+        },
+        {
+          authTokenIdentifier: `https://seed.example.test|user-seed-${userId}-manager-2`,
+          name: "藤井 香織",
+          email: "devmanager02@example.com",
+          isDeleted: false,
+        },
+        {
+          authTokenIdentifier: `https://seed.example.test|user-seed-${userId}-manager-3`,
+          name: "岡田 修",
+          email: "devmanager03@example.com",
+          isDeleted: false,
+        },
+      ]);
+
+      const listed = await t.query(internal.userSeed.queries.listUsers, {});
+      expect(listed.map((user) => user.userId)).toEqual([userId]);
+      await expect(
+        t.mutation(internal.userSeed.mutations.seedUserOrganization, { userId: coManagers[0]._id }),
+      ).rejects.toThrowError("not found");
+      await expect(
+        t.mutation(internal.userSeed.mutations.resetUserOrganizations, { userId: coManagers[0]._id }),
+      ).rejects.toThrowError("not found");
+      expect(await countOrganizations(t)).toBe(1);
     });
 
     it("削除済みのユーザーには入れず、組織を作らない", async () => {
