@@ -1,5 +1,6 @@
-import { Badge, Box, Checkbox, Link, Stack, Text } from "@chakra-ui/react";
+import { Badge, Box, Checkbox, Stack, Text } from "@chakra-ui/react";
 import { useId, useState } from "react";
+import { LegalDocumentLink } from "@/src/components/shared/LegalDocumentLink";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog, DialogActionArea } from "@/src/components/ui/Dialog";
 import {
@@ -24,8 +25,6 @@ type AutoCreateDialogProps = {
    * 分からない間は省略し、回数に制限があることだけを伝える。
    */
   aiRemainingCount?: number;
-  /** AIを使うときの個人情報の扱いを説明するヘルプのURL。ヘルプができるまでは省略する。 */
-  aiPrivacyHelpHref?: string;
   /**
    * 「作成する」を押したときに呼ぶ。終わるまで待ってから閉じる。省略した場合は閉じるだけにする。
    * falseを返した場合は閉じない。作れなかったあとで、AIの手直しを外して作り直せるようにするためである。
@@ -60,6 +59,8 @@ const describeAiLimit = (remaining: number | undefined) =>
 /** チェックボックスの幅（20px）と、ラベルとの間（10px）。使えない理由と回数を、ラベルと左でそろえるために下げる。 */
 const AI_TEXT_INDENT = "30px";
 const AI_OPTION_LABEL = "メモの内容に合わせてAIで手直しする";
+/** AIへ送る情報を説明している、管理ユーザー向けプライバシーポリシー。 */
+const AI_PRIVACY_POLICY_PATH = "/privacy/manager";
 const AI_NOT_CONFIGURED_DESCRIPTION = "現在は利用できません。";
 
 /** 募集期間の勤務を自動で作る前に、休憩も作るかと、AIでメモに合わせて手直しするかを選ぶ。 */
@@ -67,7 +68,6 @@ export const AutoCreateDialog = ({
   isOpen,
   onClose,
   aiRemainingCount,
-  aiPrivacyHelpHref,
   onCreate,
   showsBreakOption = false,
   isCreating = false,
@@ -209,10 +209,13 @@ export const AutoCreateDialog = ({
         {showsAi && (
           <Text fontSize="xs" lineHeight="tall" color="gray.600">
             ※AI利用時の個人情報の扱いは
-            {/* ヘルプができるまではURLがないため、リンクの見た目だけを置く。 */}
-            <Link href={aiPrivacyHelpHref} color="teal.700" textDecoration="underline">
+            <LegalDocumentLink
+              href={AI_PRIVACY_POLICY_PATH}
+              textDecoration="underline"
+              aria-label="AI利用時の個人情報の扱い（別タブで開きます）"
+            >
               こちら
-            </Link>
+            </LegalDocumentLink>
             をご確認ください。
           </Text>
         )}
