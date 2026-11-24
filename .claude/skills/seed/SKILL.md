@@ -117,6 +117,7 @@ npx convex run userSeed/mutations:seedUserOrganization '{"userId":"<userId>"}' -
 - ユーザーを作った場合は、そのこと。名前は「確認用ユーザー」で、そのClerk利用者でログインすると、初期設定なしで入れたデータが出る。
 - 作った組織の名前と、店舗ごとの募集（期間、状態、提出数、希望の数、メモの数、割り当ての数）。
 - 管理者の数（`managerCount`）と、LINE連携済みにしたスタッフの数（`lineLinkedStaffCount`）。店舗ごとにシフトの対象から外した人は、`doc/manual/user-seed.md`の表のとおりである。
+- 送ったことにした通知の記録の数（メールは`emailNotificationCount`、LINEは`lineNotificationCount`）。
 - `noteMismatchCount`。0でなければ、メモと希望が食い違っていることを不具合として伝える。
 - `randomSeed`。同じ内容を作り直したいときは、`seedUserOrganization`へ`"randomSeed"`を渡す。
-- PR環境では、プッシュでpreviewが作り直されるとデータが消えるため、そのたびに`/seed`が要ること。
+- PR環境では、プッシュでpreviewが作り直されるとデータが消えること。PR環境の既定の環境変数に`DEBUG_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER`があれば、CI（`.github/workflows/deploy.yml`）が作り直すたびに同じデータを入れるため、`/seed`は要らない。

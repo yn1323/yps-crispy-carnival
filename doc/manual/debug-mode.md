@@ -163,5 +163,5 @@ pnpm exec convex env remove --deployment TARGET_DEPLOYMENT_NAME E2E_TESTING_DEPL
 
 ## Preview CI
 
-Pull RequestのPlaywright用Previewはworkflowが`DEBUG_MODE=true`と`DEBUG_NOTIFICATION_DELIVERY_MODE=dry-run`を設定します。
+Pull RequestのPlaywright用Previewと、確認用データを入れるプレビュー（`pr-<番号>-deploy`）は、workflowが`DEBUG_MODE=true`と`DEBUG_NOTIFICATION_DELIVERY_MODE=dry-run`を設定します。
 Preview専用の設定として扱い、同じ設定をDevelopmentやProductionへ引き継ぎません。

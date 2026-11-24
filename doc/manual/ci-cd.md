@@ -18,6 +18,10 @@ deploy後は`pnpm smoke-test:deployed`が実URLの代表公開route、末尾ス�
 全公開route、静的metadata、sitemap、Cloudflare配信ルールの生成物は`pnpm build`が検証し、FAQやデモの状態操作はBehaviorまたは通常E2Eが検証する。
 Pull Requestを閉じると、同workflowがプレビューの後処理を行う。
 
+同workflowは、プレビューのConvexへ[ユーザー単位の確認用データ](user-seed.md)を毎回入れる。  `/seed`と同じ中身で、`DEBUG_MODE=true`と`DEBUG_NOTIFICATION_DELIVERY_MODE=dry-run`を設定してから入れる。  
+入れる先は、ConvexのPreview既定の環境変数`DEBUG_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER`が指すClerk利用者である。  workflowはこの値を読まず、GitHubにも置かない。  設定がなければ、警告を出して投入だけを飛ばす。  
+同じPull Requestのdeployは順に1つずつ動かし、削除と投入が入れ違わないようにする。  `develop`とProductionへのdeployでは入れない。
+
 認証付きE2Eは `.github/workflows/playwright.yml` が専用Convex Previewで実行する。
 外部forkにはリポジトリのcredentialを渡さないため、同じ条件では実行されない。
 
