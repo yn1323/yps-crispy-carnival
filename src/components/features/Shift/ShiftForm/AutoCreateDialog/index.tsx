@@ -31,7 +31,10 @@ type AutoCreateDialogProps = {
    * falseを返した場合は閉じない。作れなかったあとで、AIの手直しを外して作り直せるようにするためである。
    */
   onCreate?: (method: AutoCreateMethod, options: AutoCreateOptions) => boolean | Promise<boolean>;
-  /** AIを使えない理由。渡した場合は、AIの手直しを選べなくし、理由を説明に出す。 */
+  /**
+   * AIを使えない理由。"notConfigured"は、AIの手直しを選べなくし、理由を説明に出す。
+   * "unsupported"は、AIの手直しと、AIを使うときの個人情報の案内を出さない。
+   */
   aiUnavailableReason?: AiUnavailableReason;
   /** 「休憩時間も自動作成する」の選択を出すか。休憩を扱う時間指定の募集でだけ出す。 */
   showsBreakOption?: boolean;
@@ -57,10 +60,7 @@ const describeAiLimit = (remaining: number | undefined) =>
 /** チェックボックスの幅（20px）と、ラベルとの間（10px）。使えない理由と回数を、ラベルと左でそろえるために下げる。 */
 const AI_TEXT_INDENT = "30px";
 const AI_OPTION_LABEL = "メモの内容に合わせてAIで手直しする";
-const AI_UNAVAILABLE_DESCRIPTIONS: Record<AiUnavailableReason, string> = {
-  notConfigured: "現在は利用できません。",
-  unsupported: "時間指定の募集で使えます。",
-};
+const AI_NOT_CONFIGURED_DESCRIPTION = "現在は利用できません。";
 
 /** 募集期間の勤務を自動で作る前に、休憩も作るかと、AIでメモに合わせて手直しするかを選ぶ。 */
 export const AutoCreateDialog = ({
@@ -79,13 +79,15 @@ export const AutoCreateDialog = ({
   const [includesBreaks, setIncludesBreaks] = useState(readAutoCreateIncludesBreaks);
   const [usesAi, setUsesAi] = useState(readAutoCreateUsesAi);
   const aiDescriptionId = useId();
+  // 時間指定でない募集ではAIの手直しを使えないため、選択も、個人情報の案内も出さない。
+  const showsAi = aiUnavailableReason !== "unsupported";
   const isAiExhausted = aiRemainingCount !== undefined && aiRemainingCount <= 0;
   const isAiDisabled = isAiExhausted || aiUnavailableReason !== undefined;
   // 使えない間は外した状態で見せる。覚えた選択は変えず、使えるようになったら元の状態に戻す。
   const isAiChecked = usesAi && !isAiDisabled;
   const aiLimit = aiUnavailableReason === "notConfigured" ? "準備中" : describeAiLimit(aiRemainingCount);
-  // 説明は、使えない理由があるときだけ出す。
-  const aiDescription = aiUnavailableReason ? AI_UNAVAILABLE_DESCRIPTIONS[aiUnavailableReason] : undefined;
+  // 説明は、AIを使えない環境でだけ出す。
+  const aiDescription = aiUnavailableReason === "notConfigured" ? AI_NOT_CONFIGURED_DESCRIPTION : undefined;
 
   return (
     <Dialog
@@ -125,70 +127,73 @@ export const AutoCreateDialog = ({
           <br />
           現在の下書きに上書きします。
         </Text>
-        <Stack
-          role="group"
-          aria-label="オプション"
-          gap={3}
-          borderWidth="1px"
-          borderColor="gray.200"
-          borderRadius="md"
-          p={{ base: 3, md: 4 }}
-        >
-          {showsBreakOption && (
-            <Checkbox.Root
-              colorPalette="teal"
-              checked={includesBreaks}
-              disabled={isCreating}
-              onCheckedChange={(details) => {
-                const next = details.checked === true;
-                setIncludesBreaks(next);
-                storeAutoCreateIncludesBreaks(next);
-              }}
-            >
-              <Checkbox.HiddenInput />
-              <Checkbox.Control />
-              <Checkbox.Label fontSize="sm" color="gray.800">
-                休憩時間も自動作成する
-              </Checkbox.Label>
-            </Checkbox.Root>
-          )}
-          <Box>
-            {/* 使える回数は、PCでは行の右に、スマートフォンではラベルの下に置く。 */}
-            <Stack
-              direction={{ base: "column", md: "row" }}
-              align="flex-start"
-              justify="space-between"
-              gap={{ base: 1, md: 3 }}
-            >
+        {(showsBreakOption || showsAi) && (
+          <Stack role="group" aria-label="オプション" gap={3}>
+            {showsBreakOption && (
               <Checkbox.Root
                 colorPalette="teal"
-                checked={isAiChecked}
-                disabled={isCreating || isAiDisabled}
-                alignItems="flex-start"
-                minW={0}
+                checked={includesBreaks}
+                disabled={isCreating}
                 onCheckedChange={(details) => {
                   const next = details.checked === true;
-                  setUsesAi(next);
-                  storeAutoCreateUsesAi(next);
+                  setIncludesBreaks(next);
+                  storeAutoCreateIncludesBreaks(next);
                 }}
               >
-                <Checkbox.HiddenInput aria-describedby={aiDescription ? aiDescriptionId : undefined} />
-                <Checkbox.Control mt={0.5} />
+                <Checkbox.HiddenInput />
+                <Checkbox.Control />
                 <Checkbox.Label fontSize="sm" color="gray.800">
-                  {AI_OPTION_LABEL}
+                  休憩時間も自動作成する
                 </Checkbox.Label>
               </Checkbox.Root>
-              <Badge colorPalette="gray" size="sm" flexShrink={0} ms={{ base: AI_TEXT_INDENT, md: 0 }}>
-                {aiLimit}
-              </Badge>
-            </Stack>
-            {aiDescription && (
-              <Text id={aiDescriptionId} fontSize="xs" lineHeight="tall" color="gray.600" ps={AI_TEXT_INDENT} mt={1}>
-                {aiDescription}
-              </Text>
             )}
-          </Box>
-        </Stack>
+            {showsAi && (
+              <Box>
+                {/* 使える回数は、PCでは行の右に、スマートフォンではラベルの下に置く。 */}
+                <Stack
+                  direction={{ base: "column", md: "row" }}
+                  align="flex-start"
+                  justify="space-between"
+                  gap={{ base: 1, md: 3 }}
+                >
+                  <Checkbox.Root
+                    colorPalette="teal"
+                    checked={isAiChecked}
+                    disabled={isCreating || isAiDisabled}
+                    alignItems="flex-start"
+                    minW={0}
+                    onCheckedChange={(details) => {
+                      const next = details.checked === true;
+                      setUsesAi(next);
+                      storeAutoCreateUsesAi(next);
+                    }}
+                  >
+                    <Checkbox.HiddenInput aria-describedby={aiDescription ? aiDescriptionId : undefined} />
+                    <Checkbox.Control mt={0.5} />
+                    <Checkbox.Label fontSize="sm" color="gray.800">
+                      {AI_OPTION_LABEL}
+                    </Checkbox.Label>
+                  </Checkbox.Root>
+                  <Badge colorPalette="gray" size="sm" flexShrink={0} ms={{ base: AI_TEXT_INDENT, md: 0 }}>
+                    {aiLimit}
+                  </Badge>
+                </Stack>
+                {aiDescription && (
+                  <Text
+                    id={aiDescriptionId}
+                    fontSize="xs"
+                    lineHeight="tall"
+                    color="gray.600"
+                    ps={AI_TEXT_INDENT}
+                    mt={1}
+                  >
+                    {aiDescription}
+                  </Text>
+                )}
+              </Box>
+            )}
+          </Stack>
+        )}
         {isRequirementMissing && (
           <Box borderWidth="1px" borderColor="orange.200" bg="orange.50" borderRadius="md" px={3} py={2.5}>
             <Text fontSize="sm" lineHeight="tall" color="gray.800">
@@ -201,14 +206,16 @@ export const AutoCreateDialog = ({
             )}
           </Box>
         )}
-        <Text fontSize="xs" lineHeight="tall" color="gray.600">
-          ※AI利用時の個人情報の扱いは
-          {/* ヘルプができるまではURLがないため、リンクの見た目だけを置く。 */}
-          <Link href={aiPrivacyHelpHref} color="teal.700" textDecoration="underline">
-            こちら
-          </Link>
-          をご確認ください。
-        </Text>
+        {showsAi && (
+          <Text fontSize="xs" lineHeight="tall" color="gray.600">
+            ※AI利用時の個人情報の扱いは
+            {/* ヘルプができるまではURLがないため、リンクの見た目だけを置く。 */}
+            <Link href={aiPrivacyHelpHref} color="teal.700" textDecoration="underline">
+              こちら
+            </Link>
+            をご確認ください。
+          </Text>
+        )}
       </Stack>
     </Dialog>
   );

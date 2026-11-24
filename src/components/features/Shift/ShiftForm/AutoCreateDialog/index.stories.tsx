@@ -218,14 +218,9 @@ export const AiNotConfigured: Story = {
   },
 };
 
-/** 時間指定でない募集では、AIの手直しを選べなくし、使える募集を伝える。 */
+/** 時間指定でない募集では、AIの手直しも、AIを使うときの個人情報の案内も出さない。 */
 export const AiUnsupportedPattern: Story = {
   args: { aiUnavailableReason: "unsupported", showsBreakOption: false },
-  play: async ({ canvasElement }) => {
-    const body = within(canvasElement.ownerDocument.body);
-    await expect(await body.findByRole("checkbox", { name: AI_OPTION })).toBeDisabled();
-    await expect(body.getByText("時間指定の募集で使えます。")).toBeInTheDocument();
-  },
 };
 
 /** AIの手直しを入れて作成している間は、「作成する」に進行を出し、閉じる操作を止める。 */
