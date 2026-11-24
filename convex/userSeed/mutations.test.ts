@@ -8,10 +8,35 @@ import { buildConfirmationSnapshotSignature } from "../notification/confirmation
 import { USER_SEED_PRODUCTION_DEPLOYMENT_NAME } from "./guard";
 
 const RANDOM_SEED = 20261122;
+const CLERK_ISSUER = "https://user-seed.clerk.accounts.dev";
+const SEED_AUTH_TOKEN_IDENTIFIER = `${CLERK_ISSUER}|user_seedTarget01`;
 
 function enableUserSeed() {
   vi.stubEnv("DEBUG_MODE", "true");
   vi.stubEnv("CONVEX_CLOUD_URL", "https://user-seed-development.convex.cloud");
+}
+
+/** 実行先に、確認用データの入れ先にするClerk利用者の識別子を設定する。 */
+function configureSeedUser(authTokenIdentifier = SEED_AUTH_TOKEN_IDENTIFIER) {
+  enableUserSeed();
+  vi.stubEnv("CLERK_JWT_ISSUER_DOMAIN", CLERK_ISSUER);
+  vi.stubEnv("DEBUG_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER", authTokenIdentifier);
+}
+
+async function readUsers(t: TestConvex<typeof schema>) {
+  return await t.run(async (ctx) =>
+    (await ctx.db.query("users").collect()).map(
+      ({ _id, authTokenIdentifier, name, email, emailNormalized, role, isDeleted }) => ({
+        _id,
+        authTokenIdentifier,
+        name,
+        email,
+        emailNormalized,
+        role,
+        isDeleted,
+      }),
+    ),
+  );
 }
 
 async function countOrganizations(t: TestConvex<typeof schema>) {
@@ -128,6 +153,121 @@ describe("userSeed", () => {
           ],
         },
       ]);
+    });
+  });
+
+  describe("ensureSeedUser", () => {
+    it("DEBUG_MODEがない実行先と本番のdeploymentでは、識別子が設定されていても拒否してユーザーを作らない", async () => {
+      configureSeedUser();
+      vi.stubEnv("DEBUG_MODE", "");
+      const disabled = convexTest(schema, modules);
+      await expect(disabled.mutation(internal.userSeed.mutations.ensureSeedUser, {})).rejects.toThrowError(
+        "DEBUG_MODE",
+      );
+      expect(await readUsers(disabled)).toEqual([]);
+
+      configureSeedUser();
+      vi.stubEnv("CONVEX_CLOUD_URL", `https://${USER_SEED_PRODUCTION_DEPLOYMENT_NAME}.convex.cloud`);
+      const production = convexTest(schema, modules);
+      await expect(production.mutation(internal.userSeed.mutations.ensureSeedUser, {})).rejects.toThrowError(
+        "production",
+      );
+      expect(await readUsers(production)).toEqual([]);
+    });
+
+    it("識別子が未設定、形が不正、実行先のClerkのissuerと不一致の場合は、拒否してユーザーを作らない", async () => {
+      const cases = [
+        { authTokenIdentifier: "", error: "not configured" },
+        { authTokenIdentifier: "user_seedTarget01", error: "is invalid" },
+        { authTokenIdentifier: `${CLERK_ISSUER}|seedTarget01`, error: "is invalid" },
+        { authTokenIdentifier: "https://other.clerk.accounts.dev|user_seedTarget01", error: "does not match" },
+      ];
+      for (const { authTokenIdentifier, error } of cases) {
+        configureSeedUser(authTokenIdentifier);
+        const t = convexTest(schema, modules);
+        await expect(t.mutation(internal.userSeed.mutations.ensureSeedUser, {})).rejects.toThrowError(error);
+        expect(await readUsers(t)).toEqual([]);
+      }
+    });
+
+    it("識別子が指す利用者のユーザーを1件だけ作り、もう一度呼んでも増やさない。返り値に識別子を含めない", async () => {
+      configureSeedUser();
+      const t = convexTest(schema, modules);
+
+      const first = await t.mutation(internal.userSeed.mutations.ensureSeedUser, {});
+      const second = await t.mutation(internal.userSeed.mutations.ensureSeedUser, {});
+
+      expect(first).toEqual({ userId: first.userId, created: true });
+      expect(second).toEqual({ userId: first.userId, created: false });
+      expect(await readUsers(t)).toEqual([
+        {
+          _id: first.userId,
+          authTokenIdentifier: SEED_AUTH_TOKEN_IDENTIFIER,
+          name: "確認用ユーザー",
+          email: "user-seed-manager@example.com",
+          emailNormalized: "user-seed-manager@example.com",
+          role: "manager",
+          isDeleted: false,
+        },
+      ]);
+      // 本人の操作ではないため、利用規約などへの同意は記録しない。
+      expect(await t.run(async (ctx) => (await ctx.db.query("legalConsentStates").collect()).length)).toBe(0);
+    });
+
+    it("同じ識別子のユーザーが画面で作られている場合は、名前とメールアドレスを変えずにそのユーザーを返す", async () => {
+      configureSeedUser();
+      const t = convexTest(schema, modules);
+      const existingUserId = await t.run(async (ctx) => {
+        const userId = await seedUser(ctx, "seed_existing", "existing@example.test");
+        await ctx.db.patch(userId, { authTokenIdentifier: SEED_AUTH_TOKEN_IDENTIFIER });
+        return userId;
+      });
+
+      await expect(t.mutation(internal.userSeed.mutations.ensureSeedUser, {})).resolves.toEqual({
+        userId: existingUserId,
+        created: false,
+      });
+      expect(await readUsers(t)).toEqual([
+        {
+          _id: existingUserId,
+          authTokenIdentifier: SEED_AUTH_TOKEN_IDENTIFIER,
+          name: "管理者",
+          email: "existing@example.test",
+          emailNormalized: "existing@example.test",
+          role: "manager",
+          isDeleted: false,
+        },
+      ]);
+    });
+
+    it("同じ識別子のユーザーが削除済みか、アカウント削除を受け付けている場合は、拒否して作り直さない", async () => {
+      for (const patch of [{ isDeleted: true }, { accountDeletionRequestedAt: Date.now() }]) {
+        configureSeedUser();
+        const t = convexTest(schema, modules);
+        await t.run(async (ctx) => {
+          const userId = await seedUser(ctx, "seed_removed");
+          await ctx.db.patch(userId, { authTokenIdentifier: SEED_AUTH_TOKEN_IDENTIFIER, ...patch });
+        });
+
+        await expect(t.mutation(internal.userSeed.mutations.ensureSeedUser, {})).rejects.toThrowError("deleted");
+        expect(await readUsers(t)).toHaveLength(1);
+      }
+    });
+
+    it("作ったユーザーへ、そのまま確認用データを入れられる", async () => {
+      configureSeedUser();
+      const t = convexTest(schema, modules);
+
+      const { userId } = await t.mutation(internal.userSeed.mutations.ensureSeedUser, {});
+      const result = await t.mutation(internal.userSeed.mutations.seedUserOrganization, {
+        userId,
+        randomSeed: RANDOM_SEED,
+      });
+
+      const users = await t.query(internal.userSeed.queries.listUsers, {});
+      expect(
+        users.map((user) => ({ userId: user.userId, organizations: user.organizations.map(({ name }) => name) })),
+      ).toEqual([{ userId, organizations: [result.organizationName] }]);
     });
   });
 

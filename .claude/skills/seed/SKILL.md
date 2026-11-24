@@ -6,7 +6,8 @@ disable-model-invocation: true
 
 # 確認用データを入れる
 
-画面で作った管理者ユーザーに、3つの集め方の店舗、スタッフ、必要人数、4つの状態の募集、希望とメモ、割り当てをまとめて入れる。
+管理者ユーザーに、3つの集め方の店舗、スタッフ、必要人数、4つの状態の募集、希望とメモ、割り当てをまとめて入れる。
+入れ先は画面で作ったユーザーである。ユーザーがまだいない実行先では、実行先の環境変数が指すClerk利用者のユーザーを作ってから入れる。
 このスキルは、ユーザーが `/seed` で起動した場合だけ使う。
 
 入れる中身は`convex/userSeed/builders.ts`、決めた仕様は`doc/plans/2026-11-22_ユーザー単位の確認用データ投入_実装計画.md`、人向けの説明は`doc/manual/user-seed.md`を正本とする。
@@ -19,6 +20,7 @@ disable-model-invocation: true
 - `--push`を付けない。一時ファイルを`convex/`へ置かない。関数はコードと一緒にデプロイ済みのものを使う。
 - 削除の前に、消す組織と残す組織を示して確認を取る。確認なしに`resetUserOrganizations`を呼ばない。
 - ユーザーのメールアドレスは、ユーザーを選ぶときだけ示す。ほかの出力やファイルへ書かない。
+- Clerk利用者の識別子（`DEBUG_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER`の値、ClerkのUser ID）は聞かない。表示しない。コマンドの引数、ファイル、返答へ書かない。`env get`で値を読まず、設定の有無は`env list --names-only`でキーの名前だけを見る。
 
 ## 1. 実行先を聞く
 
@@ -60,9 +62,27 @@ npx convex env get DEBUG_NOTIFICATION_DELIVERY_MODE --deployment <deployment>
 npx convex run userSeed/queries:listUsers '{}' --deployment <deployment>
 ```
 
-- 0人なら、画面でユーザーを作ってからもう一度`/seed`するよう伝えて止める。
+- 0人なら、次の「ユーザーがいない実行先」へ進む。
 - 1人なら、そのユーザーを使う。
 - 2人以上なら、名前とメールアドレスで選んでもらう。4人までならAskUserQuestion、5人以上なら一覧を番号付きで示して番号を聞く。
+
+### ユーザーがいない実行先
+
+PR環境はプッシュのたびに作り直され、ユーザーの行も消える。
+画面でログインと初期設定をやり直さずに入れるため、実行先の環境変数`DEBUG_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER`が指すClerk利用者のユーザーを作る。
+
+```bash
+npx convex run userSeed/mutations:ensureSeedUser '{}' --deployment <deployment>
+```
+
+- 成功したら、返った`userId`を使う。`created`が`true`なら、ユーザーを作ったことを伝える。消す組織はないので、4章の確認は取らずに5章へ進む（developでは投入してよいかを聞く）。
+- `not configured`で失敗したら、識別子が設定されていない。次の2つの方法を伝えて止める。どちらも値を対話で入力し、コマンドの引数に書かない。
+  - この実行先だけに設定する: `npx convex env set --deployment <deployment> DEBUG_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER`
+  - これから作られるPR環境のすべてに設定する（1回で済む）: `npx convex env default set DEBUG_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER --type preview`
+  - 値は、ログインに使うClerk利用者の`identity.tokenIdentifier`（`<ClerkのissuerのURL>|user_...`）である。画面でユーザーを作ってから`/seed`する、これまでの方法も使える。
+- `is invalid`か`does not match`で失敗したら、値の形か、実行先の`CLERK_JWT_ISSUER_DOMAIN`と識別子のissuerが合っていないことを伝えて止める。
+- `deleted`で失敗したら、その利用者のユーザーが削除済みであることを伝えて止める。作り直さない。
+- 設定は、依頼者に頼まれても代わりに行わない。値を受け取ることになるためである。
 
 ## 4. 削除の確認を取る
 
@@ -90,6 +110,7 @@ npx convex run userSeed/mutations:seedUserOrganization '{"userId":"<userId>"}' -
 投入の結果から、次を短く示す。
 
 - 実行先、ユーザーの名前、消した組織と残した組織。
+- ユーザーを作った場合は、そのこと。名前は「確認用ユーザー」で、そのClerk利用者でログインすると、初期設定なしで入れたデータが出る。
 - 作った組織の名前と、店舗ごとの募集（期間、状態、提出数、希望の数、メモの数、割り当ての数）。
 - `noteMismatchCount`。0でなければ、メモと希望が食い違っていることを不具合として伝える。
 - `randomSeed`。同じ内容を作り直したいときは、`seedUserOrganization`へ`"randomSeed"`を渡す。
