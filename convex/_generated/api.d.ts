@@ -318,6 +318,7 @@ import type * as userSeed_builders from "../userSeed/builders.js";
 import type * as userSeed_guard from "../userSeed/guard.js";
 import type * as userSeed_maxBuilders from "../userSeed/maxBuilders.js";
 import type * as userSeed_mutations from "../userSeed/mutations.js";
+import type * as userSeed_notificationRecords from "../userSeed/notificationRecords.js";
 import type * as userSeed_queries from "../userSeed/queries.js";
 import type * as userSeed_service from "../userSeed/service.js";
 
@@ -638,6 +639,7 @@ declare const fullApi: ApiFromModules<{
   "userSeed/guard": typeof userSeed_guard;
   "userSeed/maxBuilders": typeof userSeed_maxBuilders;
   "userSeed/mutations": typeof userSeed_mutations;
+  "userSeed/notificationRecords": typeof userSeed_notificationRecords;
   "userSeed/queries": typeof userSeed_queries;
   "userSeed/service": typeof userSeed_service;
 }>;

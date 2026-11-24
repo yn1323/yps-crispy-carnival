@@ -15,6 +15,7 @@ import { buildConfirmationSnapshotSignature } from "../notification/confirmation
 import { recordOrganizationAuditEvent } from "../organization/audit";
 import { calculateTrialEndsAt } from "../organizationBilling/policy";
 import { resolveRecruitmentStaffingDays } from "../shiftSetup/service";
+import { insertNotificationRecords } from "./notificationRecords";
 import { userSeedCoManagerAuthTokenIdentifier } from "./service";
 
 // 確認用データの中身。DBへ直接書き、通知やcronの予約（scheduler）は使わない。
@@ -459,6 +460,9 @@ export type UserSeedResult = {
   /** 有効な管理者の数。管理者本人を含む。 */
   managerCount: number;
   lineLinkedStaffCount: number;
+  /** 送ったことにした通知の記録の数。 */
+  emailNotificationCount: number;
+  lineNotificationCount: number;
   shops: UserSeedShopSummary[];
   noteMismatchCount: number;
 };
@@ -492,6 +496,7 @@ export async function seedUserOrganizationGraph(
   });
 
   const shops: UserSeedShopSummary[] = [];
+  const shopIds: Id<"shops">[] = [];
   let noteMismatchCount = 0;
   for (const definition of USER_SEED_SHOPS) {
     const result = await insertStandardShop(ctx, {
@@ -510,10 +515,18 @@ export async function seedUserOrganizationGraph(
       random,
     });
     shops.push(result.summary);
+    shopIds.push(result.shopId);
     noteMismatchCount += result.noteMismatchCount;
   }
   // 店舗ごとのスタッフの行へも連携を書くため、店舗を作り終えてから入れる。
   const lineLinkedStaffCount = await insertLineLinks(ctx, { organizationId, staffPeople, now, random });
+  // 通知の記録は、入れ終えた募集とLINE連携を読んで作る。
+  const notificationCounts = await insertNotificationRecords(ctx, {
+    organizationId,
+    shopIds,
+    ownerUserId: user._id,
+    now,
+  });
 
   return {
     organizationId,
@@ -521,6 +534,8 @@ export async function seedUserOrganizationGraph(
     randomSeed: args.randomSeed,
     managerCount: coManagers.length + 1,
     lineLinkedStaffCount,
+    emailNotificationCount: notificationCounts.email,
+    lineNotificationCount: notificationCounts.line,
     shops,
     noteMismatchCount,
   };
@@ -673,7 +688,8 @@ async function insertLineLinks(
   const { organizationId, now, random } = args;
   const linkedPeople = shuffle(random, args.staffPeople).slice(0, USER_SEED_LINE_LINKED_STAFF_COUNT);
   for (const person of linkedPeople) {
-    const linkedAt = now - randomInt(random, 1, 30) * DAY_MS;
+    // 連携した日を人ごとにずらし、通知がメールからLINEへ切り替わる時期を変える。スタッフの登録（30日前）よりあとにする。
+    const linkedAt = now - randomInt(random, 3, 25) * DAY_MS;
     const lineUserId = `U_USER_SEED_${generateUUID()}`;
     const { provider } = await upsertLineProviderUser(ctx, {
       lineUserId,

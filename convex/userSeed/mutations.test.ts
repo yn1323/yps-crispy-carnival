@@ -879,6 +879,222 @@ describe("userSeed", () => {
       expect(await countOrganizations(t)).toBe(1);
     });
 
+    it("送ったことにした通知は、送信済みの履歴とOutboxの組だけを書き、宛先と本文を持たせない", async () => {
+      const { t, userId, result } = await seedForFreshUser();
+
+      const snapshot = await t.run(async (ctx) => {
+        const histories = await ctx.db.query("notificationHistory").collect();
+        const outboxes = await ctx.db.query("notificationOutbox").collect();
+        const staffs = await ctx.db.query("staffs").collect();
+        const ownerStaffIds = new Set(staffs.filter((staff) => staff.userId === userId).map((staff) => staff._id));
+        const outboxById = new Map(outboxes.map((outbox) => [outbox._id, outbox]));
+        return {
+          historyCount: histories.length,
+          outboxCount: outboxes.length,
+          pairedOutboxCount: new Set(histories.map((history) => history.outboxId)).size,
+          channelMismatchCount: histories.filter(
+            (history) => outboxById.get(history.outboxId)?.channel !== history.channel,
+          ).length,
+          emailCount: histories.filter((history) => history.channel === "email").length,
+          lineCount: histories.filter((history) => history.channel === "line").length,
+          historyStates: [
+            ...new Set(
+              histories.map((history) => `${history.channel}:${history.sendStatus}:${history.deliveryStatus}`),
+            ),
+          ].sort(),
+          outboxStates: [
+            ...new Set(
+              outboxes.map(
+                (outbox) =>
+                  `${outbox.status}:${outbox.purpose}:${outbox.deliverySuppressed}:${outbox.payloadRedactedAt !== undefined}`,
+              ),
+            ),
+          ],
+          // 宛先と本文を持つOutboxがないこと。
+          payloadsWithContent: outboxes.filter((outbox) =>
+            outbox.payload.kind === "email"
+              ? outbox.payload.to !== "" || outbox.payload.html !== "" || outbox.payload.subject !== ""
+              : outbox.payload.kind !== "line" || outbox.payload.toUserId !== "" || outbox.payload.text !== "",
+          ).length,
+          uniqueDedupeKeyCount: new Set(outboxes.map((outbox) => outbox.dedupeKey)).size,
+          // 本来の送信と同じ形のキーにすると、入れたあとに画面から送る通知が重複として止まる。
+          realFormDedupeKeyCount: outboxes.filter((outbox) => !outbox.dedupeKey.startsWith("user-seed:")).length,
+          ownerHistoryCount: histories.filter((history) => ownerStaffIds.has(history.staffId)).length,
+          newestRequestedAtIsPast: Math.max(...histories.map((history) => history.requestedAt)) < Date.now(),
+        };
+      });
+
+      expect(snapshot.historyCount).toBeGreaterThan(0);
+      expect(snapshot).toEqual({
+        historyCount: snapshot.historyCount,
+        outboxCount: snapshot.historyCount,
+        pairedOutboxCount: snapshot.historyCount,
+        channelMismatchCount: 0,
+        emailCount: result.emailNotificationCount,
+        lineCount: result.lineNotificationCount,
+        historyStates: ["email:sent:delivered", "line:sent:not_supported"],
+        outboxStates: ["sent:business:true:true"],
+        payloadsWithContent: 0,
+        uniqueDedupeKeyCount: snapshot.historyCount,
+        realFormDedupeKeyCount: 0,
+        ownerHistoryCount: 0,
+        newestRequestedAtIsPast: true,
+      });
+      expect(result.emailNotificationCount + result.lineNotificationCount).toBe(snapshot.historyCount);
+      expect(await readScheduledFunctionNames(t)).toEqual([]);
+    });
+
+    it("通知の種類ごとに、届くはずの人にだけ記録を入れる", async () => {
+      const { t, userId, result } = await seedForFreshUser();
+
+      const { actual, expected } = await t.run(async (ctx) => {
+        const histories = await ctx.db.query("notificationHistory").collect();
+        const outboxes = await ctx.db.query("notificationOutbox").collect();
+        const outboxById = new Map(outboxes.map((outbox) => [outbox._id, outbox]));
+        const shops = await ctx.db
+          .query("shops")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", result.organizationId))
+          .collect();
+        const actualRows: string[] = [];
+        for (const history of histories) {
+          const recruitmentId = outboxById.get(history.outboxId)?.recruitmentId ?? "-";
+          actualRows.push(`${history.notificationKind}|${recruitmentId}|${history.staffId}`);
+        }
+        const expectedRows: string[] = [];
+        for (const shop of shops) {
+          const staffs = (
+            await ctx.db
+              .query("staffs")
+              .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
+              .collect()
+          ).filter((staff) => staff.userId !== userId);
+          // 使い方の案内とLINE連携の案内は、管理者ではないスタッフの全員に届く。シフトから外した人にも届く。
+          for (const staff of staffs.filter((candidate) => candidate.userId === undefined)) {
+            expectedRows.push(`legal.consent|-|${staff._id}`, `line.invite|-|${staff._id}`);
+          }
+          const shiftTargets = staffs.filter((staff) => !staff.excludedFromShift);
+          const recruitments = await ctx.db
+            .query("recruitments")
+            .withIndex("by_shopId", (q) => q.eq("shopId", shop._id))
+            .collect();
+          for (const recruitment of recruitments) {
+            const submissions = await ctx.db
+              .query("shiftSubmissions")
+              .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitment._id))
+              .collect();
+            const submitted = new Set(submissions.map((submission) => submission.staffId));
+            const snapshots = await ctx.db
+              .query("shiftConfirmationSnapshots")
+              .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitment._id))
+              .collect();
+            const confirmed = new Set(snapshots.map((snapshot) => snapshot.staffId));
+            // 募集中の募集（期限が6日後）は、催促の時刻がまだ来ていない。
+            const isReminderSent = recruitment.deadline < "2026-11-22";
+            for (const staff of shiftTargets) {
+              expectedRows.push(`shift.recruitment|${recruitment._id}|${staff._id}`);
+              if (isReminderSent && !submitted.has(staff._id)) {
+                expectedRows.push(`shift.reminder|${recruitment._id}|${staff._id}`);
+              }
+              if (confirmed.has(staff._id)) expectedRows.push(`shift.confirmation|${recruitment._id}|${staff._id}`);
+            }
+          }
+        }
+        return { actual: actualRows.sort(), expected: expectedRows.sort() };
+      });
+
+      expect(actual).toEqual(expected);
+      const countOf = (kind: string) => actual.filter((row) => row.startsWith(`${kind}|`)).length;
+      expect({
+        consent: countOf("legal.consent"),
+        invite: countOf("line.invite"),
+        // 確定済みと確定後に変更ありで1人ずつ、下書きありで2人が未提出。3店舗ぶん。
+        reminder: countOf("shift.reminder"),
+        hasConfirmation: countOf("shift.confirmation") > 0,
+      }).toEqual({ consent: 60, invite: 60, reminder: 12, hasConfirmation: true });
+    });
+
+    it("LINE連携した人の通知は連携より前がメール、あとがLINEになり、管理者の通知履歴でも切り替わって見える", async () => {
+      const { t, result } = await seedForFreshUser();
+
+      const { channelMismatchCount, unlinkedLineCount, switched } = await t.run(async (ctx) => {
+        const histories = await ctx.db.query("notificationHistory").collect();
+        const links = await ctx.db.query("organizationPersonLineLinks").collect();
+        const linkedAtByPerson = new Map(links.map((link) => [link.organizationPersonId, link.linkedAt]));
+        const staffs = await ctx.db.query("staffs").collect();
+        const staffById = new Map(staffs.map((staff) => [staff._id, staff]));
+        let mismatches = 0;
+        let lineForUnlinked = 0;
+        const channelsByStaff = new Map<Id<"staffs">, Set<string>>();
+        for (const history of histories) {
+          const staff = staffById.get(history.staffId);
+          const linkedAt = staff?.organizationPersonId ? linkedAtByPerson.get(staff.organizationPersonId) : undefined;
+          if (linkedAt === undefined && history.channel === "line") lineForUnlinked += 1;
+          const expectedChannel = linkedAt !== undefined && linkedAt <= history.requestedAt ? "line" : "email";
+          if (history.channel !== expectedChannel) mismatches += 1;
+          channelsByStaff.set(
+            history.staffId,
+            (channelsByStaff.get(history.staffId) ?? new Set()).add(history.channel),
+          );
+        }
+        const switchedStaff = staffs.find((staff) => channelsByStaff.get(staff._id)?.size === 2);
+        return {
+          channelMismatchCount: mismatches,
+          unlinkedLineCount: lineForUnlinked,
+          switched: switchedStaff ? { staffId: switchedStaff._id, shopId: switchedStaff.shopId } : null,
+        };
+      });
+
+      expect({ channelMismatchCount, unlinkedLineCount }).toEqual({ channelMismatchCount: 0, unlinkedLineCount: 0 });
+      if (!switched) throw new Error("メールからLINEへ切り替わったスタッフがいない");
+
+      const page = await t
+        .withIdentity({ subject: "seed_target" })
+        .query(api.notificationOutbox.queries.listStaffNotificationHistory, {
+          shopId: switched.shopId,
+          expectedOrganizationId: result.organizationId,
+          staffId: switched.staffId,
+          paginationOpts: { numItems: 50, cursor: null },
+        });
+
+      // 新しい順に返る。古い順に直すと、メールが続いたあとにLINEが続く。
+      const oldestFirst = [...page.page].reverse();
+      expect(page.isDone).toBe(true);
+      expect(oldestFirst.map((item) => item.requestedAt)).toEqual(
+        [...oldestFirst.map((item) => item.requestedAt)].sort((a, b) => a - b),
+      );
+      const channels = oldestFirst.map((item) => item.channel);
+      const firstLineIndex = channels.indexOf("line");
+      expect(firstLineIndex).toBeGreaterThan(1);
+      expect(channels).toEqual([
+        ...Array.from({ length: firstLineIndex }, () => "email"),
+        ...Array.from({ length: channels.length - firstLineIndex }, () => "line"),
+      ]);
+      expect(
+        oldestFirst
+          .slice(0, 2)
+          .map(({ channel, displayTitle, displayStatus }) => ({ channel, displayTitle, displayStatus })),
+      ).toEqual([
+        {
+          channel: "email",
+          displayTitle: expect.stringMatching(/^【シフトリ：.+】シフトリの使い方のご案内$/),
+          displayStatus: "delivered",
+        },
+        {
+          channel: "email",
+          displayTitle: expect.stringMatching(/^【シフトリ：.+】シフト通知をLINEで受け取れます$/),
+          displayStatus: "delivered",
+        },
+      ]);
+      const lineItems = oldestFirst.slice(firstLineIndex);
+      expect([...new Set(lineItems.map((item) => item.displayStatus))]).toEqual(["sent"]);
+      expect(
+        lineItems.filter(
+          (item) =>
+            !/^(シフト募集のお知らせ|確定シフトのお知らせ) .+〜.+$|^シフト提出のお願い$/.test(item.displayTitle),
+        ),
+      ).toEqual([]);
+    });
+
     it("削除済みのユーザーには入れず、組織を作らない", async () => {
       enableUserSeed();
       const t = convexTest(schema, modules);

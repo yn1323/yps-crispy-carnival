@@ -124,7 +124,7 @@ export const resetUserOrganizations = internalMutation({
 
 /**
  * 選んだユーザーに、Trialの組織と3つの集め方の店舗を作り、確認に使うデータを入れる。
- * 管理者本人のほかの管理者、シフトの対象から外した人、LINE連携済みのスタッフも入れる。
+ * 管理者本人のほかの管理者、シフトの対象から外した人、LINE連携済みのスタッフ、送ったことにした通知の記録も入れる。
  * `randomSeed`を省くと実行時刻から決め、使った値を結果に返す。
  */
 export const seedUserOrganization = internalMutation({
@@ -135,6 +135,8 @@ export const seedUserOrganization = internalMutation({
     randomSeed: v.number(),
     managerCount: v.number(),
     lineLinkedStaffCount: v.number(),
+    emailNotificationCount: v.number(),
+    lineNotificationCount: v.number(),
     noteMismatchCount: v.number(),
     shops: v.array(
       v.object({
