@@ -174,7 +174,7 @@ describe("organizationBilling/mutations 請求先メール", () => {
           email: "must-not-change@example.com",
           requestId: "complimentary-billing-email",
         }),
-    ).rejects.toThrow("支払い不要の組織では請求先メールアドレスを変更できません");
+    ).rejects.toThrow("支払い不要の組織では支払いのお知らせ先を変更できません");
 
     const result = await t.run(async (ctx) => ({
       audits: await ctx.db

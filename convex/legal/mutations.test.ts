@@ -221,7 +221,7 @@ describe("legal/mutations", () => {
     expect(state?.termsConsentVersion).toBe("manager-terms-consent-2026-08-27-2");
     expect(state?.privacyConsentVersion).toBe("manager-privacy-consent-2026-08-26");
     expect(state?.termsDocumentVersion).toBe("manager-terms-doc-2026-08-27-2");
-    expect(state?.privacyDocumentVersion).toBe("manager-privacy-doc-2026-10-04");
+    expect(state?.privacyDocumentVersion).toBe("manager-privacy-doc-2026-11-24");
     expect(state?.method).toBe("manager_reconsent");
     expect(events).toHaveLength(1);
     expect(events[0].shopId).toBe(shopId);
@@ -229,7 +229,7 @@ describe("legal/mutations", () => {
     expect(events[0].termsConsentVersion).toBe("manager-terms-consent-2026-08-27-2");
     expect(events[0].privacyConsentVersion).toBe("manager-privacy-consent-2026-08-26");
     expect(events[0].termsDocumentVersion).toBe("manager-terms-doc-2026-08-27-2");
-    expect(events[0].privacyDocumentVersion).toBe("manager-privacy-doc-2026-10-04");
+    expect(events[0].privacyDocumentVersion).toBe("manager-privacy-doc-2026-11-24");
   });
 
   it("管理ユーザーの再同意要否は同意要求版で判定する", async () => {

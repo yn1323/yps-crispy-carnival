@@ -89,7 +89,7 @@ describe("organizationBilling/actions", () => {
           job.status === "pending" &&
           job.payload.kind === "email" &&
           job.payload.context === "organizationBilling.billingEmailChanged" &&
-          job.payload.subject.includes("請求通知先メールアドレスを変更しました"),
+          job.payload.subject.includes("支払いのお知らせ先を変更しました"),
       ),
     ).toBe(true);
     expect(jobs.some((job) => job.channel === "line")).toBe(false);

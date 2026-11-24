@@ -1,5 +1,5 @@
 export const organizationBillingEmailChangedNotificationCopy = {
-  subject: "請求通知先メールアドレスを変更しました",
-  heading: "請求通知先メールアドレスを変更しました",
-  paragraphs: ["請求書通知先メールアドレスが変更されました。"],
+  subject: "支払いのお知らせ先を変更しました",
+  heading: "支払いのお知らせ先を変更しました",
+  paragraphs: ["支払いのお知らせ先のメールアドレスが変更されました。"],
 } as const;

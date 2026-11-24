@@ -735,9 +735,9 @@ function PaymentInformation({
             />
             <BillingInformationRow
               icon={LuMail}
-              label="請求先メールアドレス"
+              label="支払いのお知らせ先"
               value={billing.billingEmail}
-              actionLabel="請求先を変更"
+              actionLabel="お知らせ先を変更"
               onAction={onUpdateBillingEmail}
               disabled={!billing.canUpdateBillingEmail}
               disabledReason={billing.billingEmailDisabledReason}

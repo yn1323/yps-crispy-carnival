@@ -480,7 +480,7 @@ describe("setup/mutations", () => {
       expect(consentState?.termsConsentVersion).toBe("manager-terms-consent-2026-08-27-2");
       expect(consentState?.privacyConsentVersion).toBe("manager-privacy-consent-2026-08-26");
       expect(consentState?.termsDocumentVersion).toBe("manager-terms-doc-2026-08-27-2");
-      expect(consentState?.privacyDocumentVersion).toBe("manager-privacy-doc-2026-10-04");
+      expect(consentState?.privacyDocumentVersion).toBe("manager-privacy-doc-2026-11-24");
       expect(consentState?.method).toBe("manager_setup");
 
       const staffs = await t.run(async (ctx) =>

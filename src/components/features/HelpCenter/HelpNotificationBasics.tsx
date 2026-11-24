@@ -193,7 +193,7 @@ function BillingNotifications() {
           </Heading>
         </Flex>
         <Text color="gray.700" fontSize="sm" lineHeight="1.8">
-          請求書、領収書などの決済関連メールは、組織の請求通知先メールアドレスへ送られます。
+          請求書、領収書などの決済関連メールは、組織の支払いのお知らせ先へ送られます。
         </Text>
       </Stack>
     </Stack>

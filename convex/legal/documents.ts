@@ -39,7 +39,7 @@ export const LEGAL_DOCUMENTS = {
       audience: "manager",
       kind: "privacy",
       title: "管理ユーザー向けプライバシーポリシー",
-      documentVersion: "manager-privacy-doc-2026-10-04",
+      documentVersion: "manager-privacy-doc-2026-11-24",
       requiredConsentVersion: "manager-privacy-consent-2026-08-26",
       path: "/privacy/manager",
     },
