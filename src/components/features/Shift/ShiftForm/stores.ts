@@ -5,7 +5,7 @@ import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import { getAssignmentWarningSettingText } from "@/src/components/shared/ShiftAssignmentWarning";
 import { issueCountByDate } from "@/src/domains/shift/assignmentIssues";
 import type { AssignmentWarning } from "@/src/domains/shift/assignmentWarnings";
-import { applyBreakRange, type MinuteRange, withInitialBreak } from "@/src/domains/shift/breaks";
+import { applyBreakRange, type MinuteRange } from "@/src/domains/shift/breaks";
 import { removeDateOnlyAssignment, setDateOnlyAssignment } from "@/src/domains/shift/dateOnlyAssignments";
 import { isPositionsUnsplit, mergeAdjacentPositions, resolveDefaultPosition } from "@/src/domains/shift/operations";
 import { collectNewcomerStaffIdsByPositionId } from "@/src/domains/shift/positionSkills";
@@ -95,33 +95,21 @@ export const replaceShiftDraftsAtom = atom(null, (_get, set, shifts: ShiftData[]
 
 const hasWork = (shift: ShiftData | undefined): boolean => shift?.positions.some(isCanonicalWorkPosition) ?? false;
 
-// 編集の前後を比べ、勤務の有無が変わった日にだけ決まりを当てる。
-// - 勤務がなくなった日は、休憩も消す。
-// - 勤務が新しくできた日は、時間指定のくわしく表示のときだけ、店舗の休憩の決まりから休憩の初期値を入れる
-//   （日付選択は勤務の長さがないため、パターン選択は休憩を扱わないため、入れない）。
-const applyShiftEditRules = (get: Getter, previous: ShiftData[], next: ShiftData[]): ShiftData[] => {
+// 編集の前後を比べ、勤務がなくなった日は休憩も消す。
+// 勤務を手で新しく入れた日には、店舗に休憩の決まりがあっても休憩を入れない。休憩を入れるのは、担当者の操作と自動作成だけである。
+const applyShiftEditRules = (previous: ShiftData[], next: ShiftData[]): ShiftData[] => {
   if (previous === next) return next;
-  const config = get(shiftConfigAtom);
   const previousById = new Map(previous.map((shift) => [shift.id, shift]));
   return next.map((shift) => {
-    const before = previousById.get(shift.id);
-    if (before === shift) return shift;
-    if (!hasWork(shift)) {
-      if (shift.breaks === undefined) return shift;
-      const { breaks: _breaks, ...rest } = shift;
-      return rest;
-    }
-    // シンプル表示は休憩を見せないため、見えない休憩を足さない。くわしく表示のときだけ初期値を入れる。
-    if (!hasWork(before) && config.submissionPattern.kind === "time" && get(detailModeAtom)) {
-      return withInitialBreak(shift, config.staffing?.breakRule);
-    }
-    return shift;
+    if (previousById.get(shift.id) === shift || hasWork(shift) || shift.breaks === undefined) return shift;
+    const { breaks: _breaks, ...rest } = shift;
+    return rest;
   });
 };
 
 const commitShiftDrafts = (get: Getter, set: Setter, next: ShiftData[]) => {
   const previous = get(shiftDraftsAtom);
-  set(shiftDraftsAtom, applyShiftEditRules(get, previous, next));
+  set(shiftDraftsAtom, applyShiftEditRules(previous, next));
 };
 
 export const updateShiftDraftsAtom = atom(null, (get, set, update: (current: ShiftData[]) => ShiftData[]) => {

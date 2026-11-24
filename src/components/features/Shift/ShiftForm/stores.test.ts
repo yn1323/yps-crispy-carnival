@@ -447,16 +447,20 @@ describe("休憩を選んでいる間の操作", () => {
   });
 });
 
-describe("休憩の決まりの初期値", () => {
-  it("時間指定で決まりの長さ以上の勤務が新しくできた日に、勤務の中央へ休憩を入れる", () => {
+describe("手で入れた勤務の休憩", () => {
+  it("時間指定のくわしく表示で、店舗に休憩の決まりがあっても、新しく入れた勤務に休憩を入れない", () => {
     const store = createDetailStore({ staffing: staffingWith(breakRule) });
 
     store.set(upsertShiftDraftAtom, draft({ positions: [workSegment(position, "10:00", "18:00")] }));
 
-    expect(store.get(shiftsAtom).map((shift) => shift.breaks)).toEqual([[{ start: "13:30", end: "14:30" }]]);
+    const shifts = store.get(shiftsAtom);
+    expect(shifts.map((shift) => shift.positions.map((item) => [item.start, item.end]))).toEqual([
+      [["10:00", "18:00"]],
+    ]);
+    expect(shifts[0].breaks).toBeUndefined();
   });
 
-  it("勤務のなかった日へ勤務を入れる更新でも、休憩を入れる", () => {
+  it("勤務のなかった日へ勤務を入れる更新でも、休憩を入れない", () => {
     const store = createDetailStore({ staffing: staffingWith(breakRule) });
     store.set(replaceShiftDraftsAtom, [draft(), draft({ id: "shift-other", staffId: secondStaff.id })]);
 
@@ -466,85 +470,13 @@ describe("休憩の決まりの初期値", () => {
       ),
     );
 
-    expect(store.get(shiftsAtom).map((shift) => [shift.staffId, shift.breaks])).toEqual([
-      [staff.id, [{ start: "12:30", end: "13:30" }]],
-      [secondStaff.id, undefined],
+    expect(store.get(shiftsAtom).map((shift) => [shift.staffId, shift.positions.length, shift.breaks])).toEqual([
+      [staff.id, 1, undefined],
+      [secondStaff.id, 0, undefined],
     ]);
   });
 
-  it("パターン選択では、休憩の決まりがあっても、くわしく表示でもシンプル表示でも休憩を入れない", () => {
-    for (const detailMode of [true, false]) {
-      const store = createDetailStore(
-        { submissionPattern: shiftTypePattern, staffing: staffingWith(breakRule) },
-        { detailMode },
-      );
-
-      store.set(assignShiftTypeAtom, { staff, date, option: earlyOption });
-
-      const shifts = store.get(shiftsAtom);
-      expect(shifts).toHaveLength(1);
-      expect(shifts[0].positions).toHaveLength(1);
-      expect(shifts[0].breaks).toBeUndefined();
-    }
-  });
-
-  it("時間指定のシンプル表示では、休憩の決まりがあっても見えない休憩を入れない", () => {
-    const store = createDetailStore({ staffing: staffingWith(breakRule) }, { detailMode: false });
-
-    store.set(upsertShiftDraftAtom, draft({ positions: [workSegment(position, "10:00", "18:00")] }));
-
-    expect(store.get(shiftsAtom).map((shift) => shift.breaks)).toEqual([undefined]);
-  });
-
-  it("決まりの長さに届かない勤務には入れない", () => {
-    const store = createDetailStore({ staffing: staffingWith(breakRule) });
-
-    store.set(upsertShiftDraftAtom, draft({ positions: [workSegment(position, "10:00", "13:00")] }));
-
-    expect(store.get(shiftsAtom).map((shift) => shift.breaks)).toEqual([undefined]);
-  });
-
-  it("日付選択では、休憩の決まりがあっても入れない", () => {
-    const store = createDetailStore({ submissionPattern: dateOnlyPattern, staffing: staffingWith(breakRule) });
-
-    store.set(assignDateOnlyAtom, { staff, date });
-
-    const shifts = store.get(shiftsAtom);
-    expect(shifts).toHaveLength(1);
-    expect(shifts[0].positions).toHaveLength(1);
-    expect(shifts[0].breaks).toBeUndefined();
-  });
-
-  it.each([
-    ["店舗の設定がない", undefined],
-    ["休憩の決まりがない", staffingWith(null)],
-  ])("%s場合は入れない", (_label, staffing) => {
-    const store = createDetailStore({ staffing });
-
-    store.set(upsertShiftDraftAtom, draft({ positions: [workSegment(position, "10:00", "18:00")] }));
-
-    const shifts = store.get(shiftsAtom);
-    expect(shifts).toHaveLength(1);
-    expect(shifts[0].positions).toHaveLength(1);
-    expect(shifts[0].breaks).toBeUndefined();
-  });
-
-  it("すでに勤務のある日の勤務を変えても、休憩を入れ直さない", () => {
-    const store = createDetailStore({ staffing: staffingWith(breakRule) });
-    // 読み込んだ勤務、または担当者が休憩を消したあとの勤務を表す。
-    const existing = draft({ positions: [workSegment(position, "10:00", "18:00")] });
-    store.set(replaceShiftDraftsAtom, [existing]);
-
-    store.set(upsertShiftDraftAtom, { ...existing, positions: [workSegment(position, "09:00", "19:00")] });
-
-    const shifts = store.get(shiftsAtom);
-    expect(shifts.map((shift) => shift.positions.map((item) => [item.start, item.end]))).toEqual([
-      [["09:00", "19:00"]],
-    ]);
-    expect(shifts[0].breaks).toBeUndefined();
-  });
-
-  it("新しくできた勤務がすでに休憩を持っている場合は、その休憩を変えない", () => {
+  it("新しく入れた勤務と一緒に担当者が入れた休憩は、そのまま残す", () => {
     const store = createDetailStore({ staffing: staffingWith(breakRule) });
 
     store.set(

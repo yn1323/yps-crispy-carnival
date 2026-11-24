@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   applyBreakRange,
-  buildInitialBreak,
   getBreaksForSegment,
   getEffectiveBreaks,
   getWorkBlocks,
@@ -9,10 +8,9 @@ import {
   mergeBreaks,
   moveBreakEdge,
   pruneBreaks,
-  withInitialBreak,
 } from "./breaks";
 import { BREAK_POSITION } from "./constants";
-import type { PositionSegment, ShiftBreakRule, ShiftData } from "./types";
+import type { PositionSegment, ShiftData } from "./types";
 
 const segment = (start: string, end: string, overrides: Partial<PositionSegment> = {}): PositionSegment => ({
   id: `seg-${start}-${end}`,
@@ -402,111 +400,6 @@ describe("getWorkedMinutes", () => {
 
   it("勤務のない日は0を返す", () => {
     expect(getWorkedMinutes(day([], [range("12:00", "13:00")]))).toBe(0);
-  });
-});
-
-describe("buildInitialBreak", () => {
-  const rule: ShiftBreakRule = { minWorkMinutes: 360, breakMinutes: 60 };
-
-  it.each([null, undefined])("休憩の決まりがなければ入れない（%s）", (noRule) => {
-    expect(buildInitialBreak(segment("09:00", "22:00"), noRule)).toBeNull();
-  });
-
-  it("決まりの長さに届かない勤務には入れない", () => {
-    expect(buildInitialBreak(segment("10:00", "15:30"), rule)).toBeNull();
-  });
-
-  it("決まりの長さちょうどの勤務には、中央へ入れる", () => {
-    expect(buildInitialBreak(segment("10:00", "16:00"), rule)).toEqual(range("12:30", "13:30"));
-  });
-
-  it("決まりの長さを超える勤務にも、中央へ入れる", () => {
-    expect(buildInitialBreak(segment("09:00", "18:00"), rule)).toEqual(range("13:00", "14:00"));
-  });
-
-  it("中央が15分単位にならない場合は、15分単位へそろえる", () => {
-    // 09:10〜17:10の中央に60分を置くと12:40開始になる。15分単位で最も近い12:45へそろえる。
-    expect(buildInitialBreak(segment("09:10", "17:10"), rule)).toEqual(range("12:45", "13:45"));
-  });
-
-  it("休憩の長さが勤務の長さ以上になる決まりでは入れない", () => {
-    expect(buildInitialBreak(segment("10:00", "11:00"), { minWorkMinutes: 60, breakMinutes: 60 })).toBeNull();
-    expect(buildInitialBreak(segment("10:00", "11:00"), { minWorkMinutes: 30, breakMinutes: 90 })).toBeNull();
-  });
-
-  it("休憩の前後に勤務が残る最も短い勤務には、開始の15分後から入れる", () => {
-    // 60分の休憩の前後に15分ずつ勤務が残る、90分の勤務。
-    expect(buildInitialBreak(segment("10:00", "11:30"), { minWorkMinutes: 60, breakMinutes: 60 })).toEqual(
-      range("10:15", "11:15"),
-    );
-  });
-
-  it("休憩を勤務の開始より後、終了より前に置けない勤務には入れない", () => {
-    // 60分の休憩を15分単位で置くと、開始か終了のどちらかに接する。
-    expect(buildInitialBreak(segment("10:00", "11:15"), { minWorkMinutes: 60, breakMinutes: 60 })).toBeNull();
-    expect(buildInitialBreak(segment("10:05", "11:00"), { minWorkMinutes: 30, breakMinutes: 50 })).toBeNull();
-  });
-
-  it("15分単位にそろっていない勤務でも、開始より後、終了より前に入れる", () => {
-    // 10:05〜11:40の中央に60分を置くと10:22開始になる。15分単位で最も近い10:30〜11:30は、前後に勤務が残る。
-    expect(buildInitialBreak(segment("10:05", "11:40"), { minWorkMinutes: 60, breakMinutes: 60 })).toEqual(
-      range("10:30", "11:30"),
-    );
-  });
-
-  it("24時を超える勤務でも中央へ入れる", () => {
-    expect(buildInitialBreak(segment("20:00", "28:00"), rule)).toEqual(range("23:30", "24:30"));
-  });
-});
-
-describe("withInitialBreak", () => {
-  const rule: ShiftBreakRule = { minWorkMinutes: 360, breakMinutes: 60 };
-
-  it("決まりの長さ以上の勤務がある日に休憩を入れ、ほかの項目は変えない", () => {
-    const shift = { id: "shift-1", positions: [segment("10:00", "18:00")] };
-    expect(withInitialBreak(shift, rule)).toEqual({
-      id: "shift-1",
-      positions: [segment("10:00", "18:00")],
-      breaks: [range("13:30", "14:30")],
-    });
-  });
-
-  it("休憩が空の配列で入っている日にも入れる", () => {
-    expect(withInitialBreak({ positions: [segment("10:00", "18:00")], breaks: [] }, rule).breaks).toEqual([
-      range("13:30", "14:30"),
-    ]);
-  });
-
-  it.each([null, undefined])("休憩の決まりがなければ変えない（%s）", (noRule) => {
-    const shift = day([segment("10:00", "18:00")]);
-    expect(withInitialBreak(shift, noRule)).toBe(shift);
-  });
-
-  it("すでに休憩がある日は変えない", () => {
-    const shift = day([segment("10:00", "18:00")], [range("11:00", "11:15")]);
-    expect(withInitialBreak(shift, rule)).toBe(shift);
-  });
-
-  it("決まりの長さに届かない日は変えない", () => {
-    const shift = day([segment("10:00", "15:00")]);
-    expect(withInitialBreak(shift, rule)).toBe(shift);
-  });
-
-  it("勤務のない日と、休憩のポジションだけの日は変えない", () => {
-    const empty = day([]);
-    const breakOnly = day([segment("09:00", "18:00", { positionId: BREAK_POSITION.id })]);
-    expect(withInitialBreak(empty, rule)).toBe(empty);
-    expect(withInitialBreak(breakOnly, rule)).toBe(breakOnly);
-  });
-
-  it("勤務が複数ある日は、最も長い区間の中央へ入れる", () => {
-    const shift = day([segment("09:00", "11:00"), segment("12:00", "19:00")]);
-    expect(withInitialBreak(shift, rule).breaks).toEqual([range("15:00", "16:00")]);
-  });
-
-  it("最も長い区間が決まりの長さに届かなければ、合計が届いていても入れない", () => {
-    const shift = day([segment("09:00", "13:00"), segment("14:00", "18:00")]);
-    expect(withInitialBreak(shift, rule)).toBe(shift);
   });
 });
 

@@ -1,6 +1,6 @@
 import { isCanonicalWorkPosition } from "./positions";
 import { minutesToTime, timeToMinutes } from "./time";
-import type { PositionSegment, ShiftBreakRule, ShiftData, ShiftTimeRange } from "./types";
+import type { PositionSegment, ShiftData, ShiftTimeRange } from "./types";
 
 // 勤務中の休憩の純粋処理。
 // 画面は休憩を1日単位で持ち（ShiftData.breaks）、保存と集計のときに勤務時間の内側へ切り詰める。
@@ -205,42 +205,4 @@ export const getWorkedMinutes = (shift: Pick<ShiftData, "positions" | "breaks">)
     .map(toMinuteRange)
     .reduce((total, range) => total + (range.end - range.start), 0);
   return workMinutes - breakMinutes;
-};
-
-/**
- * 店舗の休憩の決まりから、新しく作った勤務へ入れる休憩の初期値を返す。
- * 決まりがない、勤務が決まりの長さに届かない、休憩を勤務の開始より後、終了より前に置けない、という場合はnullを返す。
- * 休憩は勤務の中央へ、15分単位にそろえて置く。
- */
-export const buildInitialBreak = (
-  segment: Pick<PositionSegment, "start" | "end">,
-  rule: ShiftBreakRule | null | undefined,
-): ShiftTimeRange | null => {
-  if (!rule) return null;
-  const { start, end } = toMinuteRange(segment);
-  const duration = end - start;
-  if (duration < rule.minWorkMinutes) return null;
-
-  // 中央に最も近い15分単位の位置が端に接する勤務には、ほかに置ける位置もない。
-  const centeredStart = start + (duration - rule.breakMinutes) / 2;
-  const breakStart = Math.round(centeredStart / BREAK_TIME_UNIT_MINUTES) * BREAK_TIME_UNIT_MINUTES;
-  if (breakStart <= start || breakStart + rule.breakMinutes >= end) return null;
-  return toTimeRange({ start: breakStart, end: breakStart + rule.breakMinutes });
-};
-
-/**
- * 勤務のある日のうち休憩がまだない日へ、休憩の決まりの初期値を入れる。
- * 最も長い勤務区間を対象にし、すでに休憩がある日と、決まりに届かない日は変えない。
- */
-export const withInitialBreak = <Shift extends Pick<ShiftData, "positions" | "breaks">>(
-  shift: Shift,
-  rule: ShiftBreakRule | null | undefined,
-): Shift => {
-  if (!rule || (shift.breaks?.length ?? 0) > 0) return shift;
-  const longest = workSegments(shift)
-    .slice()
-    .sort((a, b) => timeToMinutes(b.end) - timeToMinutes(b.start) - (timeToMinutes(a.end) - timeToMinutes(a.start)))[0];
-  if (!longest) return shift;
-  const initialBreak = buildInitialBreak(longest, rule);
-  return initialBreak ? { ...shift, breaks: [initialBreak] } : shift;
 };
