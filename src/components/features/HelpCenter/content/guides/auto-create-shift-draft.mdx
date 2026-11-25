@@ -1,0 +1,138 @@
+---
+kind: guide
+title: 下書きシフトを自動で作成する
+task: shift-building
+audience: manager
+keywords:
+  - 自動作成
+  - 自動
+  - 下書き
+  - 必要人数
+  - テンプレート
+  - スキル
+  - 見習い
+  - 担当外
+featureIds:
+  - shift-setup
+  - shift-board
+related:
+  - set-positions-and-breaks
+order: 40
+homeFeatured: false
+---
+
+提出された希望シフト、必要人数、スタッフのスキルから、募集期間の勤務をまとめて作ります。
+一人ずつ勤務を入れる手間が減り、できた下書きを直すところから始められます。
+
+使う前に、必要人数を設定してください。
+
+## 必要人数とスキルを設定する
+
+必要人数とスキルは、ポジションごとに設定します。
+役割を分けない店舗もポジションを1つだけ作れば必要人数を設定できます。
+ポジションの作り方は[ポジションと休憩時間を設定する](/help/set-positions-and-breaks)を見てください。
+
+1. シフトリホームで、店舗名の右にある歯車のボタンを押します。
+
+   <HelpFigure
+     src="../images/auto-create-shift-draft/home-shop-detail.webp"
+     alt="シフトリホームで、店舗名の右にある店舗詳細のボタンを枠で示した画面"
+     width={1280}
+     height={520}
+   />
+
+2. 店舗の詳細の「シフト作成」にある**必要人数設定**を押します。
+
+   <HelpFigure
+     src="../images/auto-create-shift-draft/shop-detail-setup.webp"
+     alt="店舗の詳細の「シフト作成」にある「必要人数設定」を枠で示した画面"
+     width={1280}
+     height={760}
+   />
+
+3. 「必要人数」でテンプレートを選び、**テンプレート利用日**で使う曜日を選びます。テンプレートがない場合は、**テンプレートを作る**を押します。
+
+   <HelpFigure
+     src="../images/auto-create-shift-draft/templates.webp"
+     alt="必要人数設定の「必要人数」で、テンプレートの一覧とテンプレート利用日を枠で示した画面"
+     width={1280}
+     height={433}
+   />
+
+4. ポジションの帯を横にドラッグして時間を選び、開いた欄で人数を選びます。スマートフォンでは帯の区間を押して選べます。
+
+   <HelpVideo
+     src="../videos/auto-create-shift-draft/staffing-band.mp4"
+     title="帯をドラッグして必要人数を設定する"
+     width={1920}
+     height={1080}
+   />
+
+5. 「スタッフのスキル」で、スタッフとポジションのマスを押し、**見習い**、**一人前**、**担当外**を切り替えます。
+
+   <HelpFigure
+     src="../images/auto-create-shift-draft/staff-skills.webp"
+     alt="必要人数設定の「スタッフのスキル」で、スタッフとポジションのマスを枠で示した画面"
+     width={650}
+     height={458}
+   />
+
+パターン選択と日付選択の店舗では、手順4で人数を数字で入力します。
+
+自動作成はスタッフを担当外のポジションに割り当てません。
+見習いでないスタッフの希望がある時間帯は、見習いのスタッフだけで組みません。
+
+## 自動作成する
+
+自動作成すると、開いている募集の下書きの勤務をすべて作り直します。手で作った勤務は残りません。
+
+<HelpVideo
+  src="../videos/auto-create-shift-draft/auto-create.mp4"
+  title="シフト表の自動作成で、下書きの勤務をまとめて作る"
+  width={1920}
+  height={1080}
+/>
+
+1. 募集のシフト表を開き、**表示設定**で**くわしく**を選びます。
+
+   <HelpFigure
+     src="../images/auto-create-shift-draft/display-settings.webp"
+     alt="シフト表の「表示設定」のメニューで、「くわしく」を枠で示した画面"
+     width={1280}
+     height={340}
+   />
+
+2. 画面の右上にある**自動作成**を押します。
+
+   <HelpFigure
+     src="../images/auto-create-shift-draft/board-auto-create.webp"
+     alt="シフト表の右上にある「自動作成」を枠で示した画面"
+     width={1280}
+     height={300}
+   />
+
+   スマートフォンでは画面の右上にある保存と確定のメニューを開き、**シフトを自動作成**を選びます。
+
+   <HelpFigure
+     src="../images/auto-create-shift-draft/sp-auto-create-menu.webp"
+     alt="スマートフォンのシフト表で、右上の保存と確定のメニューと「シフトを自動作成」を枠で示した画面"
+     width={300}
+     height={400}
+   />
+
+3. 時間指定の募集で休憩を作らない場合は、**休憩時間も自動作成する**のチェックを外してから作成します。
+
+   <HelpFigure
+     src="../images/auto-create-shift-draft/auto-create-dialog.webp"
+     alt="「シフトを自動作成」の画面で、「休憩時間も自動作成する」を枠で示した画面"
+     width={1280}
+     height={720}
+   />
+
+## 完了すると
+
+希望を提出したスタッフの勤務が、必要人数に合わせて作られます。
+未提出のスタッフは割り当てられません。希望のない日や時間と、担当外のポジションにも割り当てられません。
+
+作られた勤務は**下書き保存**を押すまで保存されません。
+内容が合わない場合は、保存せずにページを離れてください。前に保存した下書きに戻ります。

@@ -125,7 +125,8 @@ function HelpVideoView({ src, title, width, height }: { src: string; title: stri
       <Box
         overflow="hidden"
         w="full"
-        maxW={{ base: "360px", md: "380px" }}
+        // スマートフォンの縦長の動画は端末の幅に近い大きさにとどめ、PCの横長の動画は本文の幅いっぱいに出す。
+        maxW={width > height ? "full" : { base: "360px", md: "380px" }}
         mx="auto"
         borderWidth="1px"
         borderColor="gray.200"
