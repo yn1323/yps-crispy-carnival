@@ -59,8 +59,8 @@ const describeAiLimit = (remaining: number | undefined) =>
 /** チェックボックスの幅（20px）と、ラベルとの間（10px）。使えない理由と回数を、ラベルと左でそろえるために下げる。 */
 const AI_TEXT_INDENT = "30px";
 const AI_OPTION_LABEL = "メモの内容に合わせてAIで手直しする";
-/** AIへ送る情報を説明している、管理ユーザー向けプライバシーポリシー。 */
-const AI_PRIVACY_POLICY_PATH = "/privacy/manager";
+/** AIへ送る情報を短く説明するヘルプのFAQ。プライバシーポリシーへは、このFAQから案内する。 */
+const AI_PRIVACY_HELP_PATH = "/help/tasks/shift-building#ai-shift-draft-data";
 const AI_NOT_CONFIGURED_DESCRIPTION = "現在は利用できません。";
 
 /** 募集期間の勤務を自動で作る前に、休憩も作るかと、AIでメモに合わせて手直しするかを選ぶ。 */
@@ -123,9 +123,9 @@ export const AutoCreateDialog = ({
     >
       <Stack gap={4}>
         <Text fontSize="sm" lineHeight="tall" color="gray.800">
-          希望、必要人数、過去シフトをもとに、シフトを自動で生成します。
+          希望シフト、必要人数、過去のシフトをもとに、勤務を自動で作ります。
           <br />
-          現在の下書きに上書きします。
+          いまの下書きは作った勤務に置き換わります。
         </Text>
         {(showsBreakOption || showsAi) && (
           <Stack role="group" aria-label="オプション" gap={3}>
@@ -208,15 +208,15 @@ export const AutoCreateDialog = ({
         )}
         {showsAi && (
           <Text fontSize="xs" lineHeight="tall" color="gray.600">
-            ※AI利用時の個人情報の扱いは
+            ※AIに送られる情報は、
             <LegalDocumentLink
-              href={AI_PRIVACY_POLICY_PATH}
+              href={AI_PRIVACY_HELP_PATH}
               textDecoration="underline"
-              aria-label="AI利用時の個人情報の扱い（別タブで開きます）"
+              aria-label="AIに送られる情報（別タブで開きます）"
             >
               こちら
             </LegalDocumentLink>
-            をご確認ください。
+            で確認できます。
           </Text>
         )}
       </Stack>
