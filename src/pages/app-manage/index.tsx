@@ -188,7 +188,7 @@ export function OrganizationManagementSection({
             />
             <ManagementRouteRow
               icon={LuShieldCheck}
-              title="管理者と権限"
+              title="管理者設定"
               description={`管理者 ${managerCount}人 ・ 招待中 ${pendingManagerCount}件`}
               onClick={() => void navigate({ to: "/manage/managers", search: { org: organizationId } })}
             />
