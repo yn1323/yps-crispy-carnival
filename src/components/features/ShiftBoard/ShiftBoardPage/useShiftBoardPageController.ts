@@ -517,7 +517,8 @@ export const useShiftBoardPageController = (
           kind: "shift_confirm",
           intent: isConfirmed ? "resend" : "confirm",
           detailMode: initialDetailMode,
-          usedAutoCreate: hasAutoCreatedRef.current,
+          // 確定後は自動作成できないため、再通知は自動作成を経たものとして数えない。
+          usedAutoCreate: !isConfirmed && hasAutoCreatedRef.current,
         });
       }
       if (result?.status === "no_changes") {

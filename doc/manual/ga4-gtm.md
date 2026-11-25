@@ -77,7 +77,7 @@ Google tagと各イベントタグの`page_location`は、アプリが直前の`
 |---|---|
 | `route_family` | 画面の種類 |
 | `route_area` | 見込み客、登録・ログイン、管理者、スタッフ、その他の区分 |
-| `content_id` | 選択されたCTA |
+| `content_id` | 選択されたCTA、ヘルプと必要人数設定を開いた入口、開いたよくある質問 |
 | `content_type` | 選択・共有された内容の種類 |
 | `setup_kind` | 初回登録か、追加組織か |
 | `submission_pattern` | 希望シフトの集め方 |
@@ -85,7 +85,7 @@ Google tagと各イベントタグの`page_location`は、アプリが直前の`
 | `format` | シフト出力の形式 |
 | `has_results` | ヘルプ検索の結果の有無 |
 | `plan` | 申込みを始めたプラン |
-| `reason` | セキュリティ確認の失敗、確定を止めた検証、スタッフのリンクを使えない理由 |
+| `reason` | セキュリティ確認の失敗、確定を止めた検証、スタッフのリンクを使えない理由、自動作成できなかった理由、自動作成のダイアログを開いたときに作れる勤務がないか |
 | `error_code` | Turnstile、Clerk、Convexのerror code |
 | `release_id` | リリースごとの比較 |
 | `document_route_family` | Web Vitalsと表示時間を測った画面 |
@@ -95,10 +95,14 @@ Google tagと各イベントタグの`page_location`は、アプリが直前の`
 | `organization_id` | 管理画面で選択中の組織 |
 | `shop_id` | 管理画面で選択中の店舗 |
 | `recruitment_id` | スタッフ画面の募集 |
-| `method` | 認証方法、スタッフの追加方法、共有方法 |
+| `method` | 認証方法、スタッフの追加方法、共有方法、自動作成の方法 |
 | `stage` | デモ、オンボーディング、トライアル終了の案内の段階 |
-| `result` | コードの確認結果、Stripeから戻ったときの結果 |
+| `result` | コードの確認結果、Stripeから戻ったときの結果、自動作成とAI下書きの結果 |
 | `intent` | シフトの確定か、再通知か |
+| `detail_mode` | 「くわしく」の表示でシフトを確定したか |
+| `used_auto_create` | 自動作成してからシフトを確定したか |
+| `includes_breaks` | 自動作成で休憩も入れたか |
+| `sections` | 必要人数設定で保存した部分 |
 | `target` | `manage_action`の対象 |
 | `action` | `manage_action`とホーム画面追加案内の操作 |
 | `is_resubmit` | 希望シフトの再提出か |
@@ -175,8 +179,8 @@ GA4の「探索」で次のレポートを作る。
 
 | 知りたいこと | 作り方 |
 |---|---|
-| チャネル別の登録までの到達 | ファネルデータ探索。ステップは`route_area = public`の`page_view`、`select_content`、`route_family = auth_signup`の`page_view`、`setup_complete`。内訳は「最初のユーザーのデフォルト チャネル グループ」 |
-| 料金を見て離脱しているか | ファネルデータ探索。ステップは`route_family = home`の`page_view`、`section_view`、`select_content` |
+| チャネル別の登録までの到達 | ファネルデータ探索。ステップは`route_area = public`の`page_view`、`content_type = public_cta`の`select_content`、`route_family = auth_signup`の`page_view`、`setup_complete`。内訳は「最初のユーザーのデフォルト チャネル グループ」 |
+| 料金を見て離脱しているか | ファネルデータ探索。ステップは`route_family = home`の`page_view`、`section_view`、`content_type = public_cta`の`select_content` |
 | 管理者の画面利用 | 自由形式。行は`route_family`、列は「デバイス カテゴリ」、値は「イベント数」と「アクティブ ユーザー」。フィルタは`route_area = manager`の`page_view` |
 | スタッフの提出の完了率 | ファネルデータ探索。ステップは`staff_submit`と`staff_submit_completed`の`page_view`。内訳は「デバイス カテゴリ」 |
 | 機能の使われ方 | 自由形式。行はイベント名と`format`、`has_results`、`plan` |
@@ -185,6 +189,8 @@ GA4の「探索」で次のレポートを作る。
 | 画面に出たエラー | 自由形式。行は`route_family`と`error_source`、`error_code`、列は`error_surface`。フィルタはイベント名`app_error` |
 | スタッフのリンクが使えない理由 | 自由形式。行は`reason`、列は`access_kind`。フィルタはイベント名`staff_link_invalid` |
 | 管理画面の初回表示の遅さ | 自由形式。行は`phase`、列は「デバイス カテゴリ」、値は`metric_value`の平均。フィルタはイベント名`app_timing`と`document_route_family` |
+
+`select_content`は、管理画面でヘルプや必要人数設定を開いたときと、ヘルプのよくある質問を開いたときにも届く。  公開画面のCTAだけを数えるときは、`content_type = public_cta`で絞る。
 
 GA4の件数は広告ブロッカーなどで欠ける。  毎週、`setup_complete`の件数を[analytics-dashboard](../features/analytics-dashboard.md)の新規登録店舗数と比べ、割合が大きく変わったら計測の欠損を先に疑う。
 

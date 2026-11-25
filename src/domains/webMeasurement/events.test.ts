@@ -142,6 +142,32 @@ describe("Web計測event serializer", () => {
       expected: { reason: "closed_day", count: 2, route_area: "manager" },
     },
     {
+      name: "shift_confirm",
+      event: {
+        kind: "shift_confirm",
+        intent: "confirm",
+        detailMode: true,
+        usedAutoCreate: false,
+        routeFamily: "shiftboard",
+      },
+      expected: { intent: "confirm", detail_mode: "true", used_auto_create: "false", route_area: "manager" },
+    },
+    {
+      name: "auto_create_open",
+      event: {
+        kind: "auto_create_open",
+        isRequirementMissing: true,
+        submissionPattern: "shiftType",
+        routeFamily: "shiftboard",
+      },
+      expected: { reason: "requirement_missing", submission_pattern: "shiftType", route_area: "manager" },
+    },
+    {
+      name: "shift_setup_assist",
+      event: { kind: "shift_setup_assist", result: "empty", routeFamily: "shift_setup" },
+      expected: { result: "empty", route_area: "manager" },
+    },
+    {
       name: "trial_notice_view",
       event: { kind: "trial_notice_view", stage: "last_day", routeFamily: "dashboard" },
       expected: { stage: "last_day", route_area: "manager" },
@@ -211,6 +237,91 @@ describe("Web計測event serializer", () => {
       route_family: event.routeFamily,
       ...expected,
     });
+  });
+
+  it.each([
+    {
+      name: "成功時は理由をnoneにする",
+      event: { method: "rule", result: "created", failureReason: "error", includesBreaks: true },
+      expected: { method: "rule", result: "created", reason: "none", includes_breaks: "true" },
+    },
+    {
+      name: "失敗時だけ理由を送る",
+      event: { method: "ai", result: "failed", failureReason: "rate_limited", includesBreaks: false },
+      expected: { method: "ai", result: "failed", reason: "rate_limited", includes_breaks: "false" },
+    },
+    {
+      name: "理由のない失敗はerrorにする",
+      event: { method: "ai", result: "failed", includesBreaks: false },
+      expected: { method: "ai", result: "failed", reason: "error", includes_breaks: "false" },
+    },
+  ] as const)("自動作成の結果：$name", ({ event, expected }) => {
+    expect(
+      serializeWebMeasurementEvent(
+        { kind: "shift_auto_create", ...event, submissionPattern: "time", routeFamily: "shiftboard" },
+        context,
+      ),
+    ).toEqual({
+      event: "shift_auto_create",
+      app_environment: "preview",
+      release_id: "abc123",
+      route_area: "manager",
+      route_family: "shiftboard",
+      submission_pattern: "time",
+      ...expected,
+    });
+  });
+
+  it.each([
+    { sections: ["skills", "positions", "templates"], expected: "positions+templates+skills" },
+    { sections: ["templates", "positions"], expected: "positions+templates" },
+    { sections: ["skills", "skills"], expected: "skills" },
+    { sections: [], expected: "none" },
+  ] as const)("必要人数設定の保存は部分を決まった順に並べる（$expected）", ({ sections, expected }) => {
+    expect(
+      serializeWebMeasurementEvent(
+        { kind: "shift_setup_save", sections, positionCount: 2.9, routeFamily: "shift_setup" },
+        context,
+      ),
+    ).toMatchObject({ event: "shift_setup_save", sections: expected, count: 2, route_area: "manager" });
+  });
+
+  it.each([
+    { contentType: "help_link", contentId: "user_menu", expected: "user_menu" },
+    { contentType: "shift_setup_link", contentId: "auto_create_dialog", expected: "auto_create_dialog" },
+    { contentType: "help_faq", contentId: "shift-auto-create", expected: "shift-auto-create" },
+    { contentType: "help_faq", contentId: "taro@example.com", expected: "other" },
+    { contentType: "help_faq", contentId: "../secret?token=abc", expected: "other" },
+    { contentType: "help_faq", contentId: "-leading-hyphen", expected: "other" },
+  ] as const)("公開CTA以外のselect_content：$contentType の $contentId", ({ contentType, contentId, expected }) => {
+    expect(
+      serializeWebMeasurementEvent(
+        { kind: "content_select", contentType, contentId, routeFamily: "dashboard" } as Parameters<
+          typeof serializeWebMeasurementEvent
+        >[0],
+        context,
+      ),
+    ).toEqual({
+      event: "select_content",
+      app_environment: "preview",
+      content_type: contentType,
+      content_id: expected,
+      release_id: "abc123",
+      route_area: "manager",
+      route_family: "dashboard",
+    });
+  });
+
+  it.each([
+    [true, "switch_detail"],
+    [false, "switch_simple"],
+  ] as const)("シフトの表示切替をmanage_actionで送る（%s）", (_isDetail, action) => {
+    expect(
+      serializeWebMeasurementEvent(
+        { kind: "manage_action", target: "shift", action, routeFamily: "shiftboard" },
+        context,
+      ),
+    ).toMatchObject({ event: "manage_action", target: "shift", action });
   });
 
   it("募集作成は画面の店舗scopeではなく作成した店舗を付ける", () => {
