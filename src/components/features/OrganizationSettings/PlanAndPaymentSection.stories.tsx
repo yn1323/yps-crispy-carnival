@@ -405,7 +405,9 @@ export const ComplimentaryProHasNoBillingActionsBehavior: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.queryByRole("button", { name: /へ変更|変更予約を取り消す/ })).not.toBeInTheDocument();
     await expect(canvas.queryByRole("button", { name: "料金を再読み込み" })).not.toBeInTheDocument();
-    await expect(canvas.queryByRole("button", { name: "支払い方法の変更、領収書・請求書を確認する" })).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByRole("button", { name: "支払い方法の変更、領収書・請求書を確認する" }),
+    ).not.toBeInTheDocument();
     await expect(canvas.getByText("次の支払日")).toBeVisible();
     await expect(canvas.getByText("なし")).toBeVisible();
     await expect(canvas.getByText("支払い不要の利用条件が適用されているため、利用料金はかかりません。")).toBeVisible();
