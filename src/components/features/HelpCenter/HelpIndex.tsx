@@ -8,6 +8,7 @@ import { Input } from "@/src/components/ui/FormControls";
 import { trackProductEvent } from "@/src/lib/webMeasurement";
 import { HelpAudienceBadge } from "./HelpAudienceBadge";
 import {
+  HelpAdvancedLinkCards,
   HelpNotificationBasicsLinkCard,
   HelpOrganizationStructureLinkCard,
   HelpScenarioLinkCard,
@@ -70,6 +71,7 @@ export function HelpIndex({ metas = helpIndexMetas, tasks = HELP_TASKS }: HelpIn
         ) : (
           <Stack gap={{ base: 8, lg: 10 }}>
             <BasicHelpLinks />
+            <AdvancedHelpLinks />
             <TaskLinks tasks={tasks} />
           </Stack>
         )}
@@ -84,14 +86,29 @@ function BasicHelpLinks() {
     <Box as="section" aria-labelledby="help-basics-title">
       <Stack gap={1} mb={5}>
         <Heading id="help-basics-title" as="h2" color="gray.950" fontSize={{ base: "xl", lg: "2xl" }}>
-          基本の使い方を見る
+          基本の使い方
         </Heading>
       </Stack>
       <Stack gap={3}>
         <HelpScenarioLinkCard />
-        <HelpShiftExportLinkCard />
         <HelpNotificationBasicsLinkCard />
         <HelpOrganizationStructureLinkCard />
+      </Stack>
+    </Box>
+  );
+}
+
+function AdvancedHelpLinks() {
+  return (
+    <Box as="section" aria-labelledby="help-advanced-title">
+      <Stack gap={1} mb={5}>
+        <Heading id="help-advanced-title" as="h2" color="gray.950" fontSize={{ base: "xl", lg: "2xl" }}>
+          もっと便利に使う
+        </Heading>
+      </Stack>
+      <Stack gap={3}>
+        <HelpShiftExportLinkCard />
+        <HelpAdvancedLinkCards />
       </Stack>
     </Box>
   );

@@ -1,6 +1,7 @@
 import { Flex, Link, Stack, Text } from "@chakra-ui/react";
 import type { IconType } from "react-icons";
-import { LuArrowRight, LuBellRing, LuBuilding2, LuDownload, LuSprout } from "react-icons/lu";
+import { LuArrowRight, LuBellRing, LuBuilding2, LuDownload, LuLayers, LuSparkles, LuSprout } from "react-icons/lu";
+import { ADVANCED_HELP_LINKS, getAdvancedHelpHref } from "./advancedHelp";
 import { HelpAudienceBadge } from "./HelpAudienceBadge";
 import { SHIFT_MANAGEMENT_SCENARIO } from "./helpScenario";
 import type { HelpAudience } from "./helpTasks";
@@ -18,6 +19,24 @@ export function HelpShiftExportLinkCard() {
       icon={LuDownload}
     />
   );
+}
+
+const ADVANCED_HELP_ICONS: Record<(typeof ADVANCED_HELP_LINKS)[number]["guideId"], IconType> = {
+  "set-positions-and-breaks": LuLayers,
+  "auto-create-shift-draft": LuSparkles,
+};
+
+export function HelpAdvancedLinkCards() {
+  return ADVANCED_HELP_LINKS.map((link) => (
+    <HelpBasicLinkCard
+      key={link.guideId}
+      href={getAdvancedHelpHref(link.guideId)}
+      title={link.cardTitle}
+      description={link.cardDescription}
+      audiences={[link.audience]}
+      icon={ADVANCED_HELP_ICONS[link.guideId]}
+    />
+  ));
 }
 
 export function HelpScenarioLinkCard() {

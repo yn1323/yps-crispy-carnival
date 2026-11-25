@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
+import { ADVANCED_HELP_LINKS, getAdvancedHelpHref } from "./advancedHelp";
 import { HelpIndex } from "./HelpIndex";
 import { SHIFT_MANAGEMENT_SCENARIO } from "./helpScenario";
 import { getHelpTaskHref, HELP_TASKS } from "./helpTasks";
@@ -54,13 +55,18 @@ export const Desktop: Story = {
     await expect(scenarioCardContent.getByText("スタッフ")).toBeVisible();
     const notificationCard = canvas.getByRole("link", { name: NOTIFICATION_BASICS_HELP.cardTitle });
     await expect(notificationCard).toHaveAttribute("href", NOTIFICATION_BASICS_HELP.href);
-    const basicLinks = within(canvas.getByRole("region", { name: "基本の使い方を見る" })).getAllByRole("link");
-    await expect(basicLinks[0]).toHaveAttribute("href", SHIFT_MANAGEMENT_SCENARIO.href);
-    await expect(basicLinks[1]).toHaveAttribute("href", SHIFT_EXPORT_HELP.href);
-    await expect(within(basicLinks[1]).getByText("管理者")).toBeVisible();
-    await expect(within(basicLinks[1]).getByText(SHIFT_EXPORT_HELP.cardTitle)).toBeVisible();
-    await expect(basicLinks[2]).toHaveAttribute("href", NOTIFICATION_BASICS_HELP.href);
-    await expect(basicLinks[3]).toHaveAttribute("href", ORGANIZATION_STRUCTURE_HELP.href);
+    const basicLinks = within(canvas.getByRole("region", { name: "基本の使い方" })).getAllByRole("link");
+    await expect(basicLinks.map((link) => link.getAttribute("href"))).toEqual([
+      SHIFT_MANAGEMENT_SCENARIO.href,
+      NOTIFICATION_BASICS_HELP.href,
+      ORGANIZATION_STRUCTURE_HELP.href,
+    ]);
+    // 「もっと便利に使う」は、PDF・Excelのダウンロードを先頭に、基本の流れのあとに使う機能の使い方を並べる。
+    const advancedLinks = within(canvas.getByRole("region", { name: "もっと便利に使う" })).getAllByRole("link");
+    await expect(advancedLinks.map((link) => link.getAttribute("href"))).toEqual([
+      SHIFT_EXPORT_HELP.href,
+      ...ADVANCED_HELP_LINKS.map((link) => getAdvancedHelpHref(link.guideId)),
+    ]);
     for (const task of HELP_TASKS) {
       await expect(canvas.getByRole("link", { name: task.title })).toHaveAttribute("href", getHelpTaskHref(task.id));
     }
@@ -76,11 +82,15 @@ export const Mobile: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    const basicLinks = within(canvas.getByRole("region", { name: "基本の使い方を見る" })).getAllByRole("link");
+    const basicLinks = within(canvas.getByRole("region", { name: "基本の使い方" })).getAllByRole("link");
     await expect(within(basicLinks[0]).getByText(SHIFT_MANAGEMENT_SCENARIO.cardDescription)).not.toBeVisible();
-    await expect(within(basicLinks[1]).getByText(SHIFT_EXPORT_HELP.cardDescription)).not.toBeVisible();
-    await expect(within(basicLinks[2]).getByText(NOTIFICATION_BASICS_HELP.cardDescription)).not.toBeVisible();
-    await expect(within(basicLinks[3]).getByText(ORGANIZATION_STRUCTURE_HELP.cardDescription)).not.toBeVisible();
+    await expect(within(basicLinks[1]).getByText(NOTIFICATION_BASICS_HELP.cardDescription)).not.toBeVisible();
+    await expect(within(basicLinks[2]).getByText(ORGANIZATION_STRUCTURE_HELP.cardDescription)).not.toBeVisible();
+    const advancedLinks = within(canvas.getByRole("region", { name: "もっと便利に使う" })).getAllByRole("link");
+    await expect(within(advancedLinks[0]).getByText(SHIFT_EXPORT_HELP.cardDescription)).not.toBeVisible();
+    for (const [index, link] of ADVANCED_HELP_LINKS.entries()) {
+      await expect(within(advancedLinks[index + 1]).getByText(link.cardDescription)).not.toBeVisible();
+    }
 
     for (const task of HELP_TASKS) {
       const taskDescription = within(canvas.getByRole("link", { name: task.title })).getByText(task.description);

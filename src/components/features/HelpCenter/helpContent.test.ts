@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ADVANCED_HELP_LINKS, getAdvancedHelpHref } from "./advancedHelp";
 import { legacyHelpGuideRedirects, resolveLegacyHelpGuideHref } from "./helpAliases";
 import {
   buildHelpIndexMetas,
@@ -110,6 +111,12 @@ describe("HelpCenterの実コンテンツ", () => {
       ),
     ).toBe(true);
     expect(guideMetas.every((meta) => meta.href === `/help/${meta.id}`)).toBe(true);
+  });
+
+  it("「もっと便利に使う」のリンクは、公開中の使い方のURLと一致する", () => {
+    expect(ADVANCED_HELP_LINKS.map((link) => getAdvancedHelpHref(link.guideId))).toEqual(
+      ADVANCED_HELP_LINKS.map((link) => getGuideMeta(link.guideId)?.href),
+    );
   });
 
   it("トップ掲載FAQを6件以内に保ち、同じ内容からJSON-LDを生成する", () => {
