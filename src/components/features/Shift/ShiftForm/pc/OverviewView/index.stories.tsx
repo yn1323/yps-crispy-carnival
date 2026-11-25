@@ -85,7 +85,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** 勤務時間の下にポジションとそのポジションでの熟練度の印、横に休憩の印、名前に「入れるもの」での熟練度の印を出す。週の計は休憩と隙間を引く。 */
+/** 勤務時間の下にポジションとそのポジションでの熟練度の印、横に休憩の印、名前に「ドラッグで設定する内容」での熟練度の印を出す。週の計は休憩と隙間を引く。 */
 export const Detail: Story = {
   args: detailArgs,
   globals: desktopGlobals,

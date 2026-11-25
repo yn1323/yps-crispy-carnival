@@ -38,7 +38,7 @@ const findRow = async (canvasElement: HTMLElement, staffId: string) => {
 };
 
 const selectTool = async (canvasElement: HTMLElement, name: string) => {
-  const palette = await within(canvasElement).findByRole("radiogroup", { name: "入れるもの" });
+  const palette = await within(canvasElement).findByRole("radiogroup", { name: "ドラッグで設定する内容" });
   await userEvent.click(within(palette).getByRole("radio", { name }));
 };
 
@@ -48,7 +48,7 @@ const nameBadges = (row: ReturnType<typeof within>) =>
 
 /**
  * 編集できるくわしく表示でも、名前の横に熟練度の印を出さない。
- * Eさんはホールが担当外、AさんとDさんはキッチンで見習いだが、「入れるもの」を切り替えても印は出ない。
+ * Eさんはホールが担当外、AさんとDさんはキッチンで見習いだが、「ドラッグで設定する内容」を切り替えても印は出ない。
  */
 const expectNoNameMarks = async (canvasElement: HTMLElement, { switchesTool }: { switchesTool: boolean }) => {
   const rows = await Promise.all(["staff1", "staff4", "staff5"].map((id) => findRow(canvasElement, id)));
@@ -66,7 +66,7 @@ const expectNoSkillMarks = async (canvasElement: HTMLElement) => {
   const canvas = within(canvasElement);
   // ポジションの色分けは出る。その勤務が出たあとで、印がないことを確かめる。
   await waitFor(() => expect(canvas.queryAllByText("キッチン").length).toBeGreaterThan(0));
-  await expect(canvas.queryByRole("radiogroup", { name: "入れるもの" })).not.toBeInTheDocument();
+  await expect(canvas.queryByRole("radiogroup", { name: "ドラッグで設定する内容" })).not.toBeInTheDocument();
   for (const label of ["リーダー", "見習い", "担当外", "リ", "見"]) {
     await expect(canvas.queryByText(label)).not.toBeInTheDocument();
   }

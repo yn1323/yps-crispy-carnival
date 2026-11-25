@@ -145,7 +145,7 @@ export const RangeAssignPalette = () => {
     <Flex align="center" gap={4} minW={0} animation="fade-in 320ms ease-out" _motionReduce={{ animation: "none" }}>
       <Flex
         role={isUnsplit ? "group" : "radiogroup"}
-        aria-label="入れるもの"
+        aria-label="ドラッグで設定する内容"
         align="center"
         gap={1}
         minW={0}
@@ -239,7 +239,7 @@ export const WorkPositionPicker = () => {
 
 /**
  * ポジションの色の凡例。閲覧専用の表示で、色がどのポジションを表すかを示す。
- * 編集できる表示では、日付や週の見出しに置く凡例か「入れるもの」が色を示すため出さない。
+ * 編集できる表示では、日付や週の見出しに置く凡例か「ドラッグで設定する内容」が色を示すため出さない。
  */
 export const PositionLegend = () => {
   const usesPositionColors = useAtomValue(usesPositionColorsAtom);

@@ -262,7 +262,7 @@ const getBreakBars = (row: HTMLElement) =>
 /** 管理者だけが使う操作と、管理者だけに見せる情報は、スタッフ向けの表示に出さない。 */
 const expectNoManagerOnlyParts = async (canvasElement: HTMLElement) => {
   const canvas = within(canvasElement);
-  await expect(canvas.queryByRole("radiogroup", { name: "入れるもの" })).not.toBeInTheDocument();
+  await expect(canvas.queryByRole("radiogroup", { name: "ドラッグで設定する内容" })).not.toBeInTheDocument();
   await expect(canvas.queryByRole("region", { name: "人数" })).not.toBeInTheDocument();
   await expect(canvas.queryByRole("region", { name: "充足" })).not.toBeInTheDocument();
   await expect(canvas.queryByText("リーダー")).not.toBeInTheDocument();

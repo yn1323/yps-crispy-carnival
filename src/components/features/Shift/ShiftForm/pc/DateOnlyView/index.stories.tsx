@@ -298,8 +298,8 @@ export const PositionMenuInteractive: Story = {
     const cellName = (state: string) => `山田 一郎 6/3(水) ${state}`;
     await expect(await findDayCount(canvas, "2026-06-03", "ホール 1/2")).toBeInTheDocument();
 
-    // 時間指定の「入れるもの」（休憩を含む）は出さない。空きのセルを押すと、先頭のポジションで入る。
-    await expect(canvas.queryByRole("radiogroup", { name: "入れるもの" })).not.toBeInTheDocument();
+    // 時間指定の「ドラッグで設定する内容」（休憩を含む）は出さない。空きのセルを押すと、先頭のポジションで入る。
+    await expect(canvas.queryByRole("radiogroup", { name: "ドラッグで設定する内容" })).not.toBeInTheDocument();
     const initialPicker = await canvas.findByRole("radiogroup", { name: "入れるポジション" });
     await expect(within(initialPicker).getByRole("radio", { name: "ホール" })).toHaveAttribute("aria-checked", "true");
     const row = (await canvas.findByRole("button", { name: cellName("勤務なし") })).closest("tr") as HTMLElement;

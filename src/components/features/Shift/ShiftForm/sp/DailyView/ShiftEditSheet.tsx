@@ -74,7 +74,7 @@ export const ShiftEditSheet = ({
   // ポジションは、ポジションが1つでも行ごとに出す。ポジションを分けていない店舗では出さない。
   const showsPositions = editsDetail && !isPositionsUnsplit(positions);
   const selectedPosition = useAtomValue(selectedPositionAtom);
-  // 新しい行には、「入れるもの」で選んでいるポジションを使う。選んでいなければ既定のポジション。
+  // 新しい行には、「ドラッグで設定する内容」で選んでいるポジションを使う。選んでいなければ既定のポジション。
   const newRowPositionId = (selectedPosition ?? resolveDefaultPosition(positions)).id;
   const newRowCountRef = useRef(0);
   const createRowKey = () => {

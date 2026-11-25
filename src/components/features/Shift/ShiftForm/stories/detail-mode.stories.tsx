@@ -57,8 +57,8 @@ export const InitialDetailDoesNotNotify: Story = {
   globals: desktopGlobals,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    // くわしく表示では「入れるもの」が出る。
-    await expect(await canvas.findByRole("radiogroup", { name: "入れるもの" })).toBeInTheDocument();
+    // くわしく表示では「ドラッグで設定する内容」が出る。
+    await expect(await canvas.findByRole("radiogroup", { name: "ドラッグで設定する内容" })).toBeInTheDocument();
 
     await waitForInitialSync();
     await expect(await findNotification(canvasElement)).toHaveTextContent(/^通知：0回$/);
@@ -74,8 +74,8 @@ export const InitialSimpleDoesNotNotify: Story = {
     const canvas = within(canvasElement);
     await waitForInitialSync();
     await expect(await findNotification(canvasElement)).toHaveTextContent(/^通知：0回$/);
-    // シンプルでは「入れるもの」を出さない。
-    await expect(canvas.queryByRole("radiogroup", { name: "入れるもの" })).not.toBeInTheDocument();
+    // シンプルでは「ドラッグで設定する内容」を出さない。
+    await expect(canvas.queryByRole("radiogroup", { name: "ドラッグで設定する内容" })).not.toBeInTheDocument();
   },
 };
 
@@ -87,16 +87,16 @@ export const ToggleOnDesktopNotifies: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const notification = await findNotification(canvasElement);
-    await expect(await canvas.findByRole("radiogroup", { name: "入れるもの" })).toBeInTheDocument();
+    await expect(await canvas.findByRole("radiogroup", { name: "ドラッグで設定する内容" })).toBeInTheDocument();
 
     // 初期値の反映を通知していれば、ここで2回になる。
     await selectDetailModeFromDisplaySettings(canvasElement, "シンプル");
     await waitFor(() => expect(notification).toHaveTextContent(/^通知：1回（false）$/));
-    await expect(canvas.queryByRole("radiogroup", { name: "入れるもの" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("radiogroup", { name: "ドラッグで設定する内容" })).not.toBeInTheDocument();
 
     await selectDetailModeFromDisplaySettings(canvasElement, "くわしく");
     await waitFor(() => expect(notification).toHaveTextContent(/^通知：2回（false、true）$/));
-    await expect(await canvas.findByRole("radiogroup", { name: "入れるもの" })).toBeInTheDocument();
+    await expect(await canvas.findByRole("radiogroup", { name: "ドラッグで設定する内容" })).toBeInTheDocument();
   },
 };
 
@@ -130,30 +130,32 @@ export const RequestsModeChangeOutside: Story = {
   render: (args) => <RequestHarness {...args} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(await canvas.findByRole("radiogroup", { name: "入れるもの" })).toBeInTheDocument();
+    await expect(await canvas.findByRole("radiogroup", { name: "ドラッグで設定する内容" })).toBeInTheDocument();
 
     await selectDetailModeFromDisplaySettings(canvasElement, "シンプル");
 
     await waitFor(() =>
       expect(canvas.getByRole("status", { name: "切り替えの依頼" })).toHaveTextContent("依頼：false"),
     );
-    // 表示はくわしくのままで、「入れるもの」が残る。
-    await expect(canvas.getByRole("radiogroup", { name: "入れるもの" })).toBeInTheDocument();
+    // 表示はくわしくのままで、「ドラッグで設定する内容」が残る。
+    await expect(canvas.getByRole("radiogroup", { name: "ドラッグで設定する内容" })).toBeInTheDocument();
   },
 };
 
 const expectToolPaletteOnlyOnDaily = async (canvasElement: HTMLElement) => {
   const canvas = within(canvasElement);
-  await expect(await canvas.findByRole("radiogroup", { name: "入れるもの" })).toBeInTheDocument();
+  await expect(await canvas.findByRole("radiogroup", { name: "ドラッグで設定する内容" })).toBeInTheDocument();
 
   await userEvent.click(canvas.getByRole("tab", { name: "一覧" }));
-  await waitFor(() => expect(canvas.queryByRole("radiogroup", { name: "入れるもの" })).not.toBeInTheDocument());
+  await waitFor(() =>
+    expect(canvas.queryByRole("radiogroup", { name: "ドラッグで設定する内容" })).not.toBeInTheDocument(),
+  );
 
   await userEvent.click(canvas.getByRole("tab", { name: "日別" }));
-  await expect(await canvas.findByRole("radiogroup", { name: "入れるもの" })).toBeInTheDocument();
+  await expect(await canvas.findByRole("radiogroup", { name: "ドラッグで設定する内容" })).toBeInTheDocument();
 };
 
-/** 一覧は勤務を入れる画面ではないため、くわしく表示でも「入れるもの」を出さない。日別へ戻すと出る。 */
+/** 一覧は勤務を入れる画面ではないため、くわしく表示でも「ドラッグで設定する内容」を出さない。日別へ戻すと出る。 */
 export const ToolPaletteHiddenOnOverviewDesktop: Story = {
   name: "Tool Palette Hidden On Overview Desktop",
   args: { ...toggleArgs, initialDetailMode: true },
@@ -214,11 +216,11 @@ const expectNoToggleInDisplaySettings = async (canvasElement: HTMLElement) => {
   await userEvent.click(await canvas.findByRole("button", { name: "表示設定" }));
   await expect(await body.findByRole("menuitemcheckbox", { name: "連絡事項を表示" })).toBeInTheDocument();
   await expect(body.queryByRole("menuitemradio", { name: "シンプル" })).not.toBeInTheDocument();
-  await expect(canvas.queryByRole("radiogroup", { name: "入れるもの" })).not.toBeInTheDocument();
+  await expect(canvas.queryByRole("radiogroup", { name: "ドラッグで設定する内容" })).not.toBeInTheDocument();
   await expect(await findNotification(canvasElement)).toHaveTextContent(/^通知：0回$/);
 };
 
-/** `onDetailModeChange`を渡さない閲覧では、PCの「表示設定」に切り替えを出さない。「入れるもの」も出さない。 */
+/** `onDetailModeChange`を渡さない閲覧では、PCの「表示設定」に切り替えを出さない。「ドラッグで設定する内容」も出さない。 */
 export const NoToggleWithoutCallbackOnDesktop: Story = {
   name: "No Toggle Without Callback On Desktop",
   args: readOnlyArgs,

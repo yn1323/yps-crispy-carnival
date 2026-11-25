@@ -424,8 +424,8 @@ export const DetailModeSwitchCancelBehavior: Story = {
     await userEvent.click(within(dialog).getByRole("button", { name: "キャンセル" }));
 
     await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
-    // シンプルのままなので、くわしく表示の「入れるもの」は出ない。
-    await expect(canvas.queryByRole("radiogroup", { name: "入れるもの" })).not.toBeInTheDocument();
+    // シンプルのままなので、くわしく表示の「ドラッグで設定する内容」は出ない。
+    await expect(canvas.queryByRole("radiogroup", { name: "ドラッグで設定する内容" })).not.toBeInTheDocument();
   },
 };
 

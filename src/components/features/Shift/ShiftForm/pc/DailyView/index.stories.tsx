@@ -311,10 +311,10 @@ const expectNoRangeMenu = () =>
   waitFor(() => expect(within(document.body).queryByRole("menu")).not.toBeInTheDocument());
 const getSelections = (row: HTMLElement) => Array.from(row.querySelectorAll("[data-range-selection]"));
 
-/** 日付の見出しの「入れるもの」。次に新しく入れるポジション、または休憩を選ぶ。 */
+/** 日付の見出しの「ドラッグで設定する内容」。次に新しく入れるポジション、または休憩を選ぶ。 */
 const findPalette = async (canvasElement: HTMLElement) =>
-  within(await within(canvasElement).findByRole("radiogroup", { name: "入れるもの" }));
-/** 「入れるもの」で、いま選んでいる項目。 */
+  within(await within(canvasElement).findByRole("radiogroup", { name: "ドラッグで設定する内容" }));
+/** 「ドラッグで設定する内容」で、いま選んでいる項目。 */
 const findNextPositionChip = async (canvasElement: HTMLElement) =>
   (await findPalette(canvasElement)).findByRole("radio", { checked: true });
 
@@ -841,7 +841,7 @@ export const DetailRangeMenuOpen: Story = {
   },
 };
 
-// シンプル表示。ポジションの色分けと「入れるもの」は出さず、休憩は出す。
+// シンプル表示。ポジションの色分けと「ドラッグで設定する内容」は出さず、休憩は出す。
 const simpleArgs = { ...detailArgs, initialDetailMode: false } satisfies ShiftFormArgs;
 
 /** シンプル表示でも、時刻で入れた休憩を勤務のバーに出す。 */
@@ -864,7 +864,9 @@ export const SimpleRangeBreakInteractive: Story = {
     // Aさんは10:00〜18:00で、13:00〜14:00が休憩。シンプル表示でも休憩が出る。
     const rowA = await findRow(canvasElement, "staff1");
     await waitFor(() => expect(getBreakBars(rowA)).toHaveLength(1));
-    await expect(within(canvasElement).queryByRole("radiogroup", { name: "入れるもの" })).not.toBeInTheDocument();
+    await expect(
+      within(canvasElement).queryByRole("radiogroup", { name: "ドラッグで設定する内容" }),
+    ).not.toBeInTheDocument();
 
     // Bさんは12:00〜20:00で、休憩はない。範囲を選ぶと、ポジションの代わりに「勤務」が出る。
     const row = await findRow(canvasElement, "staff2");
