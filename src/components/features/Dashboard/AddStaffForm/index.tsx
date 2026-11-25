@@ -5,6 +5,7 @@ import { LuPlus, LuX } from "react-icons/lu";
 import { EMAIL_MAX_LENGTH, PERSON_NAME_MAX_LENGTH, STAFF_ADD_ENTRIES_MAX } from "@/convex/constants";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { Input } from "@/src/components/ui/FormControls";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import { STAFF_ADDITION_EMAIL_NOTICE, STAFF_ADDITION_EMAIL_NOTICE_HREF } from "../staffAdditionCopy";
 import { type AddStaffFormData, addStaffSchema } from "./script";
 
@@ -48,6 +49,9 @@ export const AddStaffForm = ({ onSubmit }: Props) => {
             href={STAFF_ADDITION_EMAIL_NOTICE_HREF}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() =>
+              trackProductEvent({ kind: "content_select", contentType: "help_link", contentId: "staff_add_form" })
+            }
             color="teal.700"
             textDecoration="underline"
           >

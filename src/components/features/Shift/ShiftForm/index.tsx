@@ -17,6 +17,7 @@ import type {
   TimeRange,
   ViewMode,
 } from "@/src/domains/shift/types";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import { AutoCreateDialog } from "./AutoCreateDialog";
 import { AutoCreateButton } from "./AutoCreateDialog/entrances";
 import { BreakEditorDialog } from "./BreakEditorDialog";
@@ -62,6 +63,7 @@ import {
   hasAutoCreateRequirementsAtom,
   selectDateWithDailyStaffOrderAtom,
   selectedDateAtom,
+  shiftConfigAtom,
   shiftsAtom,
   viewModeAtom,
 } from "./stores";
@@ -445,7 +447,21 @@ const Shell = ({
   const autoCreateShowsBreakOption = useAtomValue(autoCreateShowsBreakOptionAtom);
   // 自動作成は、勤務にポジションを持たせる「くわしく」で、未確定の募集を編集できるときだけ出す。
   const canAutoCreate = detailMode && !isReadOnly && !isConfirmed;
-  const openAutoCreate = () => setAutoCreateOpen(true);
+  const { submissionPattern } = useAtomValue(shiftConfigAtom);
+  const openAutoCreate = () => {
+    setAutoCreateOpen(true);
+    trackProductEvent({
+      kind: "auto_create_open",
+      isRequirementMissing: !hasAutoCreateRequirements,
+      submissionPattern: submissionPattern.kind,
+    });
+  };
+  const openSetupFromAutoCreate = onOpenSetup
+    ? () => {
+        trackProductEvent({ kind: "content_select", contentType: "shift_setup_link", contentId: "auto_create_dialog" });
+        onOpenSetup();
+      }
+    : undefined;
   const unsubmittedStrip =
     !isReadOnly && !isConfirmed && reminderStatus && unsubmittedNames.length > 0 ? (
       <UnsubmittedStrip
@@ -564,7 +580,7 @@ const Shell = ({
           aiRemainingCount={autoCreateAction?.aiRemainingCount}
           showsBreakOption={autoCreateShowsBreakOption}
           isRequirementMissing={!hasAutoCreateRequirements}
-          onOpenSetup={onOpenSetup}
+          onOpenSetup={openSetupFromAutoCreate}
         />
       )}
     </Flex>

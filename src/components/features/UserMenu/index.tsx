@@ -3,6 +3,7 @@ import { SignOutButton } from "@clerk/react";
 import { Link as RouterLink } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { LuBookOpen, LuChevronDown, LuLogOut, LuMailQuestion, LuShieldCheck, LuUserRound } from "react-icons/lu";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import { userAtom } from "@/src/stores/user";
 
 type Props = {
@@ -88,7 +89,14 @@ export const UserMenu = ({ tone = "dark" }: Props) => {
               </RouterLink>
             </Menu.Item>
             <Menu.Item asChild value="help" cursor="pointer">
-              <a href="/help" target="_blank" rel="noreferrer">
+              <a
+                href="/help"
+                target="_blank"
+                rel="noreferrer"
+                onClick={() =>
+                  trackProductEvent({ kind: "content_select", contentType: "help_link", contentId: "user_menu" })
+                }
+              >
                 <LuBookOpen />
                 ヘルプ・使い方
               </a>

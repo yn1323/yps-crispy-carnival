@@ -22,6 +22,7 @@ export const webMeasurementRouteFamilies = [
   "billing",
   "manager_management",
   "shop_detail",
+  "shift_setup",
   "shift_management",
   "shiftboard",
   "shift_export",
@@ -69,6 +70,7 @@ const routeAreaByFamily: Record<WebMeasurementRouteFamily, WebMeasurementRouteAr
   billing: "manager",
   manager_management: "manager",
   shop_detail: "manager",
+  shift_setup: "manager",
   shift_management: "manager",
   shiftboard: "manager",
   shift_export: "manager",
@@ -88,6 +90,7 @@ const routeAreaByFamily: Record<WebMeasurementRouteFamily, WebMeasurementRouteAr
 // IDを含むrouteは、ページ単位の集計でIDごとに行が分かれないよう固定のpathへ置き換える。
 const templatedPagePaths: Partial<Record<WebMeasurementRouteFamily, string>> = {
   shop_detail: "/manage/shops/:shopId",
+  shift_setup: "/manage/shops/:shopId/shift-setup",
   shiftboard: "/shifts/:recruitmentId/board",
   shift_export: "/shifts/:recruitmentId/export",
   staff_detail: "/staff/:personId",
@@ -170,8 +173,9 @@ export function getWebMeasurementRouteFamily(value: string): WebMeasurementRoute
   if (appPathname === "/manage" || appPathname === "/manage/organization") return "organization_management";
   if (appPathname === "/manage/billing") return "billing";
   if (/^\/manage\/managers(?:\/invite-(?:new|staff))?$/.test(appPathname)) return "manager_management";
-  // 「必要人数設定」は店舗詳細の下位ページとして、同じ分類と同じ集計用のpathで数える。
-  if (/^\/manage\/shops\/[^/]+(?:\/shift-setup)?$/.test(appPathname)) return "shop_detail";
+  if (/^\/manage\/shops\/[^/]+$/.test(appPathname)) return "shop_detail";
+  // 「必要人数設定」は、ポジションと必要人数の利用を数えるため、店舗詳細と分ける。
+  if (/^\/manage\/shops\/[^/]+\/shift-setup$/.test(appPathname)) return "shift_setup";
   if (appPathname === "/shifts") return "shift_management";
   if (/^\/shifts\/[^/]+\/board$/.test(appPathname)) return "shiftboard";
   if (appPathname === "/staff" || appPathname === "/staff/order") return "staff_management";

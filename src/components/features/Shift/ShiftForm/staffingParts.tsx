@@ -3,6 +3,7 @@ import { useAtomValue } from "jotai";
 import { LuChartGantt, LuCheck, LuChevronDown, LuTriangleAlert } from "react-icons/lu";
 import { NO_DAY_TEMPLATE } from "@/convex/shiftSetup/dayTemplates";
 import { Button } from "@/src/components/ui/Button";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import { useShiftFormDetailActions } from "./detailParts";
 import { type DayStaffingView, NO_TEMPLATE_LABEL } from "./staffingPresentation";
 import { canEditDayStaffingAtom, dayStaffingViewByDateAtom, shiftConfigAtom } from "./stores";
@@ -88,7 +89,18 @@ export const DayTemplateMenuItems = ({ date, view }: { date: string; view: DaySt
         </>
       )}
       {onOpenSetup && (
-        <Menu.Item value="setup" {...MENU_ITEM_PROPS} onClick={onOpenSetup}>
+        <Menu.Item
+          value="setup"
+          {...MENU_ITEM_PROPS}
+          onClick={() => {
+            trackProductEvent({
+              kind: "content_select",
+              contentType: "shift_setup_link",
+              contentId: "shift_board_menu",
+            });
+            onOpenSetup();
+          }}
+        >
           <Box w={4} flexShrink={0} />
           <Menu.ItemText fontSize="sm">必要人数設定を開く</Menu.ItemText>
         </Menu.Item>

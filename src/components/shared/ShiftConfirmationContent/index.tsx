@@ -11,6 +11,7 @@ import {
   summarizeAssignmentWarnings,
   type WarningSummaryCategoryCode,
 } from "@/src/domains/shift/assignmentWarningSummary";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 
 type Props = {
   staffCount: number;
@@ -150,6 +151,9 @@ const ShiftExclusionHelp = () => (
       href={SHIFT_EXCLUSION_HELP_HREF}
       target="_blank"
       rel="noopener noreferrer"
+      onClick={() =>
+        trackProductEvent({ kind: "content_select", contentType: "help_link", contentId: "shift_exclusion" })
+      }
       aria-label={`${SHIFT_EXCLUSION_HELP_TITLE}（別タブで開きます）`}
       display="inline-flex"
       alignItems="center"

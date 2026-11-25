@@ -3,19 +3,34 @@ import { useConvex } from "convex/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import type { AiDraftFailureKind } from "@/convex/shiftBoard/autoCreate/ai/aiDraftFailure";
 import { buildAutoAssignments } from "@/convex/shiftBoard/autoCreate/buildAutoAssignments";
 import type { ShiftFormDetailActions } from "@/src/components/features/Shift/ShiftForm";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { toaster } from "@/src/components/ui/toaster";
 import { applyAutoAssignments } from "@/src/domains/shift/autoAssignments";
 import type { PositionType, ShiftData, StaffSortMode, StaffType } from "@/src/domains/shift/types";
+import type { AutoCreateFailureReason, AutoCreateMethod, AutoCreateResult } from "@/src/domains/webMeasurement";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import type { ManagerShopScope } from "@/src/providers/ManagerShopScopeProvider";
 import type { ShiftBoardData, ShiftBoardStaffingData } from "../types";
 import { AI_DRAFT_FAILURE_MESSAGES } from "./aiDraftFailureMessages";
 import { toAutoCreateInput } from "./autoCreateAdapter";
 import { toDayTemplateIdArg } from "./staffingAdapter";
+
+/** AIで作れなかった種類を、計測で送る値へ直す。 */
+const AI_DRAFT_FAILURE_MEASUREMENT_REASONS: Record<AiDraftFailureKind, AutoCreateFailureReason> = {
+  notConfigured: "not_configured",
+  unsupported: "unsupported",
+  rateLimited: "rate_limited",
+  limitReached: "limit_reached",
+  billing: "billing",
+  busy: "busy",
+  declined: "declined",
+  unavailable: "unavailable",
+};
 
 type Input = {
   data: ShiftBoardData;
@@ -58,6 +73,27 @@ export const useShiftBoardDetailActions = ({
   const switchShiftDetailMode = useShopMutation(api.shiftBoard.mutations.switchShiftDetailMode);
   const setShiftStaffSortMode = useShopMutation(api.shiftBoard.mutations.setShiftStaffSortMode);
   const applyShiftsRef = useRef<((update: (current: ShiftData[]) => ShiftData[]) => void) | null>(null);
+  // この画面を開いている間に、自動作成で下書きを作ったか。確定の計測で、自動作成を経た確定かを分けるために持つ。
+  const hasAutoCreatedRef = useRef(false);
+  const trackAutoCreate = useCallback(
+    (
+      method: AutoCreateMethod,
+      includesBreaks: boolean,
+      result: AutoCreateResult,
+      failureReason?: AutoCreateFailureReason,
+    ) => {
+      if (result === "created") hasAutoCreatedRef.current = true;
+      trackProductEvent({
+        kind: "shift_auto_create",
+        method,
+        result,
+        ...(failureReason ? { failureReason } : {}),
+        includesBreaks,
+        submissionPattern: data.submissionPattern.kind,
+      });
+    },
+    [data.submissionPattern.kind],
+  );
 
   const handleOpenSetup = useCallback(() => {
     if (!shopScope) return;
@@ -108,13 +144,16 @@ export const useShiftBoardDetailActions = ({
       );
       if (result.shifts.length === 0) {
         toaster.create({ title: "作成できるシフトがありませんでした", type: "info" });
+        trackAutoCreate("rule", includesBreaks, "empty");
         return;
       }
       applyShiftsRef.current((current) => applyAutoAssignments({ shifts: current, created: result.shifts, positions }));
       // 人数が足りない所が残っていても、知らせには足さない。作ったのは下書きで、不足はシフト表の人数の表示で分かる。
       showSuccessToast({ title: "シフトを自動作成しました" });
+      trackAutoCreate("rule", includesBreaks, "created");
     } catch (error) {
       showErrorToast(error);
+      trackAutoCreate("rule", includesBreaks, "failed", "error");
     }
   });
   // AIでの自動作成。希望、必要人数、メモはサーバーが読み、決まった手順の下書きをAIが見直した結果を受け取る。
@@ -135,17 +174,22 @@ export const useShiftBoardDetailActions = ({
           type: "error",
           duration: Number.POSITIVE_INFINITY,
         });
+        // AIで作れなかった知らせは通常のエラー表示を通らないため、理由をここで記録する。
+        trackAutoCreate("ai", includesBreaks, "failed", AI_DRAFT_FAILURE_MEASUREMENT_REASONS[result.reason]);
         return false;
       }
       if (result.shifts.length === 0) {
         toaster.create({ title: "作成できるシフトがありませんでした", type: "info" });
+        trackAutoCreate("ai", includesBreaks, "empty");
         return true;
       }
       applyShiftsRef.current((current) => applyAutoAssignments({ shifts: current, created: result.shifts, positions }));
       showSuccessToast({ title: "シフトを自動作成しました" });
+      trackAutoCreate("ai", includesBreaks, "created");
       return true;
     } catch (error) {
       showErrorToast(error);
+      trackAutoCreate("ai", includesBreaks, "failed", "error");
       return false;
     }
   });
@@ -177,6 +221,11 @@ export const useShiftBoardDetailActions = ({
     async (isDetailMode: boolean) => {
       try {
         await switchShiftDetailMode({ recruitmentId, expectedEditVersion, isDetailMode });
+        trackProductEvent({
+          kind: "manage_action",
+          target: "shift",
+          action: isDetailMode ? "switch_detail" : "switch_simple",
+        });
       } catch (error) {
         setPendingDetailMode(null);
         handleMutationError(error);
@@ -268,6 +317,7 @@ export const useShiftBoardDetailActions = ({
   return {
     detailActions,
     applyShiftsRef,
+    hasAutoCreatedRef,
     canSwitchDetailMode,
     staffSortMode,
     detailModeSwitchDialog: { isOpen: pendingDetailMode !== null, isSwitching: isSwitchingDetailMode },

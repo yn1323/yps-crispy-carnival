@@ -1,6 +1,7 @@
 import { Accordion, Heading, Link, Stack, Text } from "@chakra-ui/react";
 import { LuArrowRight } from "react-icons/lu";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import type { HelpFaqContent } from "./faqContent";
 import { HelpAudienceBadge } from "./HelpAudienceBadge";
 import { getGuideMeta, getRelatedHelpMetas, type HelpMetadata } from "./helpMeta";
@@ -24,7 +25,14 @@ export function HelpFaqAccordion({
       collapsible
       multiple
       value={value}
-      onValueChange={({ value: nextValue }) => onValueChange(nextValue)}
+      onValueChange={({ value: nextValue }) => {
+        // 新しく開いた質問だけを数える。閉じた操作と、URLから開いた初期表示は数えない。
+        for (const id of nextValue) {
+          if (!value.includes(id))
+            trackProductEvent({ kind: "content_select", contentType: "help_faq", contentId: id });
+        }
+        onValueChange(nextValue);
+      }}
       variant="plain"
     >
       <Stack gap={0} borderWidth="1px" borderColor="gray.200" borderRadius="lg" overflow="hidden">

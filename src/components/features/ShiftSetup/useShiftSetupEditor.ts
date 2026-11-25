@@ -6,7 +6,9 @@ import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedba
 import { useDialog } from "@/src/components/ui/Dialog";
 import { toaster } from "@/src/components/ui/toaster";
 import { isPositionsUnsplit } from "@/src/domains/shift/operations";
+import type { ShiftSetupSection } from "@/src/domains/webMeasurement";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import {
   changeDayTemplateSegments,
   changeRequiredCount,
@@ -250,6 +252,12 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
         setStaffDrafts({});
       }
       showSuccessToast({ title: SAVED_TITLE });
+      const savedSections: ShiftSetupSection[] = [
+        ...(hasPositionChanges ? (["positions"] as const) : []),
+        ...(hasTemplateChanges ? (["templates"] as const) : []),
+        ...(staffInputsToSave.length > 0 ? (["skills"] as const) : []),
+      ];
+      trackProductEvent({ kind: "shift_setup_save", sections: savedSections, positionCount: positionsToSave.length });
       return true;
     } catch (error) {
       showErrorToast(error);
@@ -296,10 +304,12 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
       const result = await remote.suggestShiftSetup(parsed.data);
       if (result.status !== "ok") {
         setAssistMessage(result.status === "rateLimited" ? ASSIST_RATE_LIMITED_MESSAGE : ASSIST_UNAVAILABLE_MESSAGE);
+        trackProductEvent({ kind: "shift_setup_assist", result: "failed" });
         return;
       }
       if (result.templates.length === 0) {
         setAssistMessage(ASSIST_EMPTY_MESSAGE);
+        trackProductEvent({ kind: "shift_setup_assist", result: "empty" });
         return;
       }
       // 下書きは編集中の値へ入れるだけにする。設定が変わるのは、利用者が「保存する」を押したときである。
@@ -313,8 +323,10 @@ export function useShiftSetupEditor({ setup, remote }: Input) {
       setHasAttemptedSave(false);
       assistDialog.close();
       showSuccessToast({ title: "下書きを表に入れました", description: "内容を確かめてから保存してください。" });
+      trackProductEvent({ kind: "shift_setup_assist", result: "created" });
     } catch (error) {
       showErrorToast(error);
+      trackProductEvent({ kind: "shift_setup_assist", result: "failed" });
     }
   });
 

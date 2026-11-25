@@ -513,7 +513,12 @@ export const useShiftBoardPageController = (
       }
       confirmModal.close();
       if (result?.status !== "no_changes") {
-        trackProductEvent({ kind: "shift_confirm", intent: isConfirmed ? "resend" : "confirm" });
+        trackProductEvent({
+          kind: "shift_confirm",
+          intent: isConfirmed ? "resend" : "confirm",
+          detailMode: initialDetailMode,
+          usedAutoCreate: hasAutoCreatedRef.current,
+        });
       }
       if (result?.status === "no_changes") {
         toaster.create({ title: "前回の通知から変更されたスタッフはいません", type: "info" });
@@ -606,6 +611,7 @@ export const useShiftBoardPageController = (
   const {
     detailActions,
     applyShiftsRef,
+    hasAutoCreatedRef,
     canSwitchDetailMode,
     staffSortMode,
     detailModeSwitchDialog,
