@@ -177,7 +177,9 @@ secret、token、magic link URL、メールアドレス、LINE user ID、通知�
 永続化するエラーは固定taxonomy（`line_rate_limited`等）だけとする。
 
 Convex functionのhandler失敗時は、標準の`function_execution`とは別に、固定markerと安全なcontextを持つconsole eventを
-出力する。  contextはserverで解決した内部IDと明示的な許可fieldに限定し、引数・戻り値・生error・stackは含めない。
+出力する。  contextはserverで解決した内部IDと明示的な許可fieldに限定する。  引数からは決めた名前の項目にある
+Convex IDだけを未検証の要求IDとして含め、それ以外の引数・戻り値・生error・stackは含めない。
+利用者の通常の操作で起きる想定内の失敗は、warnで出力する。
 両eventはLog Streamが付与する同じrequest IDで突き合わせる。運用手順は
 [`doc/manual/convex-error-observability.md`](../manual/convex-error-observability.md)を参照する。
 
