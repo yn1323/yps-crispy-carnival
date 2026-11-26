@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { isoDateStringSchema, supportedShiftTimeSchema } from "../_lib/validation";
-import { SHIFT_DATE_NOTE_MAX_LENGTH, SHIFT_REQUESTS_PER_SUBMISSION_LIMIT } from "../constants";
+import {
+  SHIFT_DATE_NOTE_MAX_LENGTH,
+  SHIFT_REQUESTS_PER_SUBMISSION_LIMIT,
+  SHIFT_TYPE_SELECTIONS_PER_SUBMISSION_LIMIT,
+} from "../constants";
 
 // 正規化前の上限。巨大な入力に正規表現を走らせない。
 const SHIFT_DATE_NOTE_RAW_MAX_LENGTH = 1_000;
@@ -37,8 +41,9 @@ export const shiftDateNotesSchema = z
   .max(SHIFT_REQUESTS_PER_SUBMISSION_LIMIT)
   .transform((notes) => notes.filter((entry) => entry.note.length > 0));
 
+/** 提出方法ごとの入力を希望枠へ変換した後の検証。勤務パターンでは1日に複数の枠になるため、その上限に合わせる。 */
 export const submitShiftRequestsSchema = z.object({
-  requests: z.array(shiftRequestSchema).max(SHIFT_REQUESTS_PER_SUBMISSION_LIMIT),
+  requests: z.array(shiftRequestSchema).max(SHIFT_TYPE_SELECTIONS_PER_SUBMISSION_LIMIT),
 });
 
 export const submitShiftSelectionSchema = z.discriminatedUnion("kind", [
@@ -59,7 +64,7 @@ export const submitShiftSelectionSchema = z.discriminatedUnion("kind", [
           optionId: z.string().min(1),
         }),
       )
-      .max(SHIFT_REQUESTS_PER_SUBMISSION_LIMIT),
+      .max(SHIFT_TYPE_SELECTIONS_PER_SUBMISSION_LIMIT),
   }),
 ]);
 
