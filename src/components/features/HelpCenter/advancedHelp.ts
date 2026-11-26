@@ -18,7 +18,7 @@ export const ADVANCED_HELP_LINKS = [
   },
   {
     guideId: "auto-create-shift-draft",
-    cardTitle: "自動で下書きシフトを作成したい",
+    cardTitle: "シフトの下書きを自動作成したい",
     cardDescription: "希望シフトと必要人数から、募集期間の勤務をまとめて作ります。",
     audience: "manager",
   },
