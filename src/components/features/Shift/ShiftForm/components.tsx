@@ -467,10 +467,10 @@ export const ConfirmButton = ({
       : "処理中"
     : compact
       ? isConfirmed
-        ? "再送"
+        ? "変更を通知"
         : "確定"
       : isConfirmed
-        ? "もう一度通知"
+        ? "変更を通知"
         : "確定";
   // 確定済みの募集では、確定ではなく通知を送り直すため、送るアイコンにする。
   const LabelIcon = isConfirmed ? LuSend : LuCircleCheck;

@@ -482,7 +482,7 @@ export const UsageLimitExceeded: Story = {
     const canvas = within(canvasElement);
 
     await expect(canvas.queryByLabelText("下書き保存")).not.toBeInTheDocument();
-    await expect(canvas.queryByRole("button", { name: /シフトを確定|もう一度通知/ })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("button", { name: /シフトを確定|変更を通知/ })).not.toBeInTheDocument();
   },
 };
 
@@ -681,7 +681,7 @@ export const PastResendBlocked: Story = {
     toaster.dismiss();
     const canvas = within(canvasElement);
 
-    await userEvent.click(await canvas.findByRole("button", { name: "もう一度通知" }));
+    await userEvent.click(await canvas.findByRole("button", { name: "変更を通知" }));
 
     await expect(await within(document.body).findByText("過去のシフトはスタッフに通知できません")).toBeInTheDocument();
     expect(canvas.queryByRole("dialog")).not.toBeInTheDocument();

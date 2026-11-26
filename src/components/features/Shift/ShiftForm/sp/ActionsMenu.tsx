@@ -28,8 +28,8 @@ export function ActionsMenu({
   const isBusy = isSavingDraft || isConfirming;
   const triggerRef = useRef<HTMLButtonElement>(null);
   const returnExportFocus = useRef(false);
-  const label = `保存・${isConfirmed ? "再送" : "確定"}${exportAction ? "・出力" : ""}`;
-  const confirmLabel = isConfirmed ? "確定シフトを再送" : "シフトを確定";
+  const label = `保存・${isConfirmed ? "変更を通知" : "確定"}${exportAction ? "・出力" : ""}`;
+  const confirmLabel = isConfirmed ? "変更を通知" : "シフトを確定";
 
   return (
     <Menu.Root

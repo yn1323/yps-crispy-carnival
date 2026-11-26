@@ -526,7 +526,7 @@ export const useShiftBoardPageController = (
         return;
       }
       showSuccessToast({
-        title: isConfirmed ? "変更があるスタッフに通知を送りました" : "シフトを確定しました",
+        title: isConfirmed ? "勤務が変わったスタッフに変更を通知しました" : "シフトを確定しました",
       });
     } catch (error) {
       if (handleMutationError(error)) {
@@ -713,7 +713,7 @@ export const useShiftBoardPageController = (
       detailModeSwitchDialog,
       confirmDialog: {
         isOpen: confirmModal.isOpen,
-        title: isConfirmed ? "確定シフトをもう一度通知しますか？" : "シフトを確定しますか？",
+        title: isConfirmed ? "変更をスタッフに通知しますか？" : "シフトを確定しますか？",
         submitLabel: isConfirmed ? "通知する" : "確定する",
         staffCount: staffs.length,
         warnings: displayWarnings,

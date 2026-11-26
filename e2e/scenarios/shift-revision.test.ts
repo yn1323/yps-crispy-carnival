@@ -119,7 +119,7 @@ test.describe("提出後と確定後のシフト修正", { tag: ["@e2e-core", "@
       await shiftBoard.expectConfirmedStatus();
       await boardCells.toggleDateOnlyAssignment(STAFF_NAME, secondDate, true);
       await shiftBoard.notifyChangedStaff();
-      await expect(page.getByRole("button", { name: "もう一度通知", exact: true })).toBeVisible();
+      await expect(page.getByRole("button", { name: "変更を通知", exact: true })).toBeVisible();
     });
 
     const viewCapability = await waitForMagicLinkToken({

@@ -58,7 +58,7 @@ test.describe("スマートフォンのシフト表", { tag: ["@e2e-core"] }, ()
       await expectAppHydrated(page);
       await page.getByRole("button", { name: `${secondDateLabel}を表示`, exact: true }).click();
       await cells.expectDateOnlyAssignment(STAFF_NAME, secondDateLabel, true);
-      await expect(page.getByRole("button", { name: "保存・再送・出力", exact: true })).toBeVisible();
+      await expect(page.getByRole("button", { name: "保存・変更を通知・出力", exact: true })).toBeVisible();
     });
   });
 });
