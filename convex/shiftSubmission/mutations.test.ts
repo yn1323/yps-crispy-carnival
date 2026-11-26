@@ -4,10 +4,16 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
+import { MAX_SHIFT_TYPE_OPTIONS } from "../_lib/submissionPatternConstants";
 import { seedStaff } from "../_test/scenarioBuilders";
 import { seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
-import { SHIFT_DATE_NOTE_MAX_LENGTH, SHIFT_REQUESTS_PER_SUBMISSION_LIMIT } from "../constants";
+import {
+  RECRUITMENT_PERIOD_DAYS_MAX,
+  SHIFT_DATE_NOTE_MAX_LENGTH,
+  SHIFT_REQUESTS_PER_SUBMISSION_LIMIT,
+  SHIFT_TYPE_SELECTIONS_PER_SUBMISSION_LIMIT,
+} from "../constants";
 
 /** テスト用にshop + staff + recruitment + sessionをセットアップ */
 async function setupTestData(
@@ -648,6 +654,61 @@ describe("shiftSubmission/mutations", () => {
           submission: { kind: "shiftType", selections: [{ date: "2026-04-31", optionId: "morning" }] },
         }),
       ).rejects.toThrow("Invalid request data");
+    });
+
+    it("パターン選択は1日に複数選べるため、31件を超える選択も期間の日数×パターン数まで提出できる", async () => {
+      const t = convexTest(schema, modules);
+      const options = Array.from({ length: MAX_SHIFT_TYPE_OPTIONS }, (_, index) => ({
+        id: `option-${index}`,
+        name: `パターン${index + 1}`,
+        startTime: `${String(9 + index * 3).padStart(2, "0")}:00`,
+        endTime: `${String(12 + index * 3).padStart(2, "0")}:00`,
+        sortOrder: index,
+      }));
+      const dates = Array.from({ length: RECRUITMENT_PERIOD_DAYS_MAX }, (_, index) =>
+        new Date(Date.UTC(2026, 3, 7 + index)).toISOString().slice(0, 10),
+      );
+      const { sessionToken, recruitmentId, staffId } = await setupTestData(t, {
+        periodEnd: dates[dates.length - 1],
+        submissionPattern: { kind: "shiftType", options },
+      });
+      const selections = dates.flatMap((date) => options.map((option) => ({ date, optionId: option.id })));
+      const submitSelections = (target: typeof selections) =>
+        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+          sessionToken,
+          accessKind: "submit",
+          recruitmentId,
+          submission: { kind: "shiftType", selections: target },
+        });
+      const listSlotKeys = () =>
+        t.run(async (ctx) =>
+          (
+            await ctx.db
+              .query("shiftSubmissionSlots")
+              .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId))
+              .collect()
+          )
+            .map((slot) => `${slot.date}:${slot.optionId}`)
+            .sort(),
+        );
+
+      // 報告された再現条件: 16日×2パターン=32件
+      const reported = selections.filter(
+        (selection) => dates.indexOf(selection.date) < 16 && ["option-0", "option-1"].includes(selection.optionId),
+      );
+      expect(reported).toHaveLength(SHIFT_REQUESTS_PER_SUBMISSION_LIMIT + 1);
+      await expect(submitSelections(reported)).resolves.toBeNull();
+      expect(await listSlotKeys()).toEqual(reported.map((s) => `${s.date}:${s.optionId}`).sort());
+
+      // 期間31日×全パターンが上限
+      expect(selections).toHaveLength(SHIFT_TYPE_SELECTIONS_PER_SUBMISSION_LIMIT);
+      await expect(submitSelections(selections)).resolves.toBeNull();
+      const allKeys = selections.map((s) => `${s.date}:${s.optionId}`).sort();
+      expect(await listSlotKeys()).toEqual(allKeys);
+
+      // 上限を超える入力は保存前に拒否し、既存の提出を変えない
+      await expect(submitSelections([...selections, selections[0]])).rejects.toThrowError("Invalid request data");
+      expect(await listSlotKeys()).toEqual(allKeys);
     });
 
     it("全休み提出（空配列）でshiftSubmissionのみ作成", async () => {
