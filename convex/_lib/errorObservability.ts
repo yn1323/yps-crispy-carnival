@@ -1,4 +1,4 @@
-import { ConvexError } from "convex/values";
+import { ConvexError, type Value } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import {
   action as rawAction,
@@ -35,20 +35,32 @@ export type ConvexFunctionErrorContext = Partial<{
   requestedPersonId: Id<"organizationPeople">;
   requestedInvitationId: Id<"organizationInvitations">;
   requestedNotificationOutboxId: Id<"notificationOutbox">;
+  requestedUserId: Id<"users">;
   operation: "read" | "create" | "update" | "delete" | "recover";
   affectedCount: number;
   retryable: boolean;
 }>;
 
+/** 利用者の通常の操作で起き、画面が理由と次の操作を案内する失敗の分類。 */
+export type ExpectedConvexErrorKind =
+  | "plan_limit"
+  | "business_rule"
+  | "already_exists"
+  | "stale_state"
+  | "time_passed"
+  | "rate_limited"
+  | "auth_expired";
+
 type ErrorPayload = {
   schemaVersion: typeof ERROR_SCHEMA_VERSION;
   functionKind: FunctionKind;
-  failureKind: "domain" | "unexpected" | "unknown";
+  failureKind: "expected" | "domain" | "unexpected" | "unknown";
   errorCode: string;
   context?: Record<string, ErrorContextPrimitive>;
 };
 
 const resolvedContexts = new WeakMap<object, Record<string, ErrorContextPrimitive>>();
+const expectedErrorKinds = new WeakMap<object, ExpectedConvexErrorKind>();
 
 const safeContextFields = {
   actorKind: { kind: "enum", values: ["authenticated", "manager", "staff", "system"] },
@@ -67,10 +79,40 @@ const safeContextFields = {
   requestedPersonId: { kind: "id", maxLength: MAX_ID_LENGTH },
   requestedInvitationId: { kind: "id", maxLength: MAX_ID_LENGTH },
   requestedNotificationOutboxId: { kind: "id", maxLength: MAX_ID_LENGTH },
+  requestedUserId: { kind: "id", maxLength: MAX_ID_LENGTH },
   operation: { kind: "enum", values: ["read", "create", "update", "delete", "recover"] },
   affectedCount: { kind: "number" },
   retryable: { kind: "boolean" },
 } as const;
+
+/**
+ * 引数のうち、この名前の項目だけを未検証の要求IDとして記録する。
+ * 名前で限定し、token・氏名・メールアドレスなどの値を拾わない。
+ */
+const requestedIdArgFields = {
+  organizationId: "requestedOrganizationId",
+  expectedOrganizationId: "requestedExpectedOrganizationId",
+  shopId: "requestedShopId",
+  recruitmentId: "requestedRecruitmentId",
+  staffId: "requestedStaffId",
+  organizationPersonId: "requestedPersonId",
+  personId: "requestedPersonId",
+  invitationId: "requestedInvitationId",
+  organizationInvitationId: "requestedInvitationId",
+  notificationOutboxId: "requestedNotificationOutboxId",
+  userId: "requestedUserId",
+} as const satisfies Record<string, keyof ConvexFunctionErrorContext>;
+
+// Convex document IDの形だけを許可し、任意の文字列をログへ書き込ませない。
+const CONVEX_ID_PATTERN = /^[0-9a-z]{16,64}$/;
+
+/** action境界で作り直され、WeakMapで追えない想定内の構造化エラーcode。 */
+const expectedConvexErrorCodeKinds = new Map<string, ExpectedConvexErrorKind>([
+  ["USAGE_LIMIT_EXCEEDED", "plan_limit"],
+  ["LINE_LINKED_TO_OTHER_PERSON", "already_exists"],
+  ["PROMOTION_CODE_INVALID", "already_exists"],
+  ["RATE_LIMITED", "rate_limited"],
+]);
 
 const safeConvexErrorCodes = new Map<string, string>([
   ["Unauthenticated", "unauthenticated"],
@@ -123,6 +165,40 @@ const sanitizeResolvedContext = (context: ConvexFunctionErrorContext) => {
   return takeBoundedFields(entries);
 };
 
+const convexErrorCode = (error: ConvexError<never>) => {
+  const data = error.data as unknown;
+  if (typeof data === "string") return data;
+  return isRecord(data) && typeof data.code === "string" ? data.code : undefined;
+};
+
+const expectedErrorKind = (error: unknown) => {
+  if (!(error instanceof ConvexError)) return undefined;
+  const kind = expectedErrorKinds.get(error);
+  if (kind) return kind;
+  const code = convexErrorCode(error as ConvexError<never>);
+  return code === undefined ? undefined : expectedConvexErrorCodeKinds.get(code);
+};
+
+/**
+ * 利用者の通常の操作で起きる失敗を作る。
+ * 画面へ届く内容は`new ConvexError(data)`と同じで、エラーログだけがwarnと分類名で記録される。
+ */
+export const expectedConvexError = <T extends Value>(kind: ExpectedConvexErrorKind, data: T) => {
+  const error = new ConvexError(data);
+  expectedErrorKinds.set(error, kind);
+  return error;
+};
+
+const requestedIdContextFromArgs = (args: unknown) => {
+  if (!isRecord(args)) return [];
+  const entries: Array<readonly [string, ErrorContextPrimitive]> = [];
+  for (const [argName, field] of Object.entries(requestedIdArgFields)) {
+    const value = args[argName];
+    if (typeof value === "string" && CONVEX_ID_PATTERN.test(value)) entries.push([field, value]);
+  }
+  return entries;
+};
+
 const safeConvexErrorCode = (error: ConvexError<never>) => {
   const data = error.data as unknown;
   if (typeof data === "string") return safeConvexErrorCodes.get(data) ?? "convex_error";
@@ -134,17 +210,29 @@ export const buildConvexFunctionErrorPayload = (
   functionKind: FunctionKind,
   error: unknown,
   ctx: unknown,
-  _args: unknown,
+  args: unknown,
 ): ErrorPayload => {
-  const failureKind = error instanceof ConvexError ? "domain" : error instanceof Error ? "unexpected" : "unknown";
-  const errorCode =
-    error instanceof ConvexError
-      ? safeConvexErrorCode(error as ConvexError<never>)
+  const expectedKind = expectedErrorKind(error);
+  const failureKind = expectedKind
+    ? "expected"
+    : error instanceof ConvexError
+      ? "domain"
       : error instanceof Error
-        ? "unexpected_error"
-        : "unknown_throw";
+        ? "unexpected"
+        : "unknown";
+  const knownCode = error instanceof ConvexError ? safeConvexErrorCode(error as ConvexError<never>) : undefined;
+  const errorCode =
+    expectedKind && knownCode === "convex_error"
+      ? `expected_${expectedKind}`
+      : (knownCode ?? (error instanceof Error ? "unexpected_error" : "unknown_throw"));
   const resolved = typeof ctx === "object" && ctx !== null ? resolvedContexts.get(ctx) : undefined;
-  const context = takeBoundedFields(Object.entries(resolved ?? {}));
+  // serverで解決した値を先に置き、上限を超えたときは引数由来の未検証IDから落とす。
+  const resolvedEntries = Object.entries(resolved ?? {});
+  const resolvedKeys = new Set(resolvedEntries.map(([key]) => key));
+  const context = takeBoundedFields([
+    ...resolvedEntries,
+    ...requestedIdContextFromArgs(args).filter(([key]) => !resolvedKeys.has(key)),
+  ]);
 
   return {
     schemaVersion: ERROR_SCHEMA_VERSION,
@@ -170,7 +258,9 @@ export const registerConvexFunctionErrorContext = (ctx: object, context: ConvexF
 const logConvexFunctionError = (functionKind: FunctionKind, error: unknown, ctx: unknown, args: unknown) => {
   try {
     const payload = buildConvexFunctionErrorPayload(functionKind, error, ctx, args);
-    console.error(CONVEX_FUNCTION_ERROR_MARKER, payload);
+    // 想定内の失敗はwarnに下げ、errorの件数を直すべき失敗だけにする。
+    if (payload.failureKind === "expected") console.warn(CONVEX_FUNCTION_ERROR_MARKER, payload);
+    else console.error(CONVEX_FUNCTION_ERROR_MARKER, payload);
   } catch {
     // 観測処理の失敗で、元のConvex functionの例外を置き換えない。
   }
