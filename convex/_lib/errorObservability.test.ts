@@ -169,6 +169,18 @@ describe("buildConvexFunctionErrorPayload", () => {
     expect(payload.context).toEqual({ requestedShopId: shopId, requestedUserId: userId });
   });
 
+  it("同じfieldへ対応する別名の引数は、先の名前の値を残して上書きしない", () => {
+    const organizationPersonId = "qs7bt068601hztgb23xtv9ngs58bneer";
+    const payload = buildConvexFunctionErrorPayload(
+      "mutation",
+      new Error("failed"),
+      {},
+      { personId: "qs78nsjgvfx3txhpgesbrtwfen8jcrem", organizationPersonId },
+    );
+
+    expect(payload.context).toEqual({ requestedPersonId: organizationPersonId });
+  });
+
   it("serverで解決したcontextを優先し、上限を超えた引数由来のIDを落とす", () => {
     const id = (seed: string) => seed.padEnd(32, "a");
     const ctx = {};

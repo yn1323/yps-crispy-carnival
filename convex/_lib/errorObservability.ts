@@ -110,7 +110,7 @@ const CONVEX_ID_PATTERN = /^[0-9a-z]{16,64}$/;
 const expectedConvexErrorCodeKinds = new Map<string, ExpectedConvexErrorKind>([
   ["USAGE_LIMIT_EXCEEDED", "plan_limit"],
   ["LINE_LINKED_TO_OTHER_PERSON", "already_exists"],
-  ["PROMOTION_CODE_INVALID", "already_exists"],
+  ["PROMOTION_CODE_INVALID", "business_rule"],
   ["RATE_LIMITED", "rate_limited"],
 ]);
 
@@ -191,12 +191,13 @@ export const expectedConvexError = <T extends Value>(kind: ExpectedConvexErrorKi
 
 const requestedIdContextFromArgs = (args: unknown) => {
   if (!isRecord(args)) return [];
-  const entries: Array<readonly [string, ErrorContextPrimitive]> = [];
+  const entries = new Map<string, ErrorContextPrimitive>();
   for (const [argName, field] of Object.entries(requestedIdArgFields)) {
     const value = args[argName];
-    if (typeof value === "string" && CONVEX_ID_PATTERN.test(value)) entries.push([field, value]);
+    // 別名の引数が同じfieldへ対応するときは、最初の値を残して上書きしない。
+    if (!entries.has(field) && typeof value === "string" && CONVEX_ID_PATTERN.test(value)) entries.set(field, value);
   }
-  return entries;
+  return [...entries];
 };
 
 const safeConvexErrorCode = (error: ConvexError<never>) => {

@@ -567,8 +567,7 @@ async function revokeInvitationForActor(
     });
     return { status: "revoked" as const, invitationId: invitation._id };
   }
-  if (!isOrganizationInvitationIssued(invitation))
-    throw expectedConvexError("already_exists", "この招待は取り消せません");
+  if (!isOrganizationInvitationIssued(invitation)) throw expectedConvexError("stale_state", "この招待は取り消せません");
   const now = Date.now();
   await ctx.db.patch(invitation._id, {
     status: "revoked",
@@ -682,7 +681,7 @@ async function resendInvitationForActor(
 
   const oldInvitation = requestedInvitation;
   if (!isOrganizationInvitationIssued(oldInvitation) && oldInvitation.status !== "expired") {
-    throw expectedConvexError("already_exists", "この招待は再送できません");
+    throw expectedConvexError("stale_state", "この招待は再送できません");
   }
   const now = Date.now();
   const wasExpired = oldInvitation.status === "expired" || oldInvitation.expiresAt <= now;

@@ -34,7 +34,7 @@ const regularClosedDaysValidator = v.array(
 );
 
 function invalidPromotionCode(): never {
-  throw expectedConvexError("already_exists", { code: PROMOTION_CODE_INVALID_ERROR_CODE });
+  throw expectedConvexError("business_rule", { code: PROMOTION_CODE_INVALID_ERROR_CODE });
 }
 
 function resolveInitialSetupBillingMode(promotionCode: string | undefined): "trial" | "complimentaryPro" {
