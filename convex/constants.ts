@@ -1,3 +1,4 @@
+import { MAX_SHIFT_TYPE_OPTIONS } from "./_lib/submissionPatternConstants";
 import { ORGANIZATION_PLAN_LIMITS } from "./organizationBilling/planLimits";
 
 export const MINUTE_MS = 60_000;
@@ -104,6 +105,7 @@ export const RECRUITMENT_DUPLICATE_SCAN_LIMIT = 500;
 export const OPEN_RECRUITMENT_NOTIFICATION_LIMIT = 50;
 // スタッフ個別の確定シフト再送で、一度の操作に固定できる募集数。
 export const CURRENT_SHIFT_NOTIFICATION_LIMIT = 40;
+// 時間で提出する募集と、出勤日だけを提出する募集の1回の提出件数。どちらも1日1件に限る。
 export const SHIFT_REQUESTS_PER_SUBMISSION_LIMIT = 31;
 // 希望シフトに添える日付ごとのメモ。管理画面の2行表示とSPの折り返しで読める長さに収める。
 export const SHIFT_DATE_NOTE_MAX_LENGTH = 100;
@@ -124,6 +126,10 @@ export const SHIFT_TYPE_NAME_MAX_LENGTH = 30;
 export const EMAIL_MAX_LENGTH = 254;
 export const STAFF_ADD_ENTRIES_MAX = 50;
 export const RECRUITMENT_PERIOD_DAYS_MAX = 31;
+// 勤務パターンで提出する募集は、1日に複数のパターンを選べる。
+// そのため1回の提出件数は「募集期間の最大日数×勤務パターンの最大件数」まで受け付ける。
+// 募集ごとの実際の上限（その募集の日数×パターン数）は、期間内の日付と同じ日の同じパターンの重複を拒否する検証で守る。
+export const SHIFT_TYPE_SELECTIONS_PER_SUBMISSION_LIMIT = RECRUITMENT_PERIOD_DAYS_MAX * MAX_SHIFT_TYPE_OPTIONS;
 // 提出時の検証で1スタッフ1日1件に限るため、募集あたりのメモは「スタッフ数×募集日数」を超えない。
 export const SHIFT_BOARD_DATE_NOTE_LIMIT = SHIFT_BOARD_STAFF_LIMIT * RECRUITMENT_PERIOD_DAYS_MAX;
 export const FEATURE_REQUEST_COMMENT_MAX_LENGTH = 200;
