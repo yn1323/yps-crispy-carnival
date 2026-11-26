@@ -107,7 +107,7 @@ export function HelpShiftExport() {
           <Stack as="section" gap={5} aria-labelledby="export-examples-title">
             <Stack gap={3}>
               <Heading id="export-examples-title" as="h2" color="gray.950" fontSize={{ base: "xl", lg: "2xl" }}>
-                Excel・Google スプレッドシートにも対応！
+                Excel・Google スプレッドシートにも対応
               </Heading>
               <Text color="gray.700" lineHeight="1.8">
                 ダウンロードしたExcelファイルは、ExcelやGoogle スプレッドシートで開いて編集できます。
