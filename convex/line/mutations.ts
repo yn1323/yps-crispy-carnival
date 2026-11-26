@@ -4,7 +4,10 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { APP_URL } from "../_lib/config";
-import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
+import {
+  observedInternalMutation as internalMutation,
+  registerConvexFunctionErrorContext,
+} from "../_lib/errorObservability";
 import { authenticatedMutation, managerMutation } from "../_lib/functions";
 import { buildLineAuthorizeUrl } from "../_lib/lineClient";
 import { rateLimit } from "../_lib/rateLimits";
@@ -387,6 +390,13 @@ export const finalizeLinking = internalMutation({
     }
     const canonical = await resolveCanonicalTokenScope(ctx, link);
     if (canonical.status === "invalid") return { status: "expired" as const };
+    registerConvexFunctionErrorContext(ctx, {
+      actorKind: "staff",
+      staffId: staff._id,
+      shopId: shop._id,
+      organizationId: canonical.scope.organization._id,
+      actorPersonId: canonical.scope.person._id,
+    });
     const result = await finalizeCanonicalLinking(ctx, {
       token: link,
       scope: canonical.scope,

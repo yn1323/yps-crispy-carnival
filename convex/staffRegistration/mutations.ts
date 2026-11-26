@@ -3,7 +3,11 @@ import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { APP_URL } from "../_lib/config";
-import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
+import {
+  expectedConvexError,
+  observedInternalMutation as internalMutation,
+  registerConvexFunctionErrorContext,
+} from "../_lib/errorObservability";
 import { managerLimitRecoveryMutation, managerMutation } from "../_lib/functions";
 import { checkRateLimit, rateLimit } from "../_lib/rateLimits";
 import { generateUUID } from "../_lib/uuid";
@@ -53,7 +57,7 @@ type SubmitRegistrationRequestArgs = {
 };
 
 function registrationLinkUnavailableError() {
-  return new ConvexError(REGISTRATION_LINK_UNAVAILABLE_MESSAGE);
+  return expectedConvexError("auth_expired", REGISTRATION_LINK_UNAVAILABLE_MESSAGE);
 }
 
 function buildRegistrationUrl(token: string) {
@@ -84,6 +88,7 @@ async function submitRegistrationRequestImpl(
 
   const shop = await resolveStaffRegistrationCapability(ctx, args.token);
   if (!shop) throw registrationLinkUnavailableError();
+  registerConvexFunctionErrorContext(ctx, { shopId: shop._id, organizationId: shop.organizationId });
 
   await createVerifiedRegistrationRequest(ctx, {
     shopId: shop._id,
@@ -311,12 +316,15 @@ export const approveRequest = managerMutation({
       emailNormalized: request.emailNormalized,
     });
     if (!approvalAvailability.canApprove) {
-      throw new ConvexError(approvalAvailability.approveDisabledReason ?? STAFF_REGISTRATION_APPROVAL_DISABLED_REASON);
+      throw expectedConvexError(
+        "stale_state",
+        approvalAvailability.approveDisabledReason ?? STAFF_REGISTRATION_APPROVAL_DISABLED_REASON,
+      );
     }
 
     const existingStaff = await findActiveStaffByEmail(ctx, ctx.shop._id, request.emailNormalized);
     if (existingStaff) {
-      throw new ConvexError("このメールアドレスはすでに使用されています。");
+      throw expectedConvexError("already_exists", "このメールアドレスはすでに使用されています。");
     }
 
     let organizationPersonId: Id<"organizationPeople">;
