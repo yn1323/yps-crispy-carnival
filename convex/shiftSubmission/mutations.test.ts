@@ -3,6 +3,7 @@ import type { TestConvex } from "convex-test";
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
+import { addDays } from "../_lib/dateFormat";
 import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import { MAX_SHIFT_TYPE_OPTIONS } from "../_lib/submissionPatternConstants";
 import { seedStaff } from "../_test/scenarioBuilders";
@@ -665,9 +666,7 @@ describe("shiftSubmission/mutations", () => {
         endTime: `${String(12 + index * 3).padStart(2, "0")}:00`,
         sortOrder: index,
       }));
-      const dates = Array.from({ length: RECRUITMENT_PERIOD_DAYS_MAX }, (_, index) =>
-        new Date(Date.UTC(2026, 3, 7 + index)).toISOString().slice(0, 10),
-      );
+      const dates = Array.from({ length: RECRUITMENT_PERIOD_DAYS_MAX }, (_, index) => addDays("2026-04-07", index));
       const { sessionToken, recruitmentId, staffId } = await setupTestData(t, {
         periodEnd: dates[dates.length - 1],
         submissionPattern: { kind: "shiftType", options },
