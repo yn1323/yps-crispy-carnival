@@ -1,4 +1,4 @@
-import { ConvexError } from "convex/values";
+import { expectedConvexError } from "./errorObservability";
 
 export const RECRUITMENT_CHANGED = "RECRUITMENT_CHANGED";
 
@@ -13,7 +13,7 @@ export function assertRecruitmentEditVersion(recruitment: { editVersion?: number
     expectedEditVersion < 0 ||
     getRecruitmentEditVersion(recruitment) !== expectedEditVersion
   ) {
-    throw new ConvexError(RECRUITMENT_CHANGED);
+    throw expectedConvexError("stale_state", RECRUITMENT_CHANGED);
   }
 }
 

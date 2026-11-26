@@ -3,6 +3,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { getPromotionComplimentaryProCode } from "../_lib/config";
+import { expectedConvexError } from "../_lib/errorObservability";
 import { authenticatedMutation } from "../_lib/functions";
 import { rateLimit } from "../_lib/rateLimits";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
@@ -33,7 +34,7 @@ const regularClosedDaysValidator = v.array(
 );
 
 function invalidPromotionCode(): never {
-  throw new ConvexError({ code: PROMOTION_CODE_INVALID_ERROR_CODE });
+  throw expectedConvexError("already_exists", { code: PROMOTION_CODE_INVALID_ERROR_CODE });
 }
 
 function resolveInitialSetupBillingMode(promotionCode: string | undefined): "trial" | "complimentaryPro" {
@@ -50,7 +51,7 @@ type InitialSetupCtx = MutationCtx & { user: Doc<"users"> | null };
 async function assertInitialSetupEligibility(ctx: InitialSetupCtx): Promise<void> {
   const currentUser = ctx.user;
   if (currentUser?.isDeleted || currentUser?.accountDeletionRequestedAt !== undefined) {
-    throw new ConvexError("無効になったアカウントでは、初期設定を開始できません。");
+    throw expectedConvexError("business_rule", "無効になったアカウントでは、初期設定を開始できません。");
   }
   if (!currentUser) return;
 
@@ -61,7 +62,7 @@ async function assertInitialSetupEligibility(ctx: InitialSetupCtx): Promise<void
   for (const membership of currentMemberships) {
     const organization = await ctx.db.get(membership.organizationId);
     if (organization && !organization.isDeleted) {
-      throw new ConvexError("すでに組織へ所属しています。");
+      throw expectedConvexError("already_exists", "すでに組織へ所属しています。");
     }
   }
   const activePeople = await ctx.db
@@ -71,7 +72,7 @@ async function assertInitialSetupEligibility(ctx: InitialSetupCtx): Promise<void
   for (const person of activePeople) {
     const organization = await ctx.db.get(person.organizationId);
     if (organization && !organization.isDeleted) {
-      throw new ConvexError("すでに組織へ所属しています。");
+      throw expectedConvexError("already_exists", "すでに組織へ所属しています。");
     }
   }
 
@@ -87,7 +88,7 @@ async function assertInitialSetupEligibility(ctx: InitialSetupCtx): Promise<void
     );
   }
   if (selfCreatedOrganizations.length === 1) {
-    throw new ConvexError("自分で作成できる組織は1つまでです。");
+    throw expectedConvexError("business_rule", "自分で作成できる組織は1つまでです。");
   }
 }
 
@@ -188,7 +189,7 @@ export const createOrganizationForApp = authenticatedMutation({
   }),
   handler: async (ctx, args) => {
     const user = ctx.user;
-    if (!user) throw new ConvexError("組織を作成する前に、初期設定を完了してください。");
+    if (!user) throw expectedConvexError("business_rule", "組織を作成する前に、初期設定を完了してください。");
     const actor = await requireOrganizationReadActor(ctx, {
       user,
       organizationId: args.organizationId,
@@ -223,7 +224,7 @@ async function createAdditionalOrganization(
   },
 ) {
   if (user.isDeleted || user.accountDeletionRequestedAt !== undefined) {
-    throw new ConvexError(ORGANIZATION_CREATE_UNAVAILABLE_MESSAGE);
+    throw expectedConvexError("business_rule", ORGANIZATION_CREATE_UNAVAILABLE_MESSAGE);
   }
 
   const requestKey = await toAuditRequestKey(args.requestId);
@@ -236,11 +237,14 @@ async function createAdditionalOrganization(
     rateLimit(ctx, { name: "organizationCreateDaily", key: user._id }),
   ]);
   if (!shortLimit.ok || !dailyLimit.ok) {
-    throw new ConvexError("組織の作成処理が進行中です。\n少し時間をおいてから、もう一度お試しください。");
+    throw expectedConvexError(
+      "rate_limited",
+      "組織の作成処理が進行中です。\n少し時間をおいてから、もう一度お試しください。",
+    );
   }
 
   const availability = await getOrganizationCreationAvailability(ctx, user);
-  if (!availability.canCreate) throw new ConvexError(availability.reason);
+  if (!availability.canCreate) throw expectedConvexError("stale_state", availability.reason);
   const parsed = updateShopSettingsSchema.safeParse({
     shopName: args.shopName,
     regularClosedDays: args.regularClosedDays,

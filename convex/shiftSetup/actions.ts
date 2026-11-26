@@ -1,6 +1,6 @@
 import { ConvexError, type Infer, v } from "convex/values";
 import { internal } from "../_generated/api";
-import { observedAction as action } from "../_lib/errorObservability";
+import { observedAction as action, expectedConvexError } from "../_lib/errorObservability";
 import { dayRequirementsValidator, shiftDayTemplateWeekdayValidator } from "../_lib/shiftSetupValidators";
 import { buildRandomShiftSetupDraft } from "./assistDraft";
 import type { PreparedAssistRequest } from "./mutations";
@@ -37,7 +37,7 @@ export const suggestShiftSetup = action({
   returns: assistResultValidator,
   handler: async (ctx, args): Promise<AssistResult> => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new ConvexError("Unauthenticated");
+    if (!identity) throw expectedConvexError("auth_expired", "Unauthenticated");
 
     const situation = assistSituationSchema.safeParse(args.situation);
     if (!situation.success) {

@@ -2,7 +2,7 @@ import { ConvexError, type Infer, v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { getShiftSetupAssistMode } from "../_lib/config";
-import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
+import { expectedConvexError, observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { managerMutation, resolveManagerShopAccessByTokenIdentifier } from "../_lib/functions";
 import { rateLimit } from "../_lib/rateLimits";
 import {
@@ -75,7 +75,7 @@ export const savePositions = managerMutation({
     const replacesDefault = hadDefaultPosition && !inputIds.includes(defaultPositionId);
     const keepsCreatedDefault = !hadDefaultPosition;
     if (keepsCreatedDefault && args.positions.length >= POSITION_ACTIVE_LIMIT) {
-      throw new ConvexError(ACTIVE_POSITION_LIMIT_MESSAGE);
+      throw expectedConvexError("business_rule", ACTIVE_POSITION_LIMIT_MESSAGE);
     }
 
     const keptIds = new Set<Id<"positions">>(replacesDefault ? inputIds : [...inputIds, defaultPositionId]);
@@ -140,7 +140,7 @@ async function deleteDraftDaysOutsidePositions(
     )
     .take(POSITION_REMOVAL_OPEN_RECRUITMENT_LIMIT + 1);
   if (recruitments.length > POSITION_REMOVAL_OPEN_RECRUITMENT_LIMIT) {
-    throw new ConvexError("確定していない募集が多いため、ポジションを削除できません");
+    throw expectedConvexError("business_rule", "確定していない募集が多いため、ポジションを削除できません");
   }
 
   const dayKey = (assignment: Doc<"shiftAssignments">) => `${assignment.staffId}\u0000${assignment.date}`;
@@ -150,7 +150,7 @@ async function deleteDraftDaysOutsidePositions(
       .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitment._id))
       .take(SHIFT_ASSIGNMENT_LIMIT + 1);
     if (assignments.length > SHIFT_ASSIGNMENT_LIMIT) {
-      throw new ConvexError("下書きの勤務が多いため、ポジションを削除できません");
+      throw expectedConvexError("business_rule", "下書きの勤務が多いため、ポジションを削除できません");
     }
     const targetDays = new Set(
       assignments.filter((assignment) => !keptPositionIds.has(assignment.positionId)).map(dayKey),
@@ -310,7 +310,8 @@ async function requireStaffingEditableRecruitment(
 ): Promise<Doc<"recruitments">> {
   const recruitment = await getActiveRecruitmentInShop(ctx, shopId, recruitmentId);
   if (!recruitment) throw new ConvexError("Not found");
-  if (recruitment.status === "confirmed") throw new ConvexError(CONFIRMED_RECRUITMENT_STAFFING_ERROR);
+  if (recruitment.status === "confirmed")
+    throw expectedConvexError("business_rule", CONFIRMED_RECRUITMENT_STAFFING_ERROR);
 
   if (dates.length > RECRUITMENT_PERIOD_DAYS_MAX) {
     throw new ConvexError(`一度に変更できるのは${RECRUITMENT_PERIOD_DAYS_MAX}日までです`);

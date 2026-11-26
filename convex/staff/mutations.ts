@@ -4,7 +4,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { todayJST } from "../_lib/dateFormat";
-import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
+import { expectedConvexError, observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { managerMutation } from "../_lib/functions";
 import { checkRateLimit, rateLimit } from "../_lib/rateLimits";
 import { sha256Hex } from "../_lib/sha256";
@@ -313,7 +313,7 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
   const inputEmails = new Set<string>();
   for (const entry of validEntries) {
     if (inputEmails.has(entry.email)) {
-      throw new ConvexError("同じメールアドレスが複数入力されています。");
+      throw expectedConvexError("already_exists", "同じメールアドレスが複数入力されています。");
     }
     inputEmails.add(entry.email);
 
@@ -321,7 +321,7 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
 
     const existingStaff = await findActiveStaffByEmail(ctx, ctx.shop._id, entry.email);
     if (existingStaff) {
-      throw new ConvexError("このメールアドレスはすでに登録されています。");
+      throw expectedConvexError("already_exists", "このメールアドレスはすでに登録されています。");
     }
 
     const pendingRequest = await ctx.db
@@ -331,7 +331,7 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
       )
       .first();
     if (pendingRequest) {
-      throw new ConvexError("このメールアドレスはスタッフ登録の承認待ちです。");
+      throw expectedConvexError("already_exists", "このメールアドレスはスタッフ登録の承認待ちです。");
     }
   }
 
@@ -357,7 +357,10 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
           person.emailNormalized !== entry.email ||
           !(await hasValidOrganizationPersonUserLifecycle(ctx, person))
         ) {
-          throw new ConvexError("スタッフの追加対象が変更されています。\n画面を更新して、もう一度お試しください。");
+          throw expectedConvexError(
+            "stale_state",
+            "スタッフの追加対象が変更されています。\n画面を更新して、もう一度お試しください。",
+          );
         }
         return person;
       }),
@@ -804,7 +807,7 @@ export const changeOrganizationPersonShopMemberships = managerMutation({
       })),
     );
     if (currentFingerprint !== args.expectedMembershipFingerprint) {
-      throw new ConvexError(STALE_SHOP_MEMBERSHIP_CHANGE_ERROR);
+      throw expectedConvexError("stale_state", STALE_SHOP_MEMBERSHIP_CHANGE_ERROR);
     }
 
     const desiredShopIds = sortShopIds(args.desiredShopIds);
@@ -834,14 +837,14 @@ export const changeOrganizationPersonShopMemberships = managerMutation({
         return !membership || membership.staff._id !== preview.staffId;
       })
     ) {
-      throw new ConvexError(STALE_PERSON_REMOVAL_PREVIEW_ERROR);
+      throw expectedConvexError("stale_state", STALE_PERSON_REMOVAL_PREVIEW_ERROR);
     }
 
     const removalPreviewByShopId = new Map(args.removalPreviews.map((preview) => [preview.shopId, preview]));
     const assignmentIds = new Set<Id<"shiftAssignments">>();
     for (const membership of removals) {
       const expectedPreview = removalPreviewByShopId.get(membership.shop._id);
-      if (!expectedPreview) throw new ConvexError(STALE_PERSON_REMOVAL_PREVIEW_ERROR);
+      if (!expectedPreview) throw expectedConvexError("stale_state", STALE_PERSON_REMOVAL_PREVIEW_ERROR);
       const preview = await collectPersonRemovalPreview(ctx, {
         scope: {
           kind: "shop",
@@ -853,7 +856,8 @@ export const changeOrganizationPersonShopMemberships = managerMutation({
         asOfDate: todayJST(),
       });
       if (preview.kind === "tooMany") {
-        throw new ConvexError(
+        throw expectedConvexError(
+          "business_rule",
           `今日以降のシフトの割り当てが${preview.limit}件を超えています。\n先にシフトを整理してから、変更してください。`,
         );
       }
@@ -861,12 +865,13 @@ export const changeOrganizationPersonShopMemberships = managerMutation({
         expectedPreview.assignmentCount !== preview.assignmentCount ||
         expectedPreview.fingerprint !== preview.fingerprint
       ) {
-        throw new ConvexError(STALE_PERSON_REMOVAL_PREVIEW_ERROR);
+        throw expectedConvexError("stale_state", STALE_PERSON_REMOVAL_PREVIEW_ERROR);
       }
       for (const assignmentId of preview.assignmentIds) {
         assignmentIds.add(assignmentId);
         if (assignmentIds.size > ORGANIZATION_PERSON_REMOVAL_ASSIGNMENT_LIMIT) {
-          throw new ConvexError(
+          throw expectedConvexError(
+            "business_rule",
             `今日以降のシフトの割り当てが${ORGANIZATION_PERSON_REMOVAL_ASSIGNMENT_LIMIT}件を超えています。\n先にシフトを整理してから、変更してください。`,
           );
         }
@@ -1173,7 +1178,7 @@ export const changeOrganizationShopStaffMemberships = managerMutation({
       throw new ConvexError("所属スタッフを確認できません。\n画面を更新して、もう一度お試しください。");
     }
     if (snapshot.membershipFingerprint !== args.expectedMembershipFingerprint) {
-      throw new ConvexError(STALE_SHOP_MEMBERSHIP_CHANGE_ERROR);
+      throw expectedConvexError("stale_state", STALE_SHOP_MEMBERSHIP_CHANGE_ERROR);
     }
     const desiredPersonIdSet = new Set(args.desiredActivePersonIds);
     const snapshotPersonIdSet = new Set(snapshot.people.map((entry) => entry.person._id));
@@ -1184,7 +1189,7 @@ export const changeOrganizationShopStaffMemberships = managerMutation({
       if (entry.canChange) continue;
       const desired = desiredPersonIdSet.has(entry.person._id);
       if (desired !== Boolean(entry.currentStaff)) {
-        throw new ConvexError(entry.changeDisabledReason ?? "入力内容を確認してください。");
+        throw expectedConvexError("stale_state", entry.changeDisabledReason ?? "入力内容を確認してください。");
       }
     }
 
@@ -1204,7 +1209,7 @@ export const changeOrganizationShopStaffMemberships = managerMutation({
       key: `${ctx.user._id}:${ctx.shop._id}`,
     });
     if (!rateLimitResult.ok) {
-      throw new ConvexError("変更操作が続いています。\n少し待ってから、もう一度お試しください。");
+      throw expectedConvexError("rate_limited", "変更操作が続いています。\n少し待ってから、もう一度お試しください。");
     }
 
     const removalByPersonId = new Map(removals.map((entry) => [entry.person._id, entry]));
@@ -1215,7 +1220,7 @@ export const changeOrganizationShopStaffMemberships = managerMutation({
         return !entry?.currentStaff || entry.currentStaff._id !== preview.staffId;
       })
     ) {
-      throw new ConvexError(STALE_PERSON_REMOVAL_PREVIEW_ERROR);
+      throw expectedConvexError("stale_state", STALE_PERSON_REMOVAL_PREVIEW_ERROR);
     }
 
     const removalPreviewByPersonId = new Map(args.removalPreviews.map((preview) => [preview.personId, preview]));
@@ -1223,14 +1228,15 @@ export const changeOrganizationShopStaffMemberships = managerMutation({
     for (const entry of removals) {
       const staff = entry.currentStaff;
       const expectedPreview = removalPreviewByPersonId.get(entry.person._id);
-      if (!staff || !expectedPreview) throw new ConvexError(STALE_PERSON_REMOVAL_PREVIEW_ERROR);
+      if (!staff || !expectedPreview) throw expectedConvexError("stale_state", STALE_PERSON_REMOVAL_PREVIEW_ERROR);
       const preview = await collectPersonRemovalPreview(ctx, {
         scope: { kind: "shop", organizationId, shopId: ctx.shop._id, staffId: staff._id },
         staffs: [staff],
         asOfDate: todayJST(),
       });
       if (preview.kind === "tooMany") {
-        throw new ConvexError(
+        throw expectedConvexError(
+          "business_rule",
           `今日以降のシフトの割り当てが${preview.limit}件を超えています。\n先にシフトを整理してから、変更してください。`,
         );
       }
@@ -1238,12 +1244,13 @@ export const changeOrganizationShopStaffMemberships = managerMutation({
         preview.assignmentCount !== expectedPreview.assignmentCount ||
         preview.fingerprint !== expectedPreview.fingerprint
       ) {
-        throw new ConvexError(STALE_PERSON_REMOVAL_PREVIEW_ERROR);
+        throw expectedConvexError("stale_state", STALE_PERSON_REMOVAL_PREVIEW_ERROR);
       }
       for (const assignmentId of preview.assignmentIds) {
         assignmentIds.add(assignmentId);
         if (assignmentIds.size > ORGANIZATION_PERSON_REMOVAL_ASSIGNMENT_LIMIT) {
-          throw new ConvexError(
+          throw expectedConvexError(
+            "business_rule",
             `今日以降のシフトの割り当てが${ORGANIZATION_PERSON_REMOVAL_ASSIGNMENT_LIMIT}件を超えています。\n先にシフトを整理してから、変更してください。`,
           );
         }
@@ -1276,7 +1283,7 @@ export const changeOrganizationShopStaffMemberships = managerMutation({
     await deletePersonRemovalAssignments(ctx, [...assignmentIds]);
     for (const entry of removals) {
       const staff = entry.currentStaff;
-      if (!staff) throw new ConvexError(STALE_SHOP_MEMBERSHIP_CHANGE_ERROR);
+      if (!staff) throw expectedConvexError("stale_state", STALE_SHOP_MEMBERSHIP_CHANGE_ERROR);
       await ctx.db.patch(staff._id, { isDeleted: true });
       await ctx.scheduler.runAfter(0, internal.notificationOutbox.mutations.deleteStaffNotificationHistoryBatch, {
         shopId: ctx.shop._id,
@@ -1296,7 +1303,7 @@ export const changeOrganizationShopStaffMemberships = managerMutation({
     }
     for (const entry of removals) {
       const staff = entry.currentStaff;
-      if (!staff) throw new ConvexError(STALE_SHOP_MEMBERSHIP_CHANGE_ERROR);
+      if (!staff) throw expectedConvexError("stale_state", STALE_SHOP_MEMBERSHIP_CHANGE_ERROR);
       await recordOrganizationAuditEvent(ctx, {
         organizationId,
         actorUserId: ctx.user._id,

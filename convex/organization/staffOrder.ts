@@ -1,6 +1,7 @@
 import { ConvexError } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { DatabaseReader, DatabaseWriter } from "../_generated/server";
+import { expectedConvexError } from "../_lib/errorObservability";
 import { sha256Hex } from "../_lib/sha256";
 import { ORGANIZATION_PLAN_LIMITS } from "../organizationBilling/planLimits";
 
@@ -477,7 +478,7 @@ export async function saveOrganizationStaffOrderSnapshot(
     throw new ConvexError("スタッフの並び順を保存できる状態ではありません");
   }
   if (current.orderFingerprint !== args.expectedOrderFingerprint) {
-    throw new ConvexError(STALE_ORGANIZATION_STAFF_ORDER_ERROR);
+    throw expectedConvexError("stale_state", STALE_ORGANIZATION_STAFF_ORDER_ERROR);
   }
   const currentPersonIds = current.source.people.map((person) => person._id);
   if (

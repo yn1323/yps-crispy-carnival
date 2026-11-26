@@ -1,4 +1,5 @@
 import { ConvexError, v } from "convex/values";
+import { expectedConvexError } from "../_lib/errorObservability";
 import { organizationMutation } from "../_lib/functions";
 import { ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT, saveOrganizationStaffOrderSnapshot } from "../organization/staffOrder";
 
@@ -19,7 +20,10 @@ export const saveOrganizationStaffOrder = organizationMutation({
       throw new ConvexError("並び順の確認情報が不正です");
     }
     if (args.orderedPersonIds.length > ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT) {
-      throw new ConvexError(`並び替えられるスタッフは${ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT}名までです`);
+      throw expectedConvexError(
+        "business_rule",
+        `並び替えられるスタッフは${ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT}名までです`,
+      );
     }
     if (new Set(args.orderedPersonIds).size !== args.orderedPersonIds.length) {
       throw new ConvexError("並び順に同じスタッフが複数含まれています");

@@ -11,6 +11,7 @@ import {
 } from "../organizationBilling/service";
 import { isShiftTargetStaff } from "../staff/service";
 import {
+  expectedConvexError,
   observedMutation as mutation,
   observedQuery as query,
   registerConvexFunctionErrorContext,
@@ -156,7 +157,7 @@ export const authenticatedMutation = customMutation(mutation, {
   input: async (ctx): Promise<{ ctx: AuthenticatedMutationCtx; args: Record<string, never> }> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new ConvexError("Unauthenticated");
+      throw expectedConvexError("auth_expired", "Unauthenticated");
     }
     const user = await getUserByIdentity(ctx, identity, "mutation");
     registerConvexFunctionErrorContext(ctx, {
@@ -210,7 +211,7 @@ export const organizationMutation = customMutation(mutation, {
   input: async (ctx, { organizationId }): Promise<{ ctx: OrganizationMutationCtx; args: Record<string, never> }> => {
     registerConvexFunctionErrorContext(ctx, { requestedOrganizationId: organizationId });
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new ConvexError("Unauthenticated");
+    if (!identity) throw expectedConvexError("auth_expired", "Unauthenticated");
 
     const user = await getUserByIdentity(ctx, identity, "mutation");
     if (!user || user.isDeleted) throw new ConvexError("Not found");
@@ -291,7 +292,7 @@ async function resolveManagerMutationInput(
   });
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) {
-    throw new ConvexError("Unauthenticated");
+    throw expectedConvexError("auth_expired", "Unauthenticated");
   }
   const user = await getUserByIdentity(ctx, identity, "mutation");
   if (user) registerConvexFunctionErrorContext(ctx, { actorKind: "manager", actorUserId: user._id });
@@ -470,7 +471,7 @@ export const staffSessionMutation = customMutation(mutation, {
   input: async (ctx, { sessionToken, accessKind }): Promise<{ ctx: StaffSessionCtx; args: Record<string, never> }> => {
     const result = await resolveStaffSession(ctx, sessionToken, accessKind, "mutation");
     if (result.status === "sessionExpired") {
-      throw new ConvexError("Session expired");
+      throw expectedConvexError("auth_expired", "Session expired");
     }
     if (result.status === "notFound") {
       throw new ConvexError("Not found");

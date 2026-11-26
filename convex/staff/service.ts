@@ -1,6 +1,7 @@
 import { ConvexError } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
+import { expectedConvexError } from "../_lib/errorObservability";
 import { resolveOrganizationPersonEmail } from "../_lib/personIdentity";
 import { normalizeEmail } from "../_lib/validation";
 import {
@@ -319,7 +320,10 @@ export async function releasePendingInvitationReservationsForStaffAddition(
     .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId).eq("status", "issued"))
     .take(options.scanLimit + 1);
   if (issuedInvitations.length > options.scanLimit) {
-    throw new ConvexError("管理者招待が多いため、スタッフを追加できません。\n組織設定で招待状況を確認してください。");
+    throw expectedConvexError(
+      "business_rule",
+      "管理者招待が多いため、スタッフを追加できません。\n組織設定で招待状況を確認してください。",
+    );
   }
   await releaseMatchingInvitationReservations(ctx, issuedInvitations, entries, now);
 }
@@ -365,7 +369,7 @@ export async function prepareOrganizationPeopleForStaffAddition(
   for (const entry of args.entries) {
     const email = normalizeEmail(entry.email);
     if (inputEmails.has(email)) {
-      throw new ConvexError("同じメールアドレスが複数入力されています。");
+      throw expectedConvexError("already_exists", "同じメールアドレスが複数入力されています。");
     }
     inputEmails.add(email);
 
@@ -427,7 +431,7 @@ export async function prepareOrganizationPeopleForStaffAddition(
       const activeStaffRows = staffRows.filter((staff) => !staff.isDeleted);
       const existingStaffInShop = activeStaffRows.find((staff) => staff.shopId === args.shopId);
       if (existingStaffInShop) {
-        throw new ConvexError("このユーザーはすでに店舗へ登録されています。");
+        throw expectedConvexError("already_exists", "このユーザーはすでに店舗へ登録されています。");
       }
       // removed人物をactiveへ戻した瞬間に、過去の別店舗staffが暗黙復元されないことを保証する。
       if (person.status === "removed" && activeStaffRows.length > 0) {
@@ -495,7 +499,10 @@ export async function materializeOrganizationPeopleForStaffAddition(
         person.status !== "removed" ||
         normalizeEmail(person.email) !== entry.email
       ) {
-        throw new ConvexError("追加対象のユーザー情報が変わりました。\n追加内容をもう一度確認してください。");
+        throw expectedConvexError(
+          "stale_state",
+          "追加対象のユーザー情報が変わりました。\n追加内容をもう一度確認してください。",
+        );
       }
       if (!(await hasValidOrganizationPersonUserLifecycle(ctx, person))) {
         throw new ConvexError("このユーザーを追加できません。\nアカウントの状態を確認してください。");

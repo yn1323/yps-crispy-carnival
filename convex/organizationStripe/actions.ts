@@ -1,13 +1,17 @@
 "use node";
 
 import { createHash } from "node:crypto";
-import { ConvexError, v } from "convex/values";
+import { v } from "convex/values";
 import Stripe from "stripe";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
 import { getAppUrl } from "../_lib/config";
-import { observedAction as action, observedInternalAction as internalAction } from "../_lib/errorObservability";
+import {
+  observedAction as action,
+  expectedConvexError,
+  observedInternalAction as internalAction,
+} from "../_lib/errorObservability";
 import { organizationPaidPlanLabel } from "../organizationBilling/planPresentation";
 import type { CanonicalOrganizationBillingState } from "../organizationBilling/policy";
 import {
@@ -6568,7 +6572,7 @@ async function getAuthorizedContext(
   purpose: ActionPurpose,
 ): Promise<AuthorizedActionContext | null> {
   const identity = await ctx.auth.getUserIdentity();
-  if (!identity) throw new ConvexError("Unauthenticated");
+  if (!identity) throw expectedConvexError("auth_expired", "Unauthenticated");
   return await ctx.runQuery(internal.organizationStripe.queries.getActionContextForOrganization, {
     tokenIdentifier: identity.tokenIdentifier,
     organizationId: scope.organizationId,

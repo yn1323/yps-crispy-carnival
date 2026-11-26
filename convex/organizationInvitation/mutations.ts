@@ -5,7 +5,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { getOrganizationInvitationSigningSecret } from "../_lib/config";
-import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
+import { expectedConvexError, observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { authenticatedMutation, organizationMutation } from "../_lib/functions";
 import { resolveOrganizationPersonEmailForManagerAddition } from "../_lib/personIdentity";
 import { checkRateLimit, rateLimit } from "../_lib/rateLimits";
@@ -78,7 +78,8 @@ async function requireInvitationResendBudget(
   ] as const;
   const statuses = await Promise.all(limits.map(async (limit) => await checkRateLimit(ctx, limit)));
   if (statuses.some((status) => !status.ok)) {
-    throw new ConvexError(
+    throw expectedConvexError(
+      "rate_limited",
       "招待回数が多いため、送信を一時制限しています。\n少し時間をおいてから、もう一度お試しください。",
     );
   }
@@ -221,7 +222,7 @@ async function createManagerInvitation(
   const billingState = await getOrganizationBillingState(ctx, organization._id);
   const billingPolicy = billingState ? deriveOrganizationBillingPolicy(billingState.state) : null;
   if (!billingPolicy?.canManageManagers) {
-    throw new ConvexError("現在の契約状態では、管理者を変更できません。");
+    throw expectedConvexError("plan_limit", "現在の契約状態では、管理者を変更できません。");
   }
   const now = Date.now();
   const pendingByEmail = await ctx.db
@@ -271,13 +272,13 @@ async function createManagerInvitation(
       currentEmailInvitation.targetPersonId &&
       currentEmailInvitation.targetPersonId !== targetPerson._id
     ) {
-      throw new ConvexError("この招待は現在の契約では利用できません");
+      throw expectedConvexError("plan_limit", "この招待は現在の契約では利用できません");
     }
     const invitationForEligibility = targetPerson
       ? { ...currentEmailInvitation, targetPersonId: targetPerson._id }
       : currentEmailInvitation;
     if (!(await resolveOrganizationInvitationEligibility(ctx, invitationForEligibility))) {
-      throw new ConvexError("この招待は現在の契約では利用できません");
+      throw expectedConvexError("plan_limit", "この招待は現在の契約では利用できません");
     }
     await recordStrictAlreadyPendingReceipt(currentEmailInvitation._id);
     return { status: "alreadyPending" as const, invitationId: currentEmailInvitation._id };
@@ -296,7 +297,8 @@ async function createManagerInvitation(
     rateLimit(ctx, { name: "organizationManagerInviteCreateDaily", key }),
   ]);
   if (!shortLimit.ok || !dailyLimit.ok) {
-    throw new ConvexError(
+    throw expectedConvexError(
+      "rate_limited",
       "招待回数が多いため、送信を一時制限しています。\n少し時間をおいてから、もう一度お試しください。",
     );
   }
@@ -310,7 +312,7 @@ async function createManagerInvitation(
       )
       .take(2);
     if (members.length > 1) throw new ConvexError("管理者所属を一意に確認できません");
-    if (members[0]?.status === "active") throw new ConvexError("この利用者はすでに管理者です");
+    if (members[0]?.status === "active") throw expectedConvexError("already_exists", "この利用者はすでに管理者です");
   }
 
   const reservedSeat = existingPerson
@@ -393,7 +395,7 @@ async function requirePersonIsEligibleManagerInviteTarget(
     )
     .take(2);
   if (members.length > 1) throw new ConvexError("管理者所属を一意に確認できません");
-  if (members[0]?.status === "active") throw new ConvexError("この利用者はすでに管理者です");
+  if (members[0]?.status === "active") throw expectedConvexError("already_exists", "この利用者はすでに管理者です");
   if (!options.requireActiveStaff) return;
 
   const staffRows = await ctx.db
@@ -565,7 +567,8 @@ async function revokeInvitationForActor(
     });
     return { status: "revoked" as const, invitationId: invitation._id };
   }
-  if (!isOrganizationInvitationIssued(invitation)) throw new ConvexError("この招待は取り消せません");
+  if (!isOrganizationInvitationIssued(invitation))
+    throw expectedConvexError("already_exists", "この招待は取り消せません");
   const now = Date.now();
   await ctx.db.patch(invitation._id, {
     status: "revoked",
@@ -679,7 +682,7 @@ async function resendInvitationForActor(
 
   const oldInvitation = requestedInvitation;
   if (!isOrganizationInvitationIssued(oldInvitation) && oldInvitation.status !== "expired") {
-    throw new ConvexError("この招待は再送できません");
+    throw expectedConvexError("already_exists", "この招待は再送できません");
   }
   const now = Date.now();
   const wasExpired = oldInvitation.status === "expired" || oldInvitation.expiresAt <= now;
@@ -719,7 +722,7 @@ async function resendInvitationForActor(
     });
   }
   const eligibility = await resolveOrganizationInvitationEligibility(ctx, oldInvitation);
-  if (!eligibility) throw new ConvexError("この招待は現在の契約では利用できません");
+  if (!eligibility) throw expectedConvexError("plan_limit", "この招待は現在の契約では利用できません");
   const targetResolution = await resolveOrganizationPersonEmailForManagerAddition(ctx, {
     organizationId: organization._id,
     emailNormalized: oldInvitation.emailNormalized,
@@ -739,7 +742,7 @@ async function resendInvitationForActor(
       )
       .take(2);
     if (members.length > 1) throw new ConvexError("管理者所属を一意に確認できません");
-    if (members[0]?.status === "active") throw new ConvexError("この利用者はすでに管理者です");
+    if (members[0]?.status === "active") throw expectedConvexError("already_exists", "この利用者はすでに管理者です");
   }
   const reservedSeat = targetPerson
     ? !(await organizationPersonCountsTowardPeopleLimit(ctx, organization._id, targetPerson._id))

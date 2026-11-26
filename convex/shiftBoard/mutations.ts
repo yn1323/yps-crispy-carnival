@@ -5,7 +5,7 @@ import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { isAiShiftDraftConfigured } from "../_lib/config";
 import { isPastShiftPeriod, jstDayRangeMs } from "../_lib/dateFormat";
-import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
+import { expectedConvexError, observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { managerMutation, resolveManagerShopAccessByTokenIdentifier } from "../_lib/functions";
 import { rateLimit } from "../_lib/rateLimits";
 import { assertRecruitmentEditVersion } from "../_lib/recruitmentEditing";
@@ -84,7 +84,7 @@ async function getUndeliveredPreviousConfirmationStaffIds(
     ),
   );
   if (deliveryStates.some(({ state }) => state === "processing")) {
-    throw new ConvexError(PREVIOUS_CONFIRMATION_NOTIFICATION_PROCESSING_ERROR);
+    throw expectedConvexError("stale_state", PREVIOUS_CONFIRMATION_NOTIFICATION_PROCESSING_ERROR);
   }
   return {
     undeliveredStaffIds: new Set(
@@ -232,7 +232,7 @@ export const saveShiftAssignments = managerMutation({
     }
     assertRecruitmentEditVersion(recruitment, args.expectedEditVersion);
     if (isPastShiftPeriod(recruitment.periodEnd)) {
-      throw new ConvexError(PAST_SHIFT_SAVE_ERROR);
+      throw expectedConvexError("time_passed", PAST_SHIFT_SAVE_ERROR);
     }
     if (args.assignments.length > SHIFT_ASSIGNMENT_LIMIT) {
       throw new ConvexError("シフト割当が上限を超えています");
@@ -248,7 +248,7 @@ export const saveShiftAssignments = managerMutation({
       pattern: submissionPattern,
     });
     if (issues.length > 0) {
-      throw new ConvexError({ code: SHIFT_ASSIGNMENT_VALIDATION, issues });
+      throw expectedConvexError("business_rule", { code: SHIFT_ASSIGNMENT_VALIDATION, issues });
     }
     const uniqueStaffIds = [...new Set(args.assignments.map((a) => a.staffId))];
     const uniquePositionIds = [...new Set(args.assignments.flatMap((a) => (a.positionId ? [a.positionId] : [])))];
@@ -342,7 +342,7 @@ export const switchShiftDetailMode = managerMutation({
     }
     assertRecruitmentEditVersion(recruitment, args.expectedEditVersion);
     if (recruitment.status === "confirmed") {
-      throw new ConvexError("確定済みのシフトでは、表示を切り替えられません");
+      throw expectedConvexError("business_rule", "確定済みのシフトでは、表示を切り替えられません");
     }
 
     // 消し残しを作らないよう、上限を超える下書きでは切り替えごと受け付けない。
@@ -425,13 +425,13 @@ export const confirmRecruitment = managerMutation({
       await toAuditRequestKey(args.requestId);
     }
     if (isPastShiftPeriod(recruitment.periodEnd)) {
-      throw new ConvexError(PAST_SHIFT_NOTIFY_ERROR);
+      throw expectedConvexError("time_passed", PAST_SHIFT_NOTIFY_ERROR);
     }
 
     const isResend = recruitment.status === "confirmed";
     const intent = args.intent ?? "confirm";
     if (intent === "resend" && !isResend) {
-      throw new ConvexError("確定シフトだけ再送できます");
+      throw expectedConvexError("business_rule", "確定シフトだけ再送できます");
     }
     if (intent === "confirm" && isResend) {
       return null;
@@ -444,7 +444,7 @@ export const confirmRecruitment = managerMutation({
         ? existingAssignments.filter((assignment) => shopClosedDateSet.has(assignment.date))
         : [];
     if (closedDateAssignments.length > 0) {
-      throw new ConvexError({
+      throw expectedConvexError("business_rule", {
         code: SHIFT_ASSIGNMENT_VALIDATION,
         issues: closedDateAssignments.map((assignment) =>
           buildAssignmentIssue("CLOSED_DAY", assignment.date, assignment.staffId),

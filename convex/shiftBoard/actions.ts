@@ -13,7 +13,11 @@ import {
   getAnthropicApiKey,
   isDebugModeEnabled,
 } from "../_lib/config";
-import { observedAction as action, observedInternalAction as internalAction } from "../_lib/errorObservability";
+import {
+  observedAction as action,
+  expectedConvexError,
+  observedInternalAction as internalAction,
+} from "../_lib/errorObservability";
 import {
   AI_DRAFT_FAILURE_KINDS,
   type AiDraftFailureKind,
@@ -420,7 +424,7 @@ export const createAiDraft = action({
   returns: createAiDraftResultValidator,
   handler: async (ctx, args): Promise<CreateAiDraftResult> => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new ConvexError("Unauthenticated");
+    if (!identity) throw expectedConvexError("auth_expired", "Unauthenticated");
 
     const prepared: PreparedAiDraftRequest = await ctx.runMutation(
       internal.shiftBoard.mutations.prepareAiDraftRequest,
