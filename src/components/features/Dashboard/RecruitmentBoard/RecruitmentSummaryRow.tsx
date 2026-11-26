@@ -27,7 +27,7 @@ const statusConfig: Record<
 > = {
   collecting: { label: "募集中", colorPalette: "green", accent: "green.400" },
   "action-required": {
-    label: "要シフト調整",
+    label: "要調整",
     colorPalette: "orange",
     accent: "orange.400",
     borderColor: "orange.200",
