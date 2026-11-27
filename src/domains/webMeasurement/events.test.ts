@@ -153,9 +153,9 @@ describe("Web計測event serializer", () => {
       expected: { intent: "confirm", detail_mode: "true", used_auto_create: "false", route_area: "manager" },
     },
     {
-      name: "auto_create_open",
+      name: "shift_auto_create_open",
       event: {
-        kind: "auto_create_open",
+        kind: "shift_auto_create_open",
         isRequirementMissing: true,
         submissionPattern: "shiftType",
         routeFamily: "shiftboard",
@@ -241,19 +241,86 @@ describe("Web計測event serializer", () => {
 
   it.each([
     {
-      name: "成功時は理由をnoneにする",
-      event: { method: "rule", result: "created", failureReason: "error", includesBreaks: true },
-      expected: { method: "rule", result: "created", reason: "none", includes_breaks: "true" },
+      name: "成功時は理由をnoneにし、作った件数を送る",
+      event: {
+        method: "rule",
+        result: "created",
+        failureReason: "error",
+        includesBreaks: true,
+        aiCalled: false,
+        changedCount: 0,
+        createdCount: 12,
+      },
+      expected: {
+        method: "rule",
+        result: "created",
+        reason: "none",
+        includes_breaks: "true",
+        ai_called: "false",
+        changed_count: 0,
+        count: 12,
+      },
+    },
+    {
+      name: "AIで作った場合は、AIを呼んだかと、AIが変えた件数を送る",
+      event: {
+        method: "ai",
+        result: "created",
+        includesBreaks: false,
+        aiCalled: true,
+        changedCount: 3.7,
+        createdCount: 20,
+      },
+      expected: {
+        method: "ai",
+        result: "created",
+        reason: "none",
+        includes_breaks: "false",
+        ai_called: "true",
+        changed_count: 3,
+        count: 20,
+      },
     },
     {
       name: "失敗時だけ理由を送る",
-      event: { method: "ai", result: "failed", failureReason: "rate_limited", includesBreaks: false },
-      expected: { method: "ai", result: "failed", reason: "rate_limited", includes_breaks: "false" },
+      event: {
+        method: "ai",
+        result: "failed",
+        failureReason: "rate_limited",
+        includesBreaks: false,
+        aiCalled: false,
+        changedCount: 0,
+        createdCount: 0,
+      },
+      expected: {
+        method: "ai",
+        result: "failed",
+        reason: "rate_limited",
+        includes_breaks: "false",
+        ai_called: "false",
+        changed_count: 0,
+        count: 0,
+      },
     },
     {
       name: "理由のない失敗はerrorにする",
-      event: { method: "ai", result: "failed", includesBreaks: false },
-      expected: { method: "ai", result: "failed", reason: "error", includes_breaks: "false" },
+      event: {
+        method: "ai",
+        result: "failed",
+        includesBreaks: false,
+        aiCalled: true,
+        changedCount: 0,
+        createdCount: 0,
+      },
+      expected: {
+        method: "ai",
+        result: "failed",
+        reason: "error",
+        includes_breaks: "false",
+        ai_called: "true",
+        changed_count: 0,
+        count: 0,
+      },
     },
   ] as const)("自動作成の結果：$name", ({ event, expected }) => {
     expect(
@@ -283,11 +350,18 @@ describe("Web計測event serializer", () => {
         { kind: "shift_setup_save", sections, positionCount: 2.9, routeFamily: "shift_setup" },
         context,
       ),
-    ).toMatchObject({ event: "shift_setup_save", sections: expected, count: 2, route_area: "manager" });
+    ).toMatchObject({ event: "shift_setup_save", sections: expected, position_count: 2, route_area: "manager" });
   });
 
   it.each([
     { contentType: "help_link", contentId: "user_menu", expected: "user_menu" },
+    { contentType: "help_link", contentId: "auto_create_ai_data", expected: "auto_create_ai_data" },
+    {
+      contentType: "help_video",
+      contentId: "set-positions-and-breaks-pc-range-assign",
+      expected: "set-positions-and-breaks-pc-range-assign",
+    },
+    { contentType: "help_video", contentId: "../videos/secret.mp4", expected: "other" },
     { contentType: "shift_setup_link", contentId: "auto_create_dialog", expected: "auto_create_dialog" },
     { contentType: "help_faq", contentId: "shift-auto-create", expected: "shift-auto-create" },
     { contentType: "help_faq", contentId: "taro@example.com", expected: "other" },

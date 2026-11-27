@@ -25,6 +25,8 @@ export type ShiftBoardData = {
     reminderScheduledAt: number | null;
     lastReminderSentAt: number | null;
     draftSavedAt: number | null;
+    /** 保存した下書きに、自動作成した勤務が含まれるか。確定の計測に使う。 */
+    draftAutoCreated: boolean;
   };
   submissionPattern: ShiftSubmissionPattern;
   staffs: Array<{

@@ -28,6 +28,7 @@ const mockData: ShiftBoardData = {
     reminderScheduledAt: Date.UTC(2099, 0, 16, 8),
     lastReminderSentAt: null,
     draftSavedAt: null,
+    draftAutoCreated: false,
   },
   submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
   staffs: [

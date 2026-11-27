@@ -70,14 +70,14 @@ ApplicationがdataLayerへ追加するイベントは次に限定する。  `web
 | `staff_add` | スタッフの追加に成功したとき | `method`（`manual`、`existing_person`、`request_approve`）、`count` |
 | `share` | スタッフの参加用リンクをコピーしたとき | `method`（`copy`）、`content_type`（`staff_registration_link`） |
 | `recruitment_create` | シフト募集の作成に成功したとき | なし。`shop_id`は一覧の絞り込みではなく作成した店舗にする |
-| `shift_confirm` | シフトの確定、または変更の再通知に成功したとき（変更なしの再通知は除く） | `intent`（`confirm`、`resend`）、`detail_mode`（「くわしく」の表示で確定したか）、`used_auto_create`（同じ表示のまま自動作成してから確定したか。再通知では常に`false`） |
+| `shift_confirm` | シフトの確定、または変更の再通知に成功したとき（変更なしの再通知は除く） | `intent`（`confirm`、`resend`）、`detail_mode`（「くわしく」の表示で確定したか）、`used_auto_create`（自動作成した下書きから確定したか。ほかの端末やほかの管理者が自動作成して保存した下書きも含む。表示を切り替えて下書きを消したあとは数えない。再通知では常に`false`） |
 | `shift_confirm_blocked` | 確定前の検証で確定を止めたとき | `reason`（最初の検証エラーのcode）、`count`（エラー件数） |
 | `shift_export` | シフト表のPDFまたはExcelを生成して保存を始めたとき | `format`（`pdf`、`xlsx`） |
-| `auto_create_open` | シフト表で自動作成のダイアログを開いたとき | `reason`（募集期間に必要人数を決めた日が1日もなく、作れる勤務がないなら`requirement_missing`、それ以外は`none`）、`submission_pattern` |
-| `shift_auto_create` | 自動作成が終わったとき（成功、作れるシフトなし、失敗のどれでも1回） | `method`（`rule`、`ai`）、`result`（`created`、`empty`、`failed`）、`reason`（失敗の理由。成功と作れるシフトなしは`none`）、`includes_breaks`（`true`、`false`）、`submission_pattern` |
-| `shift_setup_save` | 必要人数設定の保存に成功したとき | `sections`（保存した部分）、`count`（保存後の店舗のポジションの数） |
+| `shift_auto_create_open` | シフト表で自動作成のダイアログを開いたとき | `reason`（募集期間に必要人数を決めた日が1日もなく、作れる勤務がないなら`requirement_missing`、それ以外は`none`）、`submission_pattern` |
+| `shift_auto_create` | 自動作成が終わったとき（成功、作れるシフトなし、失敗のどれでも1回） | `method`（`rule`、`ai`）、`result`（`created`、`empty`、`failed`）、`reason`（失敗の理由。成功と作れるシフトなしは`none`）、`includes_breaks`（`true`、`false`）、`submission_pattern`、`ai_called`（AIを呼んだか。希望シフトから作った場合と、メモのない募集などで決まった手順の下書きのままにした場合は`false`）、`changed_count`（AIが変えた勤務の件数。一から作る作り方では、AIが作った勤務の件数）、`count`（作った勤務の件数） |
+| `shift_setup_save` | 必要人数設定の保存に成功したとき | `sections`（保存した部分）、`position_count`（保存後の店舗のポジションの数） |
 | `shift_setup_assist` | 必要人数設定でAIの下書きを頼み、結果を受け取ったとき | `result`（`created`、`empty`、`failed`） |
-| `select_content` | アプリ内のヘルプへのリンク、必要人数設定への入口を押したとき、ヘルプのよくある質問を開いたとき | `content_type`、`content_id` |
+| `select_content` | アプリ内のヘルプへのリンク、必要人数設定への入口を押したとき、ヘルプのよくある質問を開いたとき、ヘルプの動画を再生したとき | `content_type`、`content_id` |
 | `trial_notice_view` | 無料トライアル終了の案内を表示したとき（段階ごと） | `stage`（`early`、`soon`、`last_day`） |
 | `plan_checkout_start` | 有料プランの申込みでStripeへ移動する直前 | `plan`（`standard`、`pro`） |
 | `plan_checkout_result` | Stripeから課金設定へ戻ったとき | `result`（`returned`、`cancelled`） |
@@ -90,7 +90,7 @@ ApplicationがdataLayerへ追加するイベントは次に限定する。  `web
 | `target` | `action` |
 |---|---|
 | `recruitment` | `update`、`delete` |
-| `shift` | `save`（下書き保存）、`switch_detail`（「くわしく」へ切り替え）、`switch_simple`（「かんたん」へ切り替え） |
+| `shift` | `save`（下書き保存）、`switch_detail`（「くわしく」へ切り替え）、`switch_simple`（「シンプル」へ切り替え） |
 | `staff` | `reject_request`、`exclude`、`include`、`remove`、`reorder`、`change_shops`、`update_profile`、`rotate_link`、`line_link_issue`、`line_invite`、`line_disconnect`、`notify_recruitment`、`notify_shift` |
 | `notification` | `resend`、`resend_all`、`resolve` |
 | `manager` | `invite`、`resend_invite`、`revoke_invite`、`remove_role`、`accept_invite` |
@@ -104,11 +104,12 @@ ApplicationがdataLayerへ追加するイベントは次に限定する。  `web
 
 | `content_type` | `content_id` |
 |---|---|
-| `help_link` | ヘルプを開いた入口。`user_menu`、`action_inbox_notifications`、`shift_exclusion`、`staff_add_form`、`staff_registration_link` |
+| `help_link` | ヘルプを開いた入口。`user_menu`、`action_inbox_notifications`、`shift_exclusion`、`staff_add_form`、`staff_registration_link`、`auto_create_ai_data` |
 | `shift_setup_link` | 必要人数設定を開いた入口。`shop_detail`、`shift_board_menu`、`auto_create_dialog` |
 | `help_faq` | 開いたよくある質問のID（MDXのファイル名）。英小文字、数字、`-`以外を含む値は`other`にする |
+| `help_video` | 再生したヘルプの動画のID。使い方のIDと動画のファイル名を`-`でつなぐ。英小文字、数字、`-`以外を含む値は`other`にする |
 
-ヘルプは別タブで参照元を渡さずに開くため、どの入口から開いたかは、リンクを押した画面で記録する。  ホーム画面への追加案内は`home_screen_guide`の`open`で数えるため、ヘルプの入口IDに含めない。  よくある質問は、新しく開いたときだけ数える。  閉じたときと、URLの指定で最初から開いている質問は数えない。
+ヘルプは別タブで参照元を渡さずに開くため、どの入口から開いたかは、リンクを押した画面で記録する。  ホーム画面への追加案内は`home_screen_guide`の`open`で数えるため、ヘルプの入口IDに含めない。  よくある質問は、新しく開いたときだけ数える。  閉じたときと、URLの指定で最初から開いている質問は数えない。  動画は、開いたページで最初に再生したときだけ数える。  一時停止のあとの再開は数えない。
 
 ### スタッフ画面
 

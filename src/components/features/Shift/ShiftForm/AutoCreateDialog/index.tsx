@@ -3,6 +3,7 @@ import { useId, useState } from "react";
 import { LegalDocumentLink } from "@/src/components/shared/LegalDocumentLink";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog, DialogActionArea } from "@/src/components/ui/Dialog";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import {
   readAutoCreateIncludesBreaks,
   readAutoCreateUsesAi,
@@ -213,6 +214,13 @@ export const AutoCreateDialog = ({
               href={AI_PRIVACY_HELP_PATH}
               textDecoration="underline"
               aria-label="AIに送られる情報（別タブで開きます）"
+              onClick={() =>
+                trackProductEvent({
+                  kind: "content_select",
+                  contentType: "help_link",
+                  contentId: "auto_create_ai_data",
+                })
+              }
             >
               こちら
             </LegalDocumentLink>

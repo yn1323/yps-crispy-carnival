@@ -460,6 +460,42 @@ describe("shiftBoard/mutations", () => {
       ).rejects.toThrow(ConvexError);
     });
 
+    it("自動作成した勤務を含む下書きを保存すると記録を残し、そのあとで手で直して保存しても、自動作成を経た下書きとして返す", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
+      const asManager = t.withIdentity({ subject: "user_manager" });
+      const expectedOrganizationId = await getExpectedOrganizationId(t, shopId);
+      const save = (assignments: Array<{ startTime: string; endTime: string }>, includesAutoCreated?: boolean) =>
+        asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          shopId,
+          expectedOrganizationId,
+          recruitmentId,
+          assignments: assignments.map((time) => ({ staffId: staffId1, date: "2026-01-20", ...time })),
+          ...(includesAutoCreated === undefined ? {} : { includesAutoCreated }),
+        });
+      const readDraftAutoCreated = async () =>
+        (
+          await asManager.query(api.shiftBoard.queries.getShiftBoardData, {
+            shopId,
+            expectedOrganizationId,
+            recruitmentId,
+            refreshDayKey: "2026-01-20",
+          })
+        )?.recruitment.draftAutoCreated;
+
+      // 手で入れた下書きだけを保存した間は、自動作成を経ていない。
+      await save([{ startTime: "10:00", endTime: "18:00" }]);
+      expect(await readDraftAutoCreated()).toBe(false);
+
+      await save([{ startTime: "10:00", endTime: "17:00" }], true);
+      expect(await readDraftAutoCreated()).toBe(true);
+      expect((await t.run((ctx) => ctx.db.get(recruitmentId)))?.draftAutoCreatedAt).toBe(Date.now());
+
+      // 自動作成したあとで手で直して保存しても、記録は消さない。
+      await save([{ startTime: "11:00", endTime: "17:00" }], false);
+      expect(await readDraftAutoCreated()).toBe(true);
+    });
+
     it("正常にシフト割当を保存できる", async () => {
       const t = convexTest(schema, modules);
       const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
@@ -1720,7 +1756,7 @@ describe("shiftBoard/mutations", () => {
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
           draftSavedAt: 1,
         });
-        await ctx.db.patch(data.recruitmentId, { draftSavedAt: 1 });
+        await ctx.db.patch(data.recruitmentId, { draftSavedAt: 1, draftAutoCreatedAt: 1 });
         for (const [recruitmentId, date] of [
           [data.recruitmentId, "2026-01-20"],
           [otherRecruitmentId, "2026-02-02"],
@@ -1746,6 +1782,7 @@ describe("shiftBoard/mutations", () => {
         return {
           assignmentRecruitmentIds: assignments.map((assignment) => assignment.recruitmentId),
           draftSavedAt: recruitment?.draftSavedAt ?? null,
+          draftAutoCreatedAt: recruitment?.draftAutoCreatedAt ?? null,
           shiftDetailMode: shop?.shiftDetailMode ?? null,
         };
       });
@@ -1790,7 +1827,7 @@ describe("shiftBoard/mutations", () => {
       expect(await readState(t, ids)).toEqual(before);
     });
 
-    it("切り替えると、この募集の下書きの勤務と下書き保存の時刻を消し、選んだ表示を店舗に保存する。ほかの募集の下書きは残す", async () => {
+    it("切り替えると、この募集の下書きの勤務と、下書き保存の時刻、自動作成した下書きの記録を消し、選んだ表示を店舗に保存する。ほかの募集の下書きは残す", async () => {
       const t = convexTest(schema, modules);
       const ids = await seedDrafts(t);
 
@@ -1804,6 +1841,7 @@ describe("shiftBoard/mutations", () => {
       expect(await readState(t, ids)).toEqual({
         assignmentRecruitmentIds: [ids.otherRecruitmentId],
         draftSavedAt: null,
+        draftAutoCreatedAt: null,
         shiftDetailMode: true,
       });
 
@@ -1858,6 +1896,7 @@ describe("shiftBoard/mutations", () => {
       expect(await readState(t, ids)).toEqual({
         assignmentRecruitmentIds: [ids.otherRecruitmentId],
         draftSavedAt: null,
+        draftAutoCreatedAt: null,
         shiftDetailMode: true,
       });
     });

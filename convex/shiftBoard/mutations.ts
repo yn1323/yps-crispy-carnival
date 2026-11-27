@@ -223,6 +223,8 @@ export const saveShiftAssignments = managerMutation({
         breaks: v.optional(v.array(shiftAssignmentBreakValidator)),
       }),
     ),
+    // 自動作成した勤務を含む下書きか。計測で、自動作成を経た確定かを分けるためだけに使う。
+    includesAutoCreated: v.optional(v.boolean()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -317,7 +319,11 @@ export const saveShiftAssignments = managerMutation({
       ),
     );
 
-    await ctx.db.patch(args.recruitmentId, { draftSavedAt });
+    // 一度自動作成した下書きは、そのあと手で直して保存しても、自動作成を経たものとして残す。
+    await ctx.db.patch(args.recruitmentId, {
+      draftSavedAt,
+      ...(args.includesAutoCreated ? { draftAutoCreatedAt: draftSavedAt } : {}),
+    });
     return null;
   },
 });
@@ -348,8 +354,8 @@ export const switchShiftDetailMode = managerMutation({
     // 消し残しを作らないよう、上限を超える下書きでは切り替えごと受け付けない。
     const existing = await listSavedAssignments(ctx, args.recruitmentId);
     await Promise.all(existing.map((assignment) => ctx.db.delete(assignment._id)));
-    // 勤務のない募集は「下書き未保存」が正しいため、下書き保存の時刻も消す。
-    await ctx.db.patch(args.recruitmentId, { draftSavedAt: undefined });
+    // 勤務のない募集は「下書き未保存」が正しいため、下書き保存の時刻と、自動作成した下書きの記録も消す。
+    await ctx.db.patch(args.recruitmentId, { draftSavedAt: undefined, draftAutoCreatedAt: undefined });
     await ctx.db.patch(ctx.shop._id, { shiftDetailMode: args.isDetailMode });
     return null;
   },

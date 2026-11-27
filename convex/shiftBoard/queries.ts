@@ -69,6 +69,8 @@ const shiftBoardDataValidator = v.object({
     reminderScheduledAt: v.union(v.number(), v.null()),
     lastReminderSentAt: v.union(v.number(), v.null()),
     draftSavedAt: v.union(v.number(), v.null()),
+    // 保存した下書きに、自動作成した勤務が含まれるか。確定の計測に使う。
+    draftAutoCreated: v.boolean(),
   }),
   submissionPattern: submissionPatternValidator,
   staffs: v.array(
@@ -260,6 +262,7 @@ export const getShiftBoardData = managerQuery({
         reminderScheduledAt: recruitment.reminderScheduledAt ?? null,
         lastReminderSentAt: recruitment.lastReminderSentAt ?? null,
         draftSavedAt,
+        draftAutoCreated: recruitment.draftAutoCreatedAt !== undefined,
       },
       submissionPattern,
       staffs: [

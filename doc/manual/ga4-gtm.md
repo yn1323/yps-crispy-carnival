@@ -77,7 +77,7 @@ Google tagと各イベントタグの`page_location`は、アプリが直前の`
 |---|---|
 | `route_family` | 画面の種類 |
 | `route_area` | 見込み客、登録・ログイン、管理者、スタッフ、その他の区分 |
-| `content_id` | 選択されたCTA、ヘルプと必要人数設定を開いた入口、開いたよくある質問 |
+| `content_id` | 選択されたCTA、ヘルプと必要人数設定を開いた入口、開いたよくある質問、再生したヘルプの動画 |
 | `content_type` | 選択・共有された内容の種類 |
 | `setup_kind` | 初回登録か、追加組織か |
 | `submission_pattern` | 希望シフトの集め方 |
@@ -103,6 +103,8 @@ Google tagと各イベントタグの`page_location`は、アプリが直前の`
 | `used_auto_create` | 自動作成してからシフトを確定したか |
 | `includes_breaks` | 自動作成で休憩も入れたか |
 | `sections` | 必要人数設定で保存した部分 |
+| `position_count` | 必要人数設定を保存したときの、店舗のポジションの数 |
+| `ai_called` | 自動作成でAIを呼んだか |
 | `target` | `manage_action`の対象 |
 | `action` | `manage_action`とホーム画面追加案内の操作 |
 | `is_resubmit` | 希望シフトの再提出か |
@@ -114,7 +116,7 @@ Google tagと各イベントタグの`page_location`は、アプリが直前の`
 | `error_source` | エラーの出どころ |
 | `phase` | 表示時間の段階 |
 
-`metric_value`と`count`は、単位が「標準」のイベントスコープのカスタム指標として登録する。  `metric_value`はWeb Vitalsの値と`app_timing`のmsの両方に使う。
+`metric_value`、`count`、`changed_count`は、単位が「標準」のイベントスコープのカスタム指標として登録する。  `changed_count`は、自動作成でAIが変えた勤務の件数である。  `metric_value`はWeb Vitalsの値と`app_timing`のmsの両方に使う。
 
 次の2つは、ユーザースコープのカスタムディメンションとして登録する。
 

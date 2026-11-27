@@ -78,6 +78,7 @@ const data: ShiftBoardData = {
     reminderScheduledAt: null,
     lastReminderSentAt: null,
     draftSavedAt: 1,
+    draftAutoCreated: false,
   },
   submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
   staffs: [{ _id: staffId, name: "出力スタッフ", isSubmitted: true, wasSubmittedAtDraft: true }],

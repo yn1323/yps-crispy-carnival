@@ -400,15 +400,30 @@ const aiDraftShiftValidator = v.object({
   breaks: v.array(v.object({ startTime: v.string(), endTime: v.string() })),
 });
 const createAiDraftResultValidator = v.union(
-  v.object({ status: v.literal("ok"), shifts: v.array(aiDraftShiftValidator) }),
+  v.object({
+    status: v.literal("ok"),
+    shifts: v.array(aiDraftShiftValidator),
+    // AIを呼んだか。メモのない募集などで、決まった手順の下書きをそのまま返した場合はfalse。計測に使う。
+    aiCalled: v.boolean(),
+    // AIが変えた勤務の件数。一から作る作り方では、AIが作った勤務の件数。AIを呼んでいない場合は0。計測に使う。
+    changedCount: v.number(),
+  }),
   v.object({
     status: v.literal("failed"),
     reason: v.union(...AI_DRAFT_FAILURE_KINDS.map((kind) => v.literal(kind))),
+    // AIを呼んだあとで作れなかったか。呼ぶ前に断った場合はfalse。計測に使う。
+    aiCalled: v.boolean(),
   }),
 );
 type CreateAiDraftResult = Infer<typeof createAiDraftResultValidator>;
 
-const failed = (reason: AiDraftFailureKind): CreateAiDraftResult => ({ status: "failed", reason });
+const failed = (reason: AiDraftFailureKind, aiCalled = false): CreateAiDraftResult => ({
+  status: "failed",
+  reason,
+  aiCalled,
+});
+/** AIを呼ばずに返す場合の、計測の値。 */
+const AI_NOT_CALLED = { aiCalled: false, changedCount: 0 } as const;
 
 /**
  * 募集期間の勤務の下書きを、AIで作って返す。保存はしない。
@@ -443,8 +458,12 @@ export const createAiDraft = action({
     const { source } = prepared;
     const grid = buildTimeGrid(source.input);
     if (!grid) return failed("unsupported");
-    const toResult = (shifts: readonly AutoCreatedShift[]): CreateAiDraftResult => ({
+    const toResult = (
+      shifts: readonly AutoCreatedShift[],
+      ai: { aiCalled: boolean; changedCount: number },
+    ): CreateAiDraftResult => ({
       status: "ok",
+      ...ai,
       shifts: shifts.map((shift) => ({
         staffId: shift.staffId as Id<"staffs">,
         date: shift.date,
@@ -459,7 +478,7 @@ export const createAiDraft = action({
 
     // 決まった手順で作れる勤務が1件もない募集は、希望か必要人数がない。AIを呼ばずに、空で返す。
     const ruleDraft = buildAutoAssignments(source.input).shifts;
-    if (ruleDraft.length === 0) return toResult([]);
+    if (ruleDraft.length === 0) return toResult([], AI_NOT_CALLED);
 
     const settings = readSettings();
     if (!settings) {
@@ -476,7 +495,7 @@ export const createAiDraft = action({
     }
     // 下書きを見直す作り方で、メモが1件もない募集は、AIが変える所がない。AIを呼ばずに、決まった手順の下書きを返す。
     const hasNotes = source.notes.some((entry) => entry.note.trim().length > 0);
-    if (settings.mode === "revise" && !hasNotes) return toResult(ruleDraft);
+    if (settings.mode === "revise" && !hasNotes) return toResult(ruleDraft, AI_NOT_CALLED);
 
     const run = await runAiDraft({ source, grid, ruleDraft, settings });
     // AIがトークンを使った回を記録する。AIへ届かずに失敗した回は、使った量がないため記録しない。
@@ -514,11 +533,11 @@ export const createAiDraft = action({
       console.error(
         JSON.stringify({ event: "ai_shift_draft_failed", failure: failure.kind, detail: failure.detail, ...summary }),
       );
-      return failed(failure.kind);
+      return failed(failure.kind, true);
     }
 
     console.log(JSON.stringify({ event: "ai_shift_draft_created", ...summary }));
-    return toResult(run.shifts);
+    return toResult(run.shifts, { aiCalled: true, changedCount: run.appliedCount });
   },
 });
 

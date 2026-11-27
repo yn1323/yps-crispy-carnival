@@ -105,6 +105,7 @@ export const helpLinkEntryIds = [
   "shift_exclusion",
   "staff_add_form",
   "staff_registration_link",
+  "auto_create_ai_data",
 ] as const;
 export type HelpLinkEntryId = (typeof helpLinkEntryIds)[number];
 /** 必要人数設定を開く入口。 */
@@ -116,7 +117,9 @@ export type ContentSelectInput =
   | { kind: "content_select"; contentType: "help_link"; contentId: HelpLinkEntryId }
   | { kind: "content_select"; contentType: "shift_setup_link"; contentId: ShiftSetupLinkEntryId }
   /** よくある質問のID。MDXのファイル名なので、決まった形の文字列だけを通す。 */
-  | { kind: "content_select"; contentType: "help_faq"; contentId: string };
+  | { kind: "content_select"; contentType: "help_faq"; contentId: string }
+  /** ヘルプの動画のファイル名（拡張子を除く）。決まった形の文字列だけを通す。 */
+  | { kind: "content_select"; contentType: "help_video"; contentId: string };
 type ContentSelectType = ContentSelectInput["contentType"];
 
 /** 管理画面の成功した操作。キーイベントにしない操作は、GTMタグと定義を増やさないよう一つのイベントにまとめる。 */
@@ -209,7 +212,7 @@ export type ProductMeasurementInput =
   | { kind: "feature_request_submit" }
   | ManageActionInput
   | ContentSelectInput
-  | { kind: "auto_create_open"; isRequirementMissing: boolean; submissionPattern: SubmissionPatternKind }
+  | { kind: "shift_auto_create_open"; isRequirementMissing: boolean; submissionPattern: SubmissionPatternKind }
   | {
       kind: "shift_auto_create";
       method: AutoCreateMethod;
@@ -218,6 +221,12 @@ export type ProductMeasurementInput =
       failureReason?: AutoCreateFailureReason;
       includesBreaks: boolean;
       submissionPattern: SubmissionPatternKind;
+      /** AIを呼んだか。メモのない募集などで、決まった手順の下書きのままにした場合はfalse。 */
+      aiCalled: boolean;
+      /** AIが変えた勤務の件数。AIを呼んでいない場合は0。 */
+      changedCount: number;
+      /** 作った勤務の件数。作れなかった場合は0。 */
+      createdCount: number;
     }
   | { kind: "shift_setup_save"; sections: readonly ShiftSetupSection[]; positionCount: number }
   | { kind: "shift_setup_assist"; result: ShiftSetupAssistResult }
@@ -310,15 +319,18 @@ type SerializedProductParams = {
   feature_request_submit: NoParams;
   manage_action: { target: ManageActionTarget; action: ManageActionInput["action"] };
   select_content: { content_type: ContentSelectType; content_id: string };
-  auto_create_open: { reason: "none" | "requirement_missing"; submission_pattern: SubmissionPatternKind };
+  shift_auto_create_open: { reason: "none" | "requirement_missing"; submission_pattern: SubmissionPatternKind };
   shift_auto_create: {
     method: AutoCreateMethod;
     result: AutoCreateResult;
     reason: AutoCreateFailureReason | "none";
     includes_breaks: BooleanString;
     submission_pattern: SubmissionPatternKind;
+    ai_called: BooleanString;
+    changed_count: number;
+    count: number;
   };
-  shift_setup_save: { sections: string; count: number };
+  shift_setup_save: { sections: string; position_count: number };
   shift_setup_assist: { result: ShiftSetupAssistResult };
   staff_register_submit: NoParams;
   staff_legal_consent: NoParams;
@@ -553,11 +565,14 @@ function serializeProductPayload(event: ProductMeasurementInput): SerializedProd
       return {
         event: "select_content",
         content_type: event.contentType,
-        content_id: event.contentType === "help_faq" ? normalizeContentSlug(event.contentId) : event.contentId,
+        content_id:
+          event.contentType === "help_faq" || event.contentType === "help_video"
+            ? normalizeContentSlug(event.contentId)
+            : event.contentId,
       };
-    case "auto_create_open":
+    case "shift_auto_create_open":
       return {
-        event: "auto_create_open",
+        event: "shift_auto_create_open",
         reason: event.isRequirementMissing ? "requirement_missing" : "none",
         submission_pattern: event.submissionPattern,
       };
@@ -569,12 +584,15 @@ function serializeProductPayload(event: ProductMeasurementInput): SerializedProd
         reason: event.result === "failed" ? (event.failureReason ?? "error") : "none",
         includes_breaks: toBooleanString(event.includesBreaks),
         submission_pattern: event.submissionPattern,
+        ai_called: toBooleanString(event.aiCalled),
+        changed_count: normalizeCount(event.changedCount),
+        count: normalizeCount(event.createdCount),
       };
     case "shift_setup_save":
       return {
         event: "shift_setup_save",
         sections: serializeShiftSetupSections(event.sections),
-        count: normalizeCount(event.positionCount),
+        position_count: normalizeCount(event.positionCount),
       };
     case "shift_setup_assist":
       return { event: "shift_setup_assist", result: event.result };

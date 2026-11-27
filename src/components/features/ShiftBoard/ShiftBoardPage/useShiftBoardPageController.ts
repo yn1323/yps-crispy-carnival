@@ -226,6 +226,8 @@ export const useShiftBoardPageController = (
   const confirmedWarningBaselineRef = useRef<ShiftData[]>(initialShifts);
   const isFormInitializedRef = useRef(false);
   const pendingWriteCountRef = useRef(0);
+  // この画面を開いている間に、自動作成で下書きを作ったか。保存では募集へ記録し、確定の計測で、自動作成を経た確定かを分ける。
+  const hasAutoCreatedRef = useRef(false);
   const canWriteBusinessDataRef = useRef(data.canWriteBusinessData);
   const shopClosedDateSet = useMemo(
     () => new Set(data.recruitment.shopClosedDates),
@@ -443,6 +445,7 @@ export const useShiftBoardPageController = (
         recruitmentId,
         expectedEditVersion,
         assignments: buildSaveAssignments(shiftsAtSave),
+        includesAutoCreated: hasAutoCreatedRef.current,
       });
       baselineShiftsRef.current = shiftsAtSave;
       return true;
@@ -497,6 +500,7 @@ export const useShiftBoardPageController = (
         recruitmentId,
         expectedEditVersion,
         assignments: buildSaveAssignments(shiftsAtSave),
+        includesAutoCreated: hasAutoCreatedRef.current,
       });
       // 保存はこの時点で完了している。後続のconfirmが失敗しても未保存扱い（離脱ブロック）にしない
       baselineShiftsRef.current = shiftsAtSave;
@@ -518,7 +522,8 @@ export const useShiftBoardPageController = (
           intent: isConfirmed ? "resend" : "confirm",
           detailMode: initialDetailMode,
           // 確定後は自動作成できないため、再通知は自動作成を経たものとして数えない。
-          usedAutoCreate: !isConfirmed && hasAutoCreatedRef.current,
+          // 自動作成した下書きを、別の端末や別の管理者が保存していた場合も、募集の記録から数える。
+          usedAutoCreate: !isConfirmed && (hasAutoCreatedRef.current || data.recruitment.draftAutoCreated),
         });
       }
       if (result?.status === "no_changes") {
@@ -612,7 +617,6 @@ export const useShiftBoardPageController = (
   const {
     detailActions,
     applyShiftsRef,
-    hasAutoCreatedRef,
     canSwitchDetailMode,
     staffSortMode,
     detailModeSwitchDialog,
@@ -630,6 +634,7 @@ export const useShiftBoardPageController = (
     isReadOnly,
     isConfirmed,
     hasUnsavedChanges,
+    hasAutoCreatedRef,
     handleMutationError,
   });
 

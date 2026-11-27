@@ -1,6 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useConvex } from "convex/react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { AiDraftFailureKind } from "@/convex/shiftBoard/autoCreate/ai/aiDraftFailure";
@@ -19,6 +19,9 @@ import type { ShiftBoardData, ShiftBoardStaffingData } from "../types";
 import { AI_DRAFT_FAILURE_MESSAGES } from "./aiDraftFailureMessages";
 import { toAutoCreateInput } from "./autoCreateAdapter";
 import { toDayTemplateIdArg } from "./staffingAdapter";
+
+/** 勤務を作らなかった自動作成の、計測の値。 */
+const NOTHING_CREATED = { aiCalled: false, changedCount: 0, createdCount: 0 } as const;
 
 /** AIで作れなかった種類を、計測で送る値へ直す。 */
 const AI_DRAFT_FAILURE_MEASUREMENT_REASONS: Record<AiDraftFailureKind, AutoCreateFailureReason> = {
@@ -44,6 +47,8 @@ type Input = {
   isReadOnly: boolean;
   isConfirmed: boolean;
   hasUnsavedChanges: () => boolean;
+  /** この画面を開いている間に、自動作成で下書きを作ったか。保存と確定の計測で使うため、保存する側が持つ。 */
+  hasAutoCreatedRef: RefObject<boolean>;
   /** 保存の失敗を画面へ反映する。画面へ反映できた場合はtrueを返す。 */
   handleMutationError: (error: unknown) => boolean;
 };
@@ -65,6 +70,7 @@ export const useShiftBoardDetailActions = ({
   isReadOnly,
   isConfirmed,
   hasUnsavedChanges,
+  hasAutoCreatedRef,
   handleMutationError,
 }: Input) => {
   const navigate = useNavigate();
@@ -73,13 +79,12 @@ export const useShiftBoardDetailActions = ({
   const switchShiftDetailMode = useShopMutation(api.shiftBoard.mutations.switchShiftDetailMode);
   const setShiftStaffSortMode = useShopMutation(api.shiftBoard.mutations.setShiftStaffSortMode);
   const applyShiftsRef = useRef<((update: (current: ShiftData[]) => ShiftData[]) => void) | null>(null);
-  // この画面を開いている間に、自動作成で下書きを作ったか。確定の計測で、自動作成を経た確定かを分けるために持つ。
-  const hasAutoCreatedRef = useRef(false);
   const trackAutoCreate = useCallback(
     (
       method: AutoCreateMethod,
       includesBreaks: boolean,
       result: AutoCreateResult,
+      counts: { aiCalled: boolean; changedCount: number; createdCount: number },
       failureReason?: AutoCreateFailureReason,
     ) => {
       if (result === "created") hasAutoCreatedRef.current = true;
@@ -90,9 +95,10 @@ export const useShiftBoardDetailActions = ({
         ...(failureReason ? { failureReason } : {}),
         includesBreaks,
         submissionPattern: data.submissionPattern.kind,
+        ...counts,
       });
     },
-    [data.submissionPattern.kind],
+    [data.submissionPattern.kind, hasAutoCreatedRef],
   );
 
   const handleOpenSetup = useCallback(() => {
@@ -144,16 +150,16 @@ export const useShiftBoardDetailActions = ({
       );
       if (result.shifts.length === 0) {
         toaster.create({ title: "作成できるシフトがありませんでした", type: "info" });
-        trackAutoCreate("rule", includesBreaks, "empty");
+        trackAutoCreate("rule", includesBreaks, "empty", NOTHING_CREATED);
         return;
       }
       applyShiftsRef.current((current) => applyAutoAssignments({ shifts: current, created: result.shifts, positions }));
       // 人数が足りない所が残っていても、知らせには足さない。作ったのは下書きで、不足はシフト表の人数の表示で分かる。
       showSuccessToast({ title: "シフトを自動作成しました" });
-      trackAutoCreate("rule", includesBreaks, "created");
+      trackAutoCreate("rule", includesBreaks, "created", { ...NOTHING_CREATED, createdCount: result.shifts.length });
     } catch (error) {
       showErrorToast(error);
-      trackAutoCreate("rule", includesBreaks, "failed", "error");
+      trackAutoCreate("rule", includesBreaks, "failed", NOTHING_CREATED, "error");
     }
   });
   // AIでの自動作成。希望、必要人数、メモはサーバーが読み、決まった手順の下書きをAIが見直した結果を受け取る。
@@ -175,21 +181,31 @@ export const useShiftBoardDetailActions = ({
           duration: Number.POSITIVE_INFINITY,
         });
         // AIで作れなかった知らせは通常のエラー表示を通らないため、理由をここで記録する。
-        trackAutoCreate("ai", includesBreaks, "failed", AI_DRAFT_FAILURE_MEASUREMENT_REASONS[result.reason]);
+        trackAutoCreate(
+          "ai",
+          includesBreaks,
+          "failed",
+          { ...NOTHING_CREATED, aiCalled: result.aiCalled },
+          AI_DRAFT_FAILURE_MEASUREMENT_REASONS[result.reason],
+        );
         return false;
       }
       if (result.shifts.length === 0) {
         toaster.create({ title: "作成できるシフトがありませんでした", type: "info" });
-        trackAutoCreate("ai", includesBreaks, "empty");
+        trackAutoCreate("ai", includesBreaks, "empty", { ...NOTHING_CREATED, aiCalled: result.aiCalled });
         return true;
       }
       applyShiftsRef.current((current) => applyAutoAssignments({ shifts: current, created: result.shifts, positions }));
       showSuccessToast({ title: "シフトを自動作成しました" });
-      trackAutoCreate("ai", includesBreaks, "created");
+      trackAutoCreate("ai", includesBreaks, "created", {
+        aiCalled: result.aiCalled,
+        changedCount: result.changedCount,
+        createdCount: result.shifts.length,
+      });
       return true;
     } catch (error) {
       showErrorToast(error);
-      trackAutoCreate("ai", includesBreaks, "failed", "error");
+      trackAutoCreate("ai", includesBreaks, "failed", NOTHING_CREATED, "error");
       return false;
     }
   });
@@ -221,6 +237,8 @@ export const useShiftBoardDetailActions = ({
     async (isDetailMode: boolean) => {
       try {
         await switchShiftDetailMode({ recruitmentId, expectedEditVersion, isDetailMode });
+        // 下書きを消したため、自動作成した勤務も残っていない。
+        hasAutoCreatedRef.current = false;
         trackProductEvent({
           kind: "manage_action",
           target: "shift",
@@ -317,7 +335,6 @@ export const useShiftBoardDetailActions = ({
   return {
     detailActions,
     applyShiftsRef,
-    hasAutoCreatedRef,
     canSwitchDetailMode,
     staffSortMode,
     detailModeSwitchDialog: { isOpen: pendingDetailMode !== null, isSwitching: isSwitchingDetailMode },

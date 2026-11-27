@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   toast: vi.fn(),
   showErrorToast: vi.fn(),
   showSuccessToast: vi.fn(),
+  trackProductEvent: vi.fn(),
   blocker: { status: "idle", reset: vi.fn(), proceed: vi.fn() },
 }));
 
@@ -62,6 +63,10 @@ vi.mock("@/src/hooks/useShopMutation", () => ({
     if (reference === mocks.setStaffSortModeReference) return mocks.setShiftStaffSortMode;
     throw new Error("unexpected mutation reference");
   },
+}));
+vi.mock("@/src/lib/webMeasurement", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/src/lib/webMeasurement")>()),
+  trackProductEvent: mocks.trackProductEvent,
 }));
 vi.mock("@/src/components/shared/feedback", () => ({
   showErrorToast: mocks.showErrorToast,
@@ -100,6 +105,7 @@ const data: ShiftBoardData = {
     reminderScheduledAt: null,
     lastReminderSentAt: null,
     draftSavedAt: null,
+    draftAutoCreated: false,
   },
   submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
   staffs: [
@@ -1203,5 +1209,134 @@ describe("AIで作成する", () => {
 
     expect(apply).not.toHaveBeenCalled();
     expect(mocks.showErrorToast).toHaveBeenCalledExactlyOnceWith(error);
+  });
+});
+
+describe("自動作成と確定の計測", () => {
+  const aiStaffing: ShiftBoardStaffingData = { ...templateStaffing, isAiDraftConfigured: true };
+  const noHistory = { recruitmentCount: 0, staffs: [] };
+
+  function renderWithApply(options: RenderOptions = {}) {
+    const hook = renderInitialized({ staffing: aiStaffing, ...options });
+    hook.result.current.viewModel.shiftForm.applyShiftsRef.current = vi.fn();
+    return hook;
+  }
+  const autoCreate = async (
+    result: { current: ReturnType<typeof useShiftBoardPageController> },
+    method: "rule" | "ai",
+  ) => {
+    await act(async () => {
+      await result.current.viewModel.shiftForm.detailActions.autoCreateAction?.onCreate(method, {
+        includesBreaks: false,
+      });
+    });
+  };
+  const saveDraft = async (result: { current: ReturnType<typeof useShiftBoardPageController> }) => {
+    await act(async () => {
+      result.current.intents.onSaveDraft();
+    });
+  };
+  const confirm = async (result: { current: ReturnType<typeof useShiftBoardPageController> }) => {
+    await act(async () => {
+      result.current.intents.onConfirmDialogSubmit();
+    });
+  };
+  const trackedEvents = (kind: string) =>
+    mocks.trackProductEvent.mock.calls.map(([event]) => event).filter((event) => event.kind === kind);
+
+  it("希望シフトから作ると、作った勤務の件数を送り、AIを呼んでいないものとして数える", async () => {
+    mocks.convexQuery.mockResolvedValue(noHistory);
+    const { result } = renderWithApply();
+
+    await autoCreate(result, "rule");
+
+    expect(trackedEvents("shift_auto_create")).toEqual([
+      {
+        kind: "shift_auto_create",
+        method: "rule",
+        result: "created",
+        includesBreaks: false,
+        submissionPattern: "time",
+        aiCalled: false,
+        changedCount: 0,
+        createdCount: 1,
+      },
+    ]);
+  });
+
+  it("AIで作ると、AIを呼んだかと、AIが変えた件数を、サーバーの返事のまま送る", async () => {
+    mocks.convexAction.mockResolvedValue({
+      status: "ok",
+      shifts: [
+        {
+          staffId: submittedStaffId,
+          date,
+          segments: [{ startTime: "10:00", endTime: "15:30", positionId: hallId }],
+          breaks: [],
+        },
+      ],
+      aiCalled: true,
+      changedCount: 1,
+    });
+    const { result } = renderWithApply();
+
+    await autoCreate(result, "ai");
+
+    expect(trackedEvents("shift_auto_create")).toEqual([
+      {
+        kind: "shift_auto_create",
+        method: "ai",
+        result: "created",
+        includesBreaks: false,
+        submissionPattern: "time",
+        aiCalled: true,
+        changedCount: 1,
+        createdCount: 1,
+      },
+    ]);
+  });
+
+  it("自動作成してから保存すると、自動作成した勤務を含む下書きとして保存し、確定も自動作成を経たものとして数える", async () => {
+    mocks.convexQuery.mockResolvedValue(noHistory);
+    const { result } = renderWithApply();
+
+    await saveDraft(result);
+    expect(mocks.save.mock.calls.at(-1)?.[0]).toMatchObject({ includesAutoCreated: false });
+
+    await autoCreate(result, "rule");
+    await saveDraft(result);
+    expect(mocks.save.mock.calls.at(-1)?.[0]).toMatchObject({ includesAutoCreated: true });
+
+    await confirm(result);
+    expect(mocks.save.mock.calls.at(-1)?.[0]).toMatchObject({ includesAutoCreated: true });
+    expect(trackedEvents("shift_confirm")).toEqual([
+      { kind: "shift_confirm", intent: "confirm", detailMode: true, usedAutoCreate: true },
+    ]);
+  });
+
+  it("別の端末や別の管理者が自動作成した下書きを保存していれば、この画面で作っていなくても、自動作成を経た確定として数える", async () => {
+    const { result } = renderWithApply({
+      data: { ...data, recruitment: { ...data.recruitment, draftSavedAt: 1, draftAutoCreated: true } },
+    });
+
+    await confirm(result);
+
+    expect(mocks.save.mock.calls.at(-1)?.[0]).toMatchObject({ includesAutoCreated: false });
+    expect(trackedEvents("shift_confirm")).toEqual([
+      { kind: "shift_confirm", intent: "confirm", detailMode: true, usedAutoCreate: true },
+    ]);
+  });
+
+  it("表示を切り替えて下書きを消したあとは、自動作成した勤務を含まない下書きとして保存する", async () => {
+    mocks.convexQuery.mockResolvedValue(noHistory);
+    const { result } = renderWithApply();
+    await autoCreate(result, "rule");
+
+    await act(async () => result.current.viewModel.shiftForm.detailActions.requestDetailModeChange?.(false));
+    await act(async () => result.current.intents.onConfirmDetailModeSwitch());
+    await saveDraft(result);
+
+    expect(mocks.switchShiftDetailMode).toHaveBeenCalledTimes(1);
+    expect(mocks.save.mock.calls.at(-1)?.[0]).toMatchObject({ includesAutoCreated: false });
   });
 });

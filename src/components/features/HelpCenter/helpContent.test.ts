@@ -24,6 +24,7 @@ import {
 import { resolveLegacyHelpHash } from "./helpNavigation";
 import { normalizeHelpSearchText, searchHelpMetas } from "./helpSearch";
 import { getHelpTaskHref, HELP_TASKS } from "./helpTasks";
+import { toHelpVideoId } from "./helpVideoId";
 
 const extractedMdxTextModules = import.meta.glob<string[]>("../../../lib/mdx/test-content/plain-text.mdx", {
   eager: true,
@@ -154,6 +155,16 @@ describe("HelpCenterの実コンテンツ", () => {
     );
 
     expect(brokenLinks).toEqual([]);
+  });
+
+  it("本文の動画は、計測で使える形の、重ならないIDを持つ", () => {
+    const videoIds = Object.values(publicHelpSourceModules).flatMap((source) =>
+      [...source.matchAll(/<HelpVideo[^>]*?src="([^"]+)"/g)].map((match) => toHelpVideoId(match[1] ?? "")),
+    );
+
+    expect(videoIds.length).toBeGreaterThan(0);
+    expect(videoIds.filter((id) => !/^[a-z0-9][a-z0-9-]{0,79}$/.test(id))).toEqual([]);
+    expect(new Set(videoIds).size).toBe(videoIds.length);
   });
 
   it("本文から、Markdownのリンクとhrefのヘルプへのリンクだけを取り出す", () => {

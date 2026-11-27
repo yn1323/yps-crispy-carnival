@@ -239,7 +239,7 @@ describe("shiftBoard/actions createAiDraft（決まった手順の下書きをAI
 
     const result = await create(t, ids);
 
-    expect(result).toEqual({ status: "ok", shifts: [shift(ids, "15:30")] });
+    expect(result).toEqual({ status: "ok", shifts: [shift(ids, "15:30")], aiCalled: true, changedCount: 1 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0];
     expect(String(url)).toBe("https://api.anthropic.com/v1/messages");
@@ -325,7 +325,7 @@ describe("shiftBoard/actions createAiDraft（決まった手順の下書きをAI
     const fetchMock = mockAnthropic(() => messageResponse([shortened]));
     const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    await expect(create(t, ids)).resolves.toEqual({ status: "failed", reason: "unavailable" });
+    await expect(create(t, ids)).resolves.toEqual({ status: "failed", reason: "unavailable", aiCalled: false });
 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(errorLog.mock.calls.map((call) => String(call[0])).join("\n")).toContain('"detail":"invalid_settings"');
@@ -355,7 +355,12 @@ describe("shiftBoard/actions createAiDraft（決まった手順の下書きをAI
     mockAnthropic(() => messageResponse([{ ...shortened, segments: [{ from: "10:00", to: "19:00", position: 0 }] }]));
     vi.spyOn(console, "log").mockImplementation(() => {});
 
-    await expect(create(t, ids)).resolves.toEqual({ status: "ok", shifts: [shift(ids, "16:00")] });
+    await expect(create(t, ids)).resolves.toEqual({
+      status: "ok",
+      shifts: [shift(ids, "16:00")],
+      aiCalled: true,
+      changedCount: 0,
+    });
   });
 
   it("メモが1件もない募集は、AIを呼ばずに決まった手順の下書きを返し、回数を数えない", async () => {
@@ -363,7 +368,12 @@ describe("shiftBoard/actions createAiDraft（決まった手順の下書きをAI
     const ids = await seedAiDraftShop(t, { note: null });
     const fetchMock = mockAnthropic(() => messageResponse([shortened]));
 
-    await expect(create(t, ids)).resolves.toEqual({ status: "ok", shifts: [shift(ids, "16:00")] });
+    await expect(create(t, ids)).resolves.toEqual({
+      status: "ok",
+      shifts: [shift(ids, "16:00")],
+      aiCalled: false,
+      changedCount: 0,
+    });
 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(await readRateLimitNames(t)).toEqual(["aiShiftDraftShort"]);
@@ -434,7 +444,7 @@ describe("shiftBoard/actions createAiDraft（決まった手順の下書きをAI
     const ids = await seedAiDraftShop(t);
     const fetchMock = mockAnthropic(() => messageResponse([shortened]));
 
-    await expect(create(t, ids)).resolves.toEqual({ status: "failed", reason: "notConfigured" });
+    await expect(create(t, ids)).resolves.toEqual({ status: "failed", reason: "notConfigured", aiCalled: false });
 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(await readRateLimitNames(t)).toEqual([]);
@@ -446,7 +456,7 @@ describe("shiftBoard/actions createAiDraft（決まった手順の下書きをAI
     const ids = await seedAiDraftShop(t, { submissionPattern: { kind: "dateOnly" } });
     const fetchMock = mockAnthropic(() => messageResponse([shortened]));
 
-    await expect(create(t, ids)).resolves.toEqual({ status: "failed", reason: "unsupported" });
+    await expect(create(t, ids)).resolves.toEqual({ status: "failed", reason: "unsupported", aiCalled: false });
 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(await readRateLimitNames(t)).toEqual([]);
@@ -468,7 +478,7 @@ describe("shiftBoard/actions createAiDraft（決まった手順の下書きをAI
       const fetchMock = mockAnthropic(respond);
       const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
 
-      await expect(create(t, ids)).resolves.toEqual({ status: "failed", reason });
+      await expect(create(t, ids)).resolves.toEqual({ status: "failed", reason, aiCalled: true });
 
       expect(fetchMock).toHaveBeenCalledTimes(1);
       expect(await readRateLimitNames(t)).toEqual(["aiShiftDraftShort"]);
@@ -517,7 +527,7 @@ describe("shiftBoard/actions createAiDraft（決まった手順の下書きをAI
     const later = await create(t, ids);
 
     expect(statuses).toEqual(["ok", "ok", "ok", "limitReached"]);
-    expect(later).toEqual({ status: "failed", reason: "limitReached" });
+    expect(later).toEqual({ status: "failed", reason: "limitReached", aiCalled: false });
     expect(fetchMock).toHaveBeenCalledTimes(RECRUITMENT_LIMIT);
   });
 
@@ -533,12 +543,17 @@ describe("shiftBoard/actions createAiDraft（決まった手順の下書きをAI
 
     for (let count = 0; count < RECRUITMENT_LIMIT + 1; count += 1) {
       vi.setSystemTime(Date.now() + MINUTE_MS);
-      await expect(create(t, ids)).resolves.toEqual({ status: "failed", reason: "declined" });
+      await expect(create(t, ids)).resolves.toEqual({ status: "failed", reason: "declined", aiCalled: true });
     }
     isRefused = false;
     vi.setSystemTime(Date.now() + MINUTE_MS);
 
-    await expect(create(t, ids)).resolves.toEqual({ status: "ok", shifts: [shift(ids, "15:30")] });
+    await expect(create(t, ids)).resolves.toEqual({
+      status: "ok",
+      shifts: [shift(ids, "15:30")],
+      aiCalled: true,
+      changedCount: 1,
+    });
   });
 });
 
@@ -571,7 +586,12 @@ describe("shiftBoard/actions createAiDraft（AIが一から作る作り方）", 
       messageResponse([shortened, { ...shortened, segments: [{ from: "10:00", to: "19:00", position: 0 }] }]),
     );
 
-    await expect(create(t, ids)).resolves.toEqual({ status: "ok", shifts: [shift(ids, "15:30")] });
+    await expect(create(t, ids)).resolves.toEqual({
+      status: "ok",
+      shifts: [shift(ids, "15:30")],
+      aiCalled: true,
+      changedCount: 1,
+    });
 
     const request = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
     expect(request.system).toContain("シフト表の下書きを作る係");
@@ -589,7 +609,12 @@ describe("shiftBoard/actions createAiDraft（AIが一から作る作り方）", 
     const ids = await seedAiDraftShop(t, { note: null });
     const fetchMock = mockAnthropic(() => messageResponse([shortened]));
 
-    await expect(create(t, ids)).resolves.toEqual({ status: "ok", shifts: [shift(ids, "15:30")] });
+    await expect(create(t, ids)).resolves.toEqual({
+      status: "ok",
+      shifts: [shift(ids, "15:30")],
+      aiCalled: true,
+      changedCount: 1,
+    });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -604,7 +629,7 @@ describe("shiftBoard/actions createAiDraft（AIが一から作る作り方）", 
     mockAnthropic(() => messageResponse(shifts));
     const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    await expect(create(t, ids)).resolves.toEqual({ status: "failed", reason: "declined" });
+    await expect(create(t, ids)).resolves.toEqual({ status: "failed", reason: "declined", aiCalled: true });
 
     expect(errorLog.mock.calls.map((call) => String(call[0])).join("\n")).toContain('"detail":"insufficient_output"');
     expect(await readUsages(t)).toEqual([{ ...usage(ids, "declined"), mode: "scratch" }]);
@@ -618,7 +643,7 @@ describe("shiftBoard/actions createAiDraft（AIが一から作る作り方）", 
     });
     const fetchMock = mockAnthropic(() => messageResponse([shortened]));
 
-    await expect(create(t, ids)).resolves.toEqual({ status: "ok", shifts: [] });
+    await expect(create(t, ids)).resolves.toEqual({ status: "ok", shifts: [], aiCalled: false, changedCount: 0 });
 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(await readUsages(t)).toEqual([]);
@@ -631,7 +656,7 @@ describe("shiftBoard/actions createAiDraft（AIが一から作る作り方）", 
     const fetchMock = mockAnthropic(() => messageResponse([shortened]));
     vi.spyOn(console, "error").mockImplementation(() => {});
 
-    await expect(create(t, ids)).resolves.toEqual({ status: "failed", reason: "unavailable" });
+    await expect(create(t, ids)).resolves.toEqual({ status: "failed", reason: "unavailable", aiCalled: false });
 
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -668,6 +693,8 @@ describe("shiftBoard/actions createAiDraft（AIが一から作る作り方）", 
       await expect(create(t, ids)).resolves.toEqual({
         status: "ok",
         shifts: [shift(ids, "15:30"), shift(ids, "16:00", SECOND_DATE)],
+        aiCalled: true,
+        changedCount: 2,
       });
 
       // 1回の呼び出しには、その日のデータだけを送る。
@@ -686,6 +713,8 @@ describe("shiftBoard/actions createAiDraft（AIが一から作る作り方）", 
       await expect(create(t, ids)).resolves.toEqual({
         status: "ok",
         shifts: [shift(ids, "15:30"), shift(ids, "16:00", SECOND_DATE)],
+        aiCalled: true,
+        changedCount: 1,
       });
     });
 
@@ -701,6 +730,8 @@ describe("shiftBoard/actions createAiDraft（AIが一から作る作り方）", 
       await expect(create(t, ids)).resolves.toEqual({
         status: "ok",
         shifts: [shift(ids, "15:30"), shift(ids, "14:00", SECOND_DATE)],
+        aiCalled: true,
+        changedCount: 2,
       });
     });
 
@@ -710,7 +741,7 @@ describe("shiftBoard/actions createAiDraft（AIが一から作る作り方）", 
       respondPerDay({});
       const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
 
-      await expect(create(t, ids)).resolves.toEqual({ status: "failed", reason: "declined" });
+      await expect(create(t, ids)).resolves.toEqual({ status: "failed", reason: "declined", aiCalled: true });
 
       expect(errorLog.mock.calls.map((call) => String(call[0])).join("\n")).toContain("too_many_failed_days:2/2");
       expect(await readUsages(t)).toEqual([
@@ -724,7 +755,7 @@ describe("shiftBoard/actions createAiDraft（AIが一から作る作り方）", 
       mockAnthropic(() => errorResponse(402, "billing_error"));
       vi.spyOn(console, "error").mockImplementation(() => {});
 
-      await expect(create(t, ids)).resolves.toEqual({ status: "failed", reason: "billing" });
+      await expect(create(t, ids)).resolves.toEqual({ status: "failed", reason: "billing", aiCalled: true });
 
       expect(await readUsages(t)).toEqual([]);
     });
@@ -738,6 +769,8 @@ describe("shiftBoard/actions createAiDraft（AIが一から作る作り方）", 
       await expect(create(t, ids)).resolves.toEqual({
         status: "ok",
         shifts: [shift(ids, "15:30"), shift(ids, "16:00", SECOND_DATE)],
+        aiCalled: true,
+        changedCount: 2,
       });
 
       expect(fetchMock).toHaveBeenCalledTimes(1);

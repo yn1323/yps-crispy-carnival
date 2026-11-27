@@ -451,7 +451,7 @@ const Shell = ({
   const openAutoCreate = () => {
     setAutoCreateOpen(true);
     trackProductEvent({
-      kind: "auto_create_open",
+      kind: "shift_auto_create_open",
       isRequirementMissing: !hasAutoCreateRequirements,
       submissionPattern: submissionPattern.kind,
     });

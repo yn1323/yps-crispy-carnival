@@ -33,6 +33,7 @@ const baseData: ShiftBoardData = {
     reminderScheduledAt: null,
     lastReminderSentAt: null,
     draftSavedAt: null,
+    draftAutoCreated: false,
   },
   submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
   staffs: [
