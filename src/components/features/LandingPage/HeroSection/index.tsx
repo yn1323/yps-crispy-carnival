@@ -1,17 +1,18 @@
 import { Box, Container, Flex, Grid, Heading, Icon, Image, SimpleGrid, Stack, Text, VStack } from "@chakra-ui/react";
 import type { IconType } from "react-icons";
-import { LuBellRing, LuChevronRight, LuMail, LuSendHorizontal, LuSmartphone } from "react-icons/lu";
+import { LuBellRing, LuChevronRight, LuMail, LuSendHorizontal, LuSmartphone, LuSparkles } from "react-icons/lu";
 import heroPcImage from "@/src/assets/hero-pc.webp";
 import heroSpImage from "@/src/assets/hero-sp.webp";
 import { MeasurementLink } from "@/src/components/shared/MeasurementLink";
 import { TrialReassurance } from "@/src/components/shared/TrialReassurance";
 import { Button } from "@/src/components/ui/Button";
 
-// 検索から来た人が最初に気にする「スタッフの負担」と「自動になる連絡」だけを並べる。
+// 検索から来た人が最初に気にする「スタッフの負担」「自動になる連絡」「シフトを作る手間」を、毎月の流れの順に並べる。
 const heroBenefits: Array<{ icon: IconType; label: string }> = [
   { icon: LuSmartphone, label: "アプリ不要で提出" },
   { icon: LuMail, label: "LINEなしでも使える" },
   { icon: LuBellRing, label: "未提出者へ自動催促" },
+  { icon: LuSparkles, label: "自動作成とAI手直し" },
   { icon: LuSendHorizontal, label: "確定も自動で共有" },
 ];
 
@@ -86,7 +87,7 @@ export const HeroSection = () => (
       </Grid>
 
       <SimpleGrid
-        columns={{ base: 2, lg: 4 }}
+        columns={{ base: 2, lg: 5 }}
         gap={{ base: 3, md: 4, lg: 5 }}
         mt={10}
         pt={7}
