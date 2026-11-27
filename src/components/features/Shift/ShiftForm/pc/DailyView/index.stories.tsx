@@ -309,6 +309,18 @@ const findRangeMenu = async (timeLabel: string, subject: "ポジション" | "�
   within(await within(document.body).findByRole("menu", { name: `${timeLabel}の${subject}と休憩` }));
 const expectNoRangeMenu = () =>
   waitFor(() => expect(within(document.body).queryByRole("menu")).not.toBeInTheDocument());
+/**
+ * 範囲のメニューが、Escとメニューの外を押す操作を受け取れるようになるまで待つ。
+ * メニューは、開いた操作でそのまま閉じないよう、開いてから数フレームあとに、これらの操作を受け取り始める。
+ * それより前の操作は受け取られず、メニューが開いたまま残る。並列の実行ではフレームが遅れ、押すほうが先になることがあった。
+ * メニューへフォーカスが移ったあと、次のフレームと、そのあとの処理まで待つ。
+ */
+const waitForRangeMenuReady = async (timeLabel: string) => {
+  const menu = await within(document.body).findByRole("menu", { name: `${timeLabel}のポジションと休憩` });
+  await waitFor(() => expect(menu).toHaveFocus());
+  await new Promise((resolve) => requestAnimationFrame(resolve));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+};
 const getSelections = (row: HTMLElement) => Array.from(row.querySelectorAll("[data-range-selection]"));
 
 /** 日付の見出しの「ドラッグで設定する内容」。次に新しく入れるポジション、または休憩を選ぶ。 */
@@ -489,13 +501,13 @@ export const DetailRangeAssignCancelInteractive: Story = {
     const row = await findRow(canvasElement, "staff2");
 
     await dragOnRow(row, "14:00", "16:00");
-    await findRangeMenu("14:00〜16:00");
+    await waitForRangeMenuReady("14:00〜16:00");
     await userEvent.keyboard("{Escape}");
     await expectNoRangeMenu();
     await expect(getSelections(row)).toHaveLength(0);
 
     await dragOnRow(row, "14:00", "16:00");
-    await findRangeMenu("14:00〜16:00");
+    await waitForRangeMenuReady("14:00〜16:00");
     await userEvent.click(await canvas.findByRole("button", { name: "表示設定" }));
     await waitFor(() =>
       expect(within(document.body).queryByRole("menu", { name: /のポジションと休憩$/ })).not.toBeInTheDocument(),
