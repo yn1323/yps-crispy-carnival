@@ -912,7 +912,7 @@ const schema = defineSchema({
     name: v.string(),
     sortOrder: v.number(),
     weekdays: v.array(shiftDayTemplateWeekdayValidator),
-    // 祝日（nationalHolidaysにある日）に使うテンプレート。店舗で1つだけ持てる。
+    // 祝日（nationalHolidaysにある日）に使うテンプレート。複数のテンプレートで選べ、並びが先頭のテンプレートが当たる。
     appliesToHolidays: v.boolean(),
     requirements: dayRequirementsValidator,
   }).index("by_shopId", ["shopId"]),
