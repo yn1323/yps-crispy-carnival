@@ -1,9 +1,8 @@
-import { Box, Container, Flex, Heading, Icon, Image, Link, SimpleGrid, Stack, Text, VStack } from "@chakra-ui/react";
-import { LuArrowRight, LuCheck, LuZap } from "react-icons/lu";
+import { Box, Container, Flex, Heading, Icon, Image, SimpleGrid, Stack, Text, VStack } from "@chakra-ui/react";
+import { LuCheck, LuZap } from "react-icons/lu";
 import confirmedShiftNoticeImage from "@/src/assets/screens/confirmed-shift-notice.webp";
 import shiftBoardSpImage from "@/src/assets/screens/shift-board-sp.webp";
 import staffRequestNoticeImage from "@/src/assets/screens/staff-request-notice.webp";
-import { getProductFeatureHref } from "@/src/components/features/ProductFeatures/productFeatureRoutes";
 import { LANDING_HEADER_SCROLL_MARGIN_TOP } from "../constants";
 import { SectionHeading } from "../SectionHeading";
 
@@ -13,8 +12,6 @@ type Step = {
   automations: string[];
   imageSrc: string;
   imageAlt: string;
-  /** 毎月の流れに加えて使える機能へのリンク。 */
-  link?: { href: string; label: string };
 };
 
 // 担当者の操作と、シフトリが代わりに行う連絡を分けて見せる。
@@ -32,7 +29,6 @@ const steps: Step[] = [
     automations: ["希望シフトがシフト表に並ぶ", "保存前に割り当てのミスをチェック"],
     imageSrc: shiftBoardSpImage,
     imageAlt: "スマートフォンのシフト表で、1日分のスタッフの勤務を割り当てる画面",
-    link: { href: getProductFeatureHref("shift-auto-creation"), label: "シフトの自動作成を見る" },
   },
   {
     title: "シフトを確定する",
@@ -100,21 +96,6 @@ const StepCard = ({ number, step }: { number: number; step: Step }) => (
       <Text color="gray.700" fontSize="sm" lineHeight="1.8">
         {step.body}
       </Text>
-      {step.link && (
-        <Link
-          href={step.link.href}
-          alignSelf="flex-start"
-          color="teal.700"
-          fontSize="sm"
-          fontWeight="bold"
-          display="inline-flex"
-          alignItems="center"
-          gap={1.5}
-        >
-          {step.link.label}
-          <Icon as={LuArrowRight} boxSize={4} aria-hidden />
-        </Link>
-      )}
 
       <Box mt="auto" pt={4} borderTopWidth="1px" borderColor="gray.100">
         <Flex align="center" gap={1.5} color="teal.700" fontSize="xs" fontWeight="bold">
