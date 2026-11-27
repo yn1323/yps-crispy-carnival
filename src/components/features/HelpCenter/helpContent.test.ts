@@ -23,13 +23,30 @@ import {
 } from "./helpMeta";
 import { resolveLegacyHelpHash } from "./helpNavigation";
 import { normalizeHelpSearchText, searchHelpMetas } from "./helpSearch";
-import { HELP_TASKS } from "./helpTasks";
+import { getHelpTaskHref, HELP_TASKS } from "./helpTasks";
 
 const extractedMdxTextModules = import.meta.glob<string[]>("../../../lib/mdx/test-content/plain-text.mdx", {
   eager: true,
   query: "?mdx-text",
   import: "default",
 });
+
+/** 公開中のFAQと使い方の、本文を含むMDXのソース。 */
+const publicHelpSourceModules = import.meta.glob<string>(
+  ["./content/faqs/*.mdx", "./content/guides/*.mdx", "!./content/faqs/_*.mdx", "!./content/guides/_*.mdx"],
+  { eager: true, query: "?mdx-source", import: "default" },
+);
+
+/** `src/routes`にある、ヘルプの固定のページ。`help.basics.notifications.tsx`は`/help/basics/notifications`になる。 */
+const staticHelpPagePaths = Object.keys(import.meta.glob("../../../routes/help.*.tsx"))
+  .map((path) => path.replace(/^.*\/routes\/help\./, "").replace(/\.tsx$/, ""))
+  .filter((name) => name !== "index" && !name.includes("$"))
+  .map((name) => `/help/${name.replaceAll(".", "/")}`);
+
+/** 本文のMarkdownのリンクと、JSXのhrefから、ヘルプの中へのリンクを取り出す。 */
+function extractHelpLinks(source: string): string[] {
+  return [...source.matchAll(/\]\((\/help[^)\s]*)\)|href="(\/help[^"]*)"/g)].map((match) => match[1] ?? match[2] ?? "");
+}
 
 const FAQ_PATH = "./content/faqs/example-faq.mdx";
 const GUIDE_PATH = "./content/guides/example-guide.mdx";
@@ -117,6 +134,36 @@ describe("HelpCenterの実コンテンツ", () => {
     expect(ADVANCED_HELP_LINKS.map((link) => getAdvancedHelpHref(link.guideId))).toEqual(
       ADVANCED_HELP_LINKS.map((link) => getGuideMeta(link.guideId)?.href),
     );
+  });
+
+  it("本文の中のヘルプへのリンクは、公開中のページを指す", () => {
+    // 公開中のすべての記事の本文を読めていることを先に確かめ、本文を読めずに通るのを防ぐ。
+    expect(Object.keys(publicHelpSourceModules)).toHaveLength(helpMetas.length);
+    const publishedPaths = new Set([
+      "/help",
+      ...staticHelpPagePaths,
+      ...HELP_TASKS.map((task) => getHelpTaskHref(task.id)),
+      ...guideMetas.map((meta) => meta.href),
+      ...faqIndexMetas.map((meta) => meta.href),
+    ]);
+
+    const brokenLinks = Object.entries(publicHelpSourceModules).flatMap(([path, source]) =>
+      extractHelpLinks(source)
+        .filter((href) => !publishedPaths.has(href))
+        .map((href) => ({ path, href })),
+    );
+
+    expect(brokenLinks).toEqual([]);
+  });
+
+  it("本文から、Markdownのリンクとhrefのヘルプへのリンクだけを取り出す", () => {
+    const source =
+      '[使い方](/help/set-positions-and-breaks)と<a href="/help/tasks/shift-building#auto-create">FAQ</a>、[外部](https://example.com/help/x)';
+
+    expect(extractHelpLinks(source)).toEqual([
+      "/help/set-positions-and-breaks",
+      "/help/tasks/shift-building#auto-create",
+    ]);
   });
 
   it("トップ掲載FAQを6件以内に保ち、同じ内容からJSON-LDを生成する", () => {
