@@ -227,40 +227,43 @@ function FeatureDetailView({ feature }: { feature: ProductFeature }) {
         </Container>
       </Box>
 
-      <Box as="section" bg="white" py={{ base: 12, md: 16 }}>
-        <Container maxW="4xl">
-          <SectionTitle>よくある質問</SectionTitle>
-          <Accordion.Root collapsible multiple variant="plain" mt={{ base: 6, md: 8 }}>
-            <VStack align="stretch" gap={2.5}>
-              {feature.faqs.map((faq) => (
-                <Accordion.Item
-                  key={faq.q}
-                  value={faq.q}
-                  bg="white"
-                  borderWidth="1px"
-                  borderColor="gray.200"
-                  borderRadius="md"
-                  overflow="hidden"
-                >
-                  <Accordion.ItemTrigger px={4} py={3} cursor="pointer" textAlign="left" _hover={{ bg: "gray.50" }}>
-                    <Text as="span" flex="1" color="gray.950" fontSize="sm" fontWeight="bold" lineHeight="1.6">
-                      {faq.q}
-                    </Text>
-                    <Accordion.ItemIndicator color="teal.600" />
-                  </Accordion.ItemTrigger>
-                  <Accordion.ItemContent borderTopWidth="1px" borderTopColor="gray.100">
-                    <Accordion.ItemBody px={4} py={4}>
-                      <Text color="gray.700" fontSize="sm" lineHeight="1.8" fontWeight="semibold">
-                        <SentenceLines text={faq.a} />
+      {/* 質問がない機能では、見出しだけの節を出さない。 */}
+      {feature.faqs.length > 0 && (
+        <Box as="section" bg="white" py={{ base: 12, md: 16 }}>
+          <Container maxW="4xl">
+            <SectionTitle>よくある質問</SectionTitle>
+            <Accordion.Root collapsible multiple variant="plain" mt={{ base: 6, md: 8 }}>
+              <VStack align="stretch" gap={2.5}>
+                {feature.faqs.map((faq) => (
+                  <Accordion.Item
+                    key={faq.q}
+                    value={faq.q}
+                    bg="white"
+                    borderWidth="1px"
+                    borderColor="gray.200"
+                    borderRadius="md"
+                    overflow="hidden"
+                  >
+                    <Accordion.ItemTrigger px={4} py={3} cursor="pointer" textAlign="left" _hover={{ bg: "gray.50" }}>
+                      <Text as="span" flex="1" color="gray.950" fontSize="sm" fontWeight="bold" lineHeight="1.6">
+                        {faq.q}
                       </Text>
-                    </Accordion.ItemBody>
-                  </Accordion.ItemContent>
-                </Accordion.Item>
-              ))}
-            </VStack>
-          </Accordion.Root>
-        </Container>
-      </Box>
+                      <Accordion.ItemIndicator color="teal.600" />
+                    </Accordion.ItemTrigger>
+                    <Accordion.ItemContent borderTopWidth="1px" borderTopColor="gray.100">
+                      <Accordion.ItemBody px={4} py={4}>
+                        <Text color="gray.700" fontSize="sm" lineHeight="1.8" fontWeight="semibold">
+                          <SentenceLines text={faq.a} />
+                        </Text>
+                      </Accordion.ItemBody>
+                    </Accordion.ItemContent>
+                  </Accordion.Item>
+                ))}
+              </VStack>
+            </Accordion.Root>
+          </Container>
+        </Box>
+      )}
 
       <Box as="section" bg="gray.50" py={{ base: 12, md: 16 }}>
         <Container maxW="6xl">

@@ -64,6 +64,7 @@ export type ProductFeature = {
   pains: string[];
   capabilities: ProductFeatureCapability[];
   steps: Array<{ title: string; body: string }>;
+  /** 空のときは、よくある質問の節とFAQPage構造化データを出さない。 */
   faqs: ProductFeatureFaq[];
   related: ProductFeatureSlug[];
   /** 操作手順の詳細はヘルプが所有するため、機能ページからはリンクだけを置く。 */
@@ -326,7 +327,7 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
       },
       {
         title: "ポジション別に必要人数を設定",
-        body: "時間帯ごとの人数を決めておきます。平日と土日などで使い分けられます。",
+        body: "時間帯、曜日をテンプレートとして登録。平日と土日などで使い分けられます。",
         screen: {
           src: shiftSetupStaffingSpImage,
           alt: "ホール、キッチン、レジごとに、時間帯の必要人数を設定する画面",
@@ -334,8 +335,8 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
         },
       },
       {
-        title: "足りない時間がすぐ分かる",
-        body: "埋まらない時間は不足として残ります。ポジションごとに人数で表示します。",
+        title: "足りない時間帯も見える",
+        body: "充足を分かりやすく表示。",
         screen: {
           src: staffingShortageSpImage,
           alt: "スマートフォンのシフト表で、ポジションごとの不足の人数が赤く表示された画面",
@@ -343,24 +344,12 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
         },
       },
       {
-        title: "担当外のポジションには入れない",
-        body: "スキルに合わせて割り当てます",
+        title: "スタッフのスキルも考慮",
+        body: "スキルに合わせて割り当てを考えます",
       },
       {
-        title: "見習いだけの時間をつくらない",
-        body: "一人前の希望者がいる場合に限ります",
-      },
-      {
-        title: "休憩時間も自動で作る",
-        body: "勤務の長さに合わせて決めます。時間指定の店舗で使えます。",
-      },
-      {
-        title: "勤務の偏りを減らす",
-        body: "直近3回の確定シフトも参考にします",
-      },
-      {
-        title: "3つの提出方法すべてで使える",
-        body: "時間指定・日付選択・パターン選択",
+        title: "休憩時間設定にも対応",
+        body: "勤務の長さに応じて自動で休憩を設定",
       },
     ],
     steps: [
@@ -368,28 +357,7 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
       { title: "自動作成を押す", body: "希望が集まってから押します" },
       { title: "確かめて確定する", body: "足りない所を直してから確定します" },
     ],
-    faqs: [
-      {
-        q: "自動で作ったシフトは、すぐスタッフに届きますか？",
-        a: "いいえ、届きません。作るのは下書きで、確定すると届きます。",
-      },
-      {
-        q: "手で入れた勤務は残りますか？",
-        a: "いいえ、残りません。下書きは、作った勤務に置き換わります。",
-      },
-      {
-        q: "人数が足りないときはどうなりますか？",
-        a: "足りない時間は空いたまま残ります。シフト表に、ポジションごとの不足の人数を表示します。",
-      },
-      {
-        q: "ポジションが1つでも使えますか？",
-        a: "はい、使えます。1つのポジションに必要人数を設定します。",
-      },
-      {
-        q: "少人数のお店でも設定が必要ですか？",
-        a: "いいえ、使わなければ設定はいりません。これまでのシフト表のまま使えます。",
-      },
-    ],
+    faqs: [],
     related: ["shift-schedule", "shift-request-collection", "shift-sharing"],
     helpLinks: [
       { href: "/help/auto-create-shift-draft", label: "シフトの下書きを自動作成したい" },

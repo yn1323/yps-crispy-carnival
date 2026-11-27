@@ -33,8 +33,7 @@ describe("機能ページの内容", () => {
   });
 
   it("画面に表示するFAQと同じ内容からFAQPage構造化データを作る", () => {
-    for (const feature of PRODUCT_FEATURES) {
-      expect(feature.faqs.length).toBeGreaterThan(0);
+    for (const feature of PRODUCT_FEATURES.filter(({ faqs }) => faqs.length > 0)) {
       expect(createProductFeatureFaqPageJsonLd(feature)).toEqual({
         "@context": "https://schema.org",
         "@type": "FAQPage",

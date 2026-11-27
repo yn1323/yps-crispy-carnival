@@ -31,10 +31,14 @@ export const Desktop: Story = {
       "/features/shift-sharing",
     );
     await expect(canvas.queryByRole("link", { name: /デモを試す/ })).not.toBeInTheDocument();
+    await expect(canvas.getByRole("heading", { level: 2, name: "よくある質問" })).toBeInTheDocument();
   },
 };
 
-/** デモがある機能だけ、最初の画面と「できること」の後に、デモを別タブで開くボタンを出す。 */
+/**
+ * デモがある機能だけ、最初の画面と「できること」の後に、デモを別タブで開くボタンを出す。
+ * よくある質問のない機能では、その節を出さない。
+ */
 export const WithDemo: Story = {
   args: {
     slug: "shift-auto-creation",
@@ -48,6 +52,7 @@ export const WithDemo: Story = {
       await expect(link).toHaveAttribute("href", "/demo/shiftboard");
       await expect(link).toHaveAttribute("target", "_blank");
     }
+    await expect(canvas.queryByRole("heading", { name: "よくある質問" })).not.toBeInTheDocument();
   },
 };
 
