@@ -308,7 +308,7 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
     metaTitle: "シフト自動作成｜希望と必要人数から下書きを作る",
     metaDescription:
       "提出された希望シフトと、ポジションごとの必要人数から、シフトの下書きを自動で作ります。希望のない時間や担当外のポジションには入れず、足りない時間はシフト表に表示します。下書きは調整してから確定できます。",
-    heading: ["希望と必要人数から", "シフトを自動で作る"],
+    heading: ["シフト希望と必要人数から", "シフトを自動で作る"],
     lead: "らくらく作成で、あとは確認するだけ。",
     illustration: {
       src: shiftAutoCreationImage,
