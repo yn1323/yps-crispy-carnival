@@ -21,7 +21,7 @@ import { PublicPageLayout } from "@/src/components/templates/PublicPageLayout";
 import { Empty } from "@/src/components/ui/Empty";
 import { FeatureBreadcrumbs } from "./FeatureBreadcrumbs";
 import { FeatureCard } from "./FeatureCard";
-import { FeatureCtaBand, FeatureSignupButton } from "./FeatureSignupCta";
+import { FeatureCtaBand, FeatureDemoBand, FeatureDemoButton, FeatureSignupButton } from "./FeatureSignupCta";
 import {
   getProductFeature,
   type ProductFeature,
@@ -88,7 +88,14 @@ function FeatureDetailView({ feature }: { feature: ProductFeature }) {
                 <SentenceLines text={feature.lead} />
               </Text>
               <VStack align={{ base: "stretch", md: "start" }} gap={3} w="full" pt={2}>
-                <FeatureSignupButton position="hero" />
+                <Stack
+                  direction={{ base: "column", md: "row" }}
+                  gap={{ base: 3, md: 4 }}
+                  w={{ base: "full", md: "auto" }}
+                >
+                  <FeatureSignupButton position="hero" />
+                  {feature.demoHref && <FeatureDemoButton href={feature.demoHref} position="hero" />}
+                </Stack>
                 <TrialReassurance />
               </VStack>
             </VStack>
@@ -153,6 +160,8 @@ function FeatureDetailView({ feature }: { feature: ProductFeature }) {
           )}
         </Container>
       </Box>
+
+      {feature.demoHref && <FeatureDemoBand href={feature.demoHref} />}
 
       <Box as="section" bg="#fbfefe" py={{ base: 12, md: 16 }}>
         <Container maxW="6xl">

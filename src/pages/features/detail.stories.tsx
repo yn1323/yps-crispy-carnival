@@ -30,6 +30,34 @@ export const Desktop: Story = {
       "href",
       "/features/shift-sharing",
     );
+    await expect(canvas.queryByRole("link", { name: /デモを試す/ })).not.toBeInTheDocument();
+  },
+};
+
+/** デモがある機能だけ、最初の画面と「できること」の後に、デモを別タブで開くボタンを出す。 */
+export const WithDemo: Story = {
+  args: {
+    slug: "shift-auto-creation",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const demoLinks = canvas.getAllByRole("link", { name: "デモを試す（別タブで開きます）" });
+
+    await expect(demoLinks).toHaveLength(2);
+    for (const link of demoLinks) {
+      await expect(link).toHaveAttribute("href", "/demo/shiftboard");
+      await expect(link).toHaveAttribute("target", "_blank");
+    }
+  },
+};
+
+export const WithDemoMobile: Story = {
+  args: {
+    slug: "shift-auto-creation",
+  },
+  tags: ["vrt-mobile2"],
+  globals: {
+    viewport: { value: "mobile2", isRotated: false },
   },
 };
 

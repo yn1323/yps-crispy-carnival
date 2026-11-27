@@ -22,6 +22,8 @@ export const publicCtaIds = [
   "article_cta",
   "feature_hero_signup",
   "feature_bottom_signup",
+  "feature_hero_demo",
+  "feature_demo",
 ] as const;
 export type PublicCtaId = (typeof publicCtaIds)[number];
 

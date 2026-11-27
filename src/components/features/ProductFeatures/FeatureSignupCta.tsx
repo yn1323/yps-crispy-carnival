@@ -1,9 +1,10 @@
-import { Box, Container, Heading, Icon, Image, Stack, VStack } from "@chakra-ui/react";
-import { LuChevronRight } from "react-icons/lu";
+import { Box, Container, Flex, Heading, Icon, Image, Stack, Text, VStack } from "@chakra-ui/react";
+import { LuChevronRight, LuExternalLink } from "react-icons/lu";
 import relaxedStoreImage from "@/src/assets/illustrations/relaxed-store.webp";
 import { MeasurementLink } from "@/src/components/shared/MeasurementLink";
 import { TrialReassurance } from "@/src/components/shared/TrialReassurance";
 import { Button } from "@/src/components/ui/Button";
+import { SentenceLines } from "./SentenceLines";
 
 type SignupPosition = "hero" | "bottom";
 
@@ -28,6 +29,69 @@ export function FeatureSignupButton({ position }: { position: SignupPosition }) 
         <Icon as={LuChevronRight} boxSize={5} />
       </MeasurementLink>
     </Button>
+  );
+}
+
+type DemoPosition = "hero" | "band";
+
+/** 登録なしで操作できるデモを別タブで開く。登録の導線より目立たせないため、枠線のボタンにする。 */
+export function FeatureDemoButton({ href, position }: { href: string; position: DemoPosition }) {
+  return (
+    <Button
+      asChild
+      colorPalette="teal"
+      variant="outline"
+      bg="white"
+      h={{ base: "56px", md: "60px" }}
+      minW="220px"
+      w={{ base: "full", md: "auto" }}
+      px={8}
+      borderRadius="md"
+      fontWeight="bold"
+      fontSize="md"
+    >
+      <MeasurementLink
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="デモを試す（別タブで開きます）"
+        measurementCtaId={position === "hero" ? "feature_hero_demo" : "feature_demo"}
+      >
+        デモを試す
+        <Icon as={LuExternalLink} boxSize={4} aria-hidden />
+      </MeasurementLink>
+    </Button>
+  );
+}
+
+/** 「できること」を読んだ人が、その場で操作を試せるようにする。 */
+export function FeatureDemoBand({ href }: { href: string }) {
+  return (
+    <Box as="section" bg="gray.50" py={{ base: 10, md: 12 }}>
+      <Container maxW="4xl">
+        <Flex
+          direction={{ base: "column", md: "row" }}
+          align={{ base: "stretch", md: "center" }}
+          justify="space-between"
+          gap={{ base: 5, md: 8 }}
+          bg="white"
+          borderWidth="1px"
+          borderColor="gray.200"
+          borderRadius="2xl"
+          p={{ base: 6, md: 8 }}
+        >
+          <Box>
+            <Heading as="h2" fontSize={{ base: "xl", md: "2xl" }} lineHeight="1.5" letterSpacing="0">
+              登録なしでデモを試せます
+            </Heading>
+            <Text mt={2} color="gray.700" fontSize={{ base: "sm", md: "md" }} lineHeight="1.9">
+              <SentenceLines text="架空のお店とスタッフを用意しています。自動作成まで、そのまま操作できます。" />
+            </Text>
+          </Box>
+          <FeatureDemoButton href={href} position="band" />
+        </Flex>
+      </Container>
+    </Box>
   );
 }
 

@@ -5,6 +5,7 @@ export const PRODUCT_FEATURE_SLUGS = [
   "shift-request-collection",
   "submission-reminder",
   "shift-schedule",
+  "shift-auto-creation",
   "shift-sharing",
   "multi-store",
 ] as const;

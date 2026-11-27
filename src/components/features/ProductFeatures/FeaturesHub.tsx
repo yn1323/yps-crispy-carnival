@@ -13,12 +13,12 @@ import { SentenceLines } from "./SentenceLines";
 /** TOPの「毎月やることは3つだけ」と同じ3ステップで分け、店舗とスタッフの管理は流れの外に置く。 */
 const FEATURE_GROUPS: ReadonlyArray<{ step?: number; title: string; slugs: readonly ProductFeatureSlug[] }> = [
   { step: 1, title: "シフトを募集する", slugs: ["shift-request-collection", "submission-reminder"] },
-  { step: 2, title: "シフトを組む", slugs: ["shift-schedule"] },
+  { step: 2, title: "シフトを組む", slugs: ["shift-schedule", "shift-auto-creation"] },
   { step: 3, title: "シフトを確定する", slugs: ["shift-sharing"] },
   { title: "店舗とスタッフの管理", slugs: ["multi-store"] },
 ];
 
-const unsupportedFeatures = ["出勤・退勤の打刻などの勤怠管理", "給与計算", "人数や条件からシフトを自動で組む機能"];
+const unsupportedFeatures = ["出勤・退勤の打刻などの勤怠管理", "給与計算"];
 
 export function FeaturesHub() {
   return (

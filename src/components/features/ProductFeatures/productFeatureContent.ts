@@ -1,20 +1,24 @@
 import type { IconType } from "react-icons";
-import { LuBellRing, LuCalendarRange, LuMessageCircle, LuSendHorizontal, LuStore } from "react-icons/lu";
+import { LuBellRing, LuCalendarRange, LuMessageCircle, LuSendHorizontal, LuSparkles, LuStore } from "react-icons/lu";
 import { ORGANIZATION_PLAN_LIMITS } from "@/convex/organizationBilling/planLimits";
 import heroPcImage from "@/src/assets/hero-pc.webp";
+import autoCreateDraftSpImage from "@/src/assets/screens/auto-create-draft-sp.webp";
 import confirmedShiftNoticeImage from "@/src/assets/screens/confirmed-shift-notice.webp";
 import multiStoreRecruitmentsImage from "@/src/assets/screens/multi-store-recruitments.webp";
 import recruitmentSubmissionStatusImage from "@/src/assets/screens/recruitment-submission-status.webp";
 import shiftBoardReminderImage from "@/src/assets/screens/shift-board-reminder.webp";
 import shiftBoardSpImage from "@/src/assets/screens/shift-board-sp.webp";
+import shiftSetupStaffingSpImage from "@/src/assets/screens/shift-setup-staffing-sp.webp";
 import staffInvitationQrImage from "@/src/assets/screens/staff-invitation-qr.webp";
 import staffRequestNoticeImage from "@/src/assets/screens/staff-request-notice.webp";
+import staffingShortageSpImage from "@/src/assets/screens/staffing-shortage-sp.webp";
 import submitTimeImage from "@/src/assets/screens/submit-time.webp";
 import buildScheduleImage from "./images/build-schedule.webp";
 import collectRequestsImage from "./images/collect-requests.webp";
 import deadlineReminderImage from "./images/deadline-reminder.webp";
 import multiStoreMapImage from "./images/multi-store-map.webp";
 import shareConfirmedImage from "./images/share-confirmed.webp";
+import shiftAutoCreationImage from "./images/shift-auto-creation.webp";
 import { getProductFeatureHref, PRODUCT_FEATURE_SLUGS, type ProductFeatureSlug } from "./productFeatureRoutes";
 
 // 表示の大半はスマホ（幅360px前後）で読まれる。
@@ -65,6 +69,8 @@ export type ProductFeature = {
   /** 操作手順の詳細はヘルプが所有するため、機能ページからはリンクだけを置く。 */
   helpLinks: ProductFeatureLink[];
   articleSlugs: string[];
+  /** 登録なしで操作できるデモ。ある機能だけ、別タブで開くボタンを出す。 */
+  demoHref?: string;
 };
 
 const freeLimits = ORGANIZATION_PLAN_LIMITS.free;
@@ -280,7 +286,7 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
       },
       {
         q: "シフトを自動で組んでくれますか？",
-        a: "いいえ、自動で組む機能はありません。希望を並べた下書きから調整します。",
+        a: "はい、希望と必要人数から作れます。作った下書きは、調整してから確定します。",
       },
       {
         q: "Excelで直した表を取り込めますか？",
@@ -293,6 +299,104 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
       { href: "/help/scenarios/shift-export", label: "シフトをPDF・Excelでダウンロードしたい" },
     ],
     articleSlugs: ["shift-schedule-creation-guide", "shift-build-faster"],
+  },
+  "shift-auto-creation": {
+    name: "シフトの自動作成",
+    icon: LuSparkles,
+    summary: "希望から下書きを自動で作ります",
+    metaTitle: "シフト自動作成｜希望と必要人数から下書きを作る",
+    metaDescription:
+      "提出された希望シフトと、ポジションごとの必要人数から、シフトの下書きを自動で作ります。希望のない時間や担当外のポジションには入れず、足りない時間はシフト表に表示します。下書きは調整してから確定できます。",
+    heading: ["希望と必要人数から", "シフトを自動で作る"],
+    lead: "作った下書きは、直してから確定できます。",
+    illustration: {
+      src: shiftAutoCreationImage,
+      alt: "店長がノートPCで自動作成を押すと、シフト表にポジションごとの色の勤務が並ぶイラスト",
+    },
+    pains: ["希望と必要人数を見比べて組んでいる", "足りない時間帯に後から気づく", "勤務が一部の人に偏ってしまう"],
+    capabilities: [
+      {
+        title: "募集期間の勤務をまとめて作る",
+        body: "希望を出した時間の中だけで組みます。ポジションごとに人を割り当てます。",
+        screen: {
+          src: autoCreateDraftSpImage,
+          alt: "自動で作った勤務が、ポジションの色と休憩つきでスタッフごとに並ぶ、スマートフォンのシフト表",
+          frame: "phone",
+        },
+      },
+      {
+        title: "ポジション別に必要人数を設定",
+        body: "時間帯ごとの人数を決めておきます。平日と土日などで使い分けられます。",
+        screen: {
+          src: shiftSetupStaffingSpImage,
+          alt: "ホール、キッチン、レジごとに、時間帯の必要人数を設定する画面",
+          frame: "phone",
+        },
+      },
+      {
+        title: "足りない時間がすぐ分かる",
+        body: "埋まらない時間は不足として残ります。ポジションごとに人数で表示します。",
+        screen: {
+          src: staffingShortageSpImage,
+          alt: "スマートフォンのシフト表で、ポジションごとの不足の人数が赤く表示された画面",
+          frame: "phone",
+        },
+      },
+      {
+        title: "担当外のポジションには入れない",
+        body: "スキルに合わせて割り当てます",
+      },
+      {
+        title: "見習いだけの時間をつくらない",
+        body: "一人前の希望者がいる場合に限ります",
+      },
+      {
+        title: "休憩時間も自動で作る",
+        body: "勤務の長さに合わせて決めます。時間指定の店舗で使えます。",
+      },
+      {
+        title: "勤務の偏りを減らす",
+        body: "直近3回の確定シフトも参考にします",
+      },
+      {
+        title: "3つの提出方法すべてで使える",
+        body: "時間指定・日付選択・パターン選択",
+      },
+    ],
+    steps: [
+      { title: "必要人数を設定する", body: "ポジションと人数を決めておきます" },
+      { title: "自動作成を押す", body: "希望が集まってから押します" },
+      { title: "確かめて確定する", body: "足りない所を直してから確定します" },
+    ],
+    faqs: [
+      {
+        q: "自動で作ったシフトは、すぐスタッフに届きますか？",
+        a: "いいえ、届きません。作るのは下書きで、確定すると届きます。",
+      },
+      {
+        q: "手で入れた勤務は残りますか？",
+        a: "いいえ、残りません。下書きは、作った勤務に置き換わります。",
+      },
+      {
+        q: "人数が足りないときはどうなりますか？",
+        a: "足りない時間は空いたまま残ります。シフト表に、ポジションごとの不足の人数を表示します。",
+      },
+      {
+        q: "ポジションが1つでも使えますか？",
+        a: "はい、使えます。1つのポジションに必要人数を設定します。",
+      },
+      {
+        q: "少人数のお店でも設定が必要ですか？",
+        a: "いいえ、使わなければ設定はいりません。これまでのシフト表のまま使えます。",
+      },
+    ],
+    related: ["shift-schedule", "shift-request-collection", "shift-sharing"],
+    helpLinks: [
+      { href: "/help/auto-create-shift-draft", label: "シフトの下書きを自動作成したい" },
+      { href: "/help/set-positions-and-breaks", label: "ポジションと休憩時間を設定する" },
+    ],
+    articleSlugs: ["fair-shift-scheduling", "shift-schedule-creation-guide"],
+    demoHref: "/demo/shiftboard",
   },
   "shift-sharing": {
     name: "確定シフトの共有",

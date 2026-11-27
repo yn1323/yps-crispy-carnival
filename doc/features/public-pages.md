@@ -139,7 +139,7 @@ Productionの設定値と公開表示の確認状況は、[リリース状態](.
 
 TOPのFAQは、導入を検討する利用者向けの8件を`LandingPage/faqs.ts`で管理する。  表示内容とTOPの`FAQPage`構造化データは同じデータから生成し、各回答は文ごとに改行して表示する。
 
-機能ページの内容は`ProductFeatures/productFeatureContent.ts`、URLのslugは`ProductFeatures/productFeatureRoutes.ts`で管理する。  slugの定義は静的生成とsitemapのscriptからも読むため、画像とReactを持たないsecondary public entryに分けている。  TOPの主な機能sectionも、同じ内容の名前と説明から各機能ページへリンクする。  各機能ページのFAQと`FAQPage`構造化データ、パンくずと`BreadcrumbList`構造化データは、画面に表示する同じデータから生成する。  機能ページに書く内容は現在の実装で確認できる事実に限り、勤怠管理、給与計算、シフトの自動作成のようにない機能は、機能一覧の「シフトリにない機能」で明示する。
+機能ページの内容は`ProductFeatures/productFeatureContent.ts`、URLのslugは`ProductFeatures/productFeatureRoutes.ts`で管理する。  slugの定義は静的生成とsitemapのscriptからも読むため、画像とReactを持たないsecondary public entryに分けている。  TOPの主な機能sectionも、同じ内容の名前と説明から各機能ページへリンクする。  各機能ページのFAQと`FAQPage`構造化データ、パンくずと`BreadcrumbList`構造化データは、画面に表示する同じデータから生成する。  機能ページに書く内容は現在の実装で確認できる事実に限り、勤怠管理や給与計算のようにない機能は、機能一覧の「シフトリにない機能」で明示する。  登録なしで操作できるデモがある機能は、ページの最初と「できること」の後に、デモを別タブで開くボタンを置く。
 
 ヘルプは利用開始後のFAQと使い方を一つのMDX形式で管理し、利用者が完了したい仕事ごとに分類する。組織構造と動画シナリオはTOPから直接開くTSXページとして分ける。
 FAQは`/help/tasks/:taskId#<faq-id>`で展開・共有し、使い方は`/help/:slug`の個別ページで表示する。
