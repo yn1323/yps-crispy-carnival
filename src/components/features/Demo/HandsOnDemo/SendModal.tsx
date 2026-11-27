@@ -1,0 +1,247 @@
+import { Box, Flex, Icon, Image, Text, useBreakpointValue } from "@chakra-ui/react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
+import type { IconType } from "react-icons";
+import { LuCalendarCheck, LuCheck, LuMail, LuUsers } from "react-icons/lu";
+import type { HandsOnScene } from "./flow";
+import { LineConfirmScreen, LineRecruitScreen, PHONE_FRAME_SIZE, PhoneFrame } from "./PhoneScreens";
+import type { ConfirmRow } from "./progress";
+import { StaffSubmitFrame } from "./StaffSubmitFrame";
+
+export type SendScene = Extract<
+  HandsOnScene,
+  "sent" | "staffMessage" | "staffAnswer" | "collected" | "confirmSent" | "confirmMessage"
+>;
+
+const SEND_SCENES: readonly SendScene[] = [
+  "sent",
+  "staffMessage",
+  "staffAnswer",
+  "collected",
+  "confirmSent",
+  "confirmMessage",
+];
+export const isSendScene = (scene: HandsOnScene): scene is SendScene =>
+  (SEND_SCENES as readonly HandsOnScene[]).includes(scene);
+
+// 送る場面は、シフトリを主語にして書く。
+const SEND_TITLES: Partial<Record<SendScene, string>> = {
+  sent: "提出依頼を自動で送ります",
+  collected: "希望シフトが届きました",
+  confirmSent: "確定したシフトを自動で送ります",
+};
+
+const PHONE_CAPTIONS: Partial<Record<SendScene, string>> = {
+  staffMessage: "スタッフに届いたお知らせ",
+  staffAnswer: "スタッフが希望を出します",
+  confirmMessage: "スタッフに届いたお知らせ",
+};
+
+/** 送る場面の両端。左はシフトリ（ロゴ）、右はスタッフ（背景のないアイコン）。届いた側にチェックを出す。 */
+const Endpoint = ({ icon, label, badge }: { icon?: IconType; label: string; badge: boolean }) => (
+  <Flex direction="column" align="center" gap={2} w={{ base: "72px", md: "96px" }} flexShrink={0}>
+    <Box position="relative">
+      <Flex boxSize={{ base: 14, md: 20 }} align="center" justify="center" color="teal.700">
+        {icon ? (
+          <Icon as={icon} boxSize={{ base: 10, md: 14 }} strokeWidth={1.6} aria-hidden />
+        ) : (
+          <Image src="/logo192.webp" alt="" boxSize={{ base: 11, md: 14 }} />
+        )}
+      </Flex>
+      {badge && (
+        <Flex
+          position="absolute"
+          right={-1}
+          top={-1}
+          boxSize={7}
+          borderRadius="full"
+          bg="green.500"
+          color="white"
+          align="center"
+          justify="center"
+          borderWidth="3px"
+          borderColor="white"
+          style={{ animation: "hodPop .45s ease-out 2.7s both" }}
+          aria-hidden
+        >
+          <Icon as={LuCheck} boxSize={3.5} strokeWidth={3} />
+        </Flex>
+      )}
+    </Box>
+    <Text fontSize="sm" fontWeight="bold" color="gray.700">
+      {label}
+    </Text>
+  </Flex>
+);
+
+/** シフトリとスタッフの間を、お知らせのアイコンが1つ、放物線を描いてゆっくり飛ぶ。 */
+const ArcFlight = ({ icon, reverse }: { icon: IconType; reverse: boolean }) => {
+  // スマートフォンでも両端のアイコンが枠に収まるよう、飛ぶ距離を縮める。
+  const lane = useBreakpointValue({ base: 130, md: 260 }) ?? 260;
+  const travel = lane - 40;
+  return (
+    <Box position="relative" w={`${lane}px`} h="96px" flexShrink={0} aria-hidden>
+      <Box
+        position="absolute"
+        left={0}
+        right={0}
+        top="64px"
+        borderTopWidth="2px"
+        borderStyle="dashed"
+        borderColor="gray.200"
+      />
+      <Box
+        position="absolute"
+        left={0}
+        top="44px"
+        style={
+          {
+            "--travel": `${travel}px`,
+            animation: `${reverse ? "hodArcXBack" : "hodArcX"} 2.4s linear .3s both`,
+          } as CSSProperties
+        }
+      >
+        <Box style={{ animation: "hodArcY 2.4s .3s both" }}>
+          {/* 背景を付けず、アイコンだけを飛ばす。中を白で塗り、下の点線が透けないようにする。 */}
+          <Flex boxSize={10} color="teal.600" align="center" justify="center">
+            <Icon as={icon} boxSize={10} strokeWidth={1.6} fill="white" />
+          </Flex>
+        </Box>
+      </Box>
+    </Box>
+  );
+};
+
+/** モーダルの外の余白、内側の余白、見出し、見出しとの間の合計（縦と横）。スマートフォンの枠を、残りいっぱいまで大きくする。 */
+const PHONE_RESERVED = { height: 16 * 2 + 24 * 2 + 28 + 16, width: 16 * 2 + 20 * 2 } as const;
+const MIN_PHONE_SCALE = 0.6;
+
+const usePhoneScale = (area: { current: HTMLElement | null }) => {
+  const [scale, setScale] = useState(1);
+  useEffect(() => {
+    const element = area.current;
+    if (!element) return;
+    const update = () => {
+      const byHeight = (element.clientHeight - PHONE_RESERVED.height) / PHONE_FRAME_SIZE.height;
+      const byWidth = (element.clientWidth - PHONE_RESERVED.width) / PHONE_FRAME_SIZE.width;
+      setScale(Math.max(MIN_PHONE_SCALE, Math.min(byHeight, byWidth)));
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [area]);
+  return scale;
+};
+
+type Props = {
+  scene: SendScene;
+  shopName: string;
+  staffName: string;
+  periodLabel: string;
+  deadlineLabel: string;
+  periodStart: string;
+  confirmRows: ConfirmRow[];
+  onStaffSubmitted: () => void;
+};
+
+/**
+ * 送る場面とお知らせを、見出しも下のボタンもない中央のモーダルで見せる。決まった時間で次の場面へ進む。
+ * 読み上げでは、見出しだけを伝える。
+ */
+export const SendModal = ({
+  scene,
+  shopName,
+  staffName,
+  periodLabel,
+  deadlineLabel,
+  periodStart,
+  confirmRows,
+  onStaffSubmitted,
+}: Props) => {
+  const areaRef = useRef<HTMLDivElement | null>(null);
+  const scale = usePhoneScale(areaRef);
+  const title = SEND_TITLES[scene];
+  const caption = PHONE_CAPTIONS[scene];
+
+  return (
+    <Flex
+      ref={areaRef}
+      position="absolute"
+      inset={0}
+      zIndex={20}
+      align="center"
+      justify="center"
+      bg="blackAlpha.500"
+      backdropFilter="blur(2px)"
+      px={4}
+      style={{ animation: "hodSceneIn .3s ease-out both" }}
+    >
+      <Box
+        w={caption ? "auto" : "full"}
+        maxW={caption ? "none" : "600px"}
+        bg="white"
+        borderRadius="2xl"
+        boxShadow="2xl"
+        px={caption ? 5 : { base: 5, md: 10 }}
+        py={caption ? 6 : { base: 6, md: 10 }}
+      >
+        {caption ? (
+          <Flex
+            key={scene}
+            direction="column"
+            align="center"
+            gap={4}
+            style={{ animation: "hodFadeUp .4s ease-out both" }}
+          >
+            <Text role="status" fontSize={{ base: "md", md: "lg" }} fontWeight="bold" color="gray.900">
+              {caption}
+            </Text>
+            <PhoneFrame scale={scale}>
+              {scene === "staffMessage" && (
+                <LineRecruitScreen
+                  shopName={shopName}
+                  staffName={staffName}
+                  periodLabel={periodLabel}
+                  deadlineLabel={deadlineLabel}
+                />
+              )}
+              {scene === "staffAnswer" && <StaffSubmitFrame periodStart={periodStart} onDone={onStaffSubmitted} />}
+              {scene === "confirmMessage" && (
+                <LineConfirmScreen
+                  shopName={shopName}
+                  staffName={staffName}
+                  periodLabel={periodLabel}
+                  rows={confirmRows}
+                />
+              )}
+            </PhoneFrame>
+          </Flex>
+        ) : (
+          <Flex direction="column" align="center" gap={{ base: 6, md: 8 }}>
+            <Flex align="center" justify="center" gap={{ base: 0, md: 2 }} w="full">
+              <Endpoint label="シフトリ" badge={scene === "collected"} />
+              <ArcFlight
+                key={scene}
+                reverse={scene === "collected"}
+                icon={scene === "collected" ? LuCalendarCheck : LuMail}
+              />
+              <Endpoint icon={LuUsers} label="スタッフ" badge={scene === "confirmSent"} />
+            </Flex>
+            <Text
+              key={scene}
+              role="status"
+              fontSize={{ base: "lg", md: "xl" }}
+              fontWeight="bold"
+              color="gray.900"
+              lineHeight="1.4"
+              textAlign="center"
+              style={{ animation: "hodFadeUp .45s ease-out both" }}
+            >
+              {title}
+            </Text>
+          </Flex>
+        )}
+      </Box>
+    </Flex>
+  );
+};
