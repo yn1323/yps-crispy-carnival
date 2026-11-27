@@ -256,14 +256,14 @@ function getStatusContent(
     case "expired":
       return {
         title: "招待リンクの利用期限が切れています",
-        description: "担当者に新しい招待URLの発行を依頼してください。",
+        description: "担当者に新しい招待リンクの発行を依頼してください。",
         icon: LuClock,
         iconBg: "orange.50",
         iconColor: "orange.700",
       };
     case "revoked":
       return {
-        title: "招待リンクが無効です",
+        title: "この招待リンクは使えなくなりました",
         description: "担当者が招待を取り消した可能性があります。\n担当者に最新の状況を確認してください。",
         icon: LuCircleAlert,
         iconBg: "orange.50",
@@ -279,7 +279,7 @@ function getStatusContent(
       };
     case "unavailable":
       return {
-        title: "招待URLが現在利用できません",
+        title: "招待リンクが現在利用できません",
         description: "組織・店舗の契約状況が変わった可能性があります。\n担当者に確認してください。",
         icon: LuCircleAlert,
         iconBg: "orange.50",
@@ -287,8 +287,8 @@ function getStatusContent(
       };
     case "invalid":
       return {
-        title: "招待URLが無効です",
-        description: "招待URLが誤っています。\n担当者に確認してください。",
+        title: "招待リンクが正しくありません",
+        description: "招待リンクが誤っています。\n担当者に確認してください。",
         icon: LuLink,
         iconBg: "gray.100",
         iconColor: "gray.700",

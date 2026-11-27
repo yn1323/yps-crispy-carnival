@@ -160,7 +160,7 @@ describe("必要人数とスタッフの保存", () => {
       ],
     });
     expect(mocks.saveStaffShiftProfiles).not.toHaveBeenCalled();
-    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "シフト設定を保存しました" });
+    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "保存しました" });
     expect(result.current.pendingSections).toEqual([]);
   });
 
@@ -244,7 +244,7 @@ describe("必要人数とスタッフの保存", () => {
       ],
     });
     expect(mocks.saveDayTemplates).not.toHaveBeenCalled();
-    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "シフト設定を保存しました" });
+    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "保存しました" });
   });
 
   it("保存済みの値を一人前へ戻したスタッフは、空の値で送る", async () => {
@@ -311,7 +311,7 @@ describe("必要人数とスタッフの保存", () => {
     expect(mocks.savePositions).not.toHaveBeenCalled();
     expect(mocks.saveDayTemplates).not.toHaveBeenCalled();
     expect(mocks.saveStaffShiftProfiles).not.toHaveBeenCalled();
-    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "シフト設定を保存しました" });
+    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "保存しました" });
   });
 
   it("名前が空のテンプレートがあれば保存せず、そのテンプレートを開いて誤りを出す", async () => {
@@ -1122,7 +1122,7 @@ describe("ポジションの反映と保存", () => {
     expect(mocks.saveDayTemplates.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.saveStaffShiftProfiles.mock.invocationCallOrder[0],
     );
-    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "シフト設定を保存しました" });
+    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "保存しました" });
     expect(result.current.pendingSections).toEqual([]);
   });
 

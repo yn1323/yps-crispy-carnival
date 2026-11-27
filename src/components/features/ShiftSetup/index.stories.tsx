@@ -681,7 +681,7 @@ export const CopyDialog: Story = {
     const canvas = within(canvasElement);
     const body = within(canvasElement.ownerDocument.body);
     await userEvent.click(canvas.getByRole("button", { name: "コピーする" }));
-    const dialog = await body.findByRole("dialog", { name: "別テンプレートの人員設定をコピーする" });
+    const dialog = await body.findByRole("dialog", { name: "別テンプレートの必要人数をコピーする" });
     await waitFor(() => expect(dialog).toBeVisible());
   },
 };
@@ -1386,11 +1386,11 @@ const copyRequirements: Story["play"] = async ({ canvasElement }) => {
   const holiday = await selectTemplate(canvas, "祝日", "祝日");
 
   await userEvent.click(holiday.getByRole("button", { name: "コピーする" }));
-  const dialog = within(await body.findByRole("dialog", { name: "別テンプレートの人員設定をコピーする" }));
+  const dialog = within(await body.findByRole("dialog", { name: "別テンプレートの必要人数をコピーする" }));
   await userEvent.selectOptions(dialog.getByRole("combobox", { name: "コピーもとテンプレート" }), "土日");
   await userEvent.click(dialog.getByRole("button", { name: "コピーする" }));
   await waitFor(() =>
-    expect(body.queryByRole("dialog", { name: "別テンプレートの人員設定をコピーする" })).not.toBeInTheDocument(),
+    expect(body.queryByRole("dialog", { name: "別テンプレートの必要人数をコピーする" })).not.toBeInTheDocument(),
   );
   // 見えている範囲がほとんど変わらないため、どのテンプレートから写したかを通知で伝える。
   await expect(await body.findByText("「土日」の必要人数をコピーしました")).toBeVisible();
@@ -1602,7 +1602,7 @@ export const NoPositionsBehavior: Story = {
     // ポジションを追加するまで、必要人数とスタッフの中身は見せない。
     await expect(section.getByText("ポジションが未設定です。ポジションを追加してください")).toBeVisible();
     await expect(canvas.getByText("ポジションを追加すると、必要人数を設定できます")).toBeVisible();
-    await expect(canvas.getByText("ポジションを追加すると、熟練度を設定できます")).toBeVisible();
+    await expect(canvas.getByText("ポジションを追加すると、スキルを設定できます")).toBeVisible();
     await expect(canvas.queryByRole("button", { name: "テンプレートを作る" })).not.toBeInTheDocument();
 
     await userEvent.click(section.getByRole("button", { name: "ポジションを追加する" }));
@@ -1615,7 +1615,7 @@ export const NoPositionsBehavior: Story = {
     await waitFor(() => expect(section.getByText("キッチン")).toBeVisible());
     await expect(section.getByRole("button", { name: "ポジションを編集する" })).toBeVisible();
     await expect(canvas.getByRole("button", { name: "テンプレートを作る" })).toBeVisible();
-    await expect(canvas.queryByText("ポジションを追加すると、熟練度を設定できます")).not.toBeInTheDocument();
+    await expect(canvas.queryByText("ポジションを追加すると、スキルを設定できます")).not.toBeInTheDocument();
   },
 };
 
@@ -1641,7 +1641,7 @@ export const PositionRemoveAllBehavior: Story = {
     );
     await expect(section.getByRole("button", { name: "ポジションを追加する" })).toBeVisible();
     await expect(canvas.getByText("ポジションを追加すると、必要人数を設定できます")).toBeVisible();
-    await expect(canvas.getByText("ポジションを追加すると、熟練度を設定できます")).toBeVisible();
+    await expect(canvas.getByText("ポジションを追加すると、スキルを設定できます")).toBeVisible();
 
     // 保存すると、既定のポジションだけが仮の名前で残り、人数と熟練度は空になる。
     await userEvent.click(canvas.getByRole("button", { name: "保存する" }));
@@ -1817,7 +1817,7 @@ export const PositionLastOneBehavior: Story = {
     await expect(section.getByText("ポジションが未設定です。ポジションを追加してください")).toBeVisible();
     await expect(section.queryByText("シフト")).not.toBeInTheDocument();
     await expect(canvas.getByText("ポジションを追加すると、必要人数を設定できます")).toBeVisible();
-    await expect(canvas.getByText("ポジションを追加すると、熟練度を設定できます")).toBeVisible();
+    await expect(canvas.getByText("ポジションを追加すると、スキルを設定できます")).toBeVisible();
 
     await userEvent.click(section.getByRole("button", { name: "ポジションを追加する" }));
     const dialog = within(await body.findByRole("dialog", { name: "ポジションを編集" }));

@@ -346,7 +346,7 @@ function CopyRequirementsDialog({ isOpen, templateLabel, sources, onClose, onCop
 
   return (
     <Dialog
-      title="別テンプレートの人員設定をコピーする"
+      title="別テンプレートの必要人数をコピーする"
       isOpen={isOpen && source !== undefined}
       onOpenChange={({ open }) => {
         if (!open) onClose();

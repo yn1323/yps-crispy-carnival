@@ -228,7 +228,7 @@ const ShiftDateNoteBlockContent = ({ note }: { note: string }) => (
       <LuMessageSquare aria-hidden />
     </Icon>
     <Text textStyle="xs" lineHeight={1.6} color="gray.700" minW={0} overflowWrap="anywhere">
-      <VisuallyHidden>メモ：</VisuallyHidden>
+      <VisuallyHidden>連絡事項：</VisuallyHidden>
       <span data-clarity-mask="true">{note}</span>
     </Text>
   </Flex>

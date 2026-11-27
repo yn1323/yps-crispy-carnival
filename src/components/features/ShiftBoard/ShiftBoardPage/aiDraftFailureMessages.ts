@@ -1,6 +1,6 @@
 import type { AiDraftFailureKind } from "@/convex/shiftBoard/autoCreate/ai/aiDraftFailure";
 
-const RETRY_LATER = "しばらく時間をおいてから再実行してください";
+const RETRY_LATER = "少し時間をおいて、もう一度お試しください。";
 const ERROR = { title: "エラー", description: RETRY_LATER };
 
 /**
@@ -10,7 +10,7 @@ const ERROR = { title: "エラー", description: RETRY_LATER };
  */
 export const AI_DRAFT_FAILURE_MESSAGES: Record<AiDraftFailureKind, { title: string; description?: string }> = {
   // 短い時間に続けて押した。
-  rateLimited: { title: "しばらく時間をおいてから実行してください" },
+  rateLimited: { title: "少し時間をおいて、もう一度お試しください" },
   // この募集で使える回数に達した。残りが0のときは選べなくするため、画面が古いまま押した場合に出る。
   limitReached: { title: "回数の上限に達しました" },
   // AI側の混雑、障害、接続の失敗、待ち時間切れ。

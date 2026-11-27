@@ -67,7 +67,7 @@ const ASSIST_RATE_LIMITED_MESSAGE =
   "短い時間に続けて作ったため、いまは下書きを作れません。\n少し時間をおいて、もう一度お試しください。";
 // 集め方を変えたあとのテンプレートは、以前の必要人数を保存したまま、空の必要人数で表示している。
 // そのまま保存すると以前の必要人数が空で置き換わるため、再設定が済むまでテンプレートを保存しない。
-const SAVED_TITLE = "シフト設定を保存しました";
+const SAVED_TITLE = "保存しました";
 const REENTRY_REQUIRED_TITLE = "再設定が必要なテンプレートがあります";
 const REENTRY_REQUIRED_DESCRIPTION = "必要人数を入れるか、テンプレートを削除してから保存してください。";
 const ASSIST_EMPTY_MESSAGE = "下書きに入れるテンプレートがありませんでした。\n「テンプレートを作る」から手で作れます。";

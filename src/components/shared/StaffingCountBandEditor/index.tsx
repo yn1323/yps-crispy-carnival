@@ -317,7 +317,7 @@ export const StaffingCountBandEditor = ({
       {/* 人数を入れる行がないとき（閲覧専用、ポジションが1件もない）は、操作の説明を出さない。 */}
       {!isReadOnly && positions.length > 0 && (
         <Text fontSize="sm" fontWeight="semibold" color="gray.900">
-          時間帯別必要人員
+          時間帯別必要人数
         </Text>
       )}
       <Popover.Root

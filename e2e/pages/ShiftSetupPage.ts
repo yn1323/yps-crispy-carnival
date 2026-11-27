@@ -71,7 +71,7 @@ export class ShiftSetupPage {
       .getByRole("button", { name: "保存する", exact: true });
     await saveButton.click();
     // 保存が終わると、変えた内容によらず同じ知らせが出る。
-    await expect(this.page.getByText("シフト設定を保存しました", { exact: true })).toBeVisible({
+    await expect(this.page.getByText("保存しました", { exact: true })).toBeVisible({
       timeout: SHIFT_SETUP_DATA_TIMEOUT,
     });
     await expect(saveButton).not.toHaveAttribute("data-loading");

@@ -276,7 +276,7 @@ function PositionsForm({ positions, savedPositions, onSubmit }: FormProps) {
                               aria-label={`ポジション${index + 1}の名前`}
                               value={draft.name}
                               maxLength={POSITION_NAME_MAX_LENGTH}
-                              placeholder={isUnnamedDefaultRow ? "例：ホール" : "例：キッチン"}
+                              placeholder={isUnnamedDefaultRow ? "ホール" : "キッチン"}
                               bg="white"
                               onChange={(event) => updateDraft(draft.rowKey, { name: event.target.value })}
                             />

@@ -135,13 +135,13 @@ export function StaffProfilesSection({
       }
     >
       {isLocked ? (
-        <SetupLockedNote>ポジションを追加すると、熟練度を設定できます</SetupLockedNote>
+        <SetupLockedNote>ポジションを追加すると、スキルを設定できます</SetupLockedNote>
       ) : staffs.length === 0 ? (
         <Empty
           icon={LuUsers}
           title="シフト対象のスタッフがいません"
           titleAs="h3"
-          description="店舗詳細でスタッフを所属させると、ここで熟練度を設定できます。"
+          description="店舗詳細でスタッフを所属させると、ここでスキルを設定できます。"
           variant="section"
           py={8}
         />

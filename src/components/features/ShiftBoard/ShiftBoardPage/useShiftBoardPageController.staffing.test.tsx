@@ -1158,14 +1158,14 @@ describe("AIで作成する", () => {
   });
 
   it.each<[string, { title: string; description?: string }]>([
-    ["rateLimited", { title: "しばらく時間をおいてから実行してください" }],
+    ["rateLimited", { title: "少し時間をおいて、もう一度お試しください" }],
     ["limitReached", { title: "回数の上限に達しました" }],
-    ["busy", { title: "混み合っています", description: "しばらく時間をおいてから再実行してください" }],
-    ["declined", { title: "エラー", description: "しばらく時間をおいてから再実行してください" }],
-    ["billing", { title: "エラー", description: "しばらく時間をおいてから再実行してください" }],
-    ["unavailable", { title: "エラー", description: "しばらく時間をおいてから再実行してください" }],
-    ["notConfigured", { title: "エラー", description: "しばらく時間をおいてから再実行してください" }],
-    ["unsupported", { title: "エラー", description: "しばらく時間をおいてから再実行してください" }],
+    ["busy", { title: "混み合っています", description: "少し時間をおいて、もう一度お試しください。" }],
+    ["declined", { title: "エラー", description: "少し時間をおいて、もう一度お試しください。" }],
+    ["billing", { title: "エラー", description: "少し時間をおいて、もう一度お試しください。" }],
+    ["unavailable", { title: "エラー", description: "少し時間をおいて、もう一度お試しください。" }],
+    ["notConfigured", { title: "エラー", description: "少し時間をおいて、もう一度お試しください。" }],
+    ["unsupported", { title: "エラー", description: "少し時間をおいて、もう一度お試しください。" }],
   ])(
     "作成できなかった理由が%sなら、下書きを変えずに知らせを出し、ダイアログを閉じさせない",
     async (reason, message) => {
