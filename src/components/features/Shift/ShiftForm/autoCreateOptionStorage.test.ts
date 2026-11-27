@@ -40,7 +40,7 @@ describe("自動作成の「休憩時間も自動作成する」を、端末に�
   });
 });
 
-describe("自動作成の「メモの内容に合わせてAIで手直しする」を、端末に覚える", () => {
+describe("自動作成の「連絡事項に合わせてAIで手直しする」を、端末に覚える", () => {
   beforeEach(() => {
     window.localStorage.clear();
   });

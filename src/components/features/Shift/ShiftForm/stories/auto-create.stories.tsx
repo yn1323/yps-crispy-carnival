@@ -166,7 +166,7 @@ export const RemembersAiOptionOnReopen: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const body = within(canvasElement.ownerDocument.body);
-    const aiOption = "メモの内容に合わせてAIで手直しする";
+    const aiOption = "連絡事項に合わせてAIで手直しする";
     await userEvent.click(await canvas.findByRole("button", { name: "自動作成" }));
     const dialog = within(await body.findByRole("dialog", { name: "シフトを自動作成" }));
     await expect(dialog.getByRole("checkbox", { name: aiOption })).not.toBeChecked();

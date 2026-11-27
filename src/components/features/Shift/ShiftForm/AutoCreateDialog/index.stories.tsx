@@ -25,7 +25,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const AI_OPTION = "メモの内容に合わせてAIで手直しする";
+const AI_OPTION = "連絡事項に合わせてAIで手直しする";
 
 /** 開いた状態。AIの手直しは外した状態から始まる。AIの残りの回数が分からない間は、回数に制限があることだけを伝える。 */
 export const Default: Story = {

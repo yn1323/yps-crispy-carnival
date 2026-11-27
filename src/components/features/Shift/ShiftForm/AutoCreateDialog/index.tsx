@@ -59,7 +59,7 @@ const describeAiLimit = (remaining: number | undefined) =>
 
 /** チェックボックスの幅（20px）と、ラベルとの間（10px）。使えない理由と回数を、ラベルと左でそろえるために下げる。 */
 const AI_TEXT_INDENT = "30px";
-const AI_OPTION_LABEL = "メモの内容に合わせてAIで手直しする";
+const AI_OPTION_LABEL = "連絡事項に合わせてAIで手直しする";
 /** AIへ送る情報を短く説明するヘルプのFAQ。プライバシーポリシーへは、このFAQから案内する。 */
 const AI_PRIVACY_HELP_PATH = "/help/tasks/shift-building#ai-shift-draft-data";
 const AI_NOT_CONFIGURED_DESCRIPTION = "現在は利用できません。";
