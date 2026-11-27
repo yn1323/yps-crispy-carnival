@@ -71,6 +71,20 @@ export class ShiftBoardPage {
   }
 
   /**
+   * 下書きのある募集で、「表示設定」から「シンプル」へ切り替える。確認で「切り替える」を押すと、この募集の下書きの勤務が消える。
+   * 「シンプル」には自動作成がないため、自動作成のボタンが消えるのを待って、切り替えが済んだとみなす。
+   */
+  async switchToSimpleModeDiscardingDrafts() {
+    await this.page.getByRole("button", { name: "表示設定", exact: true }).click();
+    await this.page.getByRole("menuitemradio", { name: "シンプル", exact: true }).click();
+    const dialog = this.page.getByRole("alertdialog", { name: "表示を切り替えますか？" });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "切り替える", exact: true }).click();
+    await expect(dialog).toBeHidden();
+    await expect(this.page.getByRole("button", { name: "自動作成", exact: true })).toBeHidden();
+  }
+
+  /**
    * スマートフォンの時間指定の日別で、勤務のない人のカードから編集シートを開き、勤務時間と休憩を入れる。
    * 休憩は「休憩を追加」が入れる初期値（勤務時間の中央の1時間）のまま決定する。
    */

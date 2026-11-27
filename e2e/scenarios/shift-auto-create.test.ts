@@ -23,7 +23,7 @@ test.describe("シフトの自動作成", { tag: ["@e2e-core"] }, () => {
   // 設定ページの保存、シフト表の読み込み、自動作成、下書き保存と再読込を含む。近い契約の実測へ余裕を加えた失敗上限。
   test.setTimeout(90_000);
 
-  test("[E2E-AUTOCREATE-01] 設定ページで入れた必要人数と提出済みの希望から勤務を自動で作り、下書き保存と再読込のあとも残る", async ({
+  test("[E2E-AUTOCREATE-01] 設定ページで入れた必要人数と提出済みの希望から勤務を自動で作り、下書き保存と再読込のあとも残り、表示をシンプルへ切り替えると確認のあとで消える", async ({
     page,
   }) => {
     const dates = getNextWeekDates();
@@ -65,6 +65,15 @@ test.describe("シフトの自動作成", { tag: ["@e2e-core"] }, () => {
       await page.reload();
       await shiftBoard.expectStaffingCountDays(POSITION_NAME, filled, dates.dates.length);
       await shiftBoard.expectStaffingCountDays(POSITION_NAME, empty, 0);
+    });
+
+    await test.step("表示をシンプルへ切り替えると、確認のあとで下書きの勤務が消え、再読込しても戻らない", async () => {
+      await shiftBoard.switchToSimpleModeDiscardingDrafts();
+      // シンプルは希望から勤務の候補を作って見せるため、勤務が消えたことは、くわしくへ戻した人数で確かめる。
+      await shiftBoard.switchToDetailMode();
+      await shiftBoard.expectStaffingCountDays(POSITION_NAME, empty, dates.dates.length);
+      await page.reload();
+      await shiftBoard.expectStaffingCountDays(POSITION_NAME, empty, dates.dates.length);
     });
   });
 });
