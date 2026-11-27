@@ -2,7 +2,7 @@
 
 > 文書種別: 実環境状態
 >
-> 最終更新: 2026-11-26
+> 最終更新: 2026-11-28
 >
 > 実環境確認: 一部確認済み（Web計測のGTM公開とGA4 property設定だけ）
 
@@ -11,7 +11,7 @@
 
 ## 現在の確認状態
 
-最終更新時点で、Productionを確認済みとする実環境証跡が登録されているのは、Web計測のGTM公開とGA4 property設定（2026-09-24、2026-11-26）だけです。
+最終更新時点で、Productionを確認済みとする実環境証跡が登録されているのは、Web計測のGTM公開とGA4 property設定（2026-09-24、2026-11-26、2026-11-28）だけです。
 それ以外は、RepositoryまたはDevelopmentの確認を明記した行を含め、Productionの状態を**未確認**とします。
 
 現在のrepository artifactは、追加組織、複数店舗、複数管理者、支払いを機能ごとの環境変数なしで提供します。
@@ -49,6 +49,7 @@
 | Clerk、Cloudflare、Stripeのセキュリティ設定とprovider canary | 未確認 | 未確認 | 未確認 | 未登録 |
 | 全ページWeb計測のGTM container、GA4 property、Clarity、Production request | **GTM公開・GA4 property設定済み・`setup_complete`キーイベント未登録** | 2026-09-24 17:24 JST | GTM `GTM-P22XCGTD` バージョン8、GA4 property `G-892N66Y30T`、Production release `d758aecd` | `ga4-gtm-container.json`を統合インポートし、旧Google tag（`send_page_view=true`）を削除してバージョン8を公開した。Clarityタグは維持。公開前のTag AssistantでTOPと記事の`GA4 - Google tag`と`GA4 - page_view`がdocumentごとに1回、`section_view`と`web_vital`の発火を確認し、公開後はGA4リアルタイムで`web_vital`の受信を確認した。GA4ではカスタムディメンション14件、カスタム指標`metric_value`、拡張計測の変更（履歴ベースのpage view、サイト内検索、フォームの操作、動画、ファイルのダウンロードをオフ）、除外する参照6件、イベントデータ保持14か月、Search Consoleリンクを設定した。`setup_complete`は受信後にキーイベントへ登録する。戻す場合はGTMバージョン7を公開する。Developでは2026-09-24 17:40 JSTにGTM `GTM-P3DL2WK5`バージョン6を公開し、GA4「dev-シフトリ」の設定後、実際の初回Setupで`setup_complete`が`setup_kind`、`submission_pattern`、`route_family`、`route_area`、`release_id`付きでリアルタイムに届くことを確認した。2026-09-25にDevelopの`setup_complete`をキーイベントへ登録した。本番の`setup_complete`は未受信のためキーイベント未登録。同日、本番の探索「新規ユーザーの登録ファネル」のステップ3を`select_content`かつ`content_id`に`signup`を含む条件へ絞った。Develop GA4は今後の追加設定を行わない |
 | 自動作成・必要人数設定・ヘルプのWeb計測（GTM、GA4のカスタム定義） | **GTM公開・GA4カスタム定義登録済み・受信未確認** | 2026-11-26 01:41 JST | GTM `GTM-P22XCGTD` バージョン11、GA4 property `G-892N66Y30T` | `ga4-gtm-container.json`を「統合」と「矛盾するタグ、トリガー、変数を上書きする」でインポートし、バージョン11（名前は「Add GA4 shift setup and auto create tags, triggers, and variables, and update shift_confirm tag」）を公開した。変更は追加12件、修正2件（`GA4 - shift_confirm`、`JS - Measurement Page Location`）、削除0件で、公開後の件数はタグ40件、トリガー38件、変数49件である。タグ名の重複はなく、`GA4 - Google tag`は1件で、Clarityのタグ2件は残っている。配信中の`gtm.js`（version 11）に、新しいイベント名4件と追加したパラメータ名、`shift_setup`の固定pathが入っていることを確認した。戻す場合はGTMバージョン10を公開する。GTMのバージョンの説明欄にはこの戻し先を書いていない。GA4では2026-11-25にカスタム定義を登録し、APIで確認した（イベントスコープのディメンション38件、ユーザースコープの`organization_plan`と`display_mode`、指標`count`と`metric_value`）。アプリのリリース後に、新しいイベントがGA4のリアルタイムレポートに届くかは未確認 |
+| 自動作成の計測の改め（`shift_auto_create_open`への改名、`ai_called`、`changed_count`、`position_count`、ヘルプ動画とAIに送る情報のリンク） | **GTM公開・GA4カスタム定義登録済み・受信未確認** | 2026-11-28 00:12 JST頃 | GTM `GTM-P22XCGTD` バージョン12、GA4 property `G-892N66Y30T` | `ga4-gtm-container.json`を「統合」と「矛盾するタグ、トリガー、変数を上書きする」でインポートした。変更は追加5件（タグ`GA4 - shift_auto_create_open`、トリガー`CE - shift_auto_create_open`、変数`DLV - ai_called`、`DLV - changed_count`、`DLV - position_count`）、修正2件（`GA4 - shift_auto_create`、`GA4 - shift_setup_save`）である。統合では改名前のものが残るため、タグ`GA4 - auto_create_open`とトリガー`CE - auto_create_open`は取り込みのあとで手で削除した。バージョン12（名前は「Update shift auto create tags, triggers, and variables」）を公開し、公開後の件数はタグ40件、トリガー38件、変数52件である。タグ名の重複はなく、`GA4 - Google tag`は1件で、Clarityのタグ2件は残っている。配信中の`gtm.js`（version 12）に`shift_auto_create_open`、`ai_called`、`changed_count`、`position_count`が入り、`auto_create_open`がないことを確認した。戻す場合はGTMバージョン11を公開する。GTMのバージョンの説明欄にはこの戻し先を書いていない。GA4では2026-11-28にカスタム定義を登録し、APIで確認した（イベントスコープのディメンション`position_count`と`ai_called`を足して40件、指標`changed_count`を足して3件）。指標`count`の説明を「スタッフの追加人数、確定を止めたエラー件数、自動作成で作った勤務の件数」に直した。アプリのリリース後に、新しいイベントがGA4のリアルタイムレポートに届くかは未確認 |
 | `ENV-CLERK-02`のログイン方法・シフト連絡先分離canary | 未確認 | 未確認 | 未確認 | 未登録 |
 | `verifyStaffs.activeStaffPersonEmailMismatch`の全ページ合計0件 | Development確認済み・Production未確認 | 2026-08-04 09:18 JST | `dev:fortunate-mallard-809` | 本文のDevelopment確認記録 |
 
