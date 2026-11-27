@@ -351,6 +351,10 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
         title: "休憩時間設定にも対応",
         body: "勤務の長さに応じて自動で休憩を設定",
       },
+      {
+        title: "メモに合わせてAIで手直し",
+        body: "「17時まで」などを読んで直します",
+      },
     ],
     steps: [
       { title: "必要人数を設定する", body: "ポジションと人数を決めておきます" },
