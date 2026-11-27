@@ -59,7 +59,7 @@ export function ShiftSetupView({
       )}
 
       <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-        詳細にシフトを作成するため設定です。 シフトの「くわしく」表示で利用します。
+        詳細にシフトを作成するための設定です。 シフトの「くわしく」表示で利用します。
       </Text>
 
       <PositionsSection
