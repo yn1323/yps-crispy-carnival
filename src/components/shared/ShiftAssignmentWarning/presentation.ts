@@ -4,7 +4,7 @@ export const ASSIGNMENT_WARNING_SUMMARY_TITLE = "確認が必要なシフトが�
 
 export const ASSIGNMENT_WARNING_TEXTS = {
   OFF_REQUEST: "休み希望の日にシフトを設定",
-  OUTSIDE_REQUESTED_TIME: "希望時間外のシフトを設定",
+  OUTSIDE_REQUESTED_TIME: "希望時間外にシフトを設定",
   NOT_SUBMITTED: "未提出のスタッフにシフトを設定",
   POSITION_UNAVAILABLE: "担当外のポジションにシフトを設定",
   OTHER: "その他の確認事項",
