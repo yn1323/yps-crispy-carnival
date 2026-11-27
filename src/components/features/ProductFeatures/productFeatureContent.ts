@@ -312,7 +312,7 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
     lead: "らくらく作成で、あとは確認するだけ。",
     illustration: {
       src: shiftAutoCreationImage,
-      alt: "店長がノートPCで自動作成を押すと、シフト表にポジションごとの色の勤務が並ぶイラスト",
+      alt: "店長がスマートフォンで自動作成を押すと、シフト表にポジションごとの色の勤務が並ぶイラスト",
     },
     pains: ["人数が多くてシフト作成が大変", "シフト調整がパズル化している", "勤務ポジションも考慮しないといけない"],
     capabilities: [
