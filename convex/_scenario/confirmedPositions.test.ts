@@ -1,7 +1,7 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Id } from "../_generated/dataModel";
-import { MANAGER_SUBJECT, SCENARIO_NOW, scenarioDate, seedStaff } from "../_test/scenarioBuilders";
+import { MANAGER_SUBJECT, SCENARIO_NOW, scenarioDate, seedSession, seedStaff } from "../_test/scenarioBuilders";
 import { createScenario } from "../_test/scenarioFixtures";
 import { seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
@@ -117,12 +117,13 @@ describe("確定した時点のポジションシナリオ", () => {
     ).rejects.toThrowError("Not found");
   });
 
-  it("確定した時点のポジションを持たない確定済みの募集は、いまの設定のポジションを返す", async () => {
+  it("確定した時点のポジションを持たない確定済みの募集は、管理者のシフト表でも、スタッフの確定シフトでも、いまの設定のポジションを返す", async () => {
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
     const asManager = scenario.manager(MANAGER_SUBJECT);
+    const staff = scenario.staff();
 
-    // Arrange: 確定済みの募集から、確定した時点のポジションを外す（この項目より前に確定した募集にあたる）。
+    // Arrange: 既定のポジションに勤務がある募集を確定し、確定した時点のポジションを外す（この項目より前に確定した募集にあたる）。
     const ids = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, {
         subject: MANAGER_SUBJECT,
@@ -137,22 +138,45 @@ describe("確定した時点のポジションシナリオ", () => {
         isDefault: true,
         isDeleted: false,
       });
-      await seedStaff(ctx, { shopId, name: "スタッフ", email: "legacy-staff@example.com" });
-      return { hallPositionId };
+      const staffId = await seedStaff(ctx, { shopId, name: "スタッフ", email: "legacy-staff@example.com" });
+      return { shopId, hallPositionId, staffId };
     });
     const recruitmentId = await asManager.createRecruitment({
       periodStart: SUNDAY,
       periodEnd: SATURDAY,
       deadline: scenarioDate(3),
     });
+    const hallShift = {
+      staffId: ids.staffId,
+      date: MONDAY,
+      startTime: "10:00",
+      endTime: "15:00",
+      positionId: ids.hallPositionId,
+    };
+    await asManager.saveShiftAssignments({ recruitmentId, assignments: [hallShift] });
     await asManager.confirmRecruitment(recruitmentId);
     await t.run(async (ctx) => {
       await ctx.db.patch(recruitmentId, { confirmedPositions: undefined });
+      await seedSession(ctx, {
+        sessionToken: "legacy-confirmed-view-session",
+        staffId: ids.staffId,
+        shopId: ids.shopId,
+        recruitmentId,
+        accessKind: "view",
+      });
+    });
+
+    // Act: 確定したあとで、既定のポジションの名前を変える。
+    await t.run(async (ctx) => {
       await ctx.db.patch(ids.hallPositionId, { name: "フロア" });
     });
 
-    // Assert
+    // Assert: 管理者のシフト表も、スタッフの確定シフトも、変えたあとの名前で返す。
+    const currentPositions = [{ _id: ids.hallPositionId, name: "フロア", color: "#3b82f6", isDefault: true }];
     const board = await asManager.getShiftBoardData(recruitmentId);
-    expect(board?.positions).toEqual([{ _id: ids.hallPositionId, name: "フロア", color: "#3b82f6", isDefault: true }]);
+    expect(board?.positions).toEqual(currentPositions);
+    const staffView = await staff.getShiftViewData({ sessionToken: "legacy-confirmed-view-session", recruitmentId });
+    expect(staffView?.positions).toEqual(currentPositions);
+    expect(staffView?.assignments).toEqual([expect.objectContaining(hallShift)]);
   });
 });
