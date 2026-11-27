@@ -24,6 +24,7 @@
 | `/articles/:slug` | 一つの記事を表示し、関連する製品情報へつなぐ | `ArticlePage`、`ArticleSite/content/articles/` |
 | `/articles/categories/:categorySlug` | 同じ課題領域の記事をまとめる | `ArticleCategoryPage`、`ArticleSite/content/categories/` |
 | `/demo/shiftboard` | PC向けシフト表の入力と調整を、登録なしで試せるようにする | `src/pages/demo-shift-board/`、`Demo/DemoShiftBoardPage/` |
+| `/demo/simple`、`/demo/detail` | 募集から、シフトを作って確定し、スタッフに届くまでを登録なしで試せるようにする。入口を置くまでは`noindex`にする（[体験デモ](demo-handson.md)） | `src/pages/demo-handson/`、`Demo/HandsOnDemo/` |
 
 TOPは`src/routes/index.tsx`から`HomePage`を呼び、`HomePage`が`LandingPage`を構成する。
 `LandingPage`は`PublicPageLayout`の中に、Hero、紹介動画、課題、毎月の流れ、登録、スタッフ側の提出方法、主な機能、料金プラン、FAQと記事、CTAの各sectionを並べる。  

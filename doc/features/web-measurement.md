@@ -32,13 +32,13 @@ local build、GTM ID欠落、不正なreleaseでは第三者URLを組み立て�
 
 | 画面 | route family例 | route area |
 |---|---|---|
-| TOP、機能一覧、機能ページ、ヘルプ、問い合わせ、記事、デモ | `home`、`features`、`feature_detail`、`help_*`、`contact`、`article_*`、`demo_shiftboard` | `public` |
+| TOP、機能一覧、機能ページ、ヘルプ、問い合わせ、記事、デモ | `home`、`features`、`feature_detail`、`help_*`、`contact`、`article_*`、`demo_shiftboard`、`demo_simple`、`demo_detail` | `public` |
 | 登録、ログイン、パスワード再設定、管理者招待 | `auth_signup`、`auth_login`、`auth_password_reset`、`manager_invite` | `auth` |
 | Dashboard、アカウント、要対応一覧 | `dashboard`、`account`、`actions` | `manager` |
 | 組織、課金、管理者、店舗、必要人数設定 | `organization_management`、`billing`、`manager_management`、`shop_detail`、`shift_setup` | `manager` |
 | シフト、ShiftBoard、シフト出力、スタッフ管理 | `shift_management`、`shiftboard`、`shift_export`、`staff_management`、`staff_detail`、`staff_shop` | `manager` |
 | スタッフの提出、提出完了、閲覧、再発行、登録、同意 | `staff_submit`、`staff_submit_completed`、`staff_view`、`staff_reissue`、`staff_register`、`staff_legal_consent` | `staff` |
-| 法務文書、utility、callback、未知URL | `legal`、`utility`、`callback`、`not_found` | `other` |
+| 法務文書、utility（体験デモの中に読み込むスタッフの提出画面を含む）、callback、未知URL | `legal`、`utility`、`callback`、`not_found` | `other` |
 
 ## Event contract
 
