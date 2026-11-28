@@ -4,6 +4,7 @@ import { LuRotateCcw } from "react-icons/lu";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { HANDS_ON_KEYFRAMES, HANDS_ON_ROOT_ATTRIBUTE } from "./motion";
 import { StepCircle, type StepState } from "./StepCircle";
+import { HANDS_ON_TOUR_Z_INDEX } from "./tourSteps";
 
 const CHAPTERS = [
   { no: 1, label: "希望シフトを集める" },
@@ -82,11 +83,25 @@ type Props = {
   children: ReactNode;
 };
 
+/**
+ * 見出しの行の重なり順。シフト表の吹き出しの暗くした面より上に置き、案内の間も暗くせず、
+ * 上の段の手順と「最初からやり直す」を押せるようにする。
+ */
+const HEADER_Z_INDEX = HANDS_ON_TOUR_Z_INDEX + 10;
+
 /** 体験デモの枠。見出しの行に、題、手順、「最初からやり直す」を置く。 */
 export const HandsOnShell = ({ chapter, onReset, onSelectChapter, children }: Props) => (
   <Flex direction="column" h="100dvh" bg="white" overflow="hidden" {...{ [HANDS_ON_ROOT_ATTRIBUTE]: "" }}>
     <style>{HANDS_ON_KEYFRAMES}</style>
-    <Box as="header" borderBottomWidth="1px" borderColor="gray.200" bg="white" flexShrink={0}>
+    <Box
+      as="header"
+      position="relative"
+      zIndex={HEADER_Z_INDEX}
+      borderBottomWidth="1px"
+      borderColor="gray.200"
+      bg="white"
+      flexShrink={0}
+    >
       <Grid
         templateColumns={{ base: "minmax(0, 1fr) auto", lg: "minmax(0, 1fr) auto minmax(0, 1fr)" }}
         alignItems="center"

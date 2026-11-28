@@ -9,6 +9,12 @@ import { BREAK_STAFF_ID, HANDS_ON_KITCHEN_ID, HANDS_ON_POSITIONS, SATO_STAFF_ID 
  */
 export type HandsOnTourStepData = { showsNext?: boolean; story?: boolean };
 
+/**
+ * 吹き出しの重なり順。範囲を選んだときのメニュー（Chakraのdropdown、1000）、自動作成と休憩のダイアログを、
+ * 暗くした面と吹き出しの上に出すため、それより下にする。
+ */
+export const HANDS_ON_TOUR_Z_INDEX = 900;
+
 const rowOf = (staffId: string) => `[data-tour="shift-row-${staffId}"]`;
 
 /** くわしく表示の右上で、ドラッグで入れるポジションを選ぶボタンのうち、ホール。 */

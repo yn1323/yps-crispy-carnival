@@ -21,15 +21,11 @@ import {
   HANDS_ON_TODO_INDEX,
   HANDS_ON_TODO_LABELS,
   HANDS_ON_TOUR_STEPS,
+  HANDS_ON_TOUR_Z_INDEX,
 } from "./tourSteps";
 
-/**
- * 吹き出しの重なり順。範囲を選んだときのメニュー（Chakraのdropdown、1000）、自動作成と休憩のダイアログを、
- * 暗くした面と吹き出しの上に出すため、それより下にする。
- */
-const TOUR_Z_INDEX = 900;
-const TODO_Z_INDEX = TOUR_Z_INDEX + 1;
-const NOTICE_Z_INDEX = TOUR_Z_INDEX + 2;
+const TODO_Z_INDEX = HANDS_ON_TOUR_Z_INDEX + 1;
+const NOTICE_Z_INDEX = HANDS_ON_TOUR_Z_INDEX + 2;
 
 /** 希望が届いた直後に、行ごとに順に並べる動き。1行ずつずらして、左から滑り込ませる。 */
 const ARRIVE_START_S = 0.4;
@@ -109,6 +105,12 @@ export const BoardStep = ({ variant, scenario, completedShifts, isBackdrop, onCo
   const arriveDoneMs = Math.round((ARRIVE_START_S + arriveStaffIds.length * ARRIVE_STEP_S + ARRIVE_DURATION_S) * 1000);
 
   const [isTourReady, setTourReady] = useState(false);
+  // 確定したあとの場面の後ろに置かれたら、案内は終えたものとする。そこからシフト表へ戻ったときは、
+  // 吹き出しと暗くした面を出さず、どこでも自由に操作できるようにする。
+  const [isFreePlay, setFreePlay] = useState(isBackdrop);
+  useEffect(() => {
+    if (isBackdrop) setFreePlay(true);
+  }, [isBackdrop]);
   const [isArriving, setArriving] = useState(arrives);
   useEffect(() => {
     const tourTimer = window.setTimeout(() => setTourReady(true), arrives ? arriveDoneMs + 300 : TOUR_DELAY_MS);
@@ -296,15 +298,17 @@ export const BoardStep = ({ variant, scenario, completedShifts, isBackdrop, onCo
           notice={noticeNode}
         />
       )}
-      {!isBackdrop && isPc && isTourReady && (
+      {!isBackdrop && isPc && isTourReady && !isFreePlay && (
         <HandsOnTourNextContext.Provider value={handleNext}>
+          {/* 案内の間は、照らした場所だけを操作できるようにし、暗くした面を押しても反応させない。 */}
           <Tour
             ref={tourRef}
             run
             steps={HANDS_ON_TOUR_STEPS[variant]}
             stepIndex={stepIndex}
             tooltipComponent={HandsOnTourTooltip}
-            options={{ zIndex: TOUR_Z_INDEX }}
+            options={{ zIndex: HANDS_ON_TOUR_Z_INDEX }}
+            blocksOverlayClicks
           />
         </HandsOnTourNextContext.Provider>
       )}

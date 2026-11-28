@@ -66,3 +66,27 @@ export const JumpsBetweenChapters: Story = {
     await expect(within(caption.parentElement as HTMLElement).getAllByText("17:00-22:00")).toHaveLength(2);
   },
 };
+
+/**
+ * 確定したあとの場面からシフト表へ戻ると、案内を終えたものとして、吹き出しと暗くした面を出さない。
+ * 「まだシフトを操作してみる」と同じく、どこでも自由に操作できるようにするため。
+ */
+export const ReturnsToBoardWithoutGuide: Story = {
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByRole("button", { name: "シフトを作る" }));
+    // 初めて開いたシフト表では、吹き出しで案内する。
+    await expect(await screen.findByText("点線が希望シフトです", undefined, { timeout: 5000 })).toBeInTheDocument();
+
+    await userEvent.click(canvas.getByRole("button", { name: "確定シフトを送る" }));
+    await expect(await canvas.findByRole("status")).toHaveTextContent("確定したシフトを自動で送ります");
+    await userEvent.click(canvas.getByRole("button", { name: "シフトを作る" }));
+
+    await waitFor(() =>
+      expect(screen.getAllByRole("status").map((status) => status.textContent)).toContain("ここから操作できます"),
+    );
+    // 吹き出し（react-joyrideのalertdialog）を出さない。
+    await expect(screen.findByRole("alertdialog", undefined, { timeout: 1500 })).rejects.toThrow();
+  },
+};
