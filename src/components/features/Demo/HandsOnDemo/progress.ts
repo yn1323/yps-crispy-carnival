@@ -21,7 +21,7 @@ type StepInput = {
   shifts: ShiftData[];
   /** シフト表で最初に見せる日。手順はこの日の操作だけで判定する。 */
   day1: string;
-  /** 「点線の枠が希望です」を読み、「次へ」を押した。 */
+  /** 「点線が希望シフトです」を読み、「次へ」を押した。 */
   acknowledged: boolean;
   /** くわしく表示で、自動作成を終えた。 */
   autoCreated: boolean;

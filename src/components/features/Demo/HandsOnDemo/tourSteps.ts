@@ -11,7 +11,7 @@ const rowOf = (staffId: string) => `[data-tour="shift-row-${staffId}"]`;
 const REQUEST_STEP = {
   target: rowOf(SATO_STAFF_ID),
   placement: "bottom",
-  title: "点線の枠が希望です",
+  title: "点線が希望シフトです",
   data: { showsNext: true } satisfies HandsOnTourStepData,
 } as const;
 
@@ -30,7 +30,7 @@ const CONFIRM_STEP = {
 
 export const HANDS_ON_TOUR_STEPS: Record<HandsOnVariant, TourStep[]> = {
   simple: [
-    { ...REQUEST_STEP, content: "スタッフが出した希望の時間です。色の付いたバーは勤務です。" },
+    { ...REQUEST_STEP, content: "実際の勤務時間は緑で表示します。" },
     { ...SET_WORK_TIME_STEP, placement: "bottom" },
     {
       target: rowOf(BREAK_STAFF_ID),
