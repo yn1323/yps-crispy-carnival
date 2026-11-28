@@ -15,11 +15,14 @@ import {
   SATO_REQUEST_DAY_INDEXES,
   SATO_REQUEST_TIME,
 } from "./scenario";
-import { HANDS_ON_STAFF_SUBMIT_DONE_MESSAGE } from "./staffSubmitEmbed";
+import { HANDS_ON_STAFF_SUBMIT_DONE_MESSAGE, HANDS_ON_STAFF_SUBMIT_PROGRESS_MESSAGE } from "./staffSubmitEmbed";
 import { type PlayerCursor, useStaffSubmitPlayer } from "./useStaffSubmitPlayer";
 
 /** 佐藤さんがメモに書く内容。希望の終わりの22時より少し残れることを伝える。 */
 const SATO_NOTE = "22時以降も少しなら残れます";
+
+/** 自動で操作するカーソルに付ける札。利用者が操作する場所ではないことを示す。 */
+const AUTO_CURSOR_LABEL = "自動で操作中";
 
 const PlayerCursorOverlay = ({ cursor }: { cursor: PlayerCursor }) => (
   <Portal>
@@ -35,15 +38,36 @@ const PlayerCursorOverlay = ({ cursor }: { cursor: PlayerCursor }) => (
       >
         {cursor.clickKey > 0 && <ClickRipple clickKey={cursor.clickKey} />}
         <Cursor style={{ transform: cursor.pressed ? "scale(.85)" : "none", transition: "transform .08s" }} />
+        {/* 枠に合わせて縮めて見せるため、文字は大きめに描く。 */}
+        <Box
+          position="absolute"
+          left="20px"
+          top="22px"
+          whiteSpace="nowrap"
+          px="9px"
+          py="3px"
+          borderRadius="full"
+          bg="gray.900"
+          color="white"
+          fontSize="15px"
+          fontWeight="bold"
+          lineHeight="20px"
+          boxShadow="0 2px 6px rgba(0, 0, 0, .25)"
+        >
+          {AUTO_CURSOR_LABEL}
+        </Box>
       </Box>
     </Box>
   </Portal>
 );
 
-const notifyFinished = () => {
+const postToParent = (message: { type: string; progress?: number }) => {
   if (window.parent === window) return;
-  window.parent.postMessage({ type: HANDS_ON_STAFF_SUBMIT_DONE_MESSAGE }, window.location.origin);
+  window.parent.postMessage(message, window.location.origin);
 };
+
+const notifyProgress = (progress: number) => postToParent({ type: HANDS_ON_STAFF_SUBMIT_PROGRESS_MESSAGE, progress });
+const notifyFinished = () => postToParent({ type: HANDS_ON_STAFF_SUBMIT_DONE_MESSAGE });
 
 /**
  * 体験デモのスマートフォンの枠に読み込む、スタッフ（佐藤さん）の提出画面。
@@ -65,7 +89,7 @@ export const HandsOnStaffSubmitDemo = ({ periodStart }: { periodStart?: string }
     [scenario],
   );
   const [submitted, setSubmitted] = useState(false);
-  const cursor = useStaffSubmitPlayer({ plan, onFinished: notifyFinished });
+  const cursor = useStaffSubmitPlayer({ plan, onProgress: notifyProgress, onFinished: notifyFinished });
   const handleSubmit = useCallback(async () => {
     setSubmitted(true);
   }, []);

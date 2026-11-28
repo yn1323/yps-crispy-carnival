@@ -20,6 +20,8 @@ export const HANDS_ON_KEYFRAMES = `
 @keyframes hodTapRipple { 0%, 44% { transform: scale(.3); opacity: 0 } 50% { opacity: .85 } 80%, 100% { transform: scale(2.6); opacity: 0 } }
 @keyframes hodRippleOnce { 0% { transform: scale(.3); opacity: .9 } 100% { transform: scale(2.6); opacity: 0 } }
 @keyframes hodArrive { 0% { opacity: 0; transform: translateX(-40px) } 100% { opacity: 1; transform: none } }
+@keyframes hodProgress { 0% { transform: scaleX(0) } 100% { transform: scaleX(1) } }
+@keyframes hodFadeOut { 0% { opacity: 1 } 100% { opacity: 0 } }
 @media (prefers-reduced-motion: reduce) {
   [${HANDS_ON_ROOT_ATTRIBUTE}] *, [${HANDS_ON_ROOT_ATTRIBUTE}] *::before, [${HANDS_ON_ROOT_ATTRIBUTE}] *::after {
     animation-duration: .001s !important;

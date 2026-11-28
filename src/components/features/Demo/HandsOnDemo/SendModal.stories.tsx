@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import { SendModal } from "./SendModal";
 
 const meta = {
@@ -27,12 +28,19 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** 募集を開始したとき。シフトリからスタッフへ、メールのアイコンが飛ぶ。 */
-export const Sent: Story = {};
+/** 募集を開始したとき。シフトリからスタッフへ、メールのアイコンが飛ぶ。上に「自動で再生中」を出す。 */
+export const Sent: Story = {
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByText("自動で再生中")).toBeVisible();
+  },
+};
 
-/** スタッフに届いたお知らせ。押す場所を、カーソルの動きで示す。 */
+/** スタッフに届いたお知らせ。押す場所を、カーソルの動きで示す。スマートフォンの枠の上にも「自動で再生中」を出す。 */
 export const StaffMessage: Story = {
   args: { scene: "staffMessage" },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByText("自動で再生中")).toBeVisible();
+  },
 };
 
 /** 希望が届いたとき。スタッフからシフトリへ、カレンダーのアイコンが飛ぶ。 */

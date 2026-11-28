@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, userEvent, within } from "storybook/test";
+import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 import { HandsOnDemo } from ".";
 
 const meta = {
@@ -50,6 +50,11 @@ export const JumpsBetweenChapters: Story = {
 
     await expect(await screen.findByRole("region", { name: "やること" })).toBeInTheDocument();
     await expect(canvas.getByRole("button", { current: "step" })).toHaveAccessibleName("シフトを作る");
+    // 届いた希望を並べ終えて操作できるようになると、知らせを出す。
+    await waitFor(
+      () => expect(screen.getAllByRole("status").map((status) => status.textContent)).toContain("ここから操作できます"),
+      { timeout: 5000 },
+    );
 
     await userEvent.click(canvas.getByRole("button", { name: "確定シフトを送る" }));
     await expect(await canvas.findByRole("status")).toHaveTextContent("確定したシフトを自動で送ります");

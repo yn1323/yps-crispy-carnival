@@ -1,4 +1,5 @@
 import { Box, Flex, Portal, Text } from "@chakra-ui/react";
+import type { ReactNode } from "react";
 import { StepCircle } from "./StepCircle";
 
 type Props = {
@@ -7,10 +8,12 @@ type Props = {
   /** くわしく表示では、表の下の必要人数の帯を隠さないよう、PCでは上へずらす。 */
   raised: boolean;
   zIndex: number;
+  /** スマートフォンで、カードのすぐ上に出す知らせ。PCはシフト表の上の中央に出すため、ここでは出さない。 */
+  notice?: ReactNode;
 };
 
 /** 右下に、シフト表でやることを並べる。終えた手順にはチェックを付け、いまの手順を太字にする。 */
-export const TodoCard = ({ labels, current, raised, zIndex }: Props) => (
+export const TodoCard = ({ labels, current, raised, zIndex, notice }: Props) => (
   <Portal>
     <Box
       as="section"
@@ -29,6 +32,17 @@ export const TodoCard = ({ labels, current, raised, zIndex }: Props) => (
       px={4}
       py={3}
     >
+      {notice && (
+        <Box
+          position="absolute"
+          bottom="calc(100% + 8px)"
+          left="50%"
+          transform="translateX(-50%)"
+          display={{ base: "block", lg: "none" }}
+        >
+          {notice}
+        </Box>
+      )}
       <Text fontSize="xs" fontWeight="bold" color="gray.500">
         やること
       </Text>

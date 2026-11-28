@@ -1,8 +1,8 @@
-import { Box, Flex, Icon, Image, Text, useBreakpointValue } from "@chakra-ui/react";
+import { Badge, Box, Flex, Icon, Image, Text, useBreakpointValue } from "@chakra-ui/react";
 import { type CSSProperties, useEffect, useRef, useState } from "react";
 import type { IconType } from "react-icons";
-import { LuCalendarCheck, LuCheck, LuMail, LuUsers } from "react-icons/lu";
-import type { HandsOnScene } from "./flow";
+import { LuCalendarCheck, LuCheck, LuMail, LuPlay, LuUsers } from "react-icons/lu";
+import { HANDS_ON_SCENE_DURATIONS, type HandsOnScene } from "./flow";
 import { LineConfirmScreen, LineRecruitScreen, PHONE_FRAME_SIZE, PhoneFrame } from "./PhoneScreens";
 import type { ConfirmRow } from "./progress";
 import { StaffSubmitFrame } from "./StaffSubmitFrame";
@@ -111,8 +111,54 @@ const ArcFlight = ({ icon, reverse }: { icon: IconType; reverse: boolean }) => {
   );
 };
 
-/** モーダルの外の余白、内側の余白、見出し、見出しとの間の合計（縦と横）。スマートフォンの枠を、残りいっぱいまで大きくする。 */
-const PHONE_RESERVED = { height: 16 * 2 + 24 * 2 + 28 + 16, width: 16 * 2 + 20 * 2 } as const;
+/** 自動で進む場面のラベル。利用者が操作しなくても、次の場面へ進むことを示す。 */
+const AUTO_PLAY_LABEL = "自動で再生中";
+const AUTO_PLAY_BADGE_HEIGHT = 28;
+
+const AutoPlayBadge = () => (
+  <Badge
+    colorPalette="teal"
+    variant="subtle"
+    size="lg"
+    minH={`${AUTO_PLAY_BADGE_HEIGHT}px`}
+    bg="teal.50"
+    color="teal.700"
+    borderRadius="full"
+    px={3}
+    gap={1.5}
+    fontWeight="bold"
+    flexShrink={0}
+  >
+    <Icon as={LuPlay} boxSize={3} fill="currentColor" aria-hidden />
+    {AUTO_PLAY_LABEL}
+  </Badge>
+);
+
+/**
+ * 枠の下の線。次の場面へ進むまでの時間を、左から伸ばして見せる。
+ * スタッフが希望を出す場面は終わる時間が決まっていないため、提出画面の自動操作の進み具合で伸ばす。
+ */
+const AutoPlayProgress = ({ scene, staffProgress }: { scene: SendScene; staffProgress: number }) => {
+  const duration = HANDS_ON_SCENE_DURATIONS[scene];
+  const style: CSSProperties =
+    scene === "staffAnswer" || duration === undefined
+      ? { transform: `scaleX(${staffProgress})`, transition: "transform .6s ease-out" }
+      : { animation: `hodProgress ${duration}ms linear both` };
+  return (
+    <Box position="absolute" left={0} right={0} bottom={0} h="4px" bg="gray.100" aria-hidden>
+      <Box key={scene} h="full" bg="teal.600" transformOrigin="left" style={style} />
+    </Box>
+  );
+};
+
+/**
+ * モーダルの外の余白、内側の余白、「自動で再生中」のラベル、見出し、それぞれの間の合計（縦と横）。
+ * スマートフォンの枠を、残りいっぱいまで大きくする。
+ */
+const PHONE_RESERVED = {
+  height: 16 * 2 + 24 * 2 + AUTO_PLAY_BADGE_HEIGHT + 16 + 28 + 16,
+  width: 16 * 2 + 20 * 2,
+} as const;
 const MIN_PHONE_SCALE = 0.6;
 
 const usePhoneScale = (area: { current: HTMLElement | null }) => {
@@ -146,6 +192,7 @@ type Props = {
 
 /**
  * 送る場面とお知らせを、見出しも下のボタンもない中央のモーダルで見せる。決まった時間で次の場面へ進む。
+ * 上に「自動で再生中」、下に次の場面までの線を出し、操作しなくても進むことを示す。
  * 読み上げでは、見出しだけを伝える。
  */
 export const SendModal = ({
@@ -162,6 +209,7 @@ export const SendModal = ({
   const scale = usePhoneScale(areaRef);
   const title = SEND_TITLES[scene];
   const caption = PHONE_CAPTIONS[scene];
+  const [staffProgress, setStaffProgress] = useState(0);
 
   return (
     <Flex
@@ -177,6 +225,8 @@ export const SendModal = ({
       style={{ animation: "hodSceneIn .3s ease-out both" }}
     >
       <Box
+        position="relative"
+        overflow="hidden"
         w={caption ? "auto" : "full"}
         maxW={caption ? "none" : "600px"}
         bg="white"
@@ -193,6 +243,7 @@ export const SendModal = ({
             gap={4}
             style={{ animation: "hodFadeUp .4s ease-out both" }}
           >
+            <AutoPlayBadge />
             <Text role="status" fontSize={{ base: "md", md: "lg" }} fontWeight="bold" color="gray.900">
               {caption}
             </Text>
@@ -205,7 +256,9 @@ export const SendModal = ({
                   deadlineLabel={deadlineLabel}
                 />
               )}
-              {scene === "staffAnswer" && <StaffSubmitFrame periodStart={periodStart} onDone={onStaffSubmitted} />}
+              {scene === "staffAnswer" && (
+                <StaffSubmitFrame periodStart={periodStart} onProgress={setStaffProgress} onDone={onStaffSubmitted} />
+              )}
               {scene === "confirmMessage" && (
                 <LineConfirmScreen
                   shopName={shopName}
@@ -217,30 +270,35 @@ export const SendModal = ({
             </PhoneFrame>
           </Flex>
         ) : (
-          <Flex direction="column" align="center" gap={{ base: 6, md: 8 }}>
-            <Flex align="center" justify="center" gap={{ base: 0, md: 2 }} w="full">
-              <Endpoint label="シフトリ" badge={scene === "collected"} />
-              <ArcFlight
+          // 飛ぶアイコンが弧の頂点でラベルに重ならないよう、ラベルとの間を広めに取る。
+          <Flex direction="column" align="center" gap={7}>
+            <AutoPlayBadge />
+            <Flex direction="column" align="center" gap={{ base: 6, md: 8 }} w="full">
+              <Flex align="center" justify="center" gap={{ base: 0, md: 2 }} w="full">
+                <Endpoint label="シフトリ" badge={scene === "collected"} />
+                <ArcFlight
+                  key={scene}
+                  reverse={scene === "collected"}
+                  icon={scene === "collected" ? LuCalendarCheck : LuMail}
+                />
+                <Endpoint icon={LuUsers} label="スタッフ" badge={scene === "confirmSent"} />
+              </Flex>
+              <Text
                 key={scene}
-                reverse={scene === "collected"}
-                icon={scene === "collected" ? LuCalendarCheck : LuMail}
-              />
-              <Endpoint icon={LuUsers} label="スタッフ" badge={scene === "confirmSent"} />
+                role="status"
+                fontSize={{ base: "lg", md: "xl" }}
+                fontWeight="bold"
+                color="gray.900"
+                lineHeight="1.4"
+                textAlign="center"
+                style={{ animation: "hodFadeUp .45s ease-out both" }}
+              >
+                {title}
+              </Text>
             </Flex>
-            <Text
-              key={scene}
-              role="status"
-              fontSize={{ base: "lg", md: "xl" }}
-              fontWeight="bold"
-              color="gray.900"
-              lineHeight="1.4"
-              textAlign="center"
-              style={{ animation: "hodFadeUp .45s ease-out both" }}
-            >
-              {title}
-            </Text>
           </Flex>
         )}
+        <AutoPlayProgress scene={scene} staffProgress={staffProgress} />
       </Box>
     </Flex>
   );

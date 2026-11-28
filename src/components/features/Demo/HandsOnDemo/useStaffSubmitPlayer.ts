@@ -24,6 +24,8 @@ type Plan = {
 
 type Options = {
   plan: Plan;
+  /** 手順を1つ終えるたびに、終えた割合（0から1）を知らせる。 */
+  onProgress: (progress: number) => void;
   /** 提出まで終えたあと、完了の画面を見せてから呼ぶ。 */
   onFinished: () => void;
 };
@@ -54,10 +56,10 @@ const setInputValue = (input: HTMLInputElement, value: string) => {
   input.dispatchEvent(new Event("input", { bubbles: true }));
 };
 
-export const useStaffSubmitPlayer = ({ plan, onFinished }: Options) => {
+export const useStaffSubmitPlayer = ({ plan, onProgress, onFinished }: Options) => {
   const [cursor, setCursor] = useState<PlayerCursor | null>(null);
 
-  // 1回だけ再生する。planとonFinishedは、読み込んだ画面ごとに決まっている。
+  // 1回だけ再生する。planと知らせる先は、読み込んだ画面ごとに決まっている。
   // biome-ignore lint/correctness/useExhaustiveDependencies: 再生は画面を開いたときの1回だけにする
   useEffect(() => {
     let cancelled = false;
@@ -109,6 +111,14 @@ export const useStaffSubmitPlayer = ({ plan, onFinished }: Options) => {
       await wait(450);
     };
 
+    // 進み具合は、出勤にする日ごと、最初の日の開始と終了、メモ、提出の手順を数えて決める。
+    const total = plan.dates.length + 4;
+    let done = 0;
+    const advance = () => {
+      done += 1;
+      onProgress(Math.min(1, done / total));
+    };
+
     const play = async () => {
       update({});
       await wait(600);
@@ -121,14 +131,17 @@ export const useStaffSubmitPlayer = ({ plan, onFinished }: Options) => {
         await moveTo(toggle, 550, 0.18, 0.5);
         await press(toggle);
         await wait(550);
+        advance();
         if (index > 0) continue;
         // 最初の日は、選択欄で開始と終了を選び直す。次の日からは、同じ時刻が入る。
         const triggers = () =>
           document.querySelectorAll<HTMLElement>(`${dayCard(date)} [data-scope="select"][data-part="trigger"]`);
         const start = await findElement(() => triggers()[0]);
         if (start) await pickOption(start, plan.startTime);
+        advance();
         const end = await findElement(() => triggers()[1]);
         if (end) await pickOption(end, plan.endTime);
+        advance();
       }
 
       if (cancelled) return;
@@ -159,6 +172,7 @@ export const useStaffSubmitPlayer = ({ plan, onFinished }: Options) => {
           await wait(700);
         }
       }
+      advance();
 
       if (cancelled) return;
       const submit = Array.from(document.querySelectorAll<HTMLButtonElement>("button")).find((button) =>
@@ -170,6 +184,8 @@ export const useStaffSubmitPlayer = ({ plan, onFinished }: Options) => {
         await moveTo(submit, 500);
         await press(submit);
       }
+      // 見つからずに飛ばした手順があっても、提出の手順で最後まで伸ばす。
+      onProgress(1);
       await wait(300);
       setCursor(null);
       await wait(1800);

@@ -6,6 +6,7 @@ import { Tour, type TourHandle } from "@/src/components/ui/Tour";
 import type { ShiftData } from "@/src/domains/shift/types";
 import { HandsOnTourNextContext, HandsOnTourTooltip } from "./HandsOnTourTooltip";
 import { getHandsOnStepIndex, type HandsOnVariant } from "./progress";
+import { ReadyNotice } from "./ReadyNotice";
 import {
   HANDS_ON_POSITIONS,
   HANDS_ON_SUBMISSION_PATTERN,
@@ -22,6 +23,12 @@ import { HANDS_ON_TODO_LABELS, HANDS_ON_TOUR_STEPS } from "./tourSteps";
  */
 const TOUR_Z_INDEX = 900;
 const TODO_Z_INDEX = TOUR_Z_INDEX + 1;
+const NOTICE_Z_INDEX = TOUR_Z_INDEX + 2;
+
+/** 「ここから操作できます」を出しておく時間と、消えていく時間。 */
+const READY_NOTICE_MS = 4000;
+const READY_NOTICE_LEAVE_MS = 400;
+type NoticePhase = "hidden" | "shown" | "leaving";
 
 /** 希望が届いた直後に、行ごとに順に並べる動き。1行ずつずらして、左から滑り込ませる。 */
 const ARRIVE_START_S = 0.4;
@@ -106,6 +113,24 @@ export const BoardStep = ({ variant, scenario, completedShifts, isBackdrop, onCo
     };
   }, [arrives, arriveDoneMs]);
 
+  // 届いた希望を並べ終えて操作できるようになったとき（確定のあとから戻ったときも）、数秒だけ知らせる。
+  const isOperable = !isBackdrop && isTourReady;
+  const [noticePhase, setNoticePhase] = useState<NoticePhase>("hidden");
+  useEffect(() => {
+    if (!isOperable) {
+      setNoticePhase("hidden");
+      return;
+    }
+    setNoticePhase("shown");
+    const leaveTimer = window.setTimeout(() => setNoticePhase("leaving"), READY_NOTICE_MS);
+    const hideTimer = window.setTimeout(() => setNoticePhase("hidden"), READY_NOTICE_MS + READY_NOTICE_LEAVE_MS);
+    return () => {
+      window.clearTimeout(leaveTimer);
+      window.clearTimeout(hideTimer);
+    };
+  }, [isOperable]);
+  const notice = noticePhase === "hidden" ? null : <ReadyNotice leaving={noticePhase === "leaving"} />;
+
   // スマートフォンには吹き出しがなく「次へ」を押せないため、希望を確かめる手順は済んだものとして進める。
   const stepIndex = getHandsOnStepIndex({ variant, shifts, day1, acknowledged: acknowledged || !isPc, autoCreated });
 
@@ -174,12 +199,25 @@ export const BoardStep = ({ variant, scenario, completedShifts, isBackdrop, onCo
         onSaveDraft={handleSaveDraft}
         onConfirm={handleConfirm}
       />
+      {notice && (
+        <Box
+          position="absolute"
+          top={3}
+          left="50%"
+          transform="translateX(-50%)"
+          zIndex={NOTICE_Z_INDEX}
+          display={{ base: "none", lg: "block" }}
+        >
+          {notice}
+        </Box>
+      )}
       {!isBackdrop && (
         <TodoCard
           labels={HANDS_ON_TODO_LABELS[variant]}
           current={stepIndex}
           raised={variant === "detail"}
           zIndex={TODO_Z_INDEX}
+          notice={notice}
         />
       )}
       {!isBackdrop && isPc && isTourReady && (
