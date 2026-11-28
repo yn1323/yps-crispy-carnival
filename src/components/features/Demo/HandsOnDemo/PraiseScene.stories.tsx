@@ -5,6 +5,7 @@ import { PraiseScene } from "./PraiseScene";
 const meta = {
   title: "Features/Demo/HandsOnDemo/PraiseScene",
   component: PraiseScene,
+  args: { onContinue: () => {} },
   parameters: { layout: "fullscreen" },
   decorators: [
     (Story) => (
@@ -18,7 +19,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** シフトの完成を祝う。次の行動は、登録へ進む1つだけにする。 */
+/** シフトの完成を祝う。主の行動は登録へ進むことで、白抜きのボタンからシフト表へ戻って操作を続けることもできる。 */
 export const Praise: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);

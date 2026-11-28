@@ -53,6 +53,8 @@ const HandsOnScenes = ({ variant, periodStart, state, dispatch, boardRef }: Scen
   const handleStart = useCallback(() => dispatch({ type: "start" }), [dispatch]);
   const handleStaffSubmitted = useCallback(() => dispatch({ type: "staffSubmitted" }), [dispatch]);
   const handleConfirm = useCallback((shifts: ShiftData[]) => dispatch({ type: "confirm", shifts }), [dispatch]);
+  // 完成の画面から、上の段の「シフトを作る」と同じく、確定した下書きのままシフト表へ戻る。
+  const handleContinue = useCallback(() => dispatch({ type: "jump", chapter: 2 }), [dispatch]);
 
   return (
     <>
@@ -81,7 +83,7 @@ const HandsOnScenes = ({ variant, periodStart, state, dispatch, boardRef }: Scen
           onStaffSubmitted={handleStaffSubmitted}
         />
       )}
-      {scene === "praise" && <PraiseScene />}
+      {scene === "praise" && <PraiseScene onContinue={handleContinue} />}
     </>
   );
 };

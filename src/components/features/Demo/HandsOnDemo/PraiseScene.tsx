@@ -125,8 +125,16 @@ const Crackers = () => {
   );
 };
 
-/** シフトの完成を、紙吹雪とクラッカーで祝う。次の行動は「シフトリを使ってみる」の1つだけにする。 */
-export const PraiseScene = () => (
+type Props = {
+  /** 「まだシフトを操作してみる」を押した。シフト表へ戻り、確定した下書きのまま操作を続ける。 */
+  onContinue: () => void;
+};
+
+/**
+ * シフトの完成を、紙吹雪とクラッカーで祝う。主の行動は「シフトリを使ってみる」で、
+ * 白抜きの「まだシフトを操作してみる」から、シフト表へ戻って操作を続けることもできる。
+ */
+export const PraiseScene = ({ onContinue }: Props) => (
   <Flex
     position="absolute"
     inset={0}
@@ -177,20 +185,32 @@ export const PraiseScene = () => (
       >
         シフトの完成です！
       </Heading>
-      <Box mt={2} w={{ base: "full", md: "auto" }} style={{ animation: "hodFadeUp .5s ease-out .75s both" }}>
+      {/* 2つのボタンは、幅の広いほうにそろえて縦に並べる。 */}
+      <Flex
+        direction="column"
+        align="stretch"
+        gap={3}
+        mt={2}
+        w={{ base: "full", md: "auto" }}
+        style={{ animation: "hodFadeUp .5s ease-out .75s both" }}
+      >
+        <Button asChild colorPalette="teal" h={12} px={10} borderRadius="md" fontSize="lg" fontWeight="bold">
+          <a href="/signup">シフトリを使ってみる</a>
+        </Button>
         <Button
-          asChild
-          colorPalette="teal"
+          variant="outline"
+          colorPalette="gray"
+          bg="white"
           h={12}
           px={10}
-          w={{ base: "full", md: "auto" }}
           borderRadius="md"
           fontSize="lg"
           fontWeight="bold"
+          onClick={onContinue}
         >
-          <a href="/signup">シフトリを使ってみる</a>
+          まだシフトを操作してみる
         </Button>
-      </Box>
+      </Flex>
     </Flex>
   </Flex>
 );
