@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { PositionSegment, ShiftData } from "@/src/domains/shift/types";
-import { buildConfirmRows, getHandsOnStepIndex } from "./progress";
-import { BREAK_STAFF_ID, HANDS_ON_KITCHEN_ID, HANDS_ON_POSITIONS, SATO_STAFF_ID } from "./scenario";
+import { buildConfirmRows, buildHandsOnCompletedShifts, getHandsOnStepIndex } from "./progress";
+import {
+  BREAK_STAFF_ID,
+  buildHandsOnScenario,
+  HANDS_ON_KITCHEN_ID,
+  HANDS_ON_POSITIONS,
+  runHandsOnAutoCreate,
+  SATO_STAFF_ID,
+} from "./scenario";
 
 const DAY1 = "2026-11-30";
 const HALL = HANDS_ON_POSITIONS[0];
@@ -117,5 +124,40 @@ describe("確定のお知らせに並べる勤務", () => {
     expect(buildConfirmRows(shifts, SATO_STAFF_ID, [DAY1])).toEqual([
       { dateLabel: "11/30(月)", timeLabel: "17:00-22:00" },
     ]);
+  });
+});
+
+describe("手順を終えたときの下書き", () => {
+  const scenario = buildHandsOnScenario(DAY1);
+
+  it("シンプル表示では、始まりの下書きに、佐藤さんの初日の勤務と渡辺さんの初日の休憩だけを足す", () => {
+    const completed = buildHandsOnCompletedShifts("simple", scenario);
+
+    expect(completed).toHaveLength(scenario.simpleInitialShifts.length);
+    const changed = completed.filter((shift, index) => shift !== scenario.simpleInitialShifts[index]);
+    expect(changed.map(({ staffId, date, positions, breaks }) => ({ staffId, date, positions, breaks }))).toEqual([
+      {
+        staffId: BREAK_STAFF_ID,
+        date: DAY1,
+        positions: [expect.objectContaining({ start: "10:00", end: "17:00" })],
+        breaks: [{ start: "12:00", end: "13:00" }],
+      },
+      {
+        staffId: SATO_STAFF_ID,
+        date: DAY1,
+        positions: [expect.objectContaining({ positionId: HALL.id, start: "17:00", end: "22:00" })],
+        breaks: undefined,
+      },
+    ]);
+  });
+
+  it("シンプル表示の下書きでは、案内は確定する手順になる", () => {
+    expect(step("simple", buildHandsOnCompletedShifts("simple", scenario))).toBe(3);
+  });
+
+  it("くわしく表示では、希望から自動作成した下書きにする", () => {
+    expect(buildHandsOnCompletedShifts("detail", scenario)).toEqual(
+      runHandsOnAutoCreate(scenario, scenario.requests, true),
+    );
   });
 });

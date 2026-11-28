@@ -1,8 +1,8 @@
 import { ClientOnly } from "@tanstack/react-router";
-import { type Dispatch, useCallback, useEffect, useMemo, useReducer } from "react";
+import { type Dispatch, type RefObject, useCallback, useEffect, useMemo, useReducer, useRef } from "react";
 import { formatDateWithWeekday } from "@/src/domains/shift/date";
 import type { ShiftData } from "@/src/domains/shift/types";
-import { BoardStep } from "./BoardStep";
+import { BoardStep, type BoardStepHandle } from "./BoardStep";
 import {
   getHandsOnChapter,
   HANDS_ON_SCENE_DURATIONS,
@@ -11,9 +11,9 @@ import {
   initialHandsOnFlowState,
   reduceHandsOnFlow,
 } from "./flow";
-import { HandsOnShell } from "./HandsOnShell";
+import { type HandsOnChapterTarget, HandsOnShell } from "./HandsOnShell";
 import { PraiseScene } from "./PraiseScene";
-import { buildConfirmRows, type HandsOnVariant } from "./progress";
+import { buildConfirmRows, buildHandsOnCompletedShifts, type HandsOnVariant } from "./progress";
 import { isSendScene, SendModal } from "./SendModal";
 import { StartScene } from "./StartScene";
 import {
@@ -32,16 +32,23 @@ type ScenesProps = {
   periodStart: string;
   state: HandsOnFlowState;
   dispatch: Dispatch<HandsOnFlowEvent>;
+  boardRef: RefObject<BoardStepHandle | null>;
 };
 
 /** 場面を重ねて描く。送る場面の後ろには、その前の画面（募集を開始する画面か、シフト表）を残す。 */
-const HandsOnScenes = ({ variant, periodStart, state, dispatch }: ScenesProps) => {
+const HandsOnScenes = ({ variant, periodStart, state, dispatch, boardRef }: ScenesProps) => {
   const scenario = useMemo(() => buildHandsOnScenario(periodStart), [periodStart]);
   const { scene } = state;
-  const showsBoard = scene === "board" || scene === "confirmSent" || scene === "confirmMessage" || scene === "praise";
+  const isConfirmScene = scene === "confirmSent" || scene === "confirmMessage" || scene === "praise";
+  const showsBoard = scene === "board" || isConfirmScene;
+  // 送る下書き。シフト表を通らずに上の段から移ったときは、手順を終えたときの下書きを送る。
+  const sentShifts = useMemo(
+    () => state.confirmedShifts ?? (isConfirmScene ? buildHandsOnCompletedShifts(variant, scenario) : null),
+    [state.confirmedShifts, isConfirmScene, variant, scenario],
+  );
   const confirmRows = useMemo(
-    () => buildConfirmRows(state.confirmedShifts ?? [], SATO_STAFF_ID, scenario.dates),
-    [state.confirmedShifts, scenario.dates],
+    () => buildConfirmRows(sentShifts ?? [], SATO_STAFF_ID, scenario.dates),
+    [sentShifts, scenario.dates],
   );
   const handleStart = useCallback(() => dispatch({ type: "start" }), [dispatch]);
   const handleStaffSubmitted = useCallback(() => dispatch({ type: "staffSubmitted" }), [dispatch]);
@@ -51,9 +58,11 @@ const HandsOnScenes = ({ variant, periodStart, state, dispatch }: ScenesProps) =
     <>
       {showsBoard ? (
         <BoardStep
+          handleRef={boardRef}
           variant={variant}
           scenario={scenario}
-          arrives
+          // 送る場面でシフト表を開くのは、シフト表を通らずに上の段から移ったときだけである。
+          completedShifts={scene === "board" ? undefined : (sentShifts ?? undefined)}
           isBackdrop={scene !== "board"}
           onConfirm={handleConfirm}
         />
@@ -89,6 +98,7 @@ type Props = {
  */
 export const HandsOnDemo = ({ variant, periodStart }: Props) => {
   const [state, dispatch] = useReducer(reduceHandsOnFlow, initialHandsOnFlowState);
+  const boardRef = useRef<BoardStepHandle | null>(null);
 
   useEffect(() => {
     const duration = HANDS_ON_SCENE_DURATIONS[state.scene];
@@ -97,10 +107,30 @@ export const HandsOnDemo = ({ variant, periodStart }: Props) => {
     return () => window.clearTimeout(timer);
   }, [state.scene]);
 
-  const handleReset = useCallback(() => dispatch({ type: "reset" }), []);
+  const handleReset = useCallback(() => {
+    boardRef.current?.endTour();
+    dispatch({ type: "reset" });
+  }, []);
+
+  // 上の段の手順を押すと、その手順の始めへ移る。
+  const handleSelectChapter = useCallback(
+    (chapter: HandsOnChapterTarget) => {
+      if (chapter === 1) {
+        if (state.scene !== "start") handleReset();
+        return;
+      }
+      // シフト表からは、「確定」を押したときと同じく、その時の下書きを送る。
+      if (chapter === 3 && state.scene === "board") {
+        boardRef.current?.confirm();
+        return;
+      }
+      dispatch({ type: "jump", chapter });
+    },
+    [state.scene, handleReset],
+  );
 
   return (
-    <HandsOnShell chapter={getHandsOnChapter(state.scene)} onReset={handleReset}>
+    <HandsOnShell chapter={getHandsOnChapter(state.scene)} onReset={handleReset} onSelectChapter={handleSelectChapter}>
       {/* 募集の日付は開いた日で決まるため、ブラウザで描く。 */}
       <ClientOnly fallback={null}>
         <HandsOnScenes
@@ -109,6 +139,7 @@ export const HandsOnDemo = ({ variant, periodStart }: Props) => {
           periodStart={periodStart ?? getHandsOnPeriodStart()}
           state={state}
           dispatch={dispatch}
+          boardRef={boardRef}
         />
       </ClientOnly>
     </HandsOnShell>

@@ -1,4 +1,4 @@
-import { Box, Flex, Grid, Heading, Image, Text } from "@chakra-ui/react";
+import { Box, chakra, Flex, Grid, Heading, Image, Text } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 import { LuRotateCcw } from "react-icons/lu";
 import { Button, IconButton } from "@/src/components/ui/Button";
@@ -12,20 +12,24 @@ const CHAPTERS = [
 ] as const;
 
 type ChapterNo = 1 | 2 | 3 | 4;
+/** 上の段で押せる手順の番号。 */
+export type HandsOnChapterTarget = (typeof CHAPTERS)[number]["no"];
 
-/** 上の段の手順。終えた手順はチェック、いまの手順はtealで示す。スマートフォンでは、いまの手順の名前だけを出す。 */
-const ChapterStepper = ({ current }: { current: ChapterNo }) => {
+type StepperProps = {
+  current: ChapterNo;
+  onSelect: (chapter: HandsOnChapterTarget) => void;
+};
+
+/**
+ * 上の段の手順。終えた手順はチェック、いまの手順はtealで示す。スマートフォンでは、いまの手順の名前だけを出す。
+ * 手順を押すと、その手順の始めへ移る。
+ */
+const ChapterStepper = ({ current, onSelect }: StepperProps) => {
   const stateOf = (no: number): StepState => (no < current ? "done" : no === current ? "current" : "upcoming");
   return (
     <Flex as="ol" align="center" gap={{ base: 1.5, lg: 3 }} aria-label="進み具合" listStyleType="none">
       {CHAPTERS.map((chapter, index) => (
-        <Flex
-          as="li"
-          key={chapter.no}
-          align="center"
-          gap={{ base: 1.5, lg: 3 }}
-          aria-current={chapter.no === current ? "step" : undefined}
-        >
+        <Flex as="li" key={chapter.no} align="center" gap={{ base: 1.5, lg: 3 }}>
           {index > 0 && (
             <Box
               w={{ base: 4, lg: 8 }}
@@ -35,7 +39,25 @@ const ChapterStepper = ({ current }: { current: ChapterNo }) => {
               aria-hidden
             />
           )}
-          <Flex align="center" gap={2}>
+          <chakra.button
+            type="button"
+            // スマートフォンでは、いまの手順のほかは名前を隠すため、名前をラベルにも持たせる。
+            aria-label={chapter.label}
+            aria-current={chapter.no === current ? "step" : undefined}
+            onClick={() => onSelect(chapter.no)}
+            display="flex"
+            alignItems="center"
+            gap={2}
+            // 押せる範囲を丸と名前の外まで広げ、並びは変えない。
+            p={{ base: 2.5, lg: 2 }}
+            m={{ base: -2.5, lg: -2 }}
+            borderRadius="full"
+            cursor="pointer"
+            transitionProperty="background-color"
+            transitionDuration="faster"
+            _hover={{ bg: "gray.100" }}
+            _focusVisible={{ outlineWidth: "2px", outlineStyle: "solid", outlineColor: "teal.500", outlineOffset: "0" }}
+          >
             <StepCircle no={chapter.no} state={stateOf(chapter.no)} />
             <Text
               fontSize="sm"
@@ -46,7 +68,7 @@ const ChapterStepper = ({ current }: { current: ChapterNo }) => {
             >
               {chapter.label}
             </Text>
-          </Flex>
+          </chakra.button>
         </Flex>
       ))}
     </Flex>
@@ -56,11 +78,12 @@ const ChapterStepper = ({ current }: { current: ChapterNo }) => {
 type Props = {
   chapter: ChapterNo;
   onReset: () => void;
+  onSelectChapter: (chapter: HandsOnChapterTarget) => void;
   children: ReactNode;
 };
 
 /** 体験デモの枠。見出しの行に、題、手順、「最初からやり直す」を置く。 */
-export const HandsOnShell = ({ chapter, onReset, children }: Props) => (
+export const HandsOnShell = ({ chapter, onReset, onSelectChapter, children }: Props) => (
   <Flex direction="column" h="100dvh" bg="white" overflow="hidden" {...{ [HANDS_ON_ROOT_ATTRIBUTE]: "" }}>
     <style>{HANDS_ON_KEYFRAMES}</style>
     <Box as="header" borderBottomWidth="1px" borderColor="gray.200" bg="white" flexShrink={0}>
@@ -78,7 +101,7 @@ export const HandsOnShell = ({ chapter, onReset, children }: Props) => (
           </Heading>
         </Flex>
         <Box display={{ base: "none", lg: "block" }}>
-          <ChapterStepper current={chapter} />
+          <ChapterStepper current={chapter} onSelect={onSelectChapter} />
         </Box>
         <Flex justify="flex-end">
           <Button
@@ -106,7 +129,7 @@ export const HandsOnShell = ({ chapter, onReset, children }: Props) => (
         </Flex>
       </Grid>
       <Box display={{ base: "block", lg: "none" }} px={4} pb={2.5}>
-        <ChapterStepper current={chapter} />
+        <ChapterStepper current={chapter} onSelect={onSelectChapter} />
       </Box>
     </Box>
     <Box as="main" flex={1} minH={0} position="relative">

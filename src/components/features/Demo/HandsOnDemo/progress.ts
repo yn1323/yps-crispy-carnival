@@ -3,7 +3,16 @@ import { formatDateWithWeekday } from "@/src/domains/shift/date";
 import { isLegacyCompatibleWorkPosition } from "@/src/domains/shift/positions";
 import { formatShiftClockTime, timeToMinutes } from "@/src/domains/shift/time";
 import type { ShiftData } from "@/src/domains/shift/types";
-import { BREAK_STAFF_ID, HANDS_ON_KITCHEN_ID, SATO_STAFF_ID } from "./scenario";
+import {
+  BREAK_STAFF_ID,
+  BREAK_TIME,
+  HANDS_ON_KITCHEN_ID,
+  HANDS_ON_POSITIONS,
+  type HandsOnScenario,
+  runHandsOnAutoCreate,
+  SATO_REQUEST_TIME,
+  SATO_STAFF_ID,
+} from "./scenario";
 
 export type HandsOnVariant = "simple" | "detail";
 
@@ -44,6 +53,38 @@ export const getHandsOnStepIndex = ({ variant, shifts, day1, acknowledged, autoC
   const breaks = findShift(shifts, BREAK_STAFF_ID, day1)?.breaks ?? [];
   if (breaks.length === 0) return 2;
   return 3;
+};
+
+/**
+ * シフト表の手順を終えたときの下書き。シフト表を通らずに、上の段から「確定シフトを送る」へ移ったときに送る。
+ * シンプル：佐藤さんの初日に希望どおりの勤務を入れ、渡辺さんの初日に休憩を入れる。
+ * くわしく：最後の手順の自動作成で手で入れた勤務も作り直すため、自動作成した下書きにする。休憩は、自動作成の既定どおり入れる。
+ */
+export const buildHandsOnCompletedShifts = (variant: HandsOnVariant, scenario: HandsOnScenario): ShiftData[] => {
+  if (variant === "detail") return runHandsOnAutoCreate(scenario, scenario.requests, true);
+
+  const day1 = scenario.dates[0];
+  const hall = HANDS_ON_POSITIONS[0];
+  return scenario.simpleInitialShifts.map((shift) => {
+    if (shift.date !== day1) return shift;
+    if (shift.staffId === SATO_STAFF_ID) {
+      return {
+        ...shift,
+        positions: [
+          {
+            id: `seg-${shift.staffId}-${day1}`,
+            positionId: hall.id,
+            positionName: hall.name,
+            color: hall.color,
+            start: SATO_REQUEST_TIME.start,
+            end: SATO_REQUEST_TIME.end,
+          },
+        ],
+      };
+    }
+    if (shift.staffId === BREAK_STAFF_ID) return { ...shift, breaks: [{ ...BREAK_TIME }] };
+    return shift;
+  });
 };
 
 export type ConfirmRow = {

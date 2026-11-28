@@ -1,5 +1,5 @@
 import { Box, useBreakpointValue } from "@chakra-ui/react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type Ref, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { ShiftForm, type ShiftFormDetailActions } from "@/src/components/features/Shift/ShiftForm";
 import { showSuccessToast } from "@/src/components/shared/feedback";
 import { Tour, type TourHandle } from "@/src/components/ui/Tour";
@@ -43,25 +43,44 @@ const buildArriveCss = (staffIds: string[]) =>
 
 const TOUR_DELAY_MS = 900;
 
+/** 上の段の手順から、シフト表を操作する。 */
+export type BoardStepHandle = {
+  /** 「確定」を押したときと同じく、吹き出しを片付けてから、その時の下書きで確定する。 */
+  confirm: () => void;
+  /** シフト表を閉じる前に、吹き出しを片付ける。閉じるだけでは、吹き出しの部品がbodyに残ることがある。 */
+  endTour: () => void;
+};
+
 type Props = {
   variant: HandsOnVariant;
   scenario: HandsOnScenario;
-  /** シフト表を開いた直後か。届いた希望を並べる動きを出す。 */
-  arrives: boolean;
+  /**
+   * 手順を終えた下書き。シフト表を通らずに、上の段から「確定シフトを送る」へ移ったときに渡す。
+   * 渡すと、届いた希望を並べる動きを出さず、案内も終えた状態から始める。開いたときの値だけを使う。
+   */
+  completedShifts?: ShiftData[];
   /** 確定したあとの場面の後ろに置いているか。吹き出しと「やること」を出さない。 */
   isBackdrop: boolean;
   onConfirm: (shifts: ShiftData[]) => void;
+  handleRef?: Ref<BoardStepHandle>;
 };
 
 /** シフト表で、案内に沿って勤務を入れ、確定する。案内は、そのときの下書きから進める。 */
-export const BoardStep = ({ variant, scenario, arrives, isBackdrop, onConfirm }: Props) => {
-  const initialShifts = variant === "simple" ? scenario.simpleInitialShifts : scenario.requests;
+export const BoardStep = ({ variant, scenario, completedShifts, isBackdrop, onConfirm, handleRef }: Props) => {
+  // 開いたときの値だけを使う。確定したあとも後ろに残し、上の段から戻ったときにそのまま続けられるよう、
+  // あとで渡す値が変わっても下書きを作り直さない。
+  const [start] = useState(() => ({
+    shifts: completedShifts ?? (variant === "simple" ? scenario.simpleInitialShifts : scenario.requests),
+    isCompleted: completedShifts !== undefined,
+  }));
+  const initialShifts = start.shifts;
+  const arrives = !start.isCompleted;
   const day1 = scenario.dates[0];
   const [shifts, setShifts] = useState<ShiftData[]>(initialShifts);
   // 確定したときの下書きを、描き直しを待たずに渡すため、最後に届いた下書きも持っておく。
   const shiftsRef = useRef<ShiftData[]>(initialShifts);
-  const [acknowledged, setAcknowledged] = useState(false);
-  const [autoCreated, setAutoCreated] = useState(false);
+  const [acknowledged, setAcknowledged] = useState(start.isCompleted);
+  const [autoCreated, setAutoCreated] = useState(start.isCompleted);
   const applyShiftsRef = useRef<((update: (current: ShiftData[]) => ShiftData[]) => void) | null>(null);
   const tourRef = useRef<TourHandle>(null);
   // 吹き出しはPCだけに出す。スマートフォンでは右下の「やること」で進める。
@@ -118,6 +137,10 @@ export const BoardStep = ({ variant, scenario, arrives, isBackdrop, onConfirm }:
     tourRef.current?.skip();
     onConfirm(shiftsRef.current);
   }, [onConfirm]);
+
+  useImperativeHandle(handleRef, () => ({ confirm: handleConfirm, endTour: () => tourRef.current?.skip() }), [
+    handleConfirm,
+  ]);
 
   const handleShiftsChange = useCallback((next: ShiftData[]) => {
     shiftsRef.current = next;

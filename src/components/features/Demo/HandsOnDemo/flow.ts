@@ -26,6 +26,8 @@ export type HandsOnFlowEvent =
   | { type: "advance"; from: HandsOnScene }
   | { type: "staffSubmitted" }
   | { type: "confirm"; shifts: ShiftData[] }
+  /** 上の段の手順で、2か3を押した。1は「最初からやり直す」と同じく`reset`で戻す。 */
+  | { type: "jump"; chapter: 2 | 3 }
   | { type: "reset" };
 
 /** 決まった時間で次へ進む場面と、その時間（ミリ秒）。スタッフの提出は終わりの知らせを待ち、来なければこの時間で進める。 */
@@ -62,6 +64,14 @@ export const reduceHandsOnFlow = (state: HandsOnFlowState, event: HandsOnFlowEve
       return state.scene === "staffAnswer" ? { ...state, scene: "collected" } : state;
     case "confirm":
       return state.scene === "board" ? { ...state, scene: "confirmSent", confirmedShifts: event.shifts } : state;
+    case "jump": {
+      // 押した手順の始めの場面へ移る。作り直しの番号は変えず、作ったシフト表を残す。
+      const scene: HandsOnScene = event.chapter === 2 ? "board" : "confirmSent";
+      if (state.scene === scene) return state;
+      // シフト表からは、確定と同じくその時の下書きを持って進めるため、`confirm`で移る。
+      if (event.chapter === 3 && state.scene === "board") return state;
+      return { ...state, scene };
+    }
     case "reset":
       return { ...initialHandsOnFlowState, runId: state.runId + 1 };
   }

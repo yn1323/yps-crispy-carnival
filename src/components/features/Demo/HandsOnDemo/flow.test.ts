@@ -82,6 +82,53 @@ describe("体験デモの場面の流れ", () => {
   });
 });
 
+describe("上の段の手順を押したとき", () => {
+  it.each(["start", "sent", "staffMessage", "staffAnswer", "collected"] as const)(
+    "1章の%sから2を押すと、シフト表へ移る",
+    (scene) => {
+      expect(run(at(scene, { runId: 2 }), { type: "jump", chapter: 2 })).toEqual(at("board", { runId: 2 }));
+    },
+  );
+
+  it.each(["confirmSent", "confirmMessage", "praise"] as const)(
+    "%sから2を押すと、確定した下書きと作り直しの番号を残したまま、シフト表へ戻る",
+    (scene) => {
+      expect(run(at(scene, { confirmedShifts, runId: 2 }), { type: "jump", chapter: 2 })).toEqual(
+        at("board", { confirmedShifts, runId: 2 }),
+      );
+    },
+  );
+
+  it.each(["start", "sent", "staffMessage", "staffAnswer", "collected"] as const)(
+    "1章の%sから3を押すと、確定した下書きを持たずに、確定したシフトを送る場面へ移る",
+    (scene) => {
+      expect(run(at(scene, { runId: 2 }), { type: "jump", chapter: 3 })).toEqual(at("confirmSent", { runId: 2 }));
+    },
+  );
+
+  it.each(["confirmMessage", "praise"] as const)(
+    "%sから3を押すと、確定した下書きを残したまま、確定したシフトを送る場面からやり直す",
+    (scene) => {
+      expect(run(at(scene, { confirmedShifts, runId: 2 }), { type: "jump", chapter: 3 })).toEqual(
+        at("confirmSent", { confirmedShifts, runId: 2 }),
+      );
+    },
+  );
+
+  it("シフト表で3を押しても変えない。下書きを持って進める確定で移るため", () => {
+    const board = at("board");
+    expect(run(board, { type: "jump", chapter: 3 })).toBe(board);
+  });
+
+  it.each([
+    ["board", 2],
+    ["confirmSent", 3],
+  ] as const)("すでに押した手順の始めの%sにいるときは、%iを押しても変えない", (scene, chapter) => {
+    const state = at(scene, { confirmedShifts });
+    expect(run(state, { type: "jump", chapter })).toBe(state);
+  });
+});
+
 describe("上の段の手順", () => {
   it.each([
     ["start", 1],

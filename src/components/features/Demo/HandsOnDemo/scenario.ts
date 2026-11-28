@@ -39,8 +39,9 @@ export const SATO_STAFF_NAME = "佐藤 大輔";
 /** 佐藤さんが希望を出す日（募集の初日から数えた日）と時間。1章の提出画面で、この3日を同じ時間で出す。 */
 export const SATO_REQUEST_DAY_INDEXES = [0, 2, 4] as const;
 export const SATO_REQUEST_TIME = { start: "17:00", end: "22:00" } as const;
-/** 2章で休憩を入れる渡辺さん。 */
+/** 2章で休憩を入れる渡辺さんと、入れる休憩の時間。 */
 export const BREAK_STAFF_ID = "s1";
+export const BREAK_TIME = { start: "12:00", end: "13:00" } as const;
 
 type Request = readonly [start: string, end: string] | null;
 type StaffSkill = NonNullable<StaffType["positionSkills"]>[number];
