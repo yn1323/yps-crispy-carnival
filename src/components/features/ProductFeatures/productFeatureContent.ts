@@ -71,7 +71,26 @@ export type ProductFeature = {
   helpLinks: ProductFeatureLink[];
   articleSlugs: string[];
   /** 登録なしで操作できるデモ。ある機能だけ、別タブで開くボタンを出す。 */
-  demoHref?: string;
+  demo?: ProductFeatureDemo;
+};
+
+/** 登録なしで操作できる体験デモ。 */
+export type ProductFeatureDemo = {
+  href: string;
+  /** 「できること」の後の枠に添える、デモで試せることの説明。 */
+  lead: string;
+};
+
+/** 体験デモのシンプル版。希望を集めてから確定を送るまでを試せる。 */
+const HANDS_ON_SIMPLE_DEMO: ProductFeatureDemo = {
+  href: "/demo/simple",
+  lead: "架空のお店とスタッフを用意しています。希望を集めてシフトを確定するまで、そのまま操作できます。",
+};
+
+/** 体験デモのくわしく版。ポジションを分けた勤務と自動作成を試せる。 */
+const HANDS_ON_DETAIL_DEMO: ProductFeatureDemo = {
+  href: "/demo/detail",
+  lead: "架空のお店とスタッフを用意しています。自動作成まで、そのまま操作できます。",
 };
 
 const freeLimits = ORGANIZATION_PLAN_LIMITS.free;
@@ -154,6 +173,7 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
       { href: "/help/guide-staff-line-connection", label: "スタッフへLINE連携を案内する" },
     ],
     articleSlugs: ["line-shift-submission", "shift-request-sheet-template"],
+    demo: HANDS_ON_SIMPLE_DEMO,
   },
   "submission-reminder": {
     name: "提出状況の確認と自動催促",
@@ -300,6 +320,7 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
       { href: "/help/scenarios/shift-export", label: "シフトをPDF・Excelでダウンロードしたい" },
     ],
     articleSlugs: ["shift-schedule-creation-guide", "shift-build-faster"],
+    demo: HANDS_ON_SIMPLE_DEMO,
   },
   "shift-auto-creation": {
     name: "シフトの自動作成",
@@ -368,7 +389,7 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
       { href: "/help/set-positions-and-breaks", label: "ポジションと休憩時間を設定する" },
     ],
     articleSlugs: ["fair-shift-scheduling", "shift-schedule-creation-guide"],
-    demoHref: "/demo/shiftboard",
+    demo: HANDS_ON_DETAIL_DEMO,
   },
   "shift-sharing": {
     name: "確定シフトの共有",
@@ -436,6 +457,7 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
       { href: "/help/reissue-confirmed-shift-link", label: "確定シフトの閲覧リンクを再発行する" },
     ],
     articleSlugs: ["shiftori-line-workflow", "sudden-absence-coverage"],
+    demo: HANDS_ON_SIMPLE_DEMO,
   },
   "multi-store": {
     name: "複数店舗・スタッフ管理",

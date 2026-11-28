@@ -94,7 +94,7 @@ function FeatureDetailView({ feature }: { feature: ProductFeature }) {
                   w={{ base: "full", md: "auto" }}
                 >
                   <FeatureSignupButton position="hero" />
-                  {feature.demoHref && <FeatureDemoButton href={feature.demoHref} position="hero" />}
+                  {feature.demo && <FeatureDemoButton href={feature.demo.href} position="hero" />}
                 </Stack>
                 <TrialReassurance />
               </VStack>
@@ -161,7 +161,7 @@ function FeatureDetailView({ feature }: { feature: ProductFeature }) {
         </Container>
       </Box>
 
-      {feature.demoHref && <FeatureDemoBand href={feature.demoHref} />}
+      {feature.demo && <FeatureDemoBand demo={feature.demo} />}
 
       <Box as="section" bg="#fbfefe" py={{ base: 12, md: 16 }}>
         <Container maxW="6xl">

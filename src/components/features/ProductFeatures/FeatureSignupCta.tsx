@@ -4,6 +4,7 @@ import relaxedStoreImage from "@/src/assets/illustrations/relaxed-store.webp";
 import { MeasurementLink } from "@/src/components/shared/MeasurementLink";
 import { TrialReassurance } from "@/src/components/shared/TrialReassurance";
 import { Button } from "@/src/components/ui/Button";
+import type { ProductFeatureDemo } from "./productFeatureContent";
 import { SentenceLines } from "./SentenceLines";
 
 type SignupPosition = "hero" | "bottom";
@@ -65,7 +66,7 @@ export function FeatureDemoButton({ href, position }: { href: string; position: 
 }
 
 /** 「できること」を読んだ人が、その場で操作を試せるようにする。 */
-export function FeatureDemoBand({ href }: { href: string }) {
+export function FeatureDemoBand({ demo }: { demo: ProductFeatureDemo }) {
   return (
     <Box as="section" bg="gray.50" py={{ base: 10, md: 12 }}>
       <Container maxW="4xl">
@@ -85,10 +86,10 @@ export function FeatureDemoBand({ href }: { href: string }) {
               登録なしでデモを試せます
             </Heading>
             <Text mt={2} color="gray.700" fontSize={{ base: "sm", md: "md" }} lineHeight="1.9">
-              <SentenceLines text="架空のお店とスタッフを用意しています。自動作成まで、そのまま操作できます。" />
+              <SentenceLines text={demo.lead} />
             </Text>
           </Box>
-          <FeatureDemoButton href={href} position="band" />
+          <FeatureDemoButton href={demo.href} position="band" />
         </Flex>
       </Container>
     </Box>

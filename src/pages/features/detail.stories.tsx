@@ -30,13 +30,17 @@ export const Desktop: Story = {
       "href",
       "/features/shift-sharing",
     );
-    await expect(canvas.queryByRole("link", { name: /デモを試す/ })).not.toBeInTheDocument();
+    // 希望の回収から確定までの流れに入る機能は、体験デモのシンプル版を開く。
+    for (const link of canvas.getAllByRole("link", { name: "デモを試す（別タブで開きます）" })) {
+      await expect(link).toHaveAttribute("href", "/demo/simple");
+    }
     await expect(canvas.getByRole("heading", { level: 2, name: "よくある質問" })).toBeInTheDocument();
   },
 };
 
 /**
  * デモがある機能だけ、最初の画面と「できること」の後に、デモを別タブで開くボタンを出す。
+ * 自動作成は、ポジションと自動作成を試せる体験デモのくわしく版を開く。
  * よくある質問のない機能では、その節を出さない。
  */
 export const WithDemo: Story = {
@@ -49,10 +53,22 @@ export const WithDemo: Story = {
 
     await expect(demoLinks).toHaveLength(2);
     for (const link of demoLinks) {
-      await expect(link).toHaveAttribute("href", "/demo/shiftboard");
+      await expect(link).toHaveAttribute("href", "/demo/detail");
       await expect(link).toHaveAttribute("target", "_blank");
     }
     await expect(canvas.queryByRole("heading", { name: "よくある質問" })).not.toBeInTheDocument();
+  },
+};
+
+/** デモで見せていない機能には、デモのボタンを出さない。 */
+export const WithoutDemo: Story = {
+  args: {
+    slug: "submission-reminder",
+  },
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.queryByRole("link", { name: /デモを試す/ })).not.toBeInTheDocument();
   },
 };
 
