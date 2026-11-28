@@ -30,14 +30,17 @@ export type HandsOnFlowEvent =
   | { type: "jump"; chapter: 2 | 3 }
   | { type: "reset" };
 
-/** 決まった時間で次へ進む場面と、その時間（ミリ秒）。スタッフの提出は終わりの知らせを待ち、来なければこの時間で進める。 */
+/**
+ * 決まった時間で次へ進む場面と、その時間（ミリ秒）。スタッフの提出は終わりの知らせを待ち、来なければこの時間で進める。
+ * 届いたお知らせの場面は、お知らせと添えた説明を読めるよう、ほかの場面より長く見せる。
+ */
 export const HANDS_ON_SCENE_DURATIONS: Partial<Record<HandsOnScene, number>> = {
   sent: 3400,
-  staffMessage: 3600,
+  staffMessage: 10800,
   staffAnswer: 45000,
   collected: 3400,
   confirmSent: 3400,
-  confirmMessage: 5000,
+  confirmMessage: 10000,
 };
 
 const NEXT_SCENE: Partial<Record<HandsOnScene, HandsOnScene>> = {
