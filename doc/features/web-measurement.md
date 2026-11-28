@@ -49,7 +49,7 @@ ApplicationがdataLayerへ追加するイベントは次に限定する。  `web
 | イベント | 発火条件 | 固有のパラメータ |
 |---|---|---|
 | `page_view` | 初回documentとpathnameが変わるSPA遷移 | `page_location`、`page_referrer` |
-| `select_content` | TOPのheader・hero・毎月の流れ・料金section・下部CTA、機能一覧と機能ページの上部・下部CTA、機能ページのデモのボタン、記事末尾CTAの選択 | `content_type`、`content_id` |
+| `select_content` | TOPのheader・hero・毎月の流れ・料金section・下部CTA、機能一覧と機能ページの上部・下部CTA、TOPの最初の画面と機能ページのデモのボタン、記事末尾CTAの選択 | `content_type`、`content_id` |
 | `section_view` | TOPの料金sectionの上端が画面の上60%へ入ったとき（TOPの表示ごとに1回） | `section`（`pricing`） |
 | `help_search` | ヘルプ検索の入力が1.5秒止まったとき | `has_results`（`true`、`false`）。検索語は氏名や連絡先を含み得るため送らない |
 | `generate_lead` | お問い合わせの送信に成功したとき | なし |
