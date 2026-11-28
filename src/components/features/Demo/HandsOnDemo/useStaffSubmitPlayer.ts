@@ -49,7 +49,7 @@ const findElement = async <T extends Element>(find: () => T | null | undefined):
 
 const dayCard = (date: string) => `[data-day-card="${date}"]`;
 /** 休みに戻すボタンを示して止まる時間。押さずに、説明を読む間だけ止まる。 */
-const REMOVE_HINT_MS = 1800;
+const REMOVE_HINT_MS = 3000;
 /** 提出したあと、完了の画面を見せる時間。 */
 const FINISHED_VIEW_MS = 2400;
 const OPEN_SELECT_CONTENT = '[data-scope="select"][data-part="content"][data-state="open"]';
@@ -204,7 +204,10 @@ export const useStaffSubmitPlayer = ({ plan, onProgress, onFinished }: Options) 
         button.textContent?.includes("希望シフトを提出"),
       );
       if (submit) {
-        submit.scrollIntoView({ behavior: "smooth", block: "center" });
+        // scrollIntoViewは、読み込む側の画面の箱までスクロールさせ、スマートフォンの枠の下に余白を作る。
+        // この画面の中だけを、提出のボタンが中央に来るまで送る。
+        const rect = submit.getBoundingClientRect();
+        window.scrollBy({ top: rect.top + rect.height / 2 - window.innerHeight / 2, behavior: "smooth" });
         await wait(1000);
         await moveTo(submit, 500);
         await press(submit);
