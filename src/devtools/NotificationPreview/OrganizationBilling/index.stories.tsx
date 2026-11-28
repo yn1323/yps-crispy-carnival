@@ -17,11 +17,11 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const BillingEmailChanged: Story = {
-  name: "請求先メールアドレス変更",
+  name: "支払いのお知らせ先の変更",
   render: () => (
     <NotificationPreviewStoryFrame>
       <EmailNotificationPreview
-        label="請求先メールアドレス変更"
+        label="支払いのお知らせ先の変更"
         subject={organizationSubject(organizationBillingEmailChangedNotificationCopy.subject)}
         html={buildOrganizationBillingEmailHtml({
           recipientName: fixtures.managerName,

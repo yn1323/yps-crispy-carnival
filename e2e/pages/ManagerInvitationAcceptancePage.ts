@@ -13,6 +13,9 @@ export class ManagerInvitationAcceptancePage {
     });
     await expectAppHydrated(this.page);
 
+    // ログイン済みでも自動では参加しない。利用者と同じく「参加する」を押して始める。
+    await this.page.getByRole("button", { name: "参加する", exact: true }).click();
+
     await expect(this.page).toHaveURL(
       (url) =>
         url.pathname === "/dashboard" &&

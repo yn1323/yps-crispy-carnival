@@ -1,0 +1,82 @@
+import { Flex, Text } from "@chakra-ui/react";
+import { Button } from "@/src/components/ui/Button";
+import { Dialog, DialogActionArea } from "@/src/components/ui/Dialog";
+import { formatPendingSections } from "./script";
+import type { LeaveDialogState, PendingSection } from "./types";
+
+type ActionsProps = {
+  isSaving: boolean;
+  onSave: () => void;
+};
+
+/** 画面の下端に留める、保存の操作。「保存する」は常に右に寄せて置き、変更がない間も押せる。 */
+export function PendingChangesActions({ isSaving, onSave }: ActionsProps) {
+  return (
+    <Flex role="group" aria-label="変更の保存" align="center" justify="flex-end" minW={0}>
+      <Button
+        type="button"
+        colorPalette="teal"
+        size="sm"
+        flexShrink={0}
+        minW="8rem"
+        minH={{ base: "44px", md: "36px" }}
+        loading={isSaving}
+        loadingText="保存する"
+        onClick={onSave}
+      >
+        保存する
+      </Button>
+    </Flex>
+  );
+}
+
+type LeaveDialogProps = {
+  dialog: LeaveDialogState;
+  sections: readonly PendingSection[];
+};
+
+/** 保存していない変更があるままページを離れようとしたときの確認。 */
+export function LeaveConfirmationDialog({ dialog, sections }: LeaveDialogProps) {
+  return (
+    <Dialog
+      title="保存していない変更があります"
+      isOpen={dialog.isOpen}
+      onOpenChange={({ open }) => {
+        if (!open) dialog.onStay();
+      }}
+      role="alertdialog"
+      preventClose={dialog.isSaving}
+      footer={
+        <DialogActionArea
+          layout="standard"
+          startAction={
+            <Button
+              colorPalette="red"
+              variant="outline"
+              onClick={dialog.onLeaveWithoutSaving}
+              disabled={dialog.isSaving}
+            >
+              保存せず移動
+            </Button>
+          }
+          endAction={
+            <Button
+              colorPalette="teal"
+              onClick={dialog.onSaveAndLeave}
+              loading={dialog.isSaving}
+              loadingText="保存して移動"
+            >
+              保存して移動
+            </Button>
+          }
+        />
+      }
+    >
+      <Text fontSize="sm" lineHeight="tall">
+        このまま移動すると、{formatPendingSections(sections) || "設定"}の変更は失われます。
+        <br />
+        これまでの変更を保存しますか？
+      </Text>
+    </Dialog>
+  );
+}

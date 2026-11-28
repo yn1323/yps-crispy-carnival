@@ -35,7 +35,7 @@ FreeからのCheckoutが完了しなかった場合は、有料プランを有�
 | 要素 | 表示内容 |
 |---|---|
 | ヘッダー | 支払いを確認できなかったため、Freeプランへ変更されました |
-| 本文 | 請求通知先メールアドレスにStripeから案内が届いている場合があります。有料プランを利用する場合は、支払い方法を確認して、もう一度契約してください。 |
+| 本文 | 支払いのお知らせ先のメールアドレスにStripeから案内が届いている場合があります。有料プランを利用する場合は、支払い方法を確認して、もう一度契約してください。 |
 | ボタン | 有料プランを契約する |
 
 `paymentTerminationPending`では同じAlertを表示するが、契約ボタンを無効にし、「支払い処理を終了しています。完了後に有料プランを契約できます。」と表示する。
@@ -104,7 +104,7 @@ direct routeとpublic mutation/actionは、画面表示とは独立して認証�
 |---|---|---|---|
 | ログイン方法 | Clerkの確認済みメール、パスワード、Google接続 | シフトリへの認証 | 画面右上の「アカウント設定」から開く`/account` |
 | シフト連絡先 | 組織ごとの`organizationPeople.email` | 本人のシフト通知と管理者向けの業務連絡 | ユーザー詳細 |
-| 請求先 | 組織ごとの`organizations.billingEmail` | Stripeの請求書、領収書、決済関連通知 | 「プランと支払い」 |
+| 請求先 | 組織ごとの`organizations.billingEmail` | Stripeの請求書、領収書、決済関連通知 | 「プランと支払い」の「支払いのお知らせ先」 |
 | 初期化・旧データ互換値 | `users.email` | 初回セットアップ時のsnapshotとcanonical所属がない旧データのfallback | 通常の設定画面では直接編集しない |
 
 シフト連絡先を変更しても、Clerkのログイン方法、`users.email`、請求先メールアドレスは変更しない。
@@ -175,7 +175,7 @@ Trial未契約終了、有料契約の解約、検証済みの支払い失敗、
 
 ### 組織課金メール
 
-シフトリが送る組織課金メールは、「請求通知先メールアドレスを変更しました」だけである。
+シフトリが送る組織課金メールは、「支払いのお知らせ先を変更しました」だけである。
 請求先メールアドレスの変更時に、各送信時点の全有効管理者を再抽出し、現在のシフト連絡先へメールを個別送信する。
 LINE配送、削除済み人物への配送、同じ`requestId`による重複通知は作成しない。
 
@@ -252,11 +252,11 @@ Notification Outboxは外部送信直前にも招待、所属、受取人を再�
 
 - 招待はメールで送り、発行から7日間有効な一回限りのtokenを使う。
 - `/manage/managers`と対応一覧からの発行・再送・取消は、`issueForOrganization`、`resendForOrganization`、`revokeForOrganization`を使う。  これらは店舗を受け取らず、指定組織のcanonical active管理者とBusiness writeをサーバーで再検証する。
-- 招待対象の組織人物が未接続、またはまだ存在しない場合は、受取人の確認済みメールを正規化し、招待先メールとの完全一致を連携時に確認する。
 - 招待対象の組織人物が既に`userId`へ接続済みなら、その利用者本人だけが承認でき、メール照合をアカウント同一性の代わりにしない。
-- 招待対象の組織人物が未接続、またはまだ存在しない場合は、Node actionがClerk Backend APIから取得した確認済みメール一覧に招待先メールが含まれる場合だけ承認する。
-- Clerk providerの設定不足、一時障害、照会失敗では`unavailable`を返し、招待のstatus、version、予約枠を変更せず再試行可能な状態を維持する。
-- Node actionの準備処理と確定処理の間では、認証主体、招待ID、version、token digest、確認済みメールをproofで結び、確定時に招待状態と上限を再確認する。
+- 招待対象の組織人物が未接続、またはまだ存在しない場合は、招待URLを持ってログインしたアカウントが承認できる。  招待URLは招待先メールアドレスへだけ送るため、ログイン用メールアドレスと招待先メールアドレスの一致は求めない。
+- ログイン中のアカウントが、その組織に別の組織人物として登録済みの場合は承認しない。  この場合だけ、操作者自身が登録済みであることを結果に含める。
+- 承認の判定と状態変更は一つのmutationで行い、token、招待状態、対象人物、上限を同じtransactionで確認する。
+- 承認完了の通知は、承認者本人と他の全有効管理者へ同じ文面で送り、承認した人の氏名を件名と見出しに書く。
 - 発行時と連携時の両方で、管理者追加権限、人物上限、管理者上限、予約枠をサーバー側で確認する。
 - 再送は旧招待を失効させ、tokenをローテーションする。
 - 新規発行は、同じ対象の期限内招待を暗黙に再送しない。管理者設定の招待中一覧から明示的に再送し、以前の招待URLが使えなくなることを確認する。
@@ -359,8 +359,8 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 | `convex/organization/` | 組織、店舗、人物、管理者、利用状況、削除可否を扱う |
 | `convex/organizationBilling/` | プラン上限、利用実数から導出するaccess policy、期限、解約、支払い失敗後のFree移行、請求先メール、請求先変更通知を扱う |
 | `convex/organizationStripe/` | Stripe API、Checkout、Portal、Webhook、再照合、probeを扱う |
-| `convex/organizationInvitation/mutations.ts` | 管理者招待の発行、再送、取消、承認準備、proof付き確定を扱う |
-| `convex/organizationInvitation/acceptanceActions.ts` / `convex/_lib/clerkVerifiedEmailProvider.ts` | 未接続人物のClerk確認済みメールをNode runtimeで照合し、provider失敗時は招待を消費せず返す |
+| `convex/organizationInvitation/mutations.ts` | 管理者招待の発行、再送、取消、承認を扱う |
+| `convex/organizationInvitation/acceptanceActions.ts` | 承認の公開入口。判定と状態変更は`mutations.ts`の一つのmutationへ委ねる |
 | `convex/migrations/m023_organization_invitations_narrow_prep.ts` | 旧招待lifecycleと欠損fieldをNarrow前に補完する |
 | `convex/migrations/m028_shop_billing_states_narrow_prep.ts` | 旧店舗課金rowを保持したままcanonical課金状態との対応異常を記録する |
 | `convex/narrowReadiness/queries.ts` | 招待、請求先、Subscription、制限状態をPIIなしで全ページ確認する |
@@ -402,7 +402,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 | `api.organizationInvitation.queries.getPreview` | tokenのdigest、version、期限、取消状態を確認して招待previewを返す |
 | `api.organizationInvitation.mutations.issueForOrganization` | canonical active管理者と組織境界、人物上限、管理者上限、予約枠を確認して管理者招待を発行する |
 | `api.organizationInvitation.mutations.resendForOrganization` / `revokeForOrganization` | canonical active管理者と組織境界を再検証して招待を再送または取り消す |
-| `api.organizationInvitation.acceptanceActions.accept` | 接続済み人物のアカウント一致、または未接続人物のClerk確認済みメールを検証して招待を承認 |
+| `api.organizationInvitation.acceptanceActions.accept` | tokenと招待状態を検証し、接続済み人物はアカウントの一致、未接続人物は招待URLの所持を根拠に招待を承認 |
 | `api.organizationBilling.mutations.updateBillingEmailForOrganization` | 認証、組織境界、管理者状態を確認して請求先メールを更新し、全有効管理者への変更通知とStripe同期を予約する |
 | `api.organizationStripe.actions.getPlanPriceForOrganization` / `startPaidCheckoutForOrganization` | 組織境界、Stripe設定、販売Priceを検証して価格を取得し、契約を開始する |
 | `api.organizationStripe.actions.inspectPendingCheckoutForOrganization` / `cancelPendingCheckoutForOrganization` | `pendingActivation`に対応するCheckout Session、Trialの未完了Setup Checkout、またはStandardからProへの未完了変更を照合する。Trialでは`open` Sessionの再開URLを返し、取消時はSessionを`expired`へ確定してoperationだけを解放する。StandardからProではStripeのHosted Invoice URLを返し、取消時は当該Invoiceの`void`と`pending_update`解消を確認してStandardへ戻す。URLやclient stateだけで課金状態を変更しない |
@@ -424,7 +424,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 - `convex/organizationBilling/*.test.ts`：プラン上限、利用実数からのaccess導出、Trial終了と解約後のFree移行、ProからStandardへの適用、支払い失敗後の即時Free権限、期限を検証する。通知は請求先メールアドレス変更時の全有効管理者へのメールだけを許可し、課金状態遷移ではOutboxと予約jobが0件であることを検証する。
 - `convex/dashboard/queries.test.ts`：選択店舗の認可境界、業務更新可否、利用上限状態、支払い失敗時の再契約可否、不要な識別子の非露出を検証する。
 - `convex/organizationStripe/*.test.ts`：新規販売用Price、Checkout、期間末解約と取消、Webhook、再照合、支払い不要Pro相当のStripe隔離、probeを検証する。
-- `convex/organizationInvitation/*.test.ts`：token、期限、接続済み人物のアカウント一致、未接続人物のClerk確認済みメール、provider失敗時の非消費、予約枠、再送、連携を検証する。
+- `convex/organizationInvitation/*.test.ts`：token、期限、接続済み人物のアカウント一致、未接続人物の招待先と異なるメールアドレスでの承認、登録済みアカウントの拒否、拒否時の非消費、回数の制限、予約枠、再送、連携を検証する。
 - `convex/organization/managerSettingsQueries.test.ts`：管理者設定のbounded read、currentとprojectedの分離、`integrityError` / `ready`、候補の選択不可理由を検証する。
 - `convex/_scenario/organizationBillingLifecycle.test.ts`と`organizationPaidPlanChanges.test.ts`：時間と複数APIをまたぐ課金ライフサイクルを検証する。
 - `convex/_scenario/staffManagerInvitation.test.ts`と`organizationManagerAddition.test.ts`：既存人物の招待と、Freeで2人目を追加した後も既存管理者とスタッフ通知を維持することを検証する。

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { ShiftForm } from "..";
 import {
   desktopGlobals,
@@ -10,6 +10,7 @@ import {
   shiftTypeDateNotesArgs,
   shiftTypeValidationWarningArgs,
 } from "./shared";
+import { shiftTypeBoardSimpleArgs } from "./shiftTypeBoardFixtures";
 
 const meta = {
   title: "Features/Shift/ShiftForm/Shift Type/PC/Daily",
@@ -72,36 +73,124 @@ export const WithDateNotes: Story = {
   globals: desktopGlobals,
 };
 
+/**
+ * 右端に幅を決めた「連絡事項」列を置き、選んだ日の連絡事項の全文を出す。
+ * 表示設定で連絡事項を非表示にすると列を外し、連絡事項のある人の名前の横にアイコンを出す。
+ */
 export const DateNotesInteractive: Story = {
   args: shiftTypeDateNotesArgs,
   globals: desktopGlobals,
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    // 希望とメモは別の列にし、メモ列を希望列の右に置く。
-    const headers = Array.from(canvasElement.querySelectorAll<HTMLElement>("thead tr:first-child th")).map(
-      (cell) => cell.textContent,
-    );
-    await expect(headers.slice(0, 3)).toEqual(["スタッフ", "希望", "連絡事項"]);
-    // 左の3見出しは人数の行まで結合し、「人数」の見出しは置かない。
-    const mergedHeaders = Array.from(canvasElement.querySelectorAll<HTMLTableCellElement>("thead tr:first-child th"));
-    await expect(mergedHeaders.slice(0, 3).map((cell) => cell.rowSpan)).toEqual([2, 2, 2]);
-    await expect(canvas.queryByText("人数", { exact: true })).not.toBeInTheDocument();
-    await expect(await canvas.findByText("17時以降なら入れます")).toHaveAttribute("data-clarity-mask", "true");
+    const getHeaders = () =>
+      Array.from(canvasElement.querySelectorAll<HTMLElement>("thead th")).map((cell) => cell.textContent?.slice(0, 4));
+    await expect(getHeaders()).toEqual(["スタッフ", "早番09", "中番13", "遅番17", "夜勤21", "連絡事項"]);
+    const noteHeader = Array.from(canvasElement.querySelectorAll<HTMLElement>("thead th")).at(-1) as HTMLElement;
+    await expect(Math.round(noteHeader.getBoundingClientRect().width)).toBe(280);
 
-    const rows = Array.from(canvasElement.querySelectorAll<HTMLElement>("tbody tr"));
-    const heights = new Set(rows.map((row) => Math.round(row.getBoundingClientRect().height)));
-    await expect(heights.size).toBe(1);
-
-    // 連絡事項を非表示にしたときだけ、連絡事項がある人の名前セルの右端にアイコンを置き、ホバーで本文を表示する。
+    const note = await canvas.findByText("17時以降なら入れます");
+    await expect(note).toHaveAttribute("data-clarity-mask", "true");
+    // 列で本文が読めるあいだは、名前の横にアイコンを重ねない。
     await expect(canvas.queryByRole("button", { name: "連絡事項1件" })).not.toBeInTheDocument();
+
     await hideDateNotes(canvasElement);
+    await waitFor(() => expect(getHeaders()).toEqual(["スタッフ", "早番09", "中番13", "遅番17", "夜勤21"]));
     const noteIcons = await canvas.findAllByRole("button", { name: "連絡事項1件" });
     await expect(noteIcons).toHaveLength(2);
-    await expect(noteIcons[0].closest("td")).toBe(noteIcons[0].closest("tr")?.querySelector("td"));
     await userEvent.hover(noteIcons[0]);
     const tooltip = await within(document.body).findByRole("tooltip");
-    await expect(tooltip).toHaveTextContent(/^連絡事項/);
-    await expect(tooltip).not.toHaveTextContent("5/21(木)");
+    await expect(within(tooltip).getByText("17時以降なら入れます")).toHaveAttribute("data-clarity-mask", "true");
+  },
+};
+
+/** 希望どおり、希望だけ、希望外、時間が重なる勤務パターンの両方への割り当て、休み希望、未提出を1日に持つ代表例。 */
+export const Board: Story = {
+  args: shiftTypeBoardSimpleArgs,
+  globals: desktopGlobals,
+};
+
+/** 「希望」を押すと「○」が入り、もう一度押すと外れる。希望のないセルに入れると、橙の点と理由が付く。 */
+export const ToggleInteractive: Story = {
+  args: shiftTypeBoardSimpleArgs,
+  globals: desktopGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const cell = (state: "勤務あり" | "勤務なし") => canvas.findByRole("button", { name: `山本 拓海 遅番 ${state}` });
+    const rowHeight = () =>
+      Math.round((canvas.getByRole("row", { name: /山本 拓海/ }) as HTMLElement).getBoundingClientRect().height);
+    const heightBefore = rowHeight();
+
+    await expect(await cell("勤務なし")).toHaveTextContent("希望あり");
+    await userEvent.click(await cell("勤務なし"));
+    const assigned = await cell("勤務あり");
+    await expect(assigned).toHaveTextContent("○");
+    await expect(assigned).toHaveAccessibleDescription("希望あり");
+    await expect(await canvas.findByRole("columnheader", { name: /遅番/ })).toHaveTextContent("4人");
+    // 割り当ての前後で、行の高さを変えない。
+    await expect(rowHeight()).toBe(heightBefore);
+
+    await userEvent.click(assigned);
+    await expect(await cell("勤務なし")).toHaveTextContent("希望あり");
+    await expect(rowHeight()).toBe(heightBefore);
+
+    // 希望していない早番に入れると、橙の点と理由が付く。
+    await userEvent.click(await canvas.findByRole("button", { name: "山本 拓海 早番 勤務なし" }));
+    const unrequested = await canvas.findByRole("button", { name: "山本 拓海 早番 勤務あり" });
+    await expect(unrequested).toHaveAccessibleDescription("希望時間外に勤務あり");
+    await expect(unrequested.querySelector("[data-assignment-dot]")).toHaveAttribute("data-assignment-dot", "orange");
+  },
+};
+
+/** 時間が重なる2つの勤務パターンに入れても、1日に複数の勤務パターンへ入るのはふつうのことなので、点も理由も出さない。 */
+export const OverlapInteractive: Story = {
+  args: shiftTypeBoardSimpleArgs,
+  globals: desktopGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    // 吉田さんは遅番（15:00〜21:00）に入っている。夜番（18:00〜24:00）を足す。
+    await userEvent.click(await canvas.findByRole("button", { name: "吉田 蓮 夜番 勤務なし" }));
+
+    const late = await canvas.findByRole("button", { name: "吉田 蓮 遅番 勤務あり" });
+    const night = await canvas.findByRole("button", { name: "吉田 蓮 夜番 勤務あり" });
+    await expect(late).toHaveAccessibleDescription("希望あり");
+    await expect(late.querySelector("[data-assignment-dot]")).toBeNull();
+    // 夜番は希望していないため、希望外の理由と橙の点だけを出す。
+    await expect(night).toHaveAccessibleDescription("希望時間外に勤務あり");
+    await expect(night.querySelector("[data-assignment-dot]")).toHaveAttribute("data-assignment-dot", "orange");
+  },
+};
+
+/** 休み希望の人は、最初はたたまれている。開いて割り当てると通常の行へ移り、外すとまとまりへ戻る。 */
+export const RestGroupInteractive: Story = {
+  args: shiftTypeBoardSimpleArgs,
+  globals: desktopGlobals,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const toggle = await canvas.findByRole("button", { name: /^休み希望 4人/ });
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    // 見出しの横には、名字を3人分まで出し、残りを「ほか1人」にまとめる。
+    await expect(toggle).toHaveTextContent(
+      /^休み希望 4人(?:伊藤|中村|高橋|山口)(?:・(?:伊藤|中村|高橋|山口)){2}・ほか1人$/,
+    );
+    await expect(canvas.queryByRole("row", { name: /中村 さくら/ })).not.toBeInTheDocument();
+
+    await userEvent.click(toggle);
+    await expect(await canvas.findByRole("row", { name: /中村 さくら/ })).toBeInTheDocument();
+
+    await userEvent.click(await canvas.findByRole("button", { name: "中村 さくら 早番 勤務なし" }));
+    // 割り当てた人は通常の行へ移り、まとまりは3人になる。割り当ては希望外として点を付ける。
+    await expect(await canvas.findByRole("button", { name: /^休み希望 3人/ })).toBeInTheDocument();
+    const assigned = await canvas.findByRole("button", { name: "中村 さくら 早番 勤務あり" });
+    await expect(assigned).toHaveAccessibleDescription("希望時間外に勤務あり");
+    const rows = canvas.getAllByRole("row").map((row) => row.textContent ?? "");
+    const restIndex = rows.findIndex((text) => text.startsWith("休み希望"));
+    await expect(rows.findIndex((text) => text.startsWith("中村 さくら"))).toBeLessThan(restIndex);
+
+    await userEvent.click(assigned);
+    await expect(await canvas.findByRole("button", { name: /^休み希望 4人/ })).toBeInTheDocument();
   },
 };

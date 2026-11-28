@@ -1,6 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import { getDeadlineCutoff, getSubmitLinkCutoff } from "../_lib/dateFormat";
+import { expectedConvexError } from "../_lib/errorObservability";
 import { staffSessionMutation } from "../_lib/functions";
 import { rateLimit } from "../_lib/rateLimits";
 import { assertRecruitmentEditVersion, isCurrentSubmission } from "../_lib/recruitmentEditing";
@@ -170,7 +171,7 @@ export const submitShiftRequests = staffSessionMutation({
       key: ctx.staff._id,
     });
     if (!rateLimitResult.ok) {
-      throw new ConvexError({ code: "RATE_LIMITED", retryAfter: rateLimitResult.retryAt });
+      throw expectedConvexError("rate_limited", { code: "RATE_LIMITED", retryAfter: rateLimitResult.retryAt });
     }
 
     if (ctx.session.recruitmentId !== args.recruitmentId) {
@@ -201,7 +202,7 @@ export const submitShiftRequests = staffSessionMutation({
     // 編集で未提出へ戻ったスタッフも、期限後は一度だけ提出できる。
     const wasSubmitted = isCurrentSubmission(existingSubmission);
     if (now >= getDeadlineCutoff(recruitment.deadline) && wasSubmitted) {
-      throw new ConvexError("Deadline passed");
+      throw expectedConvexError("time_passed", "Deadline passed");
     }
 
     const pattern = recruitment.submissionPattern;

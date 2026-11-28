@@ -2,6 +2,7 @@ import { Box, Text } from "@chakra-ui/react";
 import { useAtomValue } from "jotai";
 import { memo } from "react";
 import type { LinkedResizeTarget, ShiftData, TimeRange } from "@/src/domains/shift/types";
+import { useWorkColor } from "../../../detailParts";
 import { hourWidthAtom } from "../../../stores";
 import { buildShiftBarViewModel } from "./script";
 
@@ -14,12 +15,37 @@ type ShiftBarProps = {
   isReadOnly?: boolean;
   currentMinutes?: number;
   linkedTarget?: LinkedResizeTarget | null;
+  /** 休憩の端をつまんで動かしている間の、動かす前の休憩と、動かしている途中の休憩（分）。 */
+  breakResize?: { from: { start: number; end: number }; to: { start: number; end: number } } | null;
 };
 
 const BAR_BG = "#0d9488"; // teal.600
+/** くわしく表示へ切り替えたときに、勤務のバーへポジションの色をにじませて出す時間。 */
+export const POSITION_REVEAL_DURATION_MS = 320;
+// くわしく表示へ切り替えた直後だけ、シンプル表示の色をバーに重ね、薄くしてポジションの色を見せる。
+const POSITION_REVEAL_CSS = {
+  "[data-position-reveal] &::after": {
+    content: '""',
+    position: "absolute",
+    inset: 0,
+    borderRadius: "inherit",
+    background: BAR_BG,
+    pointerEvents: "none",
+    animation: `fade-out ${POSITION_REVEAL_DURATION_MS}ms ease-out forwards`,
+  },
+  "@media (prefers-reduced-motion: reduce)": {
+    "[data-position-reveal] &::after": { display: "none" },
+  },
+} as const;
 const BAR_SHADOW = "0 1px 2px rgba(13,148,136,0.3)";
 const STRIPE_STYLE = {
   backgroundImage: "repeating-linear-gradient(45deg, #9CA3AF, #9CA3AF 4px, transparent 4px, transparent 8px)",
+};
+// 時刻で入れた休憩。休憩はポジションではないため、ポジションの色を隠し、勤務の間の空きと同じ灰色の斜線にする。
+const EXPLICIT_BREAK_STYLE = {
+  backgroundColor: "#f9fafb",
+  backgroundImage:
+    "repeating-linear-gradient(45deg, rgba(156,163,175,0.6), rgba(156,163,175,0.6) 4px, transparent 4px, transparent 8px)",
 };
 const BORDER_RADIUS_PROPS = {
   isolated: { borderRadius: "md" },
@@ -47,8 +73,10 @@ export const ShiftBar = memo(function ShiftBar({
   isReadOnly = false,
   currentMinutes,
   linkedTarget,
+  breakResize,
 }: ShiftBarProps) {
   const hourWidth = useAtomValue(hourWidthAtom);
+  const getWorkColor = useWorkColor();
   const viewModel = buildShiftBarViewModel({
     shift,
     timeRange,
@@ -56,6 +84,7 @@ export const ShiftBar = memo(function ShiftBar({
     isReadOnly,
     currentMinutes,
     linkedTarget,
+    breakResize,
   });
   if (!viewModel) return null;
 
@@ -105,8 +134,9 @@ export const ShiftBar = memo(function ShiftBar({
           left={`${bar.left}px`}
           width={`${bar.width}px`}
           height="22px"
-          bg={BAR_BG}
           boxShadow={BAR_SHADOW}
+          style={{ background: getWorkColor(bar, BAR_BG) }}
+          css={POSITION_REVEAL_CSS}
           {...BORDER_RADIUS_PROPS[bar.edgeShape]}
           top="50%"
           transform="translateY(-50%)"
@@ -135,6 +165,22 @@ export const ShiftBar = memo(function ShiftBar({
           pointerEvents="none"
           zIndex={3}
           style={STRIPE_STYLE}
+        />
+      ))}
+
+      {/* 時刻で入れた休憩。シンプル表示でも出す。 */}
+      {viewModel.explicitBreakBars.map((bar) => (
+        <Box
+          key={bar.key}
+          position="absolute"
+          left={`${bar.left}px`}
+          width={`${bar.width}px`}
+          height="22px"
+          top="50%"
+          transform="translateY(-50%)"
+          pointerEvents="none"
+          zIndex={3}
+          style={EXPLICIT_BREAK_STYLE}
         />
       ))}
 

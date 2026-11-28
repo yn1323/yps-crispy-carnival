@@ -28,6 +28,15 @@ describe("buildFeatureDetailPageHead", () => {
     });
   });
 
+  it("よくある質問のない機能ページはFAQPageの構造化データを出さない", () => {
+    const { meta } = buildFeatureDetailPageHead("shift-auto-creation");
+
+    const jsonLd = meta.flatMap((entry) =>
+      "script:ld+json" in entry ? [(entry as { "script:ld+json": Record<string, unknown> })["script:ld+json"]] : [],
+    );
+    expect(jsonLd.map((payload) => payload["@type"])).toEqual(["BreadcrumbList"]);
+  });
+
   it("存在しない機能ページはcanonicalを出さずnoindexにする", () => {
     const head = buildFeatureDetailPageHead("unknown-feature");
 

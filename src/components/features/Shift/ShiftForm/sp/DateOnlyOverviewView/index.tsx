@@ -3,7 +3,9 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useMemo, useState } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
 import { IssueCountBadge } from "../../components";
+import { PositionMark } from "../../detailParts";
 import {
+  detailModeAtom,
   selectDateWithDailyStaffOrderAtom,
   shiftConfigAtom,
   shiftsAtom,
@@ -13,6 +15,7 @@ import {
 import {
   buildDateOnlyOverviewViewModel,
   type DateOnlyOverviewDayRowViewModel,
+  type DateOnlyOverviewStaffRowViewModel,
   type DateOnlyOverviewWeekdayTone,
   type DateOnlyOverviewWeekViewModel,
 } from "./script";
@@ -171,13 +174,7 @@ const DayRow = ({ row, onDateTap }: { row: DateOnlyOverviewDayRowViewModel; onDa
     </Box>
     <Box flex={1} minW={0} pt="1px">
       {row.staffRows.length > 0 ? (
-        <Stack gap="5px">
-          {row.staffRows.map((staff) => (
-            <Text key={staff.key} textStyle="caption" fontWeight={600} color="gray.800">
-              {staff.name}
-            </Text>
-          ))}
-        </Stack>
+        <DayStaffList rows={row.staffRows} />
       ) : (
         <Text textStyle="caption" color="gray.400" fontWeight={500} aria-label={row.statusAriaLabel}>
           {row.statusLabel}
@@ -186,3 +183,37 @@ const DayRow = ({ row, onDateTap }: { row: DateOnlyOverviewDayRowViewModel; onDa
     </Box>
   </Flex>
 );
+
+const DayStaffList = ({ rows }: { rows: DateOnlyOverviewStaffRowViewModel[] }) => {
+  const detailMode = useAtomValue(detailModeAtom);
+
+  if (!detailMode) {
+    return (
+      <Stack gap="5px">
+        {rows.map((staff) => (
+          <Text key={staff.key} textStyle="caption" fontWeight={600} color="gray.800" truncate>
+            {staff.name}
+          </Text>
+        ))}
+      </Stack>
+    );
+  }
+
+  // くわしく表示: 右端にポジションを出す。
+  return (
+    <Stack gap="6px">
+      {rows.map((staff) => (
+        <Flex key={staff.key} as="span" align="center" gap={2}>
+          <Flex as="span" flex={1} minW={0} align="center" gap="6px">
+            <Text as="span" textStyle="caption" fontWeight={600} color="gray.800" minW={0} truncate>
+              {staff.name}
+            </Text>
+          </Flex>
+          <Box as="span" color="gray.700" minW={0}>
+            <PositionMark segment={staff.segment} />
+          </Box>
+        </Flex>
+      ))}
+    </Stack>
+  );
+};

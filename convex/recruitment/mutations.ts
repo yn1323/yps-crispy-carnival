@@ -8,6 +8,7 @@ import {
   getSubmitLinkCutoff,
   todayJST,
 } from "../_lib/dateFormat";
+import { expectedConvexError } from "../_lib/errorObservability";
 import { managerMutation } from "../_lib/functions";
 import {
   assertRecruitmentEditVersion,
@@ -48,7 +49,7 @@ function normalizeShopClosedDates(dates: string[], periodStart: string, periodEn
   }
 
   if (periodDateCount > 0 && uniqueDates.length >= periodDateCount) {
-    throw new ConvexError("シフト期間のすべての日を定休日にすることはできません。");
+    throw expectedConvexError("business_rule", "シフト期間のすべての日を定休日にすることはできません。");
   }
 
   return uniqueDates;
@@ -65,8 +66,8 @@ function parseRecruitmentDates(args: CreateRecruitmentInput) {
   }
   const input = parsed.data;
   const today = todayJST();
-  if (input.deadline < today) throw new ConvexError("提出期限は今日以降にしてください");
-  if (input.periodStart <= today) throw new ConvexError("開始日は明日以降にしてください");
+  if (input.deadline < today) throw expectedConvexError("time_passed", "提出期限は今日以降にしてください");
+  if (input.periodStart <= today) throw expectedConvexError("time_passed", "開始日は明日以降にしてください");
   return {
     ...input,
     shopClosedDates: normalizeShopClosedDates(input.shopClosedDates, input.periodStart, input.periodEnd),
@@ -95,7 +96,7 @@ export const createRecruitment = managerMutation({
         candidate.deadline === input.deadline &&
         sameStringArray(candidate.shopClosedDates, shopClosedDates),
     );
-    if (duplicate) throw new ConvexError(RECRUITMENT_DUPLICATE_ERROR_CODE);
+    if (duplicate) throw expectedConvexError("already_exists", RECRUITMENT_DUPLICATE_ERROR_CODE);
 
     const now = Date.now();
     const reminderScheduledAt = getReminderScheduledAt(input.deadline);
@@ -190,7 +191,7 @@ export const updateRecruitment = managerMutation({
       now >= getSubmitLinkCutoff(recruitment.periodStart) ||
       now >= getDeadlineCutoff(recruitment.deadline)
     ) {
-      throw new ConvexError("この募集は編集できません。");
+      throw expectedConvexError("business_rule", "この募集は編集できません。");
     }
     assertRecruitmentEditVersion(recruitment, args.expectedEditVersion);
     const input = parseRecruitmentDates(args);

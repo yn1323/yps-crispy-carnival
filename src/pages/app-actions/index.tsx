@@ -95,6 +95,9 @@ function ConnectedAppActions({
           options={shops.map((shop) => ({ value: shop.id, label: shop.name }))}
           onChange={onShopFilterChange}
           prefix="対象"
+          // シフトとスタッフのページと同じ見た目にする。置く場所は見出しの右のまま。
+          appearance="inline"
+          inlineAllLabel="全店舗"
         />
       }
     >

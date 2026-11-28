@@ -4,6 +4,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { todayJST } from "../_lib/dateFormat";
+import { expectedConvexError } from "../_lib/errorObservability";
 import { authenticatedMutation, organizationMutation } from "../_lib/functions";
 import { normalizeSubmissionPattern, submissionPatternValidator } from "../_lib/submissionPattern";
 import { ensureDeletionCleanupJob } from "../deletionCleanup/service";
@@ -438,7 +439,7 @@ export const deleteShop = authenticatedMutation({
       )
       .take(2);
     if (nonDeletedShops.length <= 1) {
-      throw new ConvexError("最後の店舗は削除できません");
+      throw expectedConvexError("business_rule", "最後の店舗は削除できません");
     }
 
     const now = Date.now();
@@ -525,7 +526,10 @@ export const deleteOrganizationForOrganization = authenticatedMutation({
     });
     if (actor.member.status !== "active") throw new ConvexError("Not found");
     if (actor.organization.updatedAt !== args.expectedOrganizationUpdatedAt) {
-      throw new ConvexError("組織の状態が変わりました。\n画面を更新してから、もう一度お試しください。");
+      throw expectedConvexError(
+        "stale_state",
+        "組織の状態が変わりました。\n画面を更新してから、もう一度お試しください。",
+      );
     }
     const result = await beginOrganizationDeletion(ctx, {
       actor,
@@ -605,7 +609,7 @@ async function beginOrganizationDeletion(
     actorMemberId: args.actor.member._id,
     billingState,
   });
-  if (!eligibility.canDelete) throw new ConvexError(eligibility.reason);
+  if (!eligibility.canDelete) throw expectedConvexError("stale_state", eligibility.reason);
 
   await ctx.db.patch(args.actor.organization._id, {
     isDeleted: true,
@@ -845,18 +849,19 @@ function assertPersonRemovalPreview(
   expected: { assignmentCount: number; fingerprint: string } | undefined,
 ) {
   if (preview.kind === "tooMany") {
-    throw new ConvexError(
+    throw expectedConvexError(
+      "business_rule",
       `今日以降のシフトの割り当てが${preview.limit}件を超えています。
 先にシフトを整理してから、削除してください。`,
     );
   }
   // 旧クライアントは0件だけ互換許容する。割当がある削除は必ず明示確認を要求する。
   if (!expected) {
-    if (preview.assignmentCount > 0) throw new ConvexError(STALE_PERSON_REMOVAL_PREVIEW_ERROR);
+    if (preview.assignmentCount > 0) throw expectedConvexError("stale_state", STALE_PERSON_REMOVAL_PREVIEW_ERROR);
     return preview.assignmentIds;
   }
   if (expected.assignmentCount !== preview.assignmentCount || expected.fingerprint !== preview.fingerprint) {
-    throw new ConvexError(STALE_PERSON_REMOVAL_PREVIEW_ERROR);
+    throw expectedConvexError("stale_state", STALE_PERSON_REMOVAL_PREVIEW_ERROR);
   }
   return preview.assignmentIds;
 }
@@ -1060,7 +1065,7 @@ async function prepareFullOrganizationPersonRemoval(
   const billingReferenceUpdate = planBillingReferenceUpdate(args.billingState, args.person._id);
   if (args.member?.status === "active") {
     const hasOtherManager = await hasOtherValidActiveManager(ctx, args.actor.organization._id, args.person._id);
-    if (!hasOtherManager) throw new ConvexError("管理権限を外してから削除してください。");
+    if (!hasOtherManager) throw expectedConvexError("business_rule", "管理権限を外してから削除してください。");
   }
 
   const staffQuery = ctx.db
@@ -1256,7 +1261,8 @@ export async function applyAccountDeletionOrganizationDeparture(
   },
 ) {
   if (args.plan.removalPreview.kind === "tooMany") {
-    throw new ConvexError(
+    throw expectedConvexError(
+      "business_rule",
       `今日以降のシフトの割り当てが${args.plan.removalPreview.limit}件を超えています。\n先にシフトを整理してから、削除してください。`,
     );
   }
@@ -1430,7 +1436,8 @@ export const removePersonFromOrganization = authenticatedMutation({
   },
 });
 
-async function removeManagerRoleForActor(
+/** 画面の「管理者権限を外す」の本体。確認用データの入れ直し（userSeed）からも呼ぶ。 */
+export async function removeManagerRoleForActor(
   ctx: MutationCtx,
   args: { personId: Id<"organizationPeople">; requestId: string },
   actor: AccountDeletionOrganizationActor,
@@ -1466,10 +1473,10 @@ async function removeManagerRoleForActor(
     capability: "removeManagerRole",
   });
   if (!policy?.canManageManagers) {
-    throw new ConvexError("現在の契約状態では、管理者権限を変更できません。");
+    throw expectedConvexError("plan_limit", "現在の契約状態では、管理者権限を変更できません。");
   }
   if (!(await hasOtherValidActiveManager(ctx, actor.organization._id, person._id))) {
-    throw new ConvexError("最後の有効管理者の管理者権限は外せません。");
+    throw expectedConvexError("business_rule", "最後の有効管理者の管理者権限は外せません。");
   }
 
   const staffs = await ctx.db

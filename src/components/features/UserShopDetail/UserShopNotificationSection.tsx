@@ -222,7 +222,7 @@ function RecruitmentNotificationCard({ recruitment }: { recruitment: UserShopDet
         >
           <HStack gap={2} flexShrink={0} wrap="wrap">
             <Badge colorPalette={colorPalette} variant="subtle" borderRadius="full" px={2.5} fontSize="xs">
-              {isActionRequired ? "要シフト調整" : isCollecting ? "募集中" : "確定済み"}
+              {isActionRequired ? "要調整" : isCollecting ? "募集中" : "確定済み"}
             </Badge>
             {isCurrent && (
               <Badge colorPalette="blue" variant="solid" borderRadius="full" px={2.5} fontSize="xs">

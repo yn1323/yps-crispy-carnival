@@ -3,7 +3,7 @@ import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
-import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
+import { expectedConvexError, observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { authenticatedMutation } from "../_lib/functions";
 import { normalizeEmail } from "../_lib/validation";
 import { type OrganizationReadActor, requireOrganizationReadActor } from "../organization/access";
@@ -924,7 +924,7 @@ async function updateBillingEmailForActor(
     throw new ConvexError("組織の契約情報を確認中です");
   }
   if (billingState.state.kind === "complimentary") {
-    throw new ConvexError("支払い不要の組織では請求先メールアドレスを変更できません");
+    throw expectedConvexError("plan_limit", "支払い不要の組織では支払いのお知らせ先を変更できません");
   }
   const normalized = normalizeEmail(args.email);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized) || normalized.length > 254) {

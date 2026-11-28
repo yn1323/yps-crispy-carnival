@@ -25,6 +25,7 @@ describe("resolveAppOrganizationSwitchTarget", () => {
     ["/staff/person-a", "/staff"],
     ["/staff/person-a/shops/shop-a", "/staff"],
     ["/manage/shops/shop-a", "/manage"],
+    ["/manage/shops/shop-a/shift-setup", "/manage"],
     ["/manage/managers/invite-staff", "/manage/managers"],
     ["/manage/managers/invite-new", "/manage/managers"],
     ["/shifts/recruitment-a/board/", "/shifts"],

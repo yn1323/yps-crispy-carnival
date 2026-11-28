@@ -136,15 +136,18 @@ export const ShiftStaffNoteIcon = ({
   notes,
   showDates = false,
   openOn = "hover",
+  hasNoteColumn = true,
 }: {
   notes: readonly StaffNoteEntry[];
   /** 複数の日を並べる週表だけ、本文の上に日付を出す。日別表示は表示中の日のメモなので出さない。 */
   showDates?: boolean;
   openOn?: "hover" | "tap";
+  /** 本文を出す列や欄を持つ画面か。持たない画面（パターン選択の日別）では、表示設定にかかわらずアイコンを出す。 */
+  hasNoteColumn?: boolean;
 }) => {
   const { isVisible } = useShiftDateNotesVisibility();
   // 連絡事項の列や欄で本文が読めるあいだは、同じ内容を名前の横に重ねて出さない。
-  if (isVisible || notes.length === 0) return null;
+  if ((hasNoteColumn && isVisible) || notes.length === 0) return null;
 
   return (
     <StaffIconTip
@@ -225,7 +228,7 @@ const ShiftDateNoteBlockContent = ({ note }: { note: string }) => (
       <LuMessageSquare aria-hidden />
     </Icon>
     <Text textStyle="xs" lineHeight={1.6} color="gray.700" minW={0} overflowWrap="anywhere">
-      <VisuallyHidden>メモ：</VisuallyHidden>
+      <VisuallyHidden>連絡事項：</VisuallyHidden>
       <span data-clarity-mask="true">{note}</span>
     </Text>
   </Flex>
@@ -235,6 +238,7 @@ const ShiftDateNoteBlockContent = ({ note }: { note: string }) => (
 export const ShiftDateNoteCornerMark = ({ onFilled }: { onFilled: boolean }) => (
   <Box
     aria-hidden
+    data-date-note-mark
     position="absolute"
     top={0}
     right={0}
@@ -243,7 +247,7 @@ export const ShiftDateNoteCornerMark = ({ onFilled }: { onFilled: boolean }) => 
     borderStyle="solid"
     borderTopWidth="9px"
     borderLeftWidth="9px"
-    borderTopColor={onFilled ? "white" : "gray.600"}
+    borderTopColor={onFilled ? "white" : "teal.500"}
     borderLeftColor="transparent"
     borderTopRightRadius="md"
     pointerEvents="none"

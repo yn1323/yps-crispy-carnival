@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
+import { SHIFT_ASSIGNMENT_BREAK_LIMIT } from "../constants";
 import {
   type AssignmentIssue,
   buildAssignmentIssue,
@@ -235,6 +236,236 @@ describe("validateShiftAssignments", () => {
       assignments: [assignment({ startTime: "23:00", endTime: "07:00" })],
     });
     expect(issues.map((i) => i.code)).toEqual(["INVALID_TIME_ORDER"]);
+  });
+});
+
+describe("validateShiftAssignments（休憩）", () => {
+  type BreakInput = { startTime: string; endTime: string };
+  const DATE_ONLY_PATTERN: ShiftSubmissionPattern = { kind: "dateOnly" };
+  const rest = (startTime: string, endTime: string): BreakInput => ({ startTime, endTime });
+  /** 10:00-18:00の勤務へ休憩を付けた、時間指定の割当。 */
+  const withBreaks = (breaks: BreakInput[]) => ({ ...assignment({}), breaks });
+  /** 10:15から15分ずつ、隣り合って重ならない休憩を、指定した件数だけ作る。 */
+  const consecutiveBreaks = (count: number): BreakInput[] =>
+    Array.from({ length: count }, (_, index) => {
+      const toTime = (minutes: number) =>
+        `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+      const start = 10 * 60 + 15 + index * 15;
+      return rest(toTime(start), toTime(start + 15));
+    });
+  const codesOf = (input: Parameters<typeof validateShiftAssignments>[0]) =>
+    validateShiftAssignments(input).map(({ code, date, staffId }) => ({ code, date, staffId }));
+  const issueOf = (code: AssignmentIssue["code"]) => [{ code, date: "2026-01-20", staffId: "staff1" }];
+
+  it("勤務の内側で重ならない休憩は、違反にしない", () => {
+    expect(
+      validateShiftAssignments({
+        ...baseInput,
+        assignments: [
+          withBreaks([rest("14:00", "15:00")]),
+          { ...assignment({ staffId: "staff2" }), breaks: [] },
+          {
+            ...assignment({ staffId: "staff3" }),
+            // 勤務の開始の直後、終了の直前の休憩と、隣り合う休憩は許可する。
+            breaks: [rest("10:15", "10:30"), rest("10:30", "11:00"), rest("17:30", "17:45")],
+          },
+        ],
+      }),
+    ).toEqual([]);
+  });
+
+  it("休憩は上限の件数まで違反にせず、上限を1件超えるとBREAK_LIMIT", () => {
+    expect(
+      validateShiftAssignments({
+        ...baseInput,
+        assignments: [withBreaks(consecutiveBreaks(SHIFT_ASSIGNMENT_BREAK_LIMIT))],
+      }),
+    ).toEqual([]);
+    expect(
+      validateShiftAssignments({
+        ...baseInput,
+        assignments: [withBreaks(consecutiveBreaks(SHIFT_ASSIGNMENT_BREAK_LIMIT + 1))],
+      }),
+    ).toEqual([
+      {
+        code: "BREAK_LIMIT",
+        date: "2026-01-20",
+        staffId: "staff1",
+        message: `休憩は1つの勤務に${SHIFT_ASSIGNMENT_BREAK_LIMIT}件まで入れられます`,
+      },
+    ]);
+  });
+
+  it.each([
+    { name: "開始と終了が同じ", breaks: [rest("14:00", "14:00")] },
+    { name: "開始が終了より後", breaks: [rest("15:00", "14:00")] },
+    { name: "時刻の形式が不正", breaks: [rest("14時", "15時")] },
+  ])("休憩の$name とBREAK_INVALID_TIME", ({ breaks }) => {
+    expect(codesOf({ ...baseInput, assignments: [withBreaks(breaks)] })).toEqual(issueOf("BREAK_INVALID_TIME"));
+  });
+
+  it.each([
+    { name: "勤務の開始より前に始まる", breaks: [rest("09:30", "10:30")] },
+    { name: "勤務の終了より後に終わる", breaks: [rest("17:30", "18:30")] },
+    { name: "勤務の時間帯と重ならない", breaks: [rest("19:00", "20:00")] },
+    { name: "勤務全体と同じ", breaks: [rest("10:00", "18:00")] },
+    { name: "勤務の開始に接する", breaks: [rest("10:00", "10:30")] },
+    { name: "勤務の終了に接する", breaks: [rest("17:30", "18:00")] },
+  ])("時間指定で休憩が$name とBREAK_OUT_OF_SHIFT", ({ breaks }) => {
+    expect(codesOf({ ...baseInput, assignments: [withBreaks(breaks)] })).toEqual(issueOf("BREAK_OUT_OF_SHIFT"));
+  });
+
+  it.each([
+    { name: "勤務パターンの終了より後に終わる", breaks: [rest("12:30", "13:30")] },
+    { name: "勤務パターンの開始より前に始まる", breaks: [rest("08:30", "09:30")] },
+    { name: "勤務パターン全体と同じ", breaks: [rest("09:00", "13:00")] },
+    { name: "勤務パターンの開始に接する", breaks: [rest("09:00", "09:30")] },
+    { name: "勤務パターンの終了に接する", breaks: [rest("12:30", "13:00")] },
+  ])("パターン選択で休憩が$name とBREAK_OUT_OF_SHIFT", ({ breaks }) => {
+    expect(
+      codesOf({
+        ...baseInput,
+        pattern: SHIFT_TYPE_PATTERN,
+        assignments: [{ ...assignment({ startTime: "09:00", endTime: "13:00", optionId: "morning" }), breaks }],
+      }),
+    ).toEqual(issueOf("BREAK_OUT_OF_SHIFT"));
+  });
+
+  it("同じスタッフの同じ日で隣り合う勤務は、ひと続きの勤務として、境目に接する休憩を違反にしない", () => {
+    // 10:00-14:00と14:00-18:00の勤務。境目をまたぐ休憩は、勤務ごとに分かれて境目に接する。
+    const input = (firstBreaks: BreakInput[], secondBreaks: BreakInput[]) => ({
+      ...baseInput,
+      assignments: [
+        { ...assignment({ startTime: "10:00", endTime: "14:00" }), breaks: firstBreaks },
+        { ...assignment({ startTime: "14:00", endTime: "18:00" }), breaks: secondBreaks },
+      ],
+    });
+
+    expect(validateShiftAssignments(input([rest("13:30", "14:00")], [rest("14:00", "14:30")]))).toEqual([]);
+    // ひと続きの勤務の開始と終了に接する休憩は、違反にする。
+    expect(codesOf(input([rest("10:00", "10:30")], []))).toEqual(issueOf("BREAK_OUT_OF_SHIFT"));
+    expect(codesOf(input([], [rest("17:30", "18:00")]))).toEqual(issueOf("BREAK_OUT_OF_SHIFT"));
+  });
+
+  it("同じスタッフの同じ日でも、間の空いた勤務は、それぞれの開始と終了に接する休憩を違反にする", () => {
+    expect(
+      codesOf({
+        ...baseInput,
+        assignments: [
+          { ...assignment({ startTime: "10:00", endTime: "13:00" }), breaks: [rest("12:30", "13:00")] },
+          { ...assignment({ startTime: "15:00", endTime: "18:00" }), breaks: [rest("15:00", "15:30")] },
+        ],
+      }),
+    ).toEqual([...issueOf("BREAK_OUT_OF_SHIFT"), ...issueOf("BREAK_OUT_OF_SHIFT")]);
+  });
+
+  it("パターン選択でも、勤務パターンの内側の休憩は違反にしない", () => {
+    expect(
+      validateShiftAssignments({
+        ...baseInput,
+        pattern: SHIFT_TYPE_PATTERN,
+        assignments: [
+          {
+            ...assignment({ startTime: "09:00", endTime: "13:00", optionId: "morning" }),
+            breaks: [rest("11:00", "11:30")],
+          },
+        ],
+      }),
+    ).toEqual([]);
+  });
+
+  it("休憩どうしが重なるとBREAK_OVERLAP", () => {
+    expect(
+      validateShiftAssignments({
+        ...baseInput,
+        assignments: [withBreaks([rest("12:00", "13:00"), rest("12:30", "13:30")])],
+      }),
+    ).toEqual([
+      { code: "BREAK_OVERLAP", date: "2026-01-20", staffId: "staff1", message: "休憩の時間帯が重なっています" },
+    ]);
+  });
+
+  it("1つの勤務に休憩の違反が複数あっても、最初の1件だけを報告する", () => {
+    expect(
+      codesOf({
+        ...baseInput,
+        assignments: [withBreaks([rest("15:00", "14:00"), rest("09:00", "09:30")])],
+      }),
+    ).toEqual(issueOf("BREAK_INVALID_TIME"));
+  });
+
+  it("勤務そのものに違反がある場合は、休憩の違反を重ねて報告しない", () => {
+    expect(
+      codesOf({
+        ...baseInput,
+        assignments: [{ ...assignment({ date: "2026-01-27" }), breaks: [rest("15:00", "14:00")] }],
+      }),
+    ).toEqual([{ code: "OUT_OF_PERIOD", date: "2026-01-27", staffId: "staff1" }]);
+  });
+
+  it("日付選択では、勤務の時刻の外にある休憩も許可する", () => {
+    expect(
+      validateShiftAssignments({
+        ...baseInput,
+        pattern: DATE_ONLY_PATTERN,
+        assignments: [
+          { ...assignment({ startTime: "10:00", endTime: "12:00" }), breaks: [rest("14:00", "15:00")] },
+          {
+            ...assignment({ staffId: "staff2", startTime: "09:00", endTime: "22:00" }),
+            breaks: [rest("12:00", "13:00")],
+          },
+        ],
+      }),
+    ).toEqual([]);
+  });
+
+  it("日付選択でも、件数・時刻の順序・重なりの違反は報告する", () => {
+    expect(
+      codesOf({
+        ...baseInput,
+        pattern: DATE_ONLY_PATTERN,
+        assignments: [
+          {
+            ...assignment({ staffId: "staff1", startTime: "09:00", endTime: "22:00" }),
+            breaks: consecutiveBreaks(SHIFT_ASSIGNMENT_BREAK_LIMIT + 1),
+          },
+          {
+            ...assignment({ staffId: "staff2", startTime: "09:00", endTime: "22:00" }),
+            breaks: [rest("13:00", "12:00")],
+          },
+          {
+            ...assignment({ staffId: "staff3", startTime: "09:00", endTime: "22:00" }),
+            breaks: [rest("12:00", "13:00"), rest("12:30", "13:30")],
+          },
+        ],
+      }),
+    ).toEqual([
+      { code: "BREAK_LIMIT", date: "2026-01-20", staffId: "staff1" },
+      { code: "BREAK_INVALID_TIME", date: "2026-01-20", staffId: "staff2" },
+      { code: "BREAK_OVERLAP", date: "2026-01-20", staffId: "staff3" },
+    ]);
+  });
+
+  // 日付選択の勤務は時刻を持たない。保存される09:00-22:00は置き場所としての値で、店舗の受付時間ではないため、
+  // その外の時刻の休憩も受け付ける。時刻として正しくない休憩だけを拒否する。
+  it("日付選択では、勤務の保存用の時刻の外にある休憩も受け付け、開始と終了が逆の休憩は拒否する", () => {
+    expect(
+      codesOf({
+        ...baseInput,
+        pattern: DATE_ONLY_PATTERN,
+        assignments: [
+          { ...assignment({ startTime: "09:00", endTime: "22:00" }), breaks: [rest("22:00", "23:00")] },
+          {
+            ...assignment({ staffId: "staff2", startTime: "09:00", endTime: "22:00" }),
+            breaks: [rest("08:00", "09:30")],
+          },
+          {
+            ...assignment({ staffId: "staff3", startTime: "09:00", endTime: "22:00" }),
+            breaks: [rest("15:00", "14:00")],
+          },
+        ],
+      }),
+    ).toEqual([{ code: "BREAK_INVALID_TIME", date: "2026-01-20", staffId: "staff3" }]);
   });
 });
 

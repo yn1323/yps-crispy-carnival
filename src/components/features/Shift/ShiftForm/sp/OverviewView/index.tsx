@@ -3,12 +3,15 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useMemo, useState } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
 import { IssueCountBadge } from "../../components";
+import { BreakMark, PositionMark } from "../../detailParts";
 import {
+  detailModeAtom,
   selectDateWithDailyStaffOrderAtom,
   shiftConfigAtom,
   shiftsAtom,
+  staffSortModeAtom,
+  staffWarningCountByDateAtom,
   viewModeAtom,
-  warningCountByDateAtom,
 } from "../../stores";
 import { SHIFT_WEEKDAY_TONE_COLORS } from "../../weekdayPresentation";
 import { buildOverviewViewModel, type OverviewDayRowViewModel, type OverviewStaffRowViewModel } from "./script";
@@ -16,7 +19,8 @@ import { buildOverviewViewModel, type OverviewDayRowViewModel, type OverviewStaf
 export const SPOverviewView = () => {
   const config = useAtomValue(shiftConfigAtom);
   const shifts = useAtomValue(shiftsAtom);
-  const warningCounts = useAtomValue(warningCountByDateAtom);
+  const staffSortMode = useAtomValue(staffSortModeAtom);
+  const warningCounts = useAtomValue(staffWarningCountByDateAtom);
   const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const setViewMode = useSetAtom(viewModeAtom);
   const { dates, holidays, staffs, isReadOnly } = config;
@@ -26,11 +30,12 @@ export const SPOverviewView = () => {
         dates,
         holidays,
         staffs,
+        staffSortMode,
         shifts,
         warningCounts,
         isReadOnly,
       }),
-    [dates, holidays, staffs, shifts, warningCounts, isReadOnly],
+    [dates, holidays, staffs, staffSortMode, shifts, warningCounts, isReadOnly],
   );
   const initialOpen = useMemo(() => {
     const state: Record<number, boolean> = {};
@@ -165,17 +170,51 @@ const DayRow = ({ row, onDateTap }: { row: OverviewDayRowViewModel; onDateTap: (
   </Flex>
 );
 
-const DayStaffList = ({ rows }: { rows: OverviewStaffRowViewModel[] }) => (
-  <Stack gap="5px">
-    {rows.map((staff) => (
-      <Flex key={staff.key} align="center" gap={2} textStyle="tableDense">
-        <Box color="gray.800" fontWeight={600} flex={1} minW={0}>
-          {staff.name}
+const DayStaffList = ({ rows }: { rows: OverviewStaffRowViewModel[] }) => {
+  const detailMode = useAtomValue(detailModeAtom);
+
+  if (!detailMode) {
+    return (
+      <Stack gap="5px">
+        {rows.map((staff) => (
+          <Flex key={staff.key} align="center" gap={2} textStyle="tableDense">
+            <Box color="gray.800" fontWeight={600} flex={1} minW={0} truncate>
+              {staff.name}
+            </Box>
+            <Box color="teal.700" fontWeight={600} fontVariantNumeric="tabular-nums">
+              {staff.assignedTimeLabel}
+            </Box>
+          </Flex>
+        ))}
+      </Stack>
+    );
+  }
+
+  // くわしく表示: 名前の横に熟練度、時刻の左に休憩の印、下の行にポジションを出す。
+  return (
+    <Stack gap="6px">
+      {rows.map((staff) => (
+        <Box key={staff.key}>
+          <Flex align="center" gap={2} textStyle="tableDense">
+            <Flex flex={1} minW={0} align="center" gap="6px">
+              <Box color="gray.800" fontWeight={600} minW={0} truncate>
+                {staff.name}
+              </Box>
+            </Flex>
+            {/* 時刻の右端をそろえるため、休憩の印は時刻の左に置く。 */}
+            <BreakMark shift={staff.shift} compact />
+            <Box color="teal.700" fontWeight={600} fontVariantNumeric="tabular-nums">
+              {staff.assignedTimeLabel}
+            </Box>
+          </Flex>
+          {/* ポジションが1つの店舗では、熟練度の印がある人だけ出す。 */}
+          <Flex justify="flex-end" columnGap={2} flexWrap="wrap" color="gray.700" _empty={{ display: "none" }}>
+            {staff.positionMarks.map((mark) => (
+              <PositionMark key={mark.key} segment={mark} />
+            ))}
+          </Flex>
         </Box>
-        <Box color="teal.700" fontWeight={600} fontVariantNumeric="tabular-nums">
-          {staff.assignedTimeLabel}
-        </Box>
-      </Flex>
-    ))}
-  </Stack>
-);
+      ))}
+    </Stack>
+  );
+};

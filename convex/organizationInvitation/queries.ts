@@ -1,6 +1,10 @@
 import { v } from "convex/values";
 import { observedInternalQuery as internalQuery, observedQuery as query } from "../_lib/errorObservability";
-import { isOrganizationInvitationIssued, isOrganizationInvitationLinked } from "./lifecycle";
+import {
+  getOrganizationInvitationLinkedByPersonId,
+  isOrganizationInvitationIssued,
+  isOrganizationInvitationLinked,
+} from "./lifecycle";
 import { resolveOrganizationInvitationEligibility } from "./service";
 import { digestInvitationToken } from "./token";
 
@@ -80,6 +84,7 @@ export const getAcceptanceNotificationData = internalQuery({
     v.object({
       organizationId: v.id("organizations"),
       organizationName: v.string(),
+      joinedPersonName: v.string(),
       shopId: v.optional(v.id("shops")),
       recipients: v.array(v.object({ userId: v.id("users"), name: v.string(), email: v.string() })),
     }),
@@ -91,6 +96,9 @@ export const getAcceptanceNotificationData = internalQuery({
     }
     const organization = await ctx.db.get(invitation.organizationId);
     if (!organization || organization.isDeleted) return null;
+    const joinedPersonId = getOrganizationInvitationLinkedByPersonId(invitation);
+    const joinedPerson = joinedPersonId ? await ctx.db.get(joinedPersonId) : null;
+    if (!joinedPerson || joinedPerson.organizationId !== invitation.organizationId) return null;
 
     const [members, representativeShop] = await Promise.all([
       ctx.db
@@ -124,6 +132,7 @@ export const getAcceptanceNotificationData = internalQuery({
     return {
       organizationId: organization._id,
       organizationName: organization.name,
+      joinedPersonName: joinedPerson.name,
       ...(representativeShop ? { shopId: representativeShop._id } : {}),
       recipients,
     };

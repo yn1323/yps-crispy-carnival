@@ -2,7 +2,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createExportFixture } from "./fixtures";
+import { createDailyExportFixture, createExportFixture } from "./fixtures";
 import {
   channelName,
   createSnapshot,
@@ -170,6 +170,48 @@ describe("出力データの受け渡し", () => {
         scope,
       ),
     ).toThrow();
+  });
+  it("ポジションの色を受け渡し、色のない旧形式の一時データも読む", () => {
+    const positions = [
+      { id: "hall", name: "ホール", color: "#60a5fa" },
+      { id: "kitchen", name: "キッチン" },
+    ];
+    const snapshot = createSnapshot(createExportFixture({ positions }), scope);
+
+    expect(snapshot.data.positions).toEqual(positions);
+    expect(() =>
+      validateSnapshot(
+        { ...snapshot, data: { ...snapshot.data, positions: [{ ...positions[0], color: "#".repeat(21) }] } },
+        scope,
+      ),
+    ).toThrow();
+  });
+  it("勤務のポジションと休憩、表示と並び替えの選択を受け渡し、これらを持たない旧形式の一時データは「シンプル」「固定」として読む", () => {
+    const fixture = createDailyExportFixture();
+    const snapshot = createSnapshot(fixture, scope);
+
+    // 日別のバーに使う値を、受け渡しで落とさない。
+    expect(snapshot.data).toEqual(fixture);
+    expect(snapshot.data.assignments[3]).toMatchObject({
+      positionId: "kitchen",
+      breaks: [{ startTime: "16:00", endTime: "16:30" }],
+    });
+    expect(snapshot.data).toMatchObject({ isDetailMode: true, staffSortMode: "workTime" });
+
+    const {
+      positions: _positions,
+      isDetailMode: _isDetailMode,
+      staffSortMode: _staffSortMode,
+      ...rest
+    } = snapshot.data;
+    const legacyData = {
+      ...rest,
+      assignments: rest.assignments.map(({ positionId: _positionId, breaks: _breaks, ...assignment }) => assignment),
+    };
+    const legacy = validateSnapshot({ ...snapshot, data: legacyData }, scope).data;
+    expect(legacy).toEqual({ ...legacyData, positions: [], isDetailMode: false, staffSortMode: "fixed" });
+
+    expect(() => validateSnapshot({ ...snapshot, data: { ...snapshot.data, staffSortMode: "name" } }, scope)).toThrow();
   });
   it("日付メモを件数・長さ・形式で検証し、メモのない旧形式の一時データは空の一覧として読む", () => {
     const snapshot = createSnapshot(

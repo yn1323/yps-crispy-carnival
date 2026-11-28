@@ -771,7 +771,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
   const billingEmailDisabledReason =
     billingCapabilities.canUpdateBillingEmail || isComplimentary
       ? undefined
-      : (accessDisabledReason ?? "現在の契約状態では、請求先メールアドレスを変更できません。");
+      : (accessDisabledReason ?? "現在の契約状態では、支払いのお知らせ先を変更できません。");
   const billingCapabilityReasons = {
     ...(managePlanDisabledReason ? { managePlanDisabledReason } : {}),
     ...(paymentMethodDisabledReason ? { paymentMethodDisabledReason } : {}),

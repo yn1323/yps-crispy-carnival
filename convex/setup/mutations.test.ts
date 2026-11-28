@@ -477,10 +477,10 @@ describe("setup/mutations", () => {
           .withIndex("by_userId", (q) => q.eq("userId", user._id))
           .first(),
       );
-      expect(consentState?.termsConsentVersion).toBe("manager-terms-consent-2026-08-27-2");
-      expect(consentState?.privacyConsentVersion).toBe("manager-privacy-consent-2026-08-26");
-      expect(consentState?.termsDocumentVersion).toBe("manager-terms-doc-2026-08-27-2");
-      expect(consentState?.privacyDocumentVersion).toBe("manager-privacy-doc-2026-10-04");
+      expect(consentState?.termsConsentVersion).toBe("manager-terms-consent-2026-11-25");
+      expect(consentState?.privacyConsentVersion).toBe("manager-privacy-consent-2026-11-25");
+      expect(consentState?.termsDocumentVersion).toBe("manager-terms-doc-2026-11-25");
+      expect(consentState?.privacyDocumentVersion).toBe("manager-privacy-doc-2026-11-25");
       expect(consentState?.method).toBe("manager_setup");
 
       const staffs = await t.run(async (ctx) =>
@@ -501,10 +501,10 @@ describe("setup/mutations", () => {
           .withIndex("by_staffId", (q) => q.eq("staffId", staffs[0]._id))
           .first(),
       );
-      expect(staffConsentState?.termsConsentVersion).toBe("staff-terms-consent-2026-05-09");
-      expect(staffConsentState?.privacyConsentVersion).toBe("staff-privacy-consent-2026-08-26");
-      expect(staffConsentState?.termsDocumentVersion).toBe("staff-terms-doc-2026-08-26");
-      expect(staffConsentState?.privacyDocumentVersion).toBe("staff-privacy-doc-2026-10-04");
+      expect(staffConsentState?.termsConsentVersion).toBe("staff-terms-consent-2026-11-25");
+      expect(staffConsentState?.privacyConsentVersion).toBe("staff-privacy-consent-2026-11-25");
+      expect(staffConsentState?.termsDocumentVersion).toBe("staff-terms-doc-2026-11-25");
+      expect(staffConsentState?.privacyDocumentVersion).toBe("staff-privacy-doc-2026-11-25");
       expect(staffConsentState?.method).toBe("manager_setup");
 
       const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());

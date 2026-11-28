@@ -45,7 +45,21 @@ type ShiftTimeAssignment = {
   startTime: string;
   endTime: string;
   optionId?: string;
+  /** ポジションを2つ以上持つ店舗だけが渡す。渡された場合は時刻の後ろへ添える。 */
+  positionName?: string;
+  breaks?: ReadonlyArray<{ startTime: string; endTime: string }>;
 };
+
+// 勤務の後ろへ添えるポジション名と休憩。どちらもない勤務では空文字を返し、従来の文面を変えない。
+function buildShiftDetailSuffix(assignment: ShiftTimeAssignment): string {
+  const position = assignment.positionName ? ` ${assignment.positionName}` : "";
+  const breaks = (assignment.breaks ?? [])
+    .slice()
+    .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime))
+    .map((item) => formatShiftClockTimeRange(item.startTime, item.endTime, "-"))
+    .join("、");
+  return breaks ? `${position}（休憩 ${breaks}）` : position;
+}
 
 type ShiftTimeLabelPattern =
   | { kind: "dateOnly" }
@@ -60,7 +74,8 @@ export function buildShiftTimeLabel(assignments: ShiftTimeAssignment[], pattern:
   const sortedAssignments = assignments.slice().sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
 
   if (pattern.kind === "dateOnly") {
-    return "出勤";
+    // 日付選択の勤務は1日1件。ポジション名と休憩がなければ従来どおり「出勤」だけを返す。
+    return `出勤${buildShiftDetailSuffix(sortedAssignments[0])}`;
   }
 
   if (pattern.kind === "shiftType") {
@@ -72,14 +87,18 @@ export function buildShiftTimeLabel(assignments: ShiftTimeAssignment[], pattern:
           : pattern.options.find(
               (item) => item.startTime === assignment.startTime && item.endTime === assignment.endTime,
             );
-        return option
+        const label = option
           ? `${option.name}（${formatShiftClockTimeRange(option.startTime, option.endTime, "-")}）`
           : formatShiftClockTimeRange(assignment.startTime, assignment.endTime, "-");
+        return `${label}${buildShiftDetailSuffix(assignment)}`;
       })
       .join(" / ");
   }
 
   return sortedAssignments
-    .map((assignment) => formatShiftClockTimeRange(assignment.startTime, assignment.endTime, "-"))
+    .map(
+      (assignment) =>
+        `${formatShiftClockTimeRange(assignment.startTime, assignment.endTime, "-")}${buildShiftDetailSuffix(assignment)}`,
+    )
     .join(" / ");
 }

@@ -3,7 +3,7 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import { seedStaff } from "../_test/scenarioBuilders";
-import { seedShop } from "../_test/seed";
+import { seedOrganizationMembership, seedShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { SHIFT_ASSIGNMENT_LIMIT } from "../constants";
 
@@ -93,6 +93,7 @@ describe("shiftView/queries", () => {
         periodStart: "2026-07-20",
         periodEnd: "2026-07-26",
         staffs: [{ _id: ids.staffId, name: "閲覧スタッフ" }],
+        shiftStaffSortMode: "fixed",
         positions: [{ _id: ids.positionId, name: "ホール", color: "#3b82f6", isDefault: true }],
         assignments: [
           {
@@ -145,6 +146,176 @@ describe("shiftView/queries", () => {
           },
         ],
       });
+    });
+
+    it("スタッフは登録順で返し、スタッフのページで並び順を決めた店舗ではその順で返す。店舗が選んだ並び替えも返す", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await setupConfirmedShiftView(t);
+      const laterStaffId = await t.run(async (ctx) =>
+        seedStaff(ctx, { shopId: ids.shopId, name: "あとから登録したスタッフ", email: "later@example.com" }),
+      );
+      const getData = () =>
+        t.query(api.shiftView.queries.getShiftViewData, {
+          sessionToken: ids.sessionToken,
+          accessKind: "view",
+          recruitmentId: ids.recruitmentId,
+        });
+
+      const before = await getData();
+      expect(before?.staffs.map((staff) => staff._id)).toEqual([ids.staffId, laterStaffId]);
+      expect(before?.shiftStaffSortMode).toBe("fixed");
+
+      await t.run(async (ctx) => {
+        const shop = await ctx.db.get(ids.shopId);
+        if (!shop) throw new Error("shop fixture was not found");
+        await ctx.db.patch(ids.shopId, { shiftStaffSortMode: "workTime" });
+        await ctx.db.insert("organizationStaffOrderStates", {
+          organizationId: shop.organizationId,
+          revision: 1,
+          activatedAt: 1,
+          updatedAt: 1,
+        });
+        const people = await ctx.db
+          .query("organizationPeople")
+          .withIndex("by_organizationId_and_status", (q) =>
+            q.eq("organizationId", shop.organizationId).eq("status", "active"),
+          )
+          .collect();
+        const staffs = await ctx.db
+          .query("staffs")
+          .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", ids.shopId).eq("isDeleted", false))
+          .collect();
+        // あとから登録した人を先頭にする。残りは登録順のまま続ける。
+        const orderedStaffs = [
+          ...staffs.filter((staff) => staff._id === laterStaffId),
+          ...staffs.filter((staff) => staff._id !== laterStaffId),
+        ];
+        const orderedPersonIds = [
+          ...orderedStaffs.map((staff) => staff.organizationPersonId),
+          ...people
+            .map((person) => person._id)
+            .filter((personId) => !orderedStaffs.some((staff) => staff.organizationPersonId === personId)),
+        ];
+        for (const [displayOrder, organizationPersonId] of orderedPersonIds.entries()) {
+          await ctx.db.insert("organizationStaffOrderEntries", {
+            organizationId: shop.organizationId,
+            organizationPersonId,
+            displayOrder,
+          });
+        }
+        for (const staff of orderedStaffs) {
+          await ctx.db.insert("shopStaffOrderEntries", {
+            organizationId: shop.organizationId,
+            organizationPersonId: staff.organizationPersonId,
+            shopId: ids.shopId,
+            staffId: staff._id,
+            displayOrder: orderedPersonIds.indexOf(staff.organizationPersonId),
+          });
+        }
+      });
+
+      const after = await getData();
+      expect(after?.staffs.map((staff) => staff._id)).toEqual([laterStaffId, ids.staffId]);
+      expect(after?.shiftStaffSortMode).toBe("workTime");
+    });
+
+    it("並び順を決めていない店舗では、あとから登録した管理者のスタッフも登録順のまま返し、管理者を先にしない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await setupConfirmedShiftView(t);
+      const managerStaffId = await t.run(async (ctx) => {
+        const userId = await seedUser(ctx, "shift_view_manager_staff");
+        await seedOrganizationMembership(ctx, { userId, shopId: ids.shopId });
+        return await seedStaff(ctx, {
+          shopId: ids.shopId,
+          name: "管理者のスタッフ",
+          email: "manager-staff@example.com",
+          userId,
+        });
+      });
+
+      const result = await t.query(api.shiftView.queries.getShiftViewData, {
+        sessionToken: ids.sessionToken,
+        accessKind: "view",
+        recruitmentId: ids.recruitmentId,
+      });
+
+      expect(result).not.toBeNull();
+      expect(result?.staffs).toEqual([
+        { _id: ids.staffId, name: "閲覧スタッフ" },
+        { _id: managerStaffId, name: "管理者のスタッフ" },
+      ]);
+    });
+
+    it("確定した勤務の休憩を返す", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await setupConfirmedShiftView(t);
+      await t.run(async (ctx) => {
+        await ctx.db.insert("shiftAssignments", {
+          recruitmentId: ids.recruitmentId,
+          staffId: ids.staffId,
+          date: "2026-07-21",
+          startTime: "12:00",
+          endTime: "18:00",
+          positionId: ids.positionId,
+          breaks: [{ startTime: "14:00", endTime: "14:30" }],
+        });
+      });
+
+      const result = await t.query(api.shiftView.queries.getShiftViewData, {
+        sessionToken: ids.sessionToken,
+        accessKind: "view",
+        recruitmentId: ids.recruitmentId,
+      });
+
+      expect(result).not.toBeNull();
+      expect((result?.assignments ?? []).slice().sort((a, b) => a.date.localeCompare(b.date))).toStrictEqual([
+        { staffId: ids.staffId, date: "2026-07-20", startTime: "11:00", endTime: "19:00", positionId: ids.positionId },
+        {
+          staffId: ids.staffId,
+          date: "2026-07-21",
+          startTime: "12:00",
+          endTime: "18:00",
+          positionId: ids.positionId,
+          breaks: [{ startTime: "14:00", endTime: "14:30" }],
+        },
+      ]);
+    });
+
+    it("確定のあとでポジションの名前を変えて削除しても、確定した時点のポジションを返す", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await setupConfirmedShiftView(t);
+      const kitchenPositionId = await t.run(async (ctx) => {
+        const kitchenPositionId = await ctx.db.insert("positions", {
+          shopId: ids.shopId,
+          name: "キッチン",
+          color: "#c2410c",
+          sortOrder: 1,
+          isDefault: false,
+          isDeleted: false,
+        });
+        await ctx.db.patch(ids.recruitmentId, {
+          confirmedPositions: [
+            { positionId: ids.positionId, name: "ホール", color: "#3b82f6", isDefault: true },
+            { positionId: kitchenPositionId, name: "キッチン", color: "#c2410c", isDefault: false },
+          ],
+        });
+        // 確定のあとで、ホールの名前と色を変え、キッチンを削除する。
+        await ctx.db.patch(ids.positionId, { name: "フロア", color: "#7c3aed" });
+        await ctx.db.patch(kitchenPositionId, { isDeleted: true });
+        return kitchenPositionId;
+      });
+
+      const result = await t.query(api.shiftView.queries.getShiftViewData, {
+        sessionToken: ids.sessionToken,
+        accessKind: "view",
+        recruitmentId: ids.recruitmentId,
+      });
+
+      expect(result).not.toBeNull();
+      expect(result?.positions).toEqual([
+        { _id: ids.positionId, name: "ホール", color: "#3b82f6", isDefault: true },
+        { _id: kitchenPositionId, name: "キッチン", color: "#c2410c", isDefault: false },
+      ]);
     });
 
     it("割当が上限を超える場合は部分的な確定シフトを返さない", async () => {

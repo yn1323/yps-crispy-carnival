@@ -30,7 +30,8 @@ export function buildFeatureDetailPageHead(slug: string) {
           { "@type": "ListItem", position: 3, name: feature.name },
         ],
       }),
-      ...jsonLdMeta(createProductFeatureFaqPageJsonLd(feature)),
+      // 画面に出さない質問をFAQPageに載せないため、質問のない機能では出さない。
+      ...(feature.faqs.length > 0 ? jsonLdMeta(createProductFeatureFaqPageJsonLd(feature)) : []),
     ],
   };
 }

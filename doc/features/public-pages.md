@@ -13,7 +13,7 @@
 |---|---|---|
 | `/` | 課題、毎月の流れ、スタッフ側の提出方法と向いているお店、主な機能、料金プラン、FAQ、記事への入口、登録導線をまとめるTOP | `src/pages/home/`、`src/components/features/LandingPage/` |
 | `/features` | 機能ページの一覧と各機能のできること、シフトリにない機能、プランと機能の関係を示す | `src/pages/features/`、`ProductFeatures` |
-| `/features/:featureSlug` | 一つの機能について、困りごと、できること、使い方、FAQ、関連する機能・ヘルプ・記事を示す | `src/pages/features/`、`ProductFeatures` |
+| `/features/:featureSlug` | 一つの機能について、困りごと、できること、使い方、FAQ（質問がある機能だけ）、関連する機能・ヘルプ・記事を示す | `src/pages/features/`、`ProductFeatures` |
 | `/commercial-transactions` | 有料プランの販売条件と、特定商取引法に基づく事業者情報を示す | `src/pages/commercial-transactions/`、`CommercialTransactions` |
 | `/help` | 「ヘルプ・使い方」として、FAQと使い方を検索とやりたいことから探す入口を示す | `src/pages/help/`、`src/components/features/HelpCenter/` |
 | `/help/tasks/:taskId` | 一つのやりたいことに属するFAQと使い方を表示する | `src/pages/help/`、`src/components/features/HelpCenter/` |
@@ -24,6 +24,7 @@
 | `/articles/:slug` | 一つの記事を表示し、関連する製品情報へつなぐ | `ArticlePage`、`ArticleSite/content/articles/` |
 | `/articles/categories/:categorySlug` | 同じ課題領域の記事をまとめる | `ArticleCategoryPage`、`ArticleSite/content/categories/` |
 | `/demo/shiftboard` | PC向けシフト表の入力と調整を、登録なしで試せるようにする | `src/pages/demo-shift-board/`、`Demo/DemoShiftBoardPage/` |
+| `/demo/simple`、`/demo/detail` | 募集から、シフトを作って確定し、スタッフに届くまでを登録なしで試せるようにする。入口を置くまでは`noindex`にする（[体験デモ](demo-handson.md)） | `src/pages/demo-handson/`、`Demo/HandsOnDemo/` |
 
 TOPは`src/routes/index.tsx`から`HomePage`を呼び、`HomePage`が`LandingPage`を構成する。
 `LandingPage`は`PublicPageLayout`の中に、Hero、紹介動画、課題、毎月の流れ、登録、スタッフ側の提出方法、主な機能、料金プラン、FAQと記事、CTAの各sectionを並べる。  
@@ -128,7 +129,7 @@ Productionの設定値と公開表示の確認状況は、[リリース状態](.
 |---|---|---|
 | TOP | 自分の店舗で何が楽になるか | 価値と利用の流れ、導入前のよくある質問を短く示し、詳しい入口を選べるようにする |
 | 機能一覧 | どの作業を支援できるか | TOPの毎月の流れと同じ3ステップと、店舗とスタッフの管理に分けて、各機能のできることと機能ページへの入口を示す。シフトリにない機能も示す |
-| 機能ページ | その機能で自分の困りごとが解決するか | 一つの機能の困りごと、できること、使い方、FAQを示し、操作手順はヘルプへ、判断材料は記事へつなぐ。できることのうち主な項目は実際の画面と並べ、各ページに画面を1枚以上置く |
+| 機能ページ | その機能で自分の困りごとが解決するか | 一つの機能の困りごと、できること、使い方、FAQ（質問がある機能だけ）を示し、操作手順はヘルプへ、判断材料は記事へつなぐ。できることのうち主な項目は実際の画面と並べ、各ページに画面を1枚以上置く |
 | TOPの料金プランsection | 人数と店舗数に合うプランと料金を比較したい | シフト管理の基本機能が共通であることと、Free・Standard・Proの料金と利用上限を示す。Standard・Proの金額は特定商取引法ページと同じbuild時料金カタログを使う |
 | ヘルプのFAQ | 料金、通知、導入、運用について結論を知りたい | 質問ごとに結論と必要な注意点を示す |
 | ヘルプの使い方 | 画面でどう操作し、失敗時にどう戻るか | 操作場所、手順、結果、回復方法を示す |
@@ -137,9 +138,11 @@ Productionの設定値と公開表示の確認状況は、[リリース状態](.
 | 記事 | シフト運営の課題をどう判断するか | 課題の整理、選択肢、関連する製品導線を示す |
 | デモ | 登録前に操作と結果を確かめたい | 実データを保存せず、主要な操作の流れを体験できるようにする |
 
+TOPの最初の画面には「無料ではじめる」と、体験デモを別タブで開く「デモを試す」を置く。  流れのあとの登録sectionにも同じ2つのボタンを並べる。  ヘルプの動画シナリオ（基本の使い方）は、下部の登録sectionから開く。
+
 TOPのFAQは、導入を検討する利用者向けの8件を`LandingPage/faqs.ts`で管理する。  表示内容とTOPの`FAQPage`構造化データは同じデータから生成し、各回答は文ごとに改行して表示する。
 
-機能ページの内容は`ProductFeatures/productFeatureContent.ts`、URLのslugは`ProductFeatures/productFeatureRoutes.ts`で管理する。  slugの定義は静的生成とsitemapのscriptからも読むため、画像とReactを持たないsecondary public entryに分けている。  TOPの主な機能sectionも、同じ内容の名前と説明から各機能ページへリンクする。  各機能ページのFAQと`FAQPage`構造化データ、パンくずと`BreadcrumbList`構造化データは、画面に表示する同じデータから生成する。  機能ページに書く内容は現在の実装で確認できる事実に限り、勤怠管理、給与計算、シフトの自動作成のようにない機能は、機能一覧の「シフトリにない機能」で明示する。
+機能ページの内容は`ProductFeatures/productFeatureContent.ts`、URLのslugは`ProductFeatures/productFeatureRoutes.ts`で管理する。  slugの定義は静的生成とsitemapのscriptからも読むため、画像とReactを持たないsecondary public entryに分けている。  TOPの主な機能sectionも、同じ内容の名前と説明から各機能ページへリンクする。  各機能ページのFAQと`FAQPage`構造化データ、パンくずと`BreadcrumbList`構造化データは、画面に表示する同じデータから生成する。  FAQのない機能ページは、よくある質問の節と`FAQPage`構造化データを出さない。  機能ページに書く内容は現在の実装で確認できる事実に限り、勤怠管理や給与計算のようにない機能は、機能一覧の「シフトリにない機能」で明示する。  登録なしで操作できるデモがある機能は、ページの最初と「できること」の後に、デモを別タブで開くボタンを置く。  シフトの自動作成は体験デモのくわしく版、希望シフトの回収、シフト表の作成、確定シフトの共有はシンプル版を開く。
 
 ヘルプは利用開始後のFAQと使い方を一つのMDX形式で管理し、利用者が完了したい仕事ごとに分類する。組織構造と動画シナリオはTOPから直接開くTSXページとして分ける。
 FAQは`/help/tasks/:taskId#<faq-id>`で展開・共有し、使い方は`/help/:slug`の個別ページで表示する。

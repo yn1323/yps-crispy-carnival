@@ -1,7 +1,7 @@
 import { isLegacyCompatibleWorkPosition } from "./positions";
-import { indexShiftsByStaffId } from "./shiftLookup";
+import { groupShiftsByDate, indexShiftsByStaffId } from "./shiftLookup";
 import { timeToMinutes } from "./time";
-import type { ShiftData, SortMode, StaffType } from "./types";
+import type { ShiftData, SortMode, StaffSortMode, StaffType } from "./types";
 
 type SortStaffsParams = {
   staffs: StaffType[];
@@ -15,6 +15,8 @@ type SortDailyStaffsParams = {
   staffs: StaffType[];
   shiftByStaffId?: ReadonlyMap<string, ShiftData | undefined>;
   mode: DailyStaffSortMode;
+  /** 店舗が選んだ並び替え。省くと「固定」として扱う。 */
+  staffSortMode?: StaffSortMode;
 };
 
 const compareByName = (a: StaffType, b: StaffType) => a.name.localeCompare(b.name, "ja");
@@ -82,9 +84,13 @@ const getEarliestEndMinutes = (staffShifts: ShiftData[], targetStartMinutes: num
   return earliest;
 };
 
-export const getEarliestAssignedWorkRange = (
-  shift: ShiftData | undefined,
-): { startMinutes: number; endMinutes: number } | null => {
+type MinuteSpan = { startMinutes: number; endMinutes: number };
+
+// 開始の早い順。開始が同じなら終了の早い順。
+const compareMinuteSpans = (a: MinuteSpan, b: MinuteSpan): number =>
+  a.startMinutes - b.startMinutes || a.endMinutes - b.endMinutes;
+
+export const getEarliestAssignedWorkRange = (shift: ShiftData | undefined): MinuteSpan | null => {
   if (!shift) return null;
 
   const workRanges = shift.positions
@@ -93,7 +99,7 @@ export const getEarliestAssignedWorkRange = (
       startMinutes: timeToMinutes(position.start),
       endMinutes: timeToMinutes(position.end),
     }))
-    .sort((a, b) => a.startMinutes - b.startMinutes || a.endMinutes - b.endMinutes);
+    .sort(compareMinuteSpans);
 
   const firstRange = workRanges[0];
   if (!firstRange) return null;
@@ -121,59 +127,82 @@ const hasWorkRequest = (shift: ShiftData | undefined, mode: DailyStaffSortMode):
   return !!shift.requestedTime || (shift.requestedTimes?.length ?? 0) > 0;
 };
 
-export const sortDailyStaffs = ({ staffs, shiftByStaffId, mode }: SortDailyStaffsParams): StaffType[] =>
-  [...staffs].sort((a, b) => {
+// 希望のうち最も早い時間帯（分）。開始が同じなら終了が早いほうを使う。
+const getEarliestRequestRange = (shift: ShiftData | undefined): MinuteSpan | null => {
+  if (!shift) return null;
+  const requests = shift.requestedTimes ?? (shift.requestedTime ? [shift.requestedTime] : []);
+  const ranges = requests
+    .map((request) => ({ startMinutes: timeToMinutes(request.start), endMinutes: timeToMinutes(request.end) }))
+    .sort(compareMinuteSpans);
+  return ranges[0] ?? null;
+};
+
+// どちらかに時間帯がなければ、時刻では順を決めない。
+const compareRanges = (a: MinuteSpan | null, b: MinuteSpan | null): number => (a && b ? compareMinuteSpans(a, b) : 0);
+
+// 「勤務時間順」の並びのまとまり: 勤務あり → 出勤の希望あり → 休み → 未提出。
+// 勤務がまだない日（「くわしく」で開いた直後など）も、希望のある人が上に来る。
+const getDailyGroup = (staff: StaffType, shift: ShiftData | undefined, mode: DailyStaffSortMode): number => {
+  if (getEarliestAssignedWorkRange(shift)) return 0;
+  if (!staff.isSubmitted) return 3;
+  return hasWorkRequest(shift, mode) ? 1 : 2;
+};
+
+/**
+ * 日別の並び。
+ * - 「固定」は、勤務や希望があってもなくても、スタッフのページで決めた並び順のままにする。
+ * - 「勤務時間順」は、その日の状態のまとまり（勤務あり → 出勤の希望あり → 休み希望 → 未提出）で分け、
+ *   勤務と希望の時刻の早い順に並べる。休み希望と未提出のまとまりと、時刻が同じ人どうしは、決めた並び順になる。
+ * 日付選択は勤務に時刻がなく、並び替えの項目もない。どちらを渡しても「固定」と同じ並びにする。
+ */
+export const sortDailyStaffs = ({
+  staffs,
+  shiftByStaffId,
+  mode,
+  staffSortMode = "fixed",
+}: SortDailyStaffsParams): StaffType[] => {
+  if (staffSortMode !== "workTime" || mode === "dateOnly") return [...staffs].sort(compareDefaultStaffOrder);
+
+  return [...staffs].sort((a, b) => {
     const aShift = shiftByStaffId?.get(a.id);
     const bShift = shiftByStaffId?.get(b.id);
-    const aWorkRange = getEarliestAssignedWorkRange(aShift);
-    const bWorkRange = getEarliestAssignedWorkRange(bShift);
-    const aGroup = aWorkRange ? 0 : a.isSubmitted ? 1 : 2;
-    const bGroup = bWorkRange ? 0 : b.isSubmitted ? 1 : 2;
+    const aGroup = getDailyGroup(a, aShift, mode);
+    const bGroup = getDailyGroup(b, bShift, mode);
 
     if (aGroup !== bGroup) return aGroup - bGroup;
 
-    if (aGroup === 0) {
-      if (mode !== "dateOnly" && aWorkRange && bWorkRange) {
-        if (aWorkRange.startMinutes !== bWorkRange.startMinutes) {
-          return aWorkRange.startMinutes - bWorkRange.startMinutes;
-        }
-        if (aWorkRange.endMinutes !== bWorkRange.endMinutes) {
-          return aWorkRange.endMinutes - bWorkRange.endMinutes;
-        }
-      }
-      return compareDefaultStaffOrder(a, b);
-    }
-
-    if (aGroup === 1) {
-      const aRestGroup = hasWorkRequest(aShift, mode) ? 1 : 0;
-      const bRestGroup = hasWorkRequest(bShift, mode) ? 1 : 0;
-      if (aRestGroup !== bRestGroup) return aRestGroup - bRestGroup;
-    }
+    // 勤務は勤務の時刻、希望は希望の時刻で、開始と終了が早い順にする。
+    const byTime =
+      aGroup === 0
+        ? compareRanges(getEarliestAssignedWorkRange(aShift), getEarliestAssignedWorkRange(bShift))
+        : aGroup === 1
+          ? compareRanges(getEarliestRequestRange(aShift), getEarliestRequestRange(bShift))
+          : 0;
+    if (byTime !== 0) return byTime;
 
     return compareDefaultStaffOrder(a, b);
   });
+};
 
-// 日付ごとに、その日のシフトをもとに日別ビューと同じ「早い順」でスタッフを並べ替える。
+// 日付ごとに、その日のシフトをもとに日別ビューと同じ決まりでスタッフを並べ替える。
 // 一覧タブ（人×時間／人×勤務パターン）で日別ビューと並びを揃えるために使う。
 export const sortDailyStaffsByDate = ({
   staffs,
   shifts,
   mode,
+  staffSortMode,
 }: {
   staffs: StaffType[];
   shifts: readonly ShiftData[];
   mode: DailyStaffSortMode;
+  staffSortMode?: StaffSortMode;
 }): Map<string, StaffType[]> => {
-  const shiftsByDate = new Map<string, ShiftData[]>();
-  for (const shift of shifts) {
-    const list = shiftsByDate.get(shift.date);
-    if (list) list.push(shift);
-    else shiftsByDate.set(shift.date, [shift]);
-  }
-
   const sortedByDate = new Map<string, StaffType[]>();
-  for (const [date, dateShifts] of shiftsByDate) {
-    sortedByDate.set(date, sortDailyStaffs({ staffs, shiftByStaffId: indexShiftsByStaffId(dateShifts), mode }));
+  for (const [date, dateShifts] of groupShiftsByDate(shifts)) {
+    sortedByDate.set(
+      date,
+      sortDailyStaffs({ staffs, shiftByStaffId: indexShiftsByStaffId(dateShifts), mode, staffSortMode }),
+    );
   }
   return sortedByDate;
 };

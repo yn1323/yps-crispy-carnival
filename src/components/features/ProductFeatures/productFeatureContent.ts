@@ -1,20 +1,24 @@
 import type { IconType } from "react-icons";
-import { LuBellRing, LuCalendarRange, LuMessageCircle, LuSendHorizontal, LuStore } from "react-icons/lu";
+import { LuBellRing, LuCalendarRange, LuMessageCircle, LuSendHorizontal, LuSparkles, LuStore } from "react-icons/lu";
 import { ORGANIZATION_PLAN_LIMITS } from "@/convex/organizationBilling/planLimits";
 import heroPcImage from "@/src/assets/hero-pc.webp";
+import autoCreateDraftSpImage from "@/src/assets/screens/auto-create-draft-sp.webp";
 import confirmedShiftNoticeImage from "@/src/assets/screens/confirmed-shift-notice.webp";
 import multiStoreRecruitmentsImage from "@/src/assets/screens/multi-store-recruitments.webp";
 import recruitmentSubmissionStatusImage from "@/src/assets/screens/recruitment-submission-status.webp";
 import shiftBoardReminderImage from "@/src/assets/screens/shift-board-reminder.webp";
 import shiftBoardSpImage from "@/src/assets/screens/shift-board-sp.webp";
+import shiftSetupStaffingSpImage from "@/src/assets/screens/shift-setup-staffing-sp.webp";
 import staffInvitationQrImage from "@/src/assets/screens/staff-invitation-qr.webp";
 import staffRequestNoticeImage from "@/src/assets/screens/staff-request-notice.webp";
+import staffingShortageSpImage from "@/src/assets/screens/staffing-shortage-sp.webp";
 import submitTimeImage from "@/src/assets/screens/submit-time.webp";
 import buildScheduleImage from "./images/build-schedule.webp";
 import collectRequestsImage from "./images/collect-requests.webp";
 import deadlineReminderImage from "./images/deadline-reminder.webp";
 import multiStoreMapImage from "./images/multi-store-map.webp";
 import shareConfirmedImage from "./images/share-confirmed.webp";
+import shiftAutoCreationImage from "./images/shift-auto-creation.webp";
 import { getProductFeatureHref, PRODUCT_FEATURE_SLUGS, type ProductFeatureSlug } from "./productFeatureRoutes";
 
 // 表示の大半はスマホ（幅360px前後）で読まれる。
@@ -60,11 +64,33 @@ export type ProductFeature = {
   pains: string[];
   capabilities: ProductFeatureCapability[];
   steps: Array<{ title: string; body: string }>;
+  /** 空のときは、よくある質問の節とFAQPage構造化データを出さない。 */
   faqs: ProductFeatureFaq[];
   related: ProductFeatureSlug[];
   /** 操作手順の詳細はヘルプが所有するため、機能ページからはリンクだけを置く。 */
   helpLinks: ProductFeatureLink[];
   articleSlugs: string[];
+  /** 登録なしで操作できるデモ。ある機能だけ、別タブで開くボタンを出す。 */
+  demo?: ProductFeatureDemo;
+};
+
+/** 登録なしで操作できる体験デモ。 */
+export type ProductFeatureDemo = {
+  href: string;
+  /** 「できること」の後の枠に添える、デモで試せることの説明。 */
+  lead: string;
+};
+
+/** 体験デモのシンプル版。希望を集めてから確定を送るまでを試せる。 */
+const HANDS_ON_SIMPLE_DEMO: ProductFeatureDemo = {
+  href: "/demo/simple",
+  lead: "架空のお店とスタッフを用意しています。希望を集めてシフトを確定するまで、そのまま操作できます。",
+};
+
+/** 体験デモのくわしく版。ポジションを分けた勤務と自動作成を試せる。 */
+const HANDS_ON_DETAIL_DEMO: ProductFeatureDemo = {
+  href: "/demo/detail",
+  lead: "架空のお店とスタッフを用意しています。自動作成まで、そのまま操作できます。",
 };
 
 const freeLimits = ORGANIZATION_PLAN_LIMITS.free;
@@ -147,6 +173,7 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
       { href: "/help/guide-staff-line-connection", label: "スタッフへLINE連携を案内する" },
     ],
     articleSlugs: ["line-shift-submission", "shift-request-sheet-template"],
+    demo: HANDS_ON_SIMPLE_DEMO,
   },
   "submission-reminder": {
     name: "提出状況の確認と自動催促",
@@ -280,7 +307,7 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
       },
       {
         q: "シフトを自動で組んでくれますか？",
-        a: "いいえ、自動で組む機能はありません。希望を並べた下書きから調整します。",
+        a: "はい、希望と必要人数から作れます。作った下書きは、調整してから確定します。",
       },
       {
         q: "Excelで直した表を取り込めますか？",
@@ -293,6 +320,76 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
       { href: "/help/scenarios/shift-export", label: "シフトをPDF・Excelでダウンロードしたい" },
     ],
     articleSlugs: ["shift-schedule-creation-guide", "shift-build-faster"],
+    demo: HANDS_ON_SIMPLE_DEMO,
+  },
+  "shift-auto-creation": {
+    name: "シフトの自動作成",
+    icon: LuSparkles,
+    summary: "希望から下書きを自動で作ります",
+    metaTitle: "シフト自動作成｜希望と必要人数から下書きを作る",
+    metaDescription:
+      "スタッフから集めたシフトの希望をもとに、ホールやキッチンに何人必要かも考えて、シフト表を自動で作ります。「17時まで」などのスタッフのメモに合わせて、AIで直すこともできます。人が足りない時間もすぐ分かります。無料プランあり。",
+    heading: ["シフト希望と必要人数から", "シフトを自動で作る"],
+    lead: "らくらく作成で、あとは確認するだけ。",
+    illustration: {
+      src: shiftAutoCreationImage,
+      alt: "店長がスマートフォンで自動作成を押すと、シフト表にポジションごとの色の勤務が並ぶイラスト",
+    },
+    pains: ["人数が多くてシフト作成が大変", "シフト調整がパズル化している", "勤務ポジションも考慮しないといけない"],
+    capabilities: [
+      {
+        title: "スタッフの希望を元にシフトを一括作成",
+        body: "ポジションごとに人を割り当てます。",
+        screen: {
+          src: autoCreateDraftSpImage,
+          alt: "自動で作った勤務が、ポジションの色と休憩つきでスタッフごとに並ぶ、スマートフォンのシフト表",
+          frame: "phone",
+        },
+      },
+      {
+        title: "ポジション別に必要人数を設定",
+        body: "時間帯、曜日をテンプレートとして登録。平日と土日などで使い分けられます。",
+        screen: {
+          src: shiftSetupStaffingSpImage,
+          alt: "ホール、キッチン、レジごとに、時間帯の必要人数を設定する画面",
+          frame: "phone",
+        },
+      },
+      {
+        title: "足りない時間帯も見える",
+        body: "充足を分かりやすく表示。",
+        screen: {
+          src: staffingShortageSpImage,
+          alt: "スマートフォンのシフト表で、ポジションごとの不足の人数が赤く表示された画面",
+          frame: "phone",
+        },
+      },
+      {
+        title: "スタッフのスキルも考慮",
+        body: "スキルに合わせて割り当てを考えます",
+      },
+      {
+        title: "休憩時間設定にも対応",
+        body: "勤務の長さに応じて自動で休憩を設定",
+      },
+      {
+        title: "メモに合わせてAIで手直し",
+        body: "「17時まで」などを読んで直します",
+      },
+    ],
+    steps: [
+      { title: "必要人数を設定する", body: "ポジションと人数を決めておきます" },
+      { title: "自動作成を押す", body: "希望が集まってから押します" },
+      { title: "確かめて確定する", body: "足りない所を直してから確定します" },
+    ],
+    faqs: [],
+    related: ["shift-schedule", "shift-request-collection", "shift-sharing"],
+    helpLinks: [
+      { href: "/help/auto-create-shift-draft", label: "シフトの下書きを自動作成したい" },
+      { href: "/help/set-positions-and-breaks", label: "ポジションと休憩時間を設定する" },
+    ],
+    articleSlugs: ["fair-shift-scheduling", "shift-schedule-creation-guide"],
+    demo: HANDS_ON_DETAIL_DEMO,
   },
   "shift-sharing": {
     name: "確定シフトの共有",
@@ -360,6 +457,7 @@ const PRODUCT_FEATURE_DEFINITIONS: Record<ProductFeatureSlug, Omit<ProductFeatur
       { href: "/help/reissue-confirmed-shift-link", label: "確定シフトの閲覧リンクを再発行する" },
     ],
     articleSlugs: ["shiftori-line-workflow", "sudden-absence-coverage"],
+    demo: HANDS_ON_SIMPLE_DEMO,
   },
   "multi-store": {
     name: "複数店舗・スタッフ管理",

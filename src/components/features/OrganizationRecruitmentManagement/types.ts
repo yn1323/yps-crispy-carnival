@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { RegularClosedDay } from "@/convex/shop/schemas";
 import type { DashboardRecruitmentGroup, Recruitment } from "@/src/components/features/Dashboard/types";
@@ -21,4 +22,6 @@ export type OrganizationRecruitmentManagementProps = {
   shops: readonly OrganizationRecruitmentShop[];
   getRecruitmentShop: (recruitment: Recruitment) => OrganizationRecruitmentShopMetadata | undefined;
   onOpenShiftBoard: (recruitmentId: Recruitment["_id"]) => void;
+  /** ページの見出しを描く。「新しい募集をつくる」を引数で受け取り、見出しの右に置く。 */
+  renderHeader?: (createAction: ReactNode) => ReactNode;
 };

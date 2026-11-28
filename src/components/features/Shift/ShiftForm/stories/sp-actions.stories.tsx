@@ -39,7 +39,7 @@ const meta = {
   globals: mobileGlobals,
   args: {
     ...allPatternsArgs,
-    header: { desktopTitle: "店舗：1/23", mobileTitle: "1/23" },
+    header: { shopName: "店舗", periodTitle: "1/23" },
   },
   render: (args) => <ActionHarness {...args} />,
 } satisfies Meta<typeof ShiftForm>;
@@ -87,10 +87,10 @@ export const ResendConfirmedShift: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const screen = within(canvasElement.ownerDocument.body);
-    const trigger = await canvas.findByRole("button", { name: "保存・再送・出力" });
+    const trigger = await canvas.findByRole("button", { name: "保存・変更を通知・出力" });
 
     await userEvent.click(trigger);
-    await userEvent.click(await screen.findByRole("menuitem", { name: "確定シフトを再送" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "変更を通知" }));
     await expect(canvas.getByRole("status", { name: "操作結果" })).toHaveTextContent(
       "下書き保存：0回、確定・再送：1回、出力：0回",
     );

@@ -3,11 +3,16 @@ import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
+import { isAiShiftDraftConfigured } from "../_lib/config";
 import { isPastShiftPeriod, jstDayRangeMs } from "../_lib/dateFormat";
-import { managerMutation } from "../_lib/functions";
+import { expectedConvexError, observedInternalMutation as internalMutation } from "../_lib/errorObservability";
+import { managerMutation, resolveManagerShopAccessByTokenIdentifier } from "../_lib/functions";
+import { rateLimit } from "../_lib/rateLimits";
 import { assertRecruitmentEditVersion } from "../_lib/recruitmentEditing";
 import { sha256Hex } from "../_lib/sha256";
-import { normalizeExactAdjacentTimeAssignments } from "../_lib/shiftAssignmentNormalization";
+import { normalizeExactAdjacentTimeAssignments, sortShiftBreaks } from "../_lib/shiftAssignmentNormalization";
+import { shiftAssignmentBreakValidator, toShiftAssignmentCore } from "../_lib/shiftAssignmentValidators";
+import { shiftStaffSortModeValidator } from "../_lib/shiftStaffSortMode";
 import { normalizeEmail } from "../_lib/validation";
 import { recordAnalyticsUsage } from "../analytics/record";
 import { NOTIFICATION_FANOUT_SCOPE_LIMIT, SHIFT_ASSIGNMENT_LIMIT, SHIFT_BOARD_STAFF_LIMIT } from "../constants";
@@ -20,7 +25,16 @@ import { ensureNotificationFanoutOperation } from "../notification/fanout";
 import { getBusinessNotificationOrigin } from "../notificationOutbox/origin";
 import { ensureDefaultPosition } from "../position/service";
 import { getActiveRecruitmentInShop } from "../recruitment/service";
+import {
+  listActivePositions,
+  listDayTemplates,
+  listRecruitmentPositions,
+  resolveRecruitmentStaffingDays,
+  usesConfirmedPositions,
+} from "../shiftSetup/service";
 import { getActiveStaffInShop, isShiftTargetStaff } from "../staff/service";
+import type { AiDraftSource } from "./autoCreate/ai/aiDraftPrompt";
+import { countAiDraftRemaining, loadAiDraftSource } from "./autoCreateSource";
 import { buildAssignmentIssue, SHIFT_ASSIGNMENT_VALIDATION, validateShiftAssignments } from "./validation";
 
 const PAST_SHIFT_SAVE_ERROR = "過去のシフトは保存できません。";
@@ -70,7 +84,7 @@ async function getUndeliveredPreviousConfirmationStaffIds(
     ),
   );
   if (deliveryStates.some(({ state }) => state === "processing")) {
-    throw new ConvexError(PREVIOUS_CONFIRMATION_NOTIFICATION_PROCESSING_ERROR);
+    throw expectedConvexError("stale_state", PREVIOUS_CONFIRMATION_NOTIFICATION_PROCESSING_ERROR);
   }
   return {
     undeliveredStaffIds: new Set(
@@ -179,6 +193,21 @@ async function scheduleSupplementalConfirmationResends(
   return scheduledStaffCount;
 }
 
+/**
+ * 募集の保存済みの勤務をすべて読む。
+ * 一部だけを置き換えたり消したりしないよう、上限を超える募集では処理ごと受け付けない。
+ */
+async function listSavedAssignments(ctx: MutationCtx, recruitmentId: Id<"recruitments">) {
+  const assignments = await ctx.db
+    .query("shiftAssignments")
+    .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
+    .take(SHIFT_ASSIGNMENT_LIMIT + 1);
+  if (assignments.length > SHIFT_ASSIGNMENT_LIMIT) {
+    throw new ConvexError("保存済みシフト割当が上限を超えています");
+  }
+  return assignments;
+}
+
 export const saveShiftAssignments = managerMutation({
   args: {
     recruitmentId: v.id("recruitments"),
@@ -191,8 +220,11 @@ export const saveShiftAssignments = managerMutation({
         endTime: v.string(),
         positionId: v.optional(v.id("positions")),
         optionId: v.optional(v.string()),
+        breaks: v.optional(v.array(shiftAssignmentBreakValidator)),
       }),
     ),
+    // 自動作成した勤務を含む下書きか。計測で、自動作成を経た確定かを分けるためだけに使う。
+    includesAutoCreated: v.optional(v.boolean()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -202,7 +234,7 @@ export const saveShiftAssignments = managerMutation({
     }
     assertRecruitmentEditVersion(recruitment, args.expectedEditVersion);
     if (isPastShiftPeriod(recruitment.periodEnd)) {
-      throw new ConvexError(PAST_SHIFT_SAVE_ERROR);
+      throw expectedConvexError("time_passed", PAST_SHIFT_SAVE_ERROR);
     }
     if (args.assignments.length > SHIFT_ASSIGNMENT_LIMIT) {
       throw new ConvexError("シフト割当が上限を超えています");
@@ -218,10 +250,15 @@ export const saveShiftAssignments = managerMutation({
       pattern: submissionPattern,
     });
     if (issues.length > 0) {
-      throw new ConvexError({ code: SHIFT_ASSIGNMENT_VALIDATION, issues });
+      throw expectedConvexError("business_rule", { code: SHIFT_ASSIGNMENT_VALIDATION, issues });
     }
     const uniqueStaffIds = [...new Set(args.assignments.map((a) => a.staffId))];
     const uniquePositionIds = [...new Set(args.assignments.flatMap((a) => (a.positionId ? [a.positionId] : [])))];
+    const recruitmentPositions = await listRecruitmentPositions(ctx, recruitment);
+    const hasConfirmedPositions = usesConfirmedPositions(recruitment);
+    const confirmedPositionIds = hasConfirmedPositions
+      ? new Set(recruitmentPositions.map((position) => position._id))
+      : null;
     await Promise.all(
       [
         uniqueStaffIds.map(async (staffId) => {
@@ -231,6 +268,8 @@ export const saveShiftAssignments = managerMutation({
           }
         }),
         uniquePositionIds.map(async (positionId) => {
+          // 確定済みの募集では、確定した時点のポジションを、あとで削除していても使える。
+          if (confirmedPositionIds?.has(positionId)) return;
           const position = await ctx.db.get(positionId);
           if (!position || position.isDeleted || position.shopId !== ctx.shop._id) {
             throw new ConvexError("Not found");
@@ -240,19 +279,18 @@ export const saveShiftAssignments = managerMutation({
     );
 
     // 削除前に上限超過を検出し、一部だけを置換する状態を作らない。
-    const existing = await ctx.db
-      .query("shiftAssignments")
-      .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", args.recruitmentId))
-      .take(SHIFT_ASSIGNMENT_LIMIT + 1);
-    if (existing.length > SHIFT_ASSIGNMENT_LIMIT) {
-      throw new ConvexError("保存済みシフト割当が上限を超えています");
-    }
+    const existing = await listSavedAssignments(ctx, args.recruitmentId);
 
     const draftSavedAt = Date.now();
-    const defaultPositionId = await ensureDefaultPosition(ctx, ctx.shop._id);
-    const resolvedAssignments = args.assignments.map((assignment) => ({
+    // 確定済みの募集では、確定した時点の既定のポジションへ寄せる。
+    const defaultPositionId =
+      (hasConfirmedPositions ? recruitmentPositions.find((position) => position.isDefault)?._id : undefined) ??
+      (await ensureDefaultPosition(ctx, ctx.shop._id));
+    const resolvedAssignments = args.assignments.map(({ breaks, ...assignment }) => ({
       ...assignment,
       positionId: assignment.positionId ?? defaultPositionId,
+      // 休憩を扱うのは時間指定だけである。パターン選択と日付選択は、受け取っても保存しない。
+      ...(submissionPattern.kind === "time" && breaks && breaks.length > 0 ? { breaks: sortShiftBreaks(breaks) } : {}),
     }));
     const canonicalAssignments =
       submissionPattern.kind === "time"
@@ -276,14 +314,97 @@ export const saveShiftAssignments = managerMutation({
           endTime: assignment.endTime,
           positionId: assignment.positionId,
           ...(assignment.optionId ? { optionId: assignment.optionId } : {}),
+          ...(assignment.breaks ? { breaks: assignment.breaks } : {}),
         }),
       ),
     );
 
-    await ctx.db.patch(args.recruitmentId, { draftSavedAt });
+    // 一度自動作成した下書きは、そのあと手で直して保存しても、自動作成を経たものとして残す。
+    await ctx.db.patch(args.recruitmentId, {
+      draftSavedAt,
+      ...(args.includesAutoCreated ? { draftAutoCreatedAt: draftSavedAt } : {}),
+    });
     return null;
   },
 });
+
+/**
+ * シフト表の「シンプル / くわしく」を切り替え、選んだ表示を店舗に保存する。
+ * 表示が変わると勤務の持ち方（ポジション、休憩）が合わなくなるため、この募集の下書きの勤務をすべて消し、
+ * 下書き保存の前の状態（希望から勤務の候補を作る状態）へ戻す。ほかの募集の下書きは変えない。
+ * 確定済みの募集では受け付けない。
+ */
+export const switchShiftDetailMode = managerMutation({
+  args: {
+    recruitmentId: v.id("recruitments"),
+    expectedEditVersion: v.optional(v.number()),
+    isDetailMode: v.boolean(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const recruitment = await getActiveRecruitmentInShop(ctx, ctx.shop._id, args.recruitmentId);
+    if (!recruitment) {
+      throw new ConvexError("Not found");
+    }
+    assertRecruitmentEditVersion(recruitment, args.expectedEditVersion);
+    if (recruitment.status === "confirmed") {
+      throw expectedConvexError("business_rule", "確定済みのシフトでは、表示を切り替えられません");
+    }
+
+    // 消し残しを作らないよう、上限を超える下書きでは切り替えごと受け付けない。
+    const existing = await listSavedAssignments(ctx, args.recruitmentId);
+    await Promise.all(existing.map((assignment) => ctx.db.delete(assignment._id)));
+    // 勤務のない募集は「下書き未保存」が正しいため、下書き保存の時刻と、自動作成した下書きの記録も消す。
+    await ctx.db.patch(args.recruitmentId, { draftSavedAt: undefined, draftAutoCreatedAt: undefined });
+    await ctx.db.patch(ctx.shop._id, { shiftDetailMode: args.isDetailMode });
+    return null;
+  },
+});
+
+/**
+ * シフト表のスタッフの並び替え（固定 / 勤務時間順）を店舗へ保存する。
+ * 表示の好みだけを変え、勤務、下書き、通知には触れない。確定済みの募集を開いているときも変えられる。
+ */
+export const setShiftStaffSortMode = managerMutation({
+  args: { mode: shiftStaffSortModeValidator },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    if (ctx.shop.shiftStaffSortMode === args.mode) return null;
+    await ctx.db.patch(ctx.shop._id, { shiftStaffSortMode: args.mode });
+    return null;
+  },
+});
+
+/**
+ * 確定した時点の、募集期間の各日の必要人数（募集の集め方へ写したもの）とテンプレートの名前を保存する。
+ * 確定済みのシフト表は、この内容だけを表示する。テンプレートが当たらない日は行を作らない。
+ */
+async function saveRecruitmentStaffingSnapshots(
+  ctx: MutationCtx,
+  recruitment: Doc<"recruitments">,
+  positions: ReadonlyArray<Doc<"positions">>,
+) {
+  const templates = await listDayTemplates(ctx, recruitment.shopId);
+  const days = await resolveRecruitmentStaffingDays(ctx, {
+    shopId: recruitment.shopId,
+    recruitment,
+    templates,
+    activePositionIds: new Set(positions.map((position) => position._id)),
+  });
+  await Promise.all(
+    days
+      .filter((day) => day.source !== "none")
+      .map((day) =>
+        ctx.db.insert("recruitmentStaffingSnapshots", {
+          recruitmentId: recruitment._id,
+          shopId: recruitment.shopId,
+          date: day.date,
+          templateName: day.templateName,
+          requirements: day.requirements,
+        }),
+      ),
+  );
+}
 
 export const confirmRecruitment = managerMutation({
   args: {
@@ -310,32 +431,26 @@ export const confirmRecruitment = managerMutation({
       await toAuditRequestKey(args.requestId);
     }
     if (isPastShiftPeriod(recruitment.periodEnd)) {
-      throw new ConvexError(PAST_SHIFT_NOTIFY_ERROR);
+      throw expectedConvexError("time_passed", PAST_SHIFT_NOTIFY_ERROR);
     }
 
     const isResend = recruitment.status === "confirmed";
     const intent = args.intent ?? "confirm";
     if (intent === "resend" && !isResend) {
-      throw new ConvexError("確定シフトだけ再送できます");
+      throw expectedConvexError("business_rule", "確定シフトだけ再送できます");
     }
     if (intent === "confirm" && isResend) {
       return null;
     }
 
     const shopClosedDateSet = new Set(recruitment.shopClosedDates);
-    const existingAssignments = await ctx.db
-      .query("shiftAssignments")
-      .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", args.recruitmentId))
-      .take(SHIFT_ASSIGNMENT_LIMIT + 1);
-    if (existingAssignments.length > SHIFT_ASSIGNMENT_LIMIT) {
-      throw new ConvexError("保存済みシフト割当が上限を超えています");
-    }
+    const existingAssignments = await listSavedAssignments(ctx, args.recruitmentId);
     const closedDateAssignments =
       shopClosedDateSet.size > 0
         ? existingAssignments.filter((assignment) => shopClosedDateSet.has(assignment.date))
         : [];
     if (closedDateAssignments.length > 0) {
-      throw new ConvexError({
+      throw expectedConvexError("business_rule", {
         code: SHIFT_ASSIGNMENT_VALIDATION,
         issues: closedDateAssignments.map((assignment) =>
           buildAssignmentIssue("CLOSED_DAY", assignment.date, assignment.staffId),
@@ -353,14 +468,7 @@ export const confirmRecruitment = managerMutation({
     const notificationStaffs = staffs.filter(isShiftTargetStaff);
     const currentSnapshots = buildConfirmationSnapshotsForStaffs(
       notificationStaffs.map((staff) => staff._id),
-      existingAssignments.map((assignment) => ({
-        staffId: assignment.staffId,
-        date: assignment.date,
-        startTime: assignment.startTime,
-        endTime: assignment.endTime,
-        positionId: assignment.positionId,
-        ...(assignment.optionId !== undefined ? { optionId: assignment.optionId } : {}),
-      })),
+      existingAssignments.map((assignment) => ({ staffId: assignment.staffId, ...toShiftAssignmentCore(assignment) })),
       recruitment.submissionPattern.kind === "time",
     );
     // シフトボードで扱うスタッフ上限に合わせ、snapshotも差分判定対象のスタッフ分だけ読む。
@@ -468,12 +576,25 @@ export const confirmRecruitment = managerMutation({
     }
     const confirmedAt = Date.now();
     // 再確定も同じ導線で許可する。再通知では前回通知時点から変わったスタッフだけに届ける。
+    // 未確定から確定へ変わるときだけ、確定した時点のポジションと必要人数を残す。再確定では書き直さない。
+    const positionsAtConfirmation = isResend ? null : await listActivePositions(ctx, recruitment.shopId);
     await ctx.db.patch(args.recruitmentId, {
       status: "confirmed",
       confirmedAt,
+      ...(positionsAtConfirmation
+        ? {
+            confirmedPositions: positionsAtConfirmation.map((position) => ({
+              positionId: position._id,
+              name: position.name,
+              color: position.color,
+              isDefault: position.isDefault,
+            })),
+          }
+        : {}),
       lastConfirmationNotificationOperationKey: operationKey,
       lastConfirmationNotificationRunId: notificationRunId,
     });
+    if (positionsAtConfirmation) await saveRecruitmentStaffingSnapshots(ctx, recruitment, positionsAtConfirmation);
     // 配送だけの再送は利用実績へ加えない。確定後に保存したシフトの再確定は記録する。
     if (!isResend || (recruitment.draftSavedAt ?? 0) > (recruitment.confirmedAt ?? 0)) {
       await recordAnalyticsUsage(ctx, {
@@ -510,5 +631,73 @@ export const confirmRecruitment = managerMutation({
     );
     await ctx.db.patch(fanoutOperation._id, { scheduledFunctionId: fanoutScheduledFunctionId });
     return { status: "scheduled" as const, notifiedStaffCount: targetStaffIds.length };
+  },
+});
+
+export type PreparedAiDraftRequest =
+  | { status: "notConfigured" | "notFound" | "unsupported" | "limitReached" | "rateLimited" }
+  | { status: "ready"; shopId: Id<"shops">; recruitmentId: Id<"recruitments">; source: AiDraftSource };
+
+/**
+ * シフトのAI作成のactionから呼び、権限の確認、回数の確認、AIへ渡す材料の読み取りを1回で行う。
+ * 勤務は変えない。書き込むのは、続けて押した回数の消費だけである。
+ * 材料には日付メモを含むため、店舗の管理者であることを確かめたあとでだけ読む。
+ * 募集ごとの回数は、AIが下書きを返せた回の記録の数で数える。ここでは残りを確かめるだけで、記録は`recordAiDraftUsage`が足す。
+ */
+export const prepareAiDraftRequest = internalMutation({
+  args: {
+    tokenIdentifier: v.string(),
+    shopId: v.id("shops"),
+    expectedOrganizationId: v.id("organizations"),
+    recruitmentId: v.id("recruitments"),
+    includesBreaks: v.boolean(),
+  },
+  handler: async (ctx, args): Promise<PreparedAiDraftRequest> => {
+    if (!isAiShiftDraftConfigured()) return { status: "notConfigured" };
+
+    const access = await resolveManagerShopAccessByTokenIdentifier(ctx, args);
+    if (!access) return { status: "notFound" };
+    const recruitment = await getActiveRecruitmentInShop(ctx, access.shop._id, args.recruitmentId);
+    if (recruitment?.status !== "open") return { status: "notFound" };
+    if (recruitment.submissionPattern.kind !== "time") return { status: "unsupported" };
+
+    if ((await countAiDraftRemaining(ctx, recruitment._id)) <= 0) return { status: "limitReached" };
+    const short = await rateLimit(ctx, { name: "aiShiftDraftShort", key: `${access.user._id}:${access.shop._id}` });
+    if (!short.ok) return { status: "rateLimited" };
+
+    return {
+      status: "ready",
+      shopId: access.shop._id,
+      recruitmentId: recruitment._id,
+      source: await loadAiDraftSource(ctx, { shop: access.shop, recruitment, includesBreaks: args.includesBreaks }),
+    };
+  },
+});
+
+/**
+ * 外部のAIを呼んだ1回を記録する。AIがトークンを使った回だけ、返答を受け取ったあとで呼ぶ。
+ * 下書きを返せた回の記録が、その募集で使った回数になる。応じなかった回は、記録だけを残し、回数には数えない。
+ * 組織は、渡された値を使わずに、店舗から読む。
+ */
+export const recordAiDraftUsage = internalMutation({
+  args: {
+    shopId: v.id("shops"),
+    recruitmentId: v.id("recruitments"),
+    outcome: v.union(v.literal("created"), v.literal("declined")),
+    mode: v.union(v.literal("scratch"), v.literal("revise")),
+    model: v.string(),
+    effort: v.union(v.literal("low"), v.literal("medium"), v.literal("high")),
+    maxTokens: v.number(),
+    requestCount: v.number(),
+    inputTokens: v.number(),
+    outputTokens: v.number(),
+    thinkingTokens: v.optional(v.number()),
+  },
+  handler: async (ctx, args): Promise<null> => {
+    const shop = await ctx.db.get(args.shopId);
+    // 呼んでいる間に店舗が消えた場合は、組織を特定できないため記録しない。
+    if (!shop) return null;
+    await ctx.db.insert("aiShiftDraftUsages", { organizationId: shop.organizationId, ...args });
+    return null;
   },
 });

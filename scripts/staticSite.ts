@@ -23,7 +23,9 @@ export const FIXED_PUBLIC_ROUTES = [
   "/cache-reset",
   "/commercial-transactions",
   "/contact",
+  "/demo/detail",
   "/demo/shiftboard",
+  "/demo/simple",
   "/features",
   "/help",
   NOTIFICATION_BASICS_HELP.href,
@@ -42,6 +44,9 @@ export const NOINDEX_PUBLIC_ROUTES = new Set<string>([
   "/account-deletion-accepted",
   "/cache-reset",
   "/commercial-transactions",
+  // 体験デモは、入口のボタンを置くまで検索結果に出さない。
+  "/demo/detail",
+  "/demo/simple",
   "/privacy",
   "/privacy/manager",
   "/privacy/staff",
@@ -99,6 +104,8 @@ export const CSR_SHELL_STATIC_ROUTES = [
   "/shifts/reissue",
   "/shifts/submit",
   "/shifts/submit/completed",
+  // 体験デモのスマートフォンの枠に読み込む、スタッフの提出画面。スタッフの画面と同じく、検索の対象にしない。
+  "/shifts/demo-submit",
   "/shifts/view",
   "/signup",
   "/sso-callback",
@@ -109,6 +116,7 @@ export const CSR_SHELL_STATIC_ROUTES = [
 /** Cloudflare Pagesのnamed placeholder。長いpathを先に評価する。 */
 export const CSR_SHELL_DYNAMIC_ROUTES = [
   "/staff/:personId/shops/:shopId",
+  "/manage/shops/:shopId/shift-setup",
   "/manage/shops/:shopId",
   "/shifts/:recruitmentId/board",
   "/shifts/:recruitmentId/export",

@@ -6,6 +6,8 @@ import type { DayEntry } from "../types";
 import { DayCard } from "./index";
 
 const timeOptions = generateTimeOptions("09:00", "22:00");
+// 日付をまたぐ受付時間。24:00以降の選択肢は「翌 05:00」のように文字が増える。
+const overnightTimeOptions = generateTimeOptions("17:00", "36:00");
 const noop = () => {};
 
 const AllVariants = () => (
@@ -44,6 +46,26 @@ const AllVariants = () => (
       onToggleWorking={noop}
       onTimeChange={noop}
       onClear={noop}
+    />
+
+    <Text fontSize="xs" fontWeight="semibold" color="fg.muted" mt={2}>
+      出勤（終了が翌日 / 開始も終了も翌日）
+    </Text>
+    <DayCard
+      entry={{ date: "2026-04-09", isWorking: true, startTime: "22:00", endTime: "29:00" }}
+      timeOptions={overnightTimeOptions}
+      onToggleWorking={noop}
+      onTimeChange={noop}
+      onClear={noop}
+      onEditNote={noop}
+    />
+    <DayCard
+      entry={{ date: "2026-04-10", isWorking: true, startTime: "24:30", endTime: "35:30" }}
+      timeOptions={overnightTimeOptions}
+      onToggleWorking={noop}
+      onTimeChange={noop}
+      onClear={noop}
+      onEditNote={noop}
     />
 
     <Text fontSize="xs" fontWeight="semibold" color="fg.muted" mt={2}>

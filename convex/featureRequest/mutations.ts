@@ -1,6 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
+import { expectedConvexError } from "../_lib/errorObservability";
 import { authenticatedMutation, managerMutation, staffSessionMutation } from "../_lib/functions";
 import { rateLimit } from "../_lib/rateLimits";
 import { sessionMatchesAccessKind } from "../_lib/staffAccess";
@@ -33,11 +34,14 @@ async function submitManagerFeatureRequest(
 
   const shortLimit = await rateLimit(ctx, { name: "featureRequestShort", key: args.userId });
   if (!shortLimit.ok) {
-    throw new ConvexError("少し時間をおいて、もう一度お試しください。");
+    throw expectedConvexError("rate_limited", "少し時間をおいて、もう一度お試しください。");
   }
   const dailyLimit = await rateLimit(ctx, { name: "featureRequestDaily", key: args.userId });
   if (!dailyLimit.ok) {
-    throw new ConvexError("本日の送信回数が上限に達しました。\n少し時間をおいて、もう一度お試しください。");
+    throw expectedConvexError(
+      "rate_limited",
+      "本日の送信回数が上限に達しました。\n少し時間をおいて、もう一度お試しください。",
+    );
   }
 
   await ctx.db.insert("featureRequests", {
@@ -123,7 +127,7 @@ export const submitFromStaff = staffSessionMutation({
   returns: v.object({ status: v.literal("accepted") }),
   handler: async (ctx, args) => {
     if (!sessionMatchesAccessKind(ctx.session, "submit")) {
-      throw new ConvexError("Session expired");
+      throw expectedConvexError("auth_expired", "Session expired");
     }
 
     const parsed = submitFeatureRequestSchema.safeParse(args);
@@ -141,11 +145,14 @@ export const submitFromStaff = staffSessionMutation({
 
     const shortLimit = await rateLimit(ctx, { name: "staffFeatureRequestShort", key: ctx.staff._id });
     if (!shortLimit.ok) {
-      throw new ConvexError("少し時間をおいて、もう一度お試しください。");
+      throw expectedConvexError("rate_limited", "少し時間をおいて、もう一度お試しください。");
     }
     const dailyLimit = await rateLimit(ctx, { name: "staffFeatureRequestDaily", key: ctx.staff._id });
     if (!dailyLimit.ok) {
-      throw new ConvexError("本日の送信回数が上限に達しました。\n少し時間をおいて、もう一度お試しください。");
+      throw expectedConvexError(
+        "rate_limited",
+        "本日の送信回数が上限に達しました。\n少し時間をおいて、もう一度お試しください。",
+      );
     }
 
     await ctx.db.insert("featureRequests", {

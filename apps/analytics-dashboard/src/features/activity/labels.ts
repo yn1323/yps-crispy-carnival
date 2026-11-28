@@ -77,7 +77,7 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   "organization.created": "組織を作成",
   "organization.deleted": "組織を削除",
   "organization.name_changed": "組織名を変更",
-  "organization.billing_email_changed": "請求先メールアドレスを変更",
+  "organization.billing_email_changed": "支払いのお知らせ先を変更",
   "organization.shop_added": "店舗を追加",
   "organization.shop_deleted": "店舗を削除",
   "organization.person_removed_from_shop": "店舗の所属から外す",

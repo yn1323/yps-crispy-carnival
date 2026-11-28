@@ -35,7 +35,7 @@ export function OrganizationPaymentFailureAlert({
           <Alert.Description>
             <Stack gap={1.5}>
               <Text>
-                請求通知先メールアドレスにStripeから案内が届いている場合があります。
+                支払いのお知らせ先のメールアドレスにStripeから案内が届いている場合があります。
                 <br />
                 支払い方法を確認して、もう一度希望のプランの支払いをしてください。
               </Text>

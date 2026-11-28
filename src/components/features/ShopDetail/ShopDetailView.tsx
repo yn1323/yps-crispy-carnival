@@ -11,6 +11,7 @@ import { StepperDialog } from "@/src/components/ui/StepperDialog";
 import { ShopBasicInformationSection } from "./ShopBasicInformationSection";
 import { ShopDeletionDialog } from "./ShopDeletionDialog";
 import { ShopOtherSettingsSection } from "./ShopOtherSettingsSection";
+import { ShopShiftSetupSection } from "./ShopShiftSetupSection";
 import { ShopStaffList } from "./ShopStaffList";
 import { ConnectedShopStaffMembershipDialog, ShopStaffMembershipDialogError } from "./ShopStaffMembershipDialog";
 import type { ShopDetailData, ShopDetailPerson } from "./types";
@@ -30,6 +31,7 @@ type Props = {
   isDeleting: boolean;
   onBack: () => void;
   onOpenUser: (personId: string) => void;
+  onOpenShiftSetup: () => void;
   onUpdateSettings: (data: ShopFormData) => void | Promise<void>;
   onDelete: () => Promise<boolean>;
   expectedOrganizationId: Id<"organizations">;
@@ -42,6 +44,7 @@ export function ShopDetailView({
   isDeleting,
   onBack,
   onOpenUser,
+  onOpenShiftSetup,
   onUpdateSettings,
   onDelete,
   expectedOrganizationId,
@@ -85,6 +88,7 @@ export function ShopDetailView({
         onOpenUser={onOpenUser}
         onChangeStaffs={() => setIsStaffMembershipDialogOpen(true)}
       />
+      <ShopShiftSetupSection onOpen={onOpenShiftSetup} />
       <ShopOtherSettingsSection
         shop={shop}
         organizationId={expectedOrganizationId}
@@ -152,6 +156,7 @@ export function ShopDetailSkeleton() {
       <DetailPageHeaderSkeleton titleWidth={{ base: "184px", md: "300px" }} />
       <ShopBasicInformationSkeleton />
       <ShopStaffListSkeleton />
+      <ShopShiftSetupSkeleton />
       <ShopOtherSettingsSkeleton />
     </Stack>
   );
@@ -203,6 +208,23 @@ function ShopStaffListSkeleton() {
             <Skeleton boxSize={5} borderRadius="sm" />
           </HStack>
         </Flex>
+      </Box>
+    </Stack>
+  );
+}
+
+function ShopShiftSetupSkeleton() {
+  return (
+    <Stack gap={3}>
+      <SectionTitleSkeleton width="96px" />
+      <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" overflow="hidden">
+        <HStack gap={3} px={{ base: 3, md: 4 }} py={3.5}>
+          <Skeleton boxSize="40px" borderRadius="lg" flexShrink={0} />
+          <Stack gap={1.5} flex={1} minW={0}>
+            <Skeleton h="20px" w="136px" />
+            <Skeleton h="16px" w={{ base: "88%", md: "320px" }} />
+          </Stack>
+        </HStack>
       </Box>
     </Stack>
   );

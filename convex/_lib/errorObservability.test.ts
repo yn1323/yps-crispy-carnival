@@ -6,6 +6,7 @@ import { PROMOTION_CODE_INVALID_ERROR_CODE } from "../setup/constants";
 import {
   buildConvexFunctionErrorPayload,
   CONVEX_FUNCTION_ERROR_MARKER,
+  expectedConvexError,
   observedMutation,
   observedQuery,
   registerConvexFunctionErrorContext,
@@ -23,7 +24,7 @@ describe("buildConvexFunctionErrorPayload", () => {
     vi.restoreAllMocks();
   });
 
-  it("明示登録したcontextだけを出力し、同名の未検証argsも既定で拒否する", () => {
+  it("明示登録したcontextを出力し、IDの形でない引数と許可していない引数を出力しない", () => {
     const ctx = {};
     registerConvexFunctionErrorContext(ctx, {
       actorKind: "manager",
@@ -93,12 +94,12 @@ describe("buildConvexFunctionErrorPayload", () => {
     );
 
     expect(known).toMatchObject({ failureKind: "domain", errorCode: "not_found" });
-    expect(structuredKnown).toMatchObject({ failureKind: "domain", errorCode: "usage_limit_exceeded" });
+    expect(structuredKnown).toMatchObject({ failureKind: "expected", errorCode: "usage_limit_exceeded" });
     expect(unavailableUsageEvaluation).toMatchObject({
       failureKind: "domain",
       errorCode: "usage_limit_evaluation_unavailable",
     });
-    expect(invalidPromotionCode).toMatchObject({ failureKind: "domain", errorCode: "promotion_code_invalid" });
+    expect(invalidPromotionCode).toMatchObject({ failureKind: "expected", errorCode: "promotion_code_invalid" });
     expect(JSON.stringify(structuredKnown)).not.toContain("利用人数を減らしてください");
     expect(JSON.stringify(unavailableUsageEvaluation)).not.toContain("利用数を確認できません");
     expect(unknown).toMatchObject({ failureKind: "domain", errorCode: "convex_error" });
@@ -145,6 +146,105 @@ describe("buildConvexFunctionErrorPayload", () => {
     expect(payload.context && Object.keys(payload.context)).toHaveLength(12);
     expect(payload.context?.actorUserId).toHaveLength(128);
     expect(payload.context?.requestedShopId).toHaveLength(128);
+  });
+
+  it("許可した名前の引数にあるIDだけを要求IDとして出力する", () => {
+    const shopId = "k9793bad93qzy8k6gxe0zpg94189r4hy";
+    const userId = "kh72mkd7q1cmnhqdkzncyhtrrx8jtmjd";
+    const payload = buildConvexFunctionErrorPayload(
+      "mutation",
+      new Error("failed"),
+      {},
+      {
+        shopId,
+        userId,
+        staffId: "secret@example.com",
+        recruitmentId: "token-value-with-symbols!",
+        sessionToken: "kd76de1dc2nca2176jjjsyfh3189r980",
+        email: "kd76de1dc2nca2176jjjsyfh3189r981",
+        name: "山田 花子",
+      },
+    );
+
+    expect(payload.context).toEqual({ requestedShopId: shopId, requestedUserId: userId });
+  });
+
+  it("同じfieldへ対応する別名の引数は、先の名前の値を残して上書きしない", () => {
+    const organizationPersonId = "qs7bt068601hztgb23xtv9ngs58bneer";
+    const payload = buildConvexFunctionErrorPayload(
+      "mutation",
+      new Error("failed"),
+      {},
+      { personId: "qs78nsjgvfx3txhpgesbrtwfen8jcrem", organizationPersonId },
+    );
+
+    expect(payload.context).toEqual({ requestedPersonId: organizationPersonId });
+  });
+
+  it("serverで解決したcontextを優先し、上限を超えた引数由来のIDを落とす", () => {
+    const id = (seed: string) => seed.padEnd(32, "a");
+    const ctx = {};
+    registerConvexFunctionErrorContext(ctx, {
+      actorKind: "manager",
+      actorUserId: id("user") as Id<"users">,
+      actorPersonId: id("person") as Id<"organizationPeople">,
+      organizationId: id("organization") as Id<"organizations">,
+      shopId: id("shop") as Id<"shops">,
+      staffId: id("staff") as Id<"staffs">,
+      recruitmentId: id("recruitment") as Id<"recruitments">,
+      notificationOutboxId: id("outbox") as Id<"notificationOutbox">,
+      requestedOrganizationId: id("requestedorg") as Id<"organizations">,
+      requestedShopId: id("requestedshop") as Id<"shops">,
+      requestedExpectedOrganizationId: id("expectedorg") as Id<"organizations">,
+    });
+
+    const payload = buildConvexFunctionErrorPayload("mutation", new Error("failed"), ctx, {
+      shopId: id("argshop"),
+      staffId: id("argstaff"),
+      recruitmentId: id("argrecruitment"),
+    });
+
+    expect(payload.context && Object.keys(payload.context)).toHaveLength(12);
+    expect(payload.context?.requestedShopId).toBe(id("requestedshop"));
+    expect(payload.context?.requestedRecruitmentId).toBe(id("argrecruitment"));
+    expect(payload.context).not.toHaveProperty("requestedStaffId");
+  });
+
+  it("想定内のエラーを分類名つきのexpectedとして出力し、文面を出力しない", () => {
+    const marked = buildConvexFunctionErrorPayload(
+      "mutation",
+      expectedConvexError("business_rule", "最後の店舗は削除できません"),
+      {},
+      {},
+    );
+    const markedKnownCode = buildConvexFunctionErrorPayload(
+      "mutation",
+      expectedConvexError("plan_limit", { code: "USAGE_LIMIT_EXCEEDED", message: "上限です" }),
+      {},
+      {},
+    );
+    // actionがmutationの失敗を受け取ると、別のConvexErrorとして作り直される。
+    const rebuiltAtActionBoundary = buildConvexFunctionErrorPayload(
+      "action",
+      new ConvexError({ code: "LINE_LINKED_TO_OTHER_PERSON" }),
+      {},
+      {},
+    );
+    const unmarked = buildConvexFunctionErrorPayload("mutation", new ConvexError("最後の店舗は削除できません"), {}, {});
+
+    expect(marked).toEqual({
+      schemaVersion: 1,
+      functionKind: "mutation",
+      failureKind: "expected",
+      errorCode: "expected_business_rule",
+    });
+    expect(markedKnownCode).toMatchObject({ failureKind: "expected", errorCode: "usage_limit_exceeded" });
+    expect(JSON.stringify(markedKnownCode)).not.toContain("上限です");
+    expect(rebuiltAtActionBoundary).toMatchObject({
+      failureKind: "expected",
+      errorCode: "line_linked_to_other_person",
+    });
+    expect(unmarked).toMatchObject({ failureKind: "domain", errorCode: "convex_error" });
   });
 });
 
@@ -195,6 +295,30 @@ describe("observed Convex function builders", () => {
     });
 
     await expect(invokeRegisteredHandler(registered, {}, {})).rejects.toBe(originalError);
+  });
+
+  it("想定内のエラーはwarnで記録し、画面へ届く内容を変えずに同じobjectを再送出する", async () => {
+    const originalError = expectedConvexError("already_exists", "このメールアドレスはすでに使用されています。");
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const registered = observedMutation({
+      args: {},
+      handler: async () => {
+        throw originalError;
+      },
+    });
+
+    await expect(invokeRegisteredHandler(registered, {}, {})).rejects.toBe(originalError);
+    expect(originalError).toBeInstanceOf(ConvexError);
+    expect(originalError.data).toBe("このメールアドレスはすでに使用されています。");
+    expect(consoleError).not.toHaveBeenCalled();
+    expect(consoleWarn).toHaveBeenCalledOnce();
+    expect(consoleWarn).toHaveBeenCalledWith(CONVEX_FUNCTION_ERROR_MARKER, {
+      schemaVersion: 1,
+      functionKind: "mutation",
+      failureKind: "expected",
+      errorCode: "expected_already_exists",
+    });
   });
 
   it("customQueryのscope解決contextを外側のobserved builderへ引き継ぐ", async () => {

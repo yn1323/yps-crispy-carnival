@@ -20,10 +20,22 @@ type Props = {
   role: StaffListRowRole;
   detail?: StaffListRowDetail;
   badges?: readonly StaffListRowBadge[];
+  /** スマートフォンで、余白を詰めて名前の文字を1段小さくする。`DrilldownRow`の同名の指定を渡す。 */
+  compactOnMobile?: boolean;
+  hasLeadingHandle?: boolean;
   onOpen: () => void;
 };
 
-export function StaffListRow({ id, name, role, detail, badges = [], onOpen }: Props) {
+export function StaffListRow({
+  id,
+  name,
+  role,
+  detail,
+  badges = [],
+  compactOnMobile = false,
+  hasLeadingHandle = false,
+  onOpen,
+}: Props) {
   const initial = name.trim().charAt(0) || "?";
   const isManager = role === "manager";
   const roleLabel = isManager ? "管理者" : "スタッフ";
@@ -41,6 +53,8 @@ export function StaffListRow({ id, name, role, detail, badges = [], onOpen }: Pr
       ariaLabel={`${name}のスタッフ詳細を開く`}
       title={name}
       highlighted={isManager}
+      compactOnMobile={compactOnMobile}
+      hasLeadingHandle={hasLeadingHandle}
       onClick={onOpen}
       leading={
         <Flex

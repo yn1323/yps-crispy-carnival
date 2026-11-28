@@ -1,8 +1,10 @@
 import { Box, Heading } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import type { Id } from "@/convex/_generated/dataModel";
 import { AppOrganizationSwitcher } from "@/src/components/features/AuthenticatedApp";
+import { Button } from "@/src/components/ui/Button";
+import { useAppHeaderVisibility } from "@/src/providers/AppHeaderVisibilityProvider";
 import { AuthenticatedAppShell } from ".";
 
 const ORGANIZATION_ID = "organizations_story" as Id<"organizations">;
@@ -123,4 +125,36 @@ export const NarrowMobileWithAllHeaderActions: Story = {
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
   play: OrganizationScoped.play,
+};
+
+/** シフト表のように、画面の内側のスクロールに合わせてヘッダーを隠す・表示するを伝える画面の代わり。 */
+function HeaderVisibilityRequester() {
+  const { isHiddenByContent, setHiddenByContent } = useAppHeaderVisibility();
+  return (
+    <Box p={6}>
+      <Button onClick={() => setHiddenByContent(!isHiddenByContent)}>
+        {isHiddenByContent ? "ヘッダーを表示する" : "ヘッダーを隠す"}
+      </Button>
+    </Box>
+  );
+}
+
+/** 画面の内側でスクロールする画面が伝えると、ページをスクロールしていなくてもヘッダーを隠し、戻すと表示する。 */
+export const HidesHeaderWhenContentRequests: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: (args) => (
+    <AuthenticatedAppShell {...args}>
+      <HeaderVisibilityRequester />
+    </AuthenticatedAppShell>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const header = canvas.getByRole("banner");
+
+    await userEvent.click(canvas.getByRole("button", { name: "ヘッダーを隠す" }));
+    await waitFor(() => expect(header.getBoundingClientRect().bottom).toBeLessThanOrEqual(0));
+
+    await userEvent.click(canvas.getByRole("button", { name: "ヘッダーを表示する" }));
+    await waitFor(() => expect(header.getBoundingClientRect().top).toBe(0));
+  },
 };

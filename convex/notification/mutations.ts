@@ -4,6 +4,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { getRecruitmentEditVersion } from "../_lib/recruitmentEditing";
+import { toShiftAssignmentCore } from "../_lib/shiftAssignmentValidators";
 import { isShopAvailable } from "../_lib/shopAvailability";
 import { staffAccessKindValidator } from "../_lib/staffAccess";
 import { generateUUID } from "../_lib/uuid";
@@ -229,13 +230,7 @@ export const upsertConfirmationSnapshot = internalMutation({
         q.eq("recruitmentId", args.recruitmentId).eq("staffId", args.staffId),
       )
       .collect();
-    const currentSnapshotAssignments = currentAssignments.map((assignment) => ({
-      date: assignment.date,
-      startTime: assignment.startTime,
-      endTime: assignment.endTime,
-      positionId: assignment.positionId,
-      ...(assignment.optionId !== undefined ? { optionId: assignment.optionId } : {}),
-    }));
+    const currentSnapshotAssignments = currentAssignments.map(toShiftAssignmentCore);
     const canonicalizeTime = recruitment.submissionPattern.kind === "time";
     if (!confirmationSnapshotMatchesAssignments(suppliedSnapshot, currentSnapshotAssignments, canonicalizeTime)) {
       return null;

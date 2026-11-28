@@ -38,7 +38,7 @@
 | `api.shiftSubmission.queries.getSubmissionPageData` | query | 提出画面データ、提出方法、既存提出、本人の日付メモ、前回シフトあり週パターンを取得 |
 | `api.shiftSubmission.queries.getSubmissionResult` | query | 保存済みsubmit session、募集、店舗、スタッフ、提出recordを照合し、提出完了画面用の最小結果を返す |
 | `api.shiftSubmission.mutations.submitShiftRequests` | mutation | 提出方法別の入力を保存形式へ変換し、希望シフトと日付メモを提出・再提出する |
-| `api.shiftView.queries.getShiftViewData` | query | 確定シフト閲覧用に提出方法スナップショット、確定割当、定休日を取得 |
+| `api.shiftView.queries.getShiftViewData` | query | 確定シフト閲覧用に提出方法スナップショット、確定割当、定休日を取得。スタッフは店舗と同じ並び順で返し、店舗が選んだ並べ方も返す。並びの決まりは[シフト表](shift-board.md)の「スタッフの並び」の節に書く |
 
 ## 日付メモ
 

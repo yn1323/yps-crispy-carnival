@@ -66,7 +66,8 @@ const addScheduleRows = (worksheet: Worksheet, schedule: ExportSchedule) => {
       );
       const cellFontSize = Math.floor(fontSize * 2) / 2;
       styleTableCell(cell, cellFontSize);
-      if (schedule.mode === "shiftType") {
+      // パターン名と、日付選択のポジション名は、Excelでは省かずに折り返す。
+      if (schedule.mode === "shiftType" || schedule.view === "positions") {
         // Full option names must remain editable; allow wrapping only in Excel and reserve the same height for everyone.
         const charactersPerLine = Math.max(
           1,

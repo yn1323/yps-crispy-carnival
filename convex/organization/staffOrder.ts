@@ -1,6 +1,7 @@
 import { ConvexError } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { DatabaseReader, DatabaseWriter } from "../_generated/server";
+import { expectedConvexError } from "../_lib/errorObservability";
 import { sha256Hex } from "../_lib/sha256";
 import { ORGANIZATION_PLAN_LIMITS } from "../organizationBilling/planLimits";
 
@@ -369,6 +370,36 @@ export async function getOrganizationStaffOrderScope(
   return canonicalStaffs && shopEntriesValid ? { mode: "ordered", revision: state.revision } : { mode: "legacy" };
 }
 
+/**
+ * 店舗のスタッフを、スタッフのページで決めた並び順（組織共通順の部分列）で並べたIDを返す。
+ * 並び順が有効でない組織と、完全性が崩れている場合はnullを返す。呼び出し側は、既定の順（登録順など）へ戻す。
+ */
+export async function listShopStaffIdsInSavedOrder(
+  ctx: ReadCtx,
+  args: { organizationId: Id<"organizations">; shopId: Id<"shops"> },
+): Promise<Id<"staffs">[] | null> {
+  const scope = await getOrganizationStaffOrderScope(ctx, args);
+  if (scope.mode !== "ordered") return null;
+  const entries = await ctx.db
+    .query("shopStaffOrderEntries")
+    .withIndex("by_shopId_and_displayOrder", (q) => q.eq("shopId", args.shopId))
+    .take(ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT);
+  return entries.map((entry) => entry.staffId);
+}
+
+/**
+ * スタッフを、listShopStaffIdsInSavedOrderが返した並び順で並べる。
+ * 並び順に載っていない人と、並び順が有効でない場合（null）は、登録した順で後ろに置く。
+ */
+export function sortStaffsInSavedOrder<T extends { _id: Id<"staffs">; _creationTime: number }>(
+  staffs: readonly T[],
+  savedOrder: readonly Id<"staffs">[] | null,
+): T[] {
+  const rankByStaffId = new Map((savedOrder ?? []).map((staffId, index) => [staffId, index] as const));
+  const rankOf = (staff: T) => rankByStaffId.get(staff._id) ?? Number.POSITIVE_INFINITY;
+  return [...staffs].sort((left, right) => rankOf(left) - rankOf(right) || left._creationTime - right._creationTime);
+}
+
 async function deleteExistingOrderRows(ctx: WriteCtx, resolution: OrganizationOrderResolution) {
   for (const entry of resolution.organizationEntries) await ctx.db.delete(entry._id);
   for (const entries of resolution.shopEntries.values()) {
@@ -447,7 +478,7 @@ export async function saveOrganizationStaffOrderSnapshot(
     throw new ConvexError("スタッフの並び順を保存できる状態ではありません");
   }
   if (current.orderFingerprint !== args.expectedOrderFingerprint) {
-    throw new ConvexError(STALE_ORGANIZATION_STAFF_ORDER_ERROR);
+    throw expectedConvexError("stale_state", STALE_ORGANIZATION_STAFF_ORDER_ERROR);
   }
   const currentPersonIds = current.source.people.map((person) => person._id);
   if (

@@ -36,13 +36,16 @@ import { Route as AuthShiftsRouteImport } from './routes/_auth/shifts'
 import { Route as AuthStaffRouteImport } from './routes/_auth/staff'
 import { Route as ArticlesIndexRouteImport } from './routes/articles.index'
 import { Route as ArticlesSlugRouteImport } from './routes/articles.$slug'
+import { Route as DemoDetailRouteImport } from './routes/demo.detail'
 import { Route as DemoShiftboardRouteImport } from './routes/demo.shiftboard'
+import { Route as DemoSimpleRouteImport } from './routes/demo.simple'
 import { Route as FeaturesIndexRouteImport } from './routes/features.index'
 import { Route as FeaturesFeatureSlugRouteImport } from './routes/features.$featureSlug'
 import { Route as HelpIndexRouteImport } from './routes/help.index'
 import { Route as HelpSlugRouteImport } from './routes/help.$slug'
 import { Route as PrivacyManagerRouteImport } from './routes/privacy_.manager'
 import { Route as PrivacyStaffRouteImport } from './routes/privacy_.staff'
+import { Route as ShiftsDemoSubmitRouteImport } from './routes/shifts.demo-submit'
 import { Route as TermsManagerRouteImport } from './routes/terms_.manager'
 import { Route as TermsStaffRouteImport } from './routes/terms_.staff'
 import { Route as AuthAppActionsRouteImport } from './routes/_auth/app_.actions'
@@ -81,6 +84,7 @@ import { Route as AuthAppManageManagersInviteNewRouteImport } from './routes/_au
 import { Route as AuthAppManageManagersInviteStaffRouteImport } from './routes/_auth/app_.manage_.managers_.invite-staff'
 import { Route as AuthAppManageShopsShopIdRouteImport } from './routes/_auth/app_.manage_.shops.$shopId'
 import { Route as AuthAppShiftsRecruitmentIdBoardRouteImport } from './routes/_auth/app_.shifts_.$recruitmentId_.board'
+import { Route as AuthManageShopsShopIdShiftSetupRouteImport } from './routes/_auth/manage_.shops.$shopId_.shift-setup'
 import { Route as AuthStaffPersonIdShopsShopIdRouteImport } from './routes/_auth/staff_.$personId_.shops.$shopId'
 import { Route as AuthAppStaffPersonIdShopsShopIdRouteImport } from './routes/_auth/app_.staff_.$personId_.shops.$shopId'
 
@@ -217,9 +221,19 @@ const ArticlesSlugRoute = ArticlesSlugRouteImport.update({
   path: '/$slug',
   getParentRoute: () => ArticlesRoute,
 } as any)
+const DemoDetailRoute = DemoDetailRouteImport.update({
+  id: '/demo/detail',
+  path: '/demo/detail',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DemoShiftboardRoute = DemoShiftboardRouteImport.update({
   id: '/demo/shiftboard',
   path: '/demo/shiftboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DemoSimpleRoute = DemoSimpleRouteImport.update({
+  id: '/demo/simple',
+  path: '/demo/simple',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FeaturesIndexRoute = FeaturesIndexRouteImport.update({
@@ -250,6 +264,11 @@ const PrivacyManagerRoute = PrivacyManagerRouteImport.update({
 const PrivacyStaffRoute = PrivacyStaffRouteImport.update({
   id: '/privacy_/staff',
   path: '/privacy/staff',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ShiftsDemoSubmitRoute = ShiftsDemoSubmitRouteImport.update({
+  id: '/shifts/demo-submit',
+  path: '/shifts/demo-submit',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TermsManagerRoute = TermsManagerRouteImport.update({
@@ -461,6 +480,12 @@ const AuthAppShiftsRecruitmentIdBoardRoute =
     path: '/app/shifts/$recruitmentId/board',
     getParentRoute: () => AuthRoute,
   } as any)
+const AuthManageShopsShopIdShiftSetupRoute =
+  AuthManageShopsShopIdShiftSetupRouteImport.update({
+    id: '/manage_/shops/$shopId_/shift-setup',
+    path: '/manage/shops/$shopId/shift-setup',
+    getParentRoute: () => AuthRoute,
+  } as any)
 const AuthStaffPersonIdShopsShopIdRoute =
   AuthStaffPersonIdShopsShopIdRouteImport.update({
     id: '/staff_/$personId_/shops/$shopId',
@@ -499,11 +524,14 @@ export interface FileRoutesByFullPath {
   '/shifts': typeof AuthShiftsRoute
   '/staff': typeof AuthStaffRoute
   '/articles/$slug': typeof ArticlesSlugRoute
+  '/demo/detail': typeof DemoDetailRoute
   '/demo/shiftboard': typeof DemoShiftboardRoute
+  '/demo/simple': typeof DemoSimpleRoute
   '/features/$featureSlug': typeof FeaturesFeatureSlugRoute
   '/help/$slug': typeof HelpSlugRoute
   '/privacy/manager': typeof PrivacyManagerRoute
   '/privacy/staff': typeof PrivacyStaffRoute
+  '/shifts/demo-submit': typeof ShiftsDemoSubmitRoute
   '/terms/manager': typeof TermsManagerRoute
   '/terms/staff': typeof TermsStaffRoute
   '/articles/': typeof ArticlesIndexRoute
@@ -545,6 +573,7 @@ export interface FileRoutesByFullPath {
   '/app/manage/managers/invite-staff': typeof AuthAppManageManagersInviteStaffRoute
   '/app/manage/shops/$shopId': typeof AuthAppManageShopsShopIdRoute
   '/app/shifts/$recruitmentId/board': typeof AuthAppShiftsRecruitmentIdBoardRoute
+  '/manage/shops/$shopId/shift-setup': typeof AuthManageShopsShopIdShiftSetupRoute
   '/staff/$personId/shops/$shopId': typeof AuthStaffPersonIdShopsShopIdRoute
   '/app/staff/$personId/shops/$shopId': typeof AuthAppStaffPersonIdShopsShopIdRoute
 }
@@ -570,11 +599,14 @@ export interface FileRoutesByTo {
   '/shifts': typeof AuthShiftsRoute
   '/staff': typeof AuthStaffRoute
   '/articles/$slug': typeof ArticlesSlugRoute
+  '/demo/detail': typeof DemoDetailRoute
   '/demo/shiftboard': typeof DemoShiftboardRoute
+  '/demo/simple': typeof DemoSimpleRoute
   '/features/$featureSlug': typeof FeaturesFeatureSlugRoute
   '/help/$slug': typeof HelpSlugRoute
   '/privacy/manager': typeof PrivacyManagerRoute
   '/privacy/staff': typeof PrivacyStaffRoute
+  '/shifts/demo-submit': typeof ShiftsDemoSubmitRoute
   '/terms/manager': typeof TermsManagerRoute
   '/terms/staff': typeof TermsStaffRoute
   '/articles': typeof ArticlesIndexRoute
@@ -616,6 +648,7 @@ export interface FileRoutesByTo {
   '/app/manage/managers/invite-staff': typeof AuthAppManageManagersInviteStaffRoute
   '/app/manage/shops/$shopId': typeof AuthAppManageShopsShopIdRoute
   '/app/shifts/$recruitmentId/board': typeof AuthAppShiftsRecruitmentIdBoardRoute
+  '/manage/shops/$shopId/shift-setup': typeof AuthManageShopsShopIdShiftSetupRoute
   '/staff/$personId/shops/$shopId': typeof AuthStaffPersonIdShopsShopIdRoute
   '/app/staff/$personId/shops/$shopId': typeof AuthAppStaffPersonIdShopsShopIdRoute
 }
@@ -647,11 +680,14 @@ export interface FileRoutesById {
   '/_auth/shifts': typeof AuthShiftsRoute
   '/_auth/staff': typeof AuthStaffRoute
   '/articles/$slug': typeof ArticlesSlugRoute
+  '/demo/detail': typeof DemoDetailRoute
   '/demo/shiftboard': typeof DemoShiftboardRoute
+  '/demo/simple': typeof DemoSimpleRoute
   '/features/$featureSlug': typeof FeaturesFeatureSlugRoute
   '/help/$slug': typeof HelpSlugRoute
   '/privacy_/manager': typeof PrivacyManagerRoute
   '/privacy_/staff': typeof PrivacyStaffRoute
+  '/shifts/demo-submit': typeof ShiftsDemoSubmitRoute
   '/terms_/manager': typeof TermsManagerRoute
   '/terms_/staff': typeof TermsStaffRoute
   '/articles/': typeof ArticlesIndexRoute
@@ -693,6 +729,7 @@ export interface FileRoutesById {
   '/_auth/app_/manage_/managers_/invite-staff': typeof AuthAppManageManagersInviteStaffRoute
   '/_auth/app_/manage_/shops/$shopId': typeof AuthAppManageShopsShopIdRoute
   '/_auth/app_/shifts_/$recruitmentId_/board': typeof AuthAppShiftsRecruitmentIdBoardRoute
+  '/_auth/manage_/shops/$shopId_/shift-setup': typeof AuthManageShopsShopIdShiftSetupRoute
   '/_auth/staff_/$personId_/shops/$shopId': typeof AuthStaffPersonIdShopsShopIdRoute
   '/_auth/app_/staff_/$personId_/shops/$shopId': typeof AuthAppStaffPersonIdShopsShopIdRoute
 }
@@ -723,11 +760,14 @@ export interface FileRouteTypes {
     | '/shifts'
     | '/staff'
     | '/articles/$slug'
+    | '/demo/detail'
     | '/demo/shiftboard'
+    | '/demo/simple'
     | '/features/$featureSlug'
     | '/help/$slug'
     | '/privacy/manager'
     | '/privacy/staff'
+    | '/shifts/demo-submit'
     | '/terms/manager'
     | '/terms/staff'
     | '/articles/'
@@ -769,6 +809,7 @@ export interface FileRouteTypes {
     | '/app/manage/managers/invite-staff'
     | '/app/manage/shops/$shopId'
     | '/app/shifts/$recruitmentId/board'
+    | '/manage/shops/$shopId/shift-setup'
     | '/staff/$personId/shops/$shopId'
     | '/app/staff/$personId/shops/$shopId'
   fileRoutesByTo: FileRoutesByTo
@@ -794,11 +835,14 @@ export interface FileRouteTypes {
     | '/shifts'
     | '/staff'
     | '/articles/$slug'
+    | '/demo/detail'
     | '/demo/shiftboard'
+    | '/demo/simple'
     | '/features/$featureSlug'
     | '/help/$slug'
     | '/privacy/manager'
     | '/privacy/staff'
+    | '/shifts/demo-submit'
     | '/terms/manager'
     | '/terms/staff'
     | '/articles'
@@ -840,6 +884,7 @@ export interface FileRouteTypes {
     | '/app/manage/managers/invite-staff'
     | '/app/manage/shops/$shopId'
     | '/app/shifts/$recruitmentId/board'
+    | '/manage/shops/$shopId/shift-setup'
     | '/staff/$personId/shops/$shopId'
     | '/app/staff/$personId/shops/$shopId'
   id:
@@ -870,11 +915,14 @@ export interface FileRouteTypes {
     | '/_auth/shifts'
     | '/_auth/staff'
     | '/articles/$slug'
+    | '/demo/detail'
     | '/demo/shiftboard'
+    | '/demo/simple'
     | '/features/$featureSlug'
     | '/help/$slug'
     | '/privacy_/manager'
     | '/privacy_/staff'
+    | '/shifts/demo-submit'
     | '/terms_/manager'
     | '/terms_/staff'
     | '/articles/'
@@ -916,6 +964,7 @@ export interface FileRouteTypes {
     | '/_auth/app_/manage_/managers_/invite-staff'
     | '/_auth/app_/manage_/shops/$shopId'
     | '/_auth/app_/shifts_/$recruitmentId_/board'
+    | '/_auth/manage_/shops/$shopId_/shift-setup'
     | '/_auth/staff_/$personId_/shops/$shopId'
     | '/_auth/app_/staff_/$personId_/shops/$shopId'
   fileRoutesById: FileRoutesById
@@ -939,9 +988,12 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRoute
   SsoCallbackRoute: typeof SsoCallbackRoute
   TermsRoute: typeof TermsRoute
+  DemoDetailRoute: typeof DemoDetailRoute
   DemoShiftboardRoute: typeof DemoShiftboardRoute
+  DemoSimpleRoute: typeof DemoSimpleRoute
   PrivacyManagerRoute: typeof PrivacyManagerRoute
   PrivacyStaffRoute: typeof PrivacyStaffRoute
+  ShiftsDemoSubmitRoute: typeof ShiftsDemoSubmitRoute
   TermsManagerRoute: typeof TermsManagerRoute
   TermsStaffRoute: typeof TermsStaffRoute
 }
@@ -1137,11 +1189,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ArticlesSlugRouteImport
       parentRoute: typeof ArticlesRoute
     }
+    '/demo/detail': {
+      id: '/demo/detail'
+      path: '/demo/detail'
+      fullPath: '/demo/detail'
+      preLoaderRoute: typeof DemoDetailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/demo/shiftboard': {
       id: '/demo/shiftboard'
       path: '/demo/shiftboard'
       fullPath: '/demo/shiftboard'
       preLoaderRoute: typeof DemoShiftboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/demo/simple': {
+      id: '/demo/simple'
+      path: '/demo/simple'
+      fullPath: '/demo/simple'
+      preLoaderRoute: typeof DemoSimpleRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/features/': {
@@ -1184,6 +1250,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy/staff'
       fullPath: '/privacy/staff'
       preLoaderRoute: typeof PrivacyStaffRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/shifts/demo-submit': {
+      id: '/shifts/demo-submit'
+      path: '/shifts/demo-submit'
+      fullPath: '/shifts/demo-submit'
+      preLoaderRoute: typeof ShiftsDemoSubmitRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/terms_/manager': {
@@ -1452,6 +1525,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthAppShiftsRecruitmentIdBoardRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_auth/manage_/shops/$shopId_/shift-setup': {
+      id: '/_auth/manage_/shops/$shopId_/shift-setup'
+      path: '/manage/shops/$shopId/shift-setup'
+      fullPath: '/manage/shops/$shopId/shift-setup'
+      preLoaderRoute: typeof AuthManageShopsShopIdShiftSetupRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_auth/staff_/$personId_/shops/$shopId': {
       id: '/_auth/staff_/$personId_/shops/$shopId'
       path: '/staff/$personId/shops/$shopId'
@@ -1500,6 +1580,7 @@ interface AuthRouteChildren {
   AuthAppManageManagersInviteStaffRoute: typeof AuthAppManageManagersInviteStaffRoute
   AuthAppManageShopsShopIdRoute: typeof AuthAppManageShopsShopIdRoute
   AuthAppShiftsRecruitmentIdBoardRoute: typeof AuthAppShiftsRecruitmentIdBoardRoute
+  AuthManageShopsShopIdShiftSetupRoute: typeof AuthManageShopsShopIdShiftSetupRoute
   AuthStaffPersonIdShopsShopIdRoute: typeof AuthStaffPersonIdShopsShopIdRoute
   AuthAppStaffPersonIdShopsShopIdRoute: typeof AuthAppStaffPersonIdShopsShopIdRoute
 }
@@ -1535,6 +1616,7 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthAppManageManagersInviteStaffRoute: AuthAppManageManagersInviteStaffRoute,
   AuthAppManageShopsShopIdRoute: AuthAppManageShopsShopIdRoute,
   AuthAppShiftsRecruitmentIdBoardRoute: AuthAppShiftsRecruitmentIdBoardRoute,
+  AuthManageShopsShopIdShiftSetupRoute: AuthManageShopsShopIdShiftSetupRoute,
   AuthStaffPersonIdShopsShopIdRoute: AuthStaffPersonIdShopsShopIdRoute,
   AuthAppStaffPersonIdShopsShopIdRoute: AuthAppStaffPersonIdShopsShopIdRoute,
 }
@@ -1637,9 +1719,12 @@ const rootRouteChildren: RootRouteChildren = {
   SignupRoute: SignupRoute,
   SsoCallbackRoute: SsoCallbackRoute,
   TermsRoute: TermsRoute,
+  DemoDetailRoute: DemoDetailRoute,
   DemoShiftboardRoute: DemoShiftboardRoute,
+  DemoSimpleRoute: DemoSimpleRoute,
   PrivacyManagerRoute: PrivacyManagerRoute,
   PrivacyStaffRoute: PrivacyStaffRoute,
+  ShiftsDemoSubmitRoute: ShiftsDemoSubmitRoute,
   TermsManagerRoute: TermsManagerRoute,
   TermsStaffRoute: TermsStaffRoute,
 }

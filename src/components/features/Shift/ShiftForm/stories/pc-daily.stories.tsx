@@ -9,6 +9,7 @@ import {
   overnightArgs,
   shiftFormDecorators,
   timeDateNotesArgs,
+  timeRestFoldArgs,
   validationErrorAndWarningArgs,
   validationErrorArgs,
   validationWarningArgs,
@@ -27,6 +28,20 @@ type Story = StoryObj<typeof meta>;
 export const TimeBasic: Story = {
   name: "Basic",
   args: allPatternsArgs,
+};
+
+/** 見出しの店舗名が長いときは、店舗名だけを省略し、期間は全部を出す。 */
+export const TimeLongShopName: Story = {
+  name: "Long Shop Name",
+  args: {
+    ...allPatternsArgs,
+    header: {
+      shopName: "上限の文字数で表示を確かめるための長い店舗名です".repeat(4),
+      periodTitle: "1/23 〜 2/5",
+      backLabel: "前の画面へ戻る",
+      backAriaLabel: "前の画面へ戻る",
+    },
+  },
 };
 
 export const TimeHalfHourBusinessHours: Story = {
@@ -150,5 +165,41 @@ export const WithoutDateNotesHidesNoteColumn: Story = {
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
     await expect(within(canvasElement).queryByText("連絡事項", { exact: true })).not.toBeInTheDocument();
+  },
+};
+
+/** 休み希望の人は、表の下に「休み希望 2人」としてたたむ。連絡事項のある人と未提出の人は、たたまない。 */
+export const TimeRestFolded: Story = {
+  name: "Rest Folded",
+  args: timeRestFoldArgs,
+};
+
+/** たたんだ休み希望の人は、開くと通常の行として並び、勤務を入れられる。 */
+export const RestFoldInteractive: Story = {
+  args: timeRestFoldArgs,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const findRow = (staffId: string) => canvasElement.querySelector(`[data-tour="shift-row-${staffId}"]`);
+    const toggle = await canvas.findByRole("button", { name: /^休み希望 2人/ });
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(toggle).toHaveTextContent("中村・高橋");
+    await expect(findRow("rest1")).toBeNull();
+    await expect(findRow("rest2")).toBeNull();
+    // 連絡事項のある休み希望の人（伊藤さん）と、未提出の人（Cさん）は、たたまない。
+    await expect(findRow("rest3")).not.toBeNull();
+    await expect(findRow("staff3")).not.toBeNull();
+
+    await userEvent.click(toggle);
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await waitFor(() => expect(findRow("rest1")).not.toBeNull());
+    await expect(findRow("rest2")).not.toBeNull();
+    // 開いた行は、まとまりの見出しより下に並ぶ。
+    await expect(
+      toggle.compareDocumentPosition(findRow("rest1") as Element) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    await userEvent.click(toggle);
+    await waitFor(() => expect(findRow("rest1")).toBeNull());
   },
 };

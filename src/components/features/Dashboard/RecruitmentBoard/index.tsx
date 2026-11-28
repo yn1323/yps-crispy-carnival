@@ -10,6 +10,11 @@ import { RecruitmentRow } from "./RecruitmentRow";
 
 type Props = {
   title?: string;
+  /**
+   * 一覧の見出しの行（アイコン、見出し、「新しい募集をつくる」）を出さない。
+   * ページの見出しの右に「新しい募集をつくる」を置く画面（全店舗のシフト）で使う。状態ごとの見出しは2段目の見出しにする。
+   */
+  hidesHeader?: boolean;
   groups: DashboardRecruitmentGroup[];
   isReadOnly?: boolean;
   canCreateRecruitments?: boolean;
@@ -37,8 +42,65 @@ type Props = {
   onLoadMorePastRecruitments: () => void;
 };
 
+/**
+ * 「新しい募集をつくる」。作れないときは押せなくし、理由を下に出す。
+ * `primary`は、ページの見出しの右に置く塗りつぶしのボタンで、スマートフォンでは「新しい募集」と短くする。
+ */
+export const CreateRecruitmentButton = ({
+  canCreate,
+  disabledReason,
+  onClick,
+  appearance = "ghost",
+}: {
+  canCreate: boolean;
+  disabledReason?: string;
+  onClick: () => void;
+  appearance?: "ghost" | "primary";
+}) => {
+  const disabledReasonId = useId();
+  const resolvedDisabledReason = canCreate ? undefined : (disabledReason ?? "現在、募集を作成できません");
+  return (
+    <Stack gap={1} align={{ base: "flex-start", sm: "flex-end" }}>
+      <Button
+        data-tour={DASHBOARD_TOUR_TARGET.createRecruitment}
+        variant={appearance === "primary" ? "solid" : "ghost"}
+        colorPalette="teal"
+        size={appearance === "primary" ? "md" : "sm"}
+        onClick={onClick}
+        disabled={!canCreate}
+        title={resolvedDisabledReason}
+        aria-describedby={resolvedDisabledReason ? disabledReasonId : undefined}
+        // スマートフォンで短くした文言でも、読み上げは「新しい募集をつくる」にする。
+        aria-label={appearance === "primary" ? "新しい募集をつくる" : undefined}
+        gap={1.5}
+        fontWeight="semibold"
+      >
+        <LuPlus />
+        {appearance === "primary" ? (
+          <>
+            <Box as="span" display={{ base: "inline", sm: "none" }}>
+              新しい募集
+            </Box>
+            <Box as="span" display={{ base: "none", sm: "inline" }}>
+              新しい募集をつくる
+            </Box>
+          </>
+        ) : (
+          "新しい募集をつくる"
+        )}
+      </Button>
+      {resolvedDisabledReason && (
+        <Text id={disabledReasonId} fontSize="xs" color="fg.muted" textAlign={{ base: "left", sm: "right" }}>
+          {resolvedDisabledReason}
+        </Text>
+      )}
+    </Stack>
+  );
+};
+
 export const RecruitmentBoard = ({
   title = "シフト一覧",
+  hidesHeader = false,
   groups,
   isReadOnly = false,
   canCreateRecruitments,
@@ -61,7 +123,6 @@ export const RecruitmentBoard = ({
   onShowPastRecruitments,
   onLoadMorePastRecruitments,
 }: Props) => {
-  const createDisabledReasonId = useId();
   const canCreate = canCreateRecruitments ?? !isReadOnly;
   const resolvedCreateDisabledReason = canCreate
     ? undefined
@@ -83,46 +144,31 @@ export const RecruitmentBoard = ({
 
   return (
     <Stack as="section" aria-label={title} gap={{ base: 4, lg: 5 }}>
-      <Flex justify="space-between" align="flex-end" gap={3} wrap="wrap">
-        <Stack gap={1} minW={0}>
-          <HStack gap={2.5} align="center">
-            <Box color="fg.muted" fontSize={{ base: "xl", lg: "2xl" }}>
-              <LuCalendarDays />
-            </Box>
-            <Heading
-              as="h2"
-              fontSize={{ base: "lg", lg: "xl" }}
-              lineHeight={{ base: "1.75rem", lg: "1.875rem" }}
-              fontWeight="bold"
-              color="gray.900"
-            >
-              {title}
-            </Heading>
-          </HStack>
-        </Stack>
-        <Stack gap={1} align={{ base: "flex-start", sm: "flex-end" }}>
-          <Button
-            data-tour={DASHBOARD_TOUR_TARGET.createRecruitment}
-            variant="ghost"
-            colorPalette="teal"
-            size="sm"
+      {!hidesHeader && (
+        <Flex justify="space-between" align="flex-end" gap={3} wrap="wrap">
+          <Stack gap={1} minW={0}>
+            <HStack gap={2.5} align="center">
+              <Box color="fg.muted" fontSize={{ base: "xl", lg: "2xl" }}>
+                <LuCalendarDays />
+              </Box>
+              <Heading
+                as="h2"
+                fontSize={{ base: "lg", lg: "xl" }}
+                lineHeight={{ base: "1.75rem", lg: "1.875rem" }}
+                fontWeight="bold"
+                color="gray.900"
+              >
+                {title}
+              </Heading>
+            </HStack>
+          </Stack>
+          <CreateRecruitmentButton
+            canCreate={canCreate}
+            disabledReason={createRecruitmentDisabledReason}
             onClick={onCreateClick}
-            disabled={!canCreate}
-            title={resolvedCreateDisabledReason}
-            aria-describedby={resolvedCreateDisabledReason ? createDisabledReasonId : undefined}
-            gap={1.5}
-            fontWeight="semibold"
-          >
-            <LuPlus />
-            新しい募集をつくる
-          </Button>
-          {resolvedCreateDisabledReason && (
-            <Text id={createDisabledReasonId} fontSize="xs" color="fg.muted" textAlign={{ base: "left", sm: "right" }}>
-              {resolvedCreateDisabledReason}
-            </Text>
-          )}
-        </Stack>
-      </Flex>
+          />
+        </Flex>
+      )}
 
       {!hasVisibleContent ? (
         <Empty
@@ -139,7 +185,6 @@ export const RecruitmentBoard = ({
               gap={1.5}
               disabled={!canCreate}
               title={resolvedCreateDisabledReason}
-              aria-describedby={resolvedCreateDisabledReason ? createDisabledReasonId : undefined}
             >
               <LuPlus />
               {resolvedEmptyState.actionLabel}
@@ -151,7 +196,14 @@ export const RecruitmentBoard = ({
           {groups.map((group) => (
             <Stack key={group.key} as="section" aria-label={group.title} gap={{ base: 2.5, lg: 3 }}>
               <HStack gap={2} minH="24px">
-                <Heading as="h3" fontSize="sm" fontWeight="bold" color={groupTitleColor(group.key)} lineHeight="short">
+                <Heading
+                  // 一覧の見出しを出さない画面では、ページの見出しのすぐ下の見出しにする。
+                  as={hidesHeader ? "h2" : "h3"}
+                  fontSize="sm"
+                  fontWeight="bold"
+                  color={groupTitleColor(group.key)}
+                  lineHeight="short"
+                >
                   {group.title}
                 </Heading>
                 {shouldShowGroupCount(group) && (
@@ -223,15 +275,18 @@ function shouldShowGroupCount(group: DashboardRecruitmentGroup) {
   return group.key !== "current" && group.key !== "past";
 }
 
-export const RecruitmentBoardSkeleton = () => (
+/** `hidesHeader`は、一覧の見出しの行を出さない画面（全店舗のシフト）で、見出しの行の分を読み込み中にも出さないために使う。 */
+export const RecruitmentBoardSkeleton = ({ hidesHeader = false }: { hidesHeader?: boolean }) => (
   <Stack as="section" aria-label="シフト一覧を読み込み中" gap={{ base: 4, lg: 5 }}>
-    <Flex justify="space-between" align="flex-end" gap={3} wrap="wrap">
-      <HStack gap={2.5} align="center">
-        <Skeleton boxSize={{ base: "20px", lg: "24px" }} borderRadius="full" />
-        <Skeleton h={{ base: "28px", lg: "30px" }} w="112px" />
-      </HStack>
-      <Skeleton h="36px" w="176px" />
-    </Flex>
+    {!hidesHeader && (
+      <Flex justify="space-between" align="flex-end" gap={3} wrap="wrap">
+        <HStack gap={2.5} align="center">
+          <Skeleton boxSize={{ base: "20px", lg: "24px" }} borderRadius="full" />
+          <Skeleton h={{ base: "28px", lg: "30px" }} w="112px" />
+        </HStack>
+        <Skeleton h="36px" w="176px" />
+      </Flex>
+    )}
 
     <Stack gap={{ base: 4, lg: 5 }}>
       <RecruitmentGroupSkeleton rows={2} tone="collecting" />

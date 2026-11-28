@@ -295,7 +295,7 @@ function RelatedHelp() {
         <Stack gap={1}>
           <Text fontWeight="bold">管理者を招待・再送・取り消す</Text>
           <Text color="gray.600" fontSize="sm" lineHeight="1.7">
-            組織の「管理者と権限」で、既存スタッフまたは新しいユーザーを管理者として招待できます。
+            組織の「管理者設定」で、既存スタッフまたは新しいユーザーを管理者として招待できます。
           </Text>
         </Stack>
         <LuArrowRight aria-hidden color="var(--chakra-colors-teal-700)" />

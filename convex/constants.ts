@@ -87,6 +87,9 @@ export const ORGANIZATION_SELF_CREATED_LIMIT = 3;
 export const ORGANIZATION_CREATE_DAILY_LIMIT = 10;
 export const SHIFT_BOARD_SHIFT_REQUEST_LIMIT = 2000;
 export const SHIFT_ASSIGNMENT_LIMIT = 2000;
+// シフトの自動作成が参考にする、直近に確定した募集の数。
+// 1つの募集で読むのは勤務、希望、提出の各上限までで、3つの募集を読んでも1回の実行の読み取り上限に収まる。
+export const AUTO_CREATE_HISTORY_RECRUITMENT_LIMIT = 3;
 // スタッフ個別通知の再送上限。actorを替えた回避も組織単位の上限で抑止する。
 export const STAFF_NOTIFICATION_RESEND_ACTOR_DAILY_LIMIT = 10;
 export const STAFF_NOTIFICATION_RESEND_ORGANIZATION_DAILY_LIMIT = 20;
@@ -196,4 +199,59 @@ export const NOTIFICATION_FAILURE_REMINDER_PENDING_PAGE_SIZE = 100;
 export const NOTIFICATION_FAILURE_REMINDER_MANAGER_LIMIT = 20;
 
 export const DEFAULT_POSITION_NAME = "シフト";
-export const DEFAULT_POSITION_COLOR = "#3b82f6";
+export const DEFAULT_POSITION_COLOR = "#60a5fa";
+// 既存の読み手はpositionsを50件の窓で読む。画面で選び分けられる数に収めるため、有効な件数を10件までにする。
+export const POSITION_ACTIVE_LIMIT = 10;
+export const POSITION_NAME_MAX_LENGTH = 20;
+// ポジションを削除するときに、下書きの勤務を消す確定前の募集の数の上限。超える店舗では削除を受け付けない。
+export const POSITION_REMOVAL_OPEN_RECRUITMENT_LIMIT = 50;
+// ポジションの色は自由入力にせず、シフト表で見分けられる用意済みの色から選ぶ。
+// 色の上には白い文字を載せる。明るい色でそろえつつ、白い文字が沈む黄・青緑・黄緑・水色は一段濃くしている。
+export const POSITION_COLOR_PALETTE = [
+  "#60a5fa",
+  "#fb923c",
+  "#a78bfa",
+  "#f472b6",
+  "#eda40a",
+  "#14b8a6",
+  "#f87171",
+  "#94a3b8",
+  "#78bd14",
+  "#06b6d4",
+] as const;
+// 以前の色の一覧。保存済みのポジションと、確定した時点のポジションに残っている。
+// 選択肢には出さないが、保存では受け付け、画面にもそのままの色で表示する。並びは今の一覧と対応している。
+export const LEGACY_POSITION_COLOR_PALETTE = [
+  "#3b82f6",
+  "#c2410c",
+  "#7c3aed",
+  "#db2777",
+  "#b45309",
+  "#0f766e",
+  "#dc2626",
+  "#475569",
+  "#4d7c0f",
+  "#0e7490",
+] as const;
+// テンプレート: 曜日ごとのテンプレートに、祝日や年末年始のような日のテンプレートを足しても、一覧で選び分けられる件数に収める。
+export const SHIFT_DAY_TEMPLATE_LIMIT = 10;
+export const SHIFT_DAY_TEMPLATE_NAME_MAX_LENGTH = 20;
+export const SHIFT_DAY_TEMPLATE_REQUIRED_COUNT_MAX = 50;
+// 時間指定の必要人数は、1本のバーが1人分を表す。1つのテンプレートに置けるバーと、1ポジションで同時に重なるバーに上限を持つ。
+export const SHIFT_DAY_TEMPLATE_BAR_LIMIT = 200;
+export const SHIFT_DAY_TEMPLATE_CONCURRENT_BAR_LIMIT = 50;
+// 祝日の表の更新で、1年分として受け付ける件数。
+export const NATIONAL_HOLIDAY_YEAR_LIMIT = 50;
+export const NATIONAL_HOLIDAY_NAME_MAX_LENGTH = 30;
+// 1つの勤務に入れられる休憩の件数。画面では件数を気にせず入れられるよう、負荷を防ぐための大きめの値にする。
+export const SHIFT_ASSIGNMENT_BREAK_LIMIT = 20;
+export const SHIFT_BREAK_RULE_MAX_MINUTES = 24 * 60;
+// AIサポートへ渡す店の状況。保存もログ出力もしないが、外部へ渡す将来の入力として上限を持つ。
+export const SHIFT_SETUP_ASSIST_SITUATION_MAX_LENGTH = 500;
+export const SHIFT_SETUP_ASSIST_SHORT_LIMIT = 5;
+// シフトのAI作成。外部のAIの利用料がかかるため、続けて押す回数と、1つの募集で作成できる回数を抑える。
+export const AI_SHIFT_DRAFT_SHORT_LIMIT = 2;
+// 1つの募集（シフト）でAIが作成できる回数の既定。時間がたっても戻らない。環境変数のAI_SHIFT_DRAFT_RECRUITMENT_LIMITで変えられる。
+export const AI_SHIFT_DRAFT_RECRUITMENT_LIMIT_DEFAULT = 5;
+// 環境変数で設定できる回数の最大。使った回の記録を、この件数まで読んで数えるため、上限を持つ。
+export const AI_SHIFT_DRAFT_RECRUITMENT_LIMIT_MAX = 1000;

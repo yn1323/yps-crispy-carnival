@@ -2,8 +2,8 @@ import { Provider } from "jotai";
 import type { ReactNode } from "react";
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import type {
+  PositionSkillLevel,
   PositionType,
-  RequiredStaffingData,
   ShiftData,
   SortMode,
   StaffType,
@@ -12,6 +12,22 @@ import type {
 } from "@/src/domains/shift/types";
 import { DEFAULT_TIME_PATTERN } from "@/src/domains/shop/submissionPattern";
 import { useShiftFormInit } from "../hooks/useShiftFormInit";
+import type { ShiftFormStaffing } from "../stores";
+
+/**
+ * スタッフへ、ポジションごとの値（担当外、見習い、リーダー）を付ける。
+ * `{ staff1: { hall: "lead", kitchen: "newcomer" } }` の形で、一人前以外のポジションだけを渡す。
+ */
+export const withPositionSkills = (
+  staffs: readonly StaffType[],
+  levelsByStaffId: Record<string, Record<string, PositionSkillLevel>>,
+): StaffType[] =>
+  staffs.map((staff) => {
+    const levels = levelsByStaffId[staff.id];
+    return levels
+      ? { ...staff, positionSkills: Object.entries(levels).map(([positionId, level]) => ({ positionId, level })) }
+      : staff;
+  });
 
 export const mockStaffs: StaffType[] = [
   { id: "staff1", name: "Aさん", isSubmitted: true },
@@ -22,7 +38,7 @@ export const mockStaffs: StaffType[] = [
 ];
 
 export const mockPositions: PositionType[] = [
-  { id: "default", name: "シフト", color: "#3b82f6", isDefault: true },
+  { id: "default", name: "シフト", color: "#60a5fa", isDefault: true },
   { id: "break", name: "休憩", color: "#6b7280", isDefault: false },
 ];
 
@@ -80,7 +96,7 @@ const workSeg = (staffId: string, date: string, start: string, end: string, suff
   id: `seg-${staffId}-${date}-${start}-${end}${suffix}`,
   positionId: "default",
   positionName: "シフト",
-  color: "#3b82f6",
+  color: "#60a5fa",
   start,
   end,
 });
@@ -439,20 +455,6 @@ export const mockDateOnlyShifts: ShiftData[] = [
   dateOnlyShift({ staffId: "staff5", staffName: "鈴木 次郎", date: "2026-06-03", requested: false, assigned: true }),
 ];
 
-export const mockRequiredStaffing: RequiredStaffingData[] = [
-  {
-    dayOfWeek: 3,
-    slots: [
-      { hour: 10, position: "シフト", requiredCount: 3 },
-      { hour: 14, position: "シフト", requiredCount: 5 },
-    ],
-  },
-  {
-    dayOfWeek: 4,
-    slots: [{ hour: 9, position: "シフト", requiredCount: 3 }],
-  },
-];
-
 type JotaiStoryWrapperProps = {
   children: ReactNode;
   overrides?: {
@@ -466,7 +468,8 @@ type JotaiStoryWrapperProps = {
     isReadOnly?: boolean;
     currentStaffId?: string;
     allShifts?: ShiftData[];
-    requiredStaffing?: RequiredStaffingData[];
+    staffing?: ShiftFormStaffing;
+    initialDetailMode?: boolean;
     submissionPattern?: ShiftSubmissionPattern;
     initialViewMode?: ViewMode;
     initialSortMode?: SortMode;
@@ -491,7 +494,8 @@ function JotaiInitializer({
     isReadOnly: overrides?.isReadOnly,
     currentStaffId: overrides?.currentStaffId,
     allShifts: overrides?.allShifts,
-    requiredStaffing: overrides?.requiredStaffing,
+    staffing: overrides?.staffing,
+    initialDetailMode: overrides?.initialDetailMode,
     submissionPattern: overrides?.submissionPattern ?? DEFAULT_TIME_PATTERN,
     initialViewMode: overrides?.initialViewMode,
     initialSortMode: overrides?.initialSortMode,

@@ -1,17 +1,18 @@
 import { Box, Container, Flex, Grid, Heading, Icon, Image, SimpleGrid, Stack, Text, VStack } from "@chakra-ui/react";
 import type { IconType } from "react-icons";
-import { LuBellRing, LuChevronRight, LuMail, LuSendHorizontal, LuSmartphone } from "react-icons/lu";
+import { LuBellRing, LuMail, LuSendHorizontal, LuSmartphone, LuSparkles } from "react-icons/lu";
 import heroPcImage from "@/src/assets/hero-pc.webp";
 import heroSpImage from "@/src/assets/hero-sp.webp";
-import { MeasurementLink } from "@/src/components/shared/MeasurementLink";
 import { TrialReassurance } from "@/src/components/shared/TrialReassurance";
-import { Button } from "@/src/components/ui/Button";
+import { DemoButton } from "../DemoButton";
+import { SignupButton } from "../SignupButton";
 
-// 検索から来た人が最初に気にする「スタッフの負担」と「自動になる連絡」だけを並べる。
+// 検索から来た人が最初に気にする「スタッフの負担」「自動になる連絡」「シフトを作る手間」を、毎月の流れの順に並べる。
 const heroBenefits: Array<{ icon: IconType; label: string }> = [
   { icon: LuSmartphone, label: "アプリ不要で提出" },
   { icon: LuMail, label: "LINEなしでも使える" },
   { icon: LuBellRing, label: "未提出者へ自動催促" },
+  { icon: LuSparkles, label: "自動作成とAI手直し" },
   { icon: LuSendHorizontal, label: "確定も自動で共有" },
 ];
 
@@ -70,13 +71,9 @@ export const HeroSection = () => (
               gap={4}
               w={{ base: "full", md: "auto" }}
             >
-              <HeroButton href="/signup" label="無料ではじめる" tone="primary" measurementCtaId="hero_signup" />
-              <HeroButton
-                href="/help/scenarios/shift-management"
-                label="基本の使い方を見る"
-                tone="secondary"
-                measurementCtaId="hero_help"
-              />
+              <SignupButton measurementCtaId="hero_signup" />
+              {/* 使い方を確かめたい人には、読むより早く伝わる体験デモを出す。基本の使い方は下部の登録sectionから開ける。 */}
+              <DemoButton measurementCtaId="hero_demo" />
             </Stack>
             <TrialReassurance />
           </VStack>
@@ -86,7 +83,7 @@ export const HeroSection = () => (
       </Grid>
 
       <SimpleGrid
-        columns={{ base: 2, lg: 4 }}
+        columns={{ base: 2, lg: 5 }}
         gap={{ base: 3, md: 4, lg: 5 }}
         mt={10}
         pt={7}
@@ -100,41 +97,6 @@ export const HeroSection = () => (
     </Container>
   </Box>
 );
-
-const HeroButton = ({
-  href,
-  label,
-  measurementCtaId,
-  tone,
-}: {
-  href: string;
-  label: string;
-  measurementCtaId: "hero_signup" | "hero_help";
-  tone: "primary" | "secondary";
-}) => {
-  const isPrimary = tone === "primary";
-
-  return (
-    <Button
-      asChild
-      colorPalette="teal"
-      variant={isPrimary ? "solid" : "outline"}
-      bg={isPrimary ? undefined : "white"}
-      h={{ base: "56px", md: "64px" }}
-      minW="220px"
-      w={{ base: "full", md: "auto" }}
-      px={8}
-      borderRadius="md"
-      fontWeight="bold"
-      fontSize="md"
-    >
-      <MeasurementLink href={href} measurementCtaId={measurementCtaId}>
-        {label}
-        <Icon as={LuChevronRight} boxSize={5} />
-      </MeasurementLink>
-    </Button>
-  );
-};
 
 const HeroVisual = () => (
   <Box

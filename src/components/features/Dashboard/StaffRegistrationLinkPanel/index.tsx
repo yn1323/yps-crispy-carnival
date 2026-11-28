@@ -104,6 +104,13 @@ export function StaffRegistrationLinkPanel({
             href={STAFF_ADDITION_EMAIL_NOTICE_HREF}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() =>
+              trackProductEvent({
+                kind: "content_select",
+                contentType: "help_link",
+                contentId: "staff_registration_link",
+              })
+            }
             color="teal.700"
             textDecoration="underline"
           >

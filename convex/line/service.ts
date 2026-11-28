@@ -1,6 +1,7 @@
 import { ConvexError } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
+import { expectedConvexError } from "../_lib/errorObservability";
 import {
   LINE_FRIENDSHIP_FANOUT_RETENTION_MS,
   LINE_LEGACY_ACTIVE_ACCOUNT_SCAN_MAX,
@@ -19,7 +20,7 @@ export const LINE_LINKED_TO_OTHER_PERSON_ERROR_CODE = "LINE_LINKED_TO_OTHER_PERS
 
 /** 同じorganizationの別人物が使用中のLINE ID。mutationはrollbackし、OAuth actionで専用statusへ変換する。 */
 export function lineLinkedToOtherPersonError() {
-  return new ConvexError({ code: LINE_LINKED_TO_OTHER_PERSON_ERROR_CODE });
+  return expectedConvexError("already_exists", { code: LINE_LINKED_TO_OTHER_PERSON_ERROR_CODE });
 }
 
 export function isLineLinkedToOtherPersonError(error: unknown) {

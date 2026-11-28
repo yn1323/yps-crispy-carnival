@@ -6,17 +6,21 @@ import type { AssignmentWarning } from "@/src/domains/shift/assignmentWarnings";
 import { resolveInitialSelectedDate } from "@/src/domains/shift/date";
 import { indexShiftsByStaffId } from "@/src/domains/shift/shiftLookup";
 import { sortDailyStaffs } from "@/src/domains/shift/sortStaffs";
+import type { NewcomerOnlyPeriod } from "@/src/domains/shift/staffing";
 import type {
   PositionType,
-  RequiredStaffingData,
   ShiftData,
   SortMode,
+  StaffSortMode,
   StaffType,
   TimeRange,
   ViewMode,
 } from "@/src/domains/shift/types";
 import {
+  applyStaffSortModeAtom,
+  detailModeAtom,
   lockedDailyStaffOrderAtom,
+  newcomerOnlyPeriodsAtom,
   replaceShiftDraftsAtom,
   selectedDateAtom,
   shiftConfigAtom,
@@ -25,6 +29,7 @@ import {
   validationWarningsAtom,
   viewModeAtom,
 } from "../stores";
+import type { ShiftFormStaffing } from "../types";
 
 type UseShiftFormInitParams = {
   shopId: string;
@@ -37,14 +42,18 @@ type UseShiftFormInitParams = {
   isReadOnly?: boolean;
   currentStaffId?: string;
   allShifts?: ShiftData[];
-  requiredStaffing?: RequiredStaffingData[];
+  staffing?: ShiftFormStaffing;
   submissionPattern: ShiftSubmissionPattern;
   displayMode?: "request" | "confirmed";
   defaultToToday?: boolean;
   initialViewMode?: ViewMode;
   initialSortMode?: SortMode;
+  initialDetailMode?: boolean;
   validationIssues?: AssignmentIssue[];
   validationWarnings?: AssignmentWarning[];
+  newcomerOnlyPeriods?: NewcomerOnlyPeriod[];
+  /** 店舗が選んだスタッフの並び替え。省くと「固定」にする。 */
+  staffSortMode?: StaffSortMode;
 };
 
 export const useShiftFormInit = ({
@@ -58,14 +67,17 @@ export const useShiftFormInit = ({
   isReadOnly = false,
   currentStaffId,
   allShifts,
-  requiredStaffing,
+  staffing,
   submissionPattern,
   displayMode = "request",
   defaultToToday = false,
   initialViewMode,
   initialSortMode,
+  initialDetailMode,
   validationIssues,
   validationWarnings,
+  newcomerOnlyPeriods,
+  staffSortMode = "fixed",
 }: UseShiftFormInitParams) => {
   const setConfig = useSetAtom(shiftConfigAtom);
   const setShifts = useSetAtom(replaceShiftDraftsAtom);
@@ -73,8 +85,11 @@ export const useShiftFormInit = ({
   const setLockedDailyStaffOrder = useSetAtom(lockedDailyStaffOrderAtom);
   const setViewMode = useSetAtom(viewModeAtom);
   const setSortMode = useSetAtom(sortModeAtom);
+  const setDetailMode = useSetAtom(detailModeAtom);
   const setValidationIssues = useSetAtom(validationIssuesAtom);
   const setValidationWarnings = useSetAtom(validationWarningsAtom);
+  const setNewcomerOnlyPeriods = useSetAtom(newcomerOnlyPeriodsAtom);
+  const applyStaffSortMode = useSetAtom(applyStaffSortModeAtom);
   const isInitialized = useRef(false);
 
   // 初回マウント時: シフトデータ初期化 + 選択日を設定
@@ -85,13 +100,15 @@ export const useShiftFormInit = ({
     setShifts(initialShifts);
     const initialDate = resolveInitialSelectedDate(dates, defaultToToday);
     setSelectedDate(initialDate);
+    // 最初の並びも、店舗が選んだ並び替えで決める。この時点ではstoreへ設定が入っていないため、propsから決める。
+    applyStaffSortMode(staffSortMode);
     if (initialDate && staffs.length > 0) {
       const shiftByStaffId = indexShiftsByStaffId(initialShifts.filter((shift) => shift.date === initialDate));
-      const mode = submissionPattern.kind === "dateOnly" ? "dateOnly" : submissionPattern.kind;
       const staffIds = sortDailyStaffs({
         staffs,
         shiftByStaffId,
-        mode,
+        mode: submissionPattern.kind,
+        staffSortMode,
       }).map((staff) => staff.id);
       setLockedDailyStaffOrder({ date: initialDate, staffIds });
     } else {
@@ -102,6 +119,9 @@ export const useShiftFormInit = ({
     }
     if (initialSortMode) {
       setSortMode(initialSortMode);
+    }
+    if (initialDetailMode) {
+      setDetailMode(true);
     }
   }, [
     initialShifts,
@@ -116,6 +136,10 @@ export const useShiftFormInit = ({
     setViewMode,
     initialSortMode,
     setSortMode,
+    initialDetailMode,
+    setDetailMode,
+    staffSortMode,
+    applyStaffSortMode,
   ]);
 
   // 外部設定の同期（props変更時に shiftConfigAtom を更新）
@@ -130,7 +154,7 @@ export const useShiftFormInit = ({
       isReadOnly,
       currentStaffId,
       allShifts,
-      requiredStaffing,
+      staffing,
       submissionPattern,
       displayMode,
     });
@@ -144,11 +168,17 @@ export const useShiftFormInit = ({
     isReadOnly,
     currentStaffId,
     allShifts,
-    requiredStaffing,
+    staffing,
     submissionPattern,
     displayMode,
     setConfig,
   ]);
+
+  // 店舗が選んだ並び替えの同期。表示設定で変えると、置く側が保存して渡し直す。
+  // 表示中の日の並びを新しい設定で決め直すため、外部設定の同期のあとに置く。
+  useEffect(() => {
+    applyStaffSortMode(staffSortMode);
+  }, [applyStaffSortMode, staffSortMode]);
 
   // 確定前バリデーションエラーの同期（props変更時にatomを更新）
   useEffect(() => {
@@ -159,4 +189,9 @@ export const useShiftFormInit = ({
   useEffect(() => {
     setValidationWarnings(validationWarnings ?? []);
   }, [validationWarnings, setValidationWarnings]);
+
+  // 見習いだけの時間帯（確認事項）の同期
+  useEffect(() => {
+    setNewcomerOnlyPeriods(newcomerOnlyPeriods ?? []);
+  }, [newcomerOnlyPeriods, setNewcomerOnlyPeriods]);
 };

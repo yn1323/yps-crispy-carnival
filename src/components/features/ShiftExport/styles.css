@@ -24,6 +24,21 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+.shift-export-daily-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8pt;
+}
+.shift-export-daily-title .shift-export-title {
+  flex: 1;
+  min-width: 0;
+}
+.shift-export-daily-workers {
+  flex-shrink: 0;
+  font-size: 10pt;
+  text-align: right;
+  white-space: nowrap;
+}
 .shift-export-table {
   border-collapse: collapse;
   table-layout: fixed;
@@ -51,6 +66,61 @@
   text-align: left;
   white-space: normal;
   overflow-wrap: anywhere;
+}
+.shift-export-table .shift-export-daily-chart {
+  position: relative;
+  padding: 0;
+}
+/* 1時間ごとの縦線。幅は行ごとにbackground-sizeで渡す。 */
+.shift-export-table .shift-export-daily-grid {
+  background-image: linear-gradient(to right, #d0d0d0 1px, transparent 1px);
+  background-repeat: repeat-x;
+}
+.shift-export-daily-hour {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  font-size: 7pt;
+}
+.shift-export-daily-segment {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  border: 1px solid #000;
+  padding: 0 2pt;
+  overflow: hidden;
+  white-space: nowrap;
+  text-align: left;
+}
+/* 休憩は、PDFの斜線と同じ向き（右上がり）と間隔にする。 */
+.shift-export-daily-break {
+  padding: 0;
+  justify-content: center;
+  background: repeating-linear-gradient(135deg, #fff 0 1.6pt, #777 1.6pt 2.12pt);
+}
+/* 「休」は斜線の上でも読めるよう、白い地に載せる。 */
+.shift-export-daily-break-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  color: #000;
+  line-height: 1;
+}
+.shift-export-daily-count {
+  position: absolute;
+  top: 1pt;
+  bottom: 1pt;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #666;
+  font-size: 7pt;
+  overflow: hidden;
 }
 .shift-export-page-number {
   position: absolute;

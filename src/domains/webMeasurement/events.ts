@@ -14,14 +14,17 @@ export const publicCtaIds = [
   "header_login",
   "header_signup",
   "hero_signup",
-  "hero_help",
+  "hero_demo",
   "flow_signup",
+  "flow_demo",
   "pricing_signup",
   "bottom_signup",
   "bottom_help",
   "article_cta",
   "feature_hero_signup",
   "feature_bottom_signup",
+  "feature_hero_demo",
+  "feature_demo",
 ] as const;
 export type PublicCtaId = (typeof publicCtaIds)[number];
 
@@ -78,11 +81,54 @@ export const appErrorSources = [
 ] as const;
 export type AppErrorSource = (typeof appErrorSources)[number];
 export type AppTimingPhase = "clerk_loaded" | "user_loaded" | "app_ready";
+export type AutoCreateMethod = "rule" | "ai";
+export type AutoCreateResult = "created" | "empty" | "failed";
+/** 自動作成できなかった理由。AIで作れなかった種類と、それ以外の失敗（`error`）に分ける。 */
+export const autoCreateFailureReasons = [
+  "not_configured",
+  "unsupported",
+  "rate_limited",
+  "limit_reached",
+  "billing",
+  "busy",
+  "declined",
+  "unavailable",
+  "error",
+] as const;
+export type AutoCreateFailureReason = (typeof autoCreateFailureReasons)[number];
+/** 必要人数設定で保存した部分。送るときは、この順に`+`でつなぐ。 */
+export const shiftSetupSections = ["positions", "templates", "skills"] as const;
+export type ShiftSetupSection = (typeof shiftSetupSections)[number];
+export type ShiftSetupAssistResult = "created" | "empty" | "failed";
+
+/** アプリ内でヘルプを開く入口。ヘルプは別タブで参照元を渡さずに開くため、押した側で記録する。 */
+export const helpLinkEntryIds = [
+  "user_menu",
+  "action_inbox_notifications",
+  "shift_exclusion",
+  "staff_add_form",
+  "staff_registration_link",
+  "auto_create_ai_data",
+] as const;
+export type HelpLinkEntryId = (typeof helpLinkEntryIds)[number];
+/** 必要人数設定を開く入口。 */
+export const shiftSetupLinkEntryIds = ["shop_detail", "shift_board_menu", "auto_create_dialog"] as const;
+export type ShiftSetupLinkEntryId = (typeof shiftSetupLinkEntryIds)[number];
+
+/** 公開CTA以外の`select_content`。内容の種類ごとに、送ってよいIDを限る。 */
+export type ContentSelectInput =
+  | { kind: "content_select"; contentType: "help_link"; contentId: HelpLinkEntryId }
+  | { kind: "content_select"; contentType: "shift_setup_link"; contentId: ShiftSetupLinkEntryId }
+  /** よくある質問のID。MDXのファイル名なので、決まった形の文字列だけを通す。 */
+  | { kind: "content_select"; contentType: "help_faq"; contentId: string }
+  /** ヘルプの動画のファイル名（拡張子を除く）。決まった形の文字列だけを通す。 */
+  | { kind: "content_select"; contentType: "help_video"; contentId: string };
+type ContentSelectType = ContentSelectInput["contentType"];
 
 /** 管理画面の成功した操作。キーイベントにしない操作は、GTMタグと定義を増やさないよう一つのイベントにまとめる。 */
 export const manageActionsByTarget = {
   recruitment: ["update", "delete"],
-  shift: ["save"],
+  shift: ["save", "switch_detail", "switch_simple"],
   staff: [
     "reject_request",
     "exclude",
@@ -160,13 +206,33 @@ export type ProductMeasurementInput =
   | { kind: "share"; method: ShareMethod; contentType: ShareContentType }
   /** 作成した店舗。一覧の絞り込みと作成先が異なるため、画面のscopeより優先する。 */
   | { kind: "recruitment_create"; shopId: string }
-  | { kind: "shift_confirm"; intent: ShiftConfirmIntent }
+  /** `usedAutoCreate`は、この画面を開いている間に自動作成してから確定したか。 */
+  | { kind: "shift_confirm"; intent: ShiftConfirmIntent; detailMode: boolean; usedAutoCreate: boolean }
   | { kind: "shift_confirm_blocked"; reason?: string; count: number }
   | { kind: "trial_notice_view"; stage: TrialNoticeStage }
   | { kind: "plan_checkout_result"; result: CheckoutResult }
   | { kind: "home_screen_guide"; action: HomeScreenGuideAction }
   | { kind: "feature_request_submit" }
   | ManageActionInput
+  | ContentSelectInput
+  | { kind: "shift_auto_create_open"; isRequirementMissing: boolean; submissionPattern: SubmissionPatternKind }
+  | {
+      kind: "shift_auto_create";
+      method: AutoCreateMethod;
+      result: AutoCreateResult;
+      /** `result`が`failed`のときの理由。 */
+      failureReason?: AutoCreateFailureReason;
+      includesBreaks: boolean;
+      submissionPattern: SubmissionPatternKind;
+      /** AIを呼んだか。メモのない募集などで、決まった手順の下書きのままにした場合はfalse。 */
+      aiCalled: boolean;
+      /** AIが変えた勤務の件数。AIを呼んでいない場合は0。 */
+      changedCount: number;
+      /** 作った勤務の件数。作れなかった場合は0。 */
+      createdCount: number;
+    }
+  | { kind: "shift_setup_save"; sections: readonly ShiftSetupSection[]; positionCount: number }
+  | { kind: "shift_setup_assist"; result: ShiftSetupAssistResult }
   | { kind: "staff_register_submit" }
   | { kind: "staff_legal_consent" }
   | {
@@ -248,13 +314,27 @@ type SerializedProductParams = {
   staff_add: { method: StaffAddMethod; count: number };
   share: { method: ShareMethod; content_type: ShareContentType };
   recruitment_create: NoParams;
-  shift_confirm: { intent: ShiftConfirmIntent };
+  shift_confirm: { intent: ShiftConfirmIntent; detail_mode: BooleanString; used_auto_create: BooleanString };
   shift_confirm_blocked: { reason: string; count: number };
   trial_notice_view: { stage: TrialNoticeStage };
   plan_checkout_result: { result: CheckoutResult };
   home_screen_guide: { action: HomeScreenGuideAction };
   feature_request_submit: NoParams;
   manage_action: { target: ManageActionTarget; action: ManageActionInput["action"] };
+  select_content: { content_type: ContentSelectType; content_id: string };
+  shift_auto_create_open: { reason: "none" | "requirement_missing"; submission_pattern: SubmissionPatternKind };
+  shift_auto_create: {
+    method: AutoCreateMethod;
+    result: AutoCreateResult;
+    reason: AutoCreateFailureReason | "none";
+    includes_breaks: BooleanString;
+    submission_pattern: SubmissionPatternKind;
+    ai_called: BooleanString;
+    changed_count: number;
+    count: number;
+  };
+  shift_setup_save: { sections: string; position_count: number };
+  shift_setup_assist: { result: ShiftSetupAssistResult };
   staff_register_submit: NoParams;
   staff_legal_consent: NoParams;
   shift_submit: {
@@ -351,6 +431,18 @@ function normalizeCount(value: number): number {
 
 function toBooleanString(value: boolean): BooleanString {
   return value ? "true" : "false";
+}
+
+/** ヘルプのIDはファイル名から作る。想定外の形の値は`other`にまとめ、入力値が紛れても送らない。 */
+function normalizeContentSlug(value: string): string {
+  return /^[a-z0-9][a-z0-9-]{0,79}$/.test(value) ? value : "other";
+}
+
+/** 保存した部分を決まった順に並べ、組み合わせを7通りに限る。何も保存していない場合は`none`にする。 */
+function serializeShiftSetupSections(sections: readonly ShiftSetupSection[]): string {
+  const saved = new Set(sections);
+  const ordered = shiftSetupSections.filter((section) => saved.has(section));
+  return ordered.length > 0 ? ordered.join("+") : "none";
 }
 
 function serializeIdentity(
@@ -452,7 +544,12 @@ function serializeProductPayload(event: ProductMeasurementInput): SerializedProd
     case "share":
       return { event: "share", method: event.method, content_type: event.contentType };
     case "shift_confirm":
-      return { event: "shift_confirm", intent: event.intent };
+      return {
+        event: "shift_confirm",
+        intent: event.intent,
+        detail_mode: toBooleanString(event.detailMode),
+        used_auto_create: toBooleanString(event.usedAutoCreate),
+      };
     case "shift_confirm_blocked":
       return {
         event: "shift_confirm_blocked",
@@ -467,6 +564,41 @@ function serializeProductPayload(event: ProductMeasurementInput): SerializedProd
       return { event: "home_screen_guide", action: event.action };
     case "manage_action":
       return { event: "manage_action", target: event.target, action: event.action };
+    case "content_select":
+      return {
+        event: "select_content",
+        content_type: event.contentType,
+        content_id:
+          event.contentType === "help_faq" || event.contentType === "help_video"
+            ? normalizeContentSlug(event.contentId)
+            : event.contentId,
+      };
+    case "shift_auto_create_open":
+      return {
+        event: "shift_auto_create_open",
+        reason: event.isRequirementMissing ? "requirement_missing" : "none",
+        submission_pattern: event.submissionPattern,
+      };
+    case "shift_auto_create":
+      return {
+        event: "shift_auto_create",
+        method: event.method,
+        result: event.result,
+        reason: event.result === "failed" ? (event.failureReason ?? "error") : "none",
+        includes_breaks: toBooleanString(event.includesBreaks),
+        submission_pattern: event.submissionPattern,
+        ai_called: toBooleanString(event.aiCalled),
+        changed_count: normalizeCount(event.changedCount),
+        count: normalizeCount(event.createdCount),
+      };
+    case "shift_setup_save":
+      return {
+        event: "shift_setup_save",
+        sections: serializeShiftSetupSections(event.sections),
+        position_count: normalizeCount(event.positionCount),
+      };
+    case "shift_setup_assist":
+      return { event: "shift_setup_assist", result: event.result };
     case "shift_submit":
       return {
         event: "shift_submit",

@@ -1,9 +1,13 @@
-import { Stack } from "@chakra-ui/react";
+import { Box, Stack } from "@chakra-ui/react";
 import { arrayMove } from "@dnd-kit/sortable";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
-import { PeopleSection } from "@/src/components/features/OrganizationSettings";
+import {
+  PeopleSection,
+  PeopleSectionHeaderActions,
+  PeopleSectionSummary,
+} from "@/src/components/features/OrganizationSettings";
 import type { OrganizationPersonView } from "@/src/components/features/OrganizationSettings/types";
 import { AuthenticatedAppShell } from "@/src/components/templates/AuthenticatedAppShell";
 import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
@@ -76,16 +80,36 @@ function StaffReadyPreview({
   const [visiblePeople, setVisiblePeople] = useState(initialPeople);
   const [canLoadMore, setCanLoadMore] = useState(withNextPage);
 
+  const peopleUsage = { current: empty ? 0 : singlePerson ? 1 : 12, max: 50, pendingInvitations: 0 };
+  const addStaffDisabledReason = usageLimitExceeded
+    ? "プラン上限を超えているため、スタッフを追加できません。"
+    : undefined;
+
   return (
-    <Stack gap={{ base: 6, lg: 8 }}>
+    <Stack gap={{ base: 3, lg: 4 }}>
       <AppStaffHeader
         value={filteredByShop ? (shopOptions[0]?.value ?? null) : null}
         options={singleShop ? shopOptions.slice(0, 1) : shopOptions}
         onChange={() => {}}
+        summary={
+          <PeopleSectionSummary
+            peopleUsage={peopleUsage}
+            filterResultCount={filteredByShop ? visiblePeople.length : undefined}
+          />
+        }
+        actions={
+          <PeopleSectionHeaderActions
+            onAddStaff={() => {}}
+            canAddStaff={!usageLimitExceeded}
+            addStaffDisabledReason={addStaffDisabledReason}
+            onManageManagers={() => {}}
+          />
+        }
       />
       <PeopleSection
+        hidesHeader
         people={visiblePeople}
-        peopleUsage={{ current: empty ? 0 : singlePerson ? 1 : 12, max: 50, pendingInvitations: 0 }}
+        peopleUsage={peopleUsage}
         onManageManagers={() => {}}
         onOpenUser={() => {}}
         staffOrder={
@@ -111,9 +135,7 @@ function StaffReadyPreview({
         }
         onAddStaff={() => {}}
         canAddStaff={!usageLimitExceeded}
-        addStaffDisabledReason={
-          usageLimitExceeded ? "プラン上限を超えているため、スタッフを追加できません。" : undefined
-        }
+        addStaffDisabledReason={addStaffDisabledReason}
         canLoadMorePeople={canLoadMore}
         onLoadMorePeople={() => {
           setVisiblePeople((current) => [...current, loadedPerson]);
@@ -298,5 +320,60 @@ export const QueryErrorRetryBehavior: Story = {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "再試行する" }));
     await expect(await canvas.findByText("再読み込みを開始しました")).toBeInTheDocument();
+  },
+};
+
+/**
+ * 幅375pxのスマートフォンでも、見出し、人数、「管理者」「追加」を1行に収める。
+ * Storybookの画面幅の候補に375pxがないため、幅414pxの画面で、ページの左右の余白（16px）を除いた幅343pxに置く。
+ */
+export const HeaderFitsNarrowMobile: Story = {
+  name: "Header Fits Narrow Mobile",
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+  render: () => (
+    <Box w="343px">
+      <StaffReadyPreview />
+    </Box>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const heading = await canvas.findByRole("heading", { level: 1, name: "スタッフ" });
+    const addButton = canvas.getByRole("button", { name: "スタッフを追加" });
+    const managerButton = canvas.getByRole("button", { name: "管理者を設定" });
+    const middle = (element: HTMLElement) => {
+      const rect = element.getBoundingClientRect();
+      return (rect.top + rect.bottom) / 2;
+    };
+    // 見出しは1行で、操作ボタンと同じ行に並ぶ。
+    const lineHeight = Number.parseFloat(getComputedStyle(heading).lineHeight);
+    await expect(heading.getBoundingClientRect().height).toBeLessThan(lineHeight * 1.5);
+    await expect(Math.abs(middle(heading) - middle(addButton))).toBeLessThan(12);
+    await expect(Math.abs(middle(managerButton) - middle(addButton))).toBeLessThan(1);
+    await expect(addButton.getBoundingClientRect().right).toBeLessThanOrEqual(
+      heading.closest("div")?.parentElement?.getBoundingClientRect().right ?? 0,
+    );
+  },
+};
+
+/**
+ * 幅375pxのスマートフォンでも、「佐藤 太郎」のような名前を省略せずに出す。
+ * 持ち手と名前のアイコンの間を詰め、名前の文字を1段小さくしている。本文の幅343pxで確かめる。
+ */
+export const StaffNamesFitNarrowMobile: Story = {
+  name: "Staff Names Fit Narrow Mobile",
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+  render: () => (
+    <Box w="343px">
+      <StaffReadyPreview />
+    </Box>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const row = await canvas.findByRole("button", { name: "佐藤 太郎のスタッフ詳細を開く" });
+    const name = within(row).getByText("佐藤 太郎");
+    // 「…」で省略されていない。
+    await expect(name.scrollWidth).toBeLessThanOrEqual(name.clientWidth);
   },
 };

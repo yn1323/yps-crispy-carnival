@@ -106,19 +106,19 @@ export const validationWarningArgs = {
       code: "NOT_SUBMITTED" as const,
       date: "2026-01-21",
       staffId: "staff3",
-      message: "未提出のまま勤務に入っています",
+      message: "未提出",
     },
     {
       code: "OUTSIDE_REQUESTED_TIME" as const,
       date: "2026-01-21",
       staffId: "staff1",
-      message: "希望時間（10:00-18:00）の外に勤務があります",
+      message: "希望時間外に勤務あり",
     },
     {
       code: "OFF_REQUEST" as const,
       date: "2026-01-23",
       staffId: "staff5",
-      message: "休み希望の日に勤務が入っています",
+      message: "休み希望日に勤務あり",
     },
   ],
   onDismissValidationIssues: () => {},
@@ -165,19 +165,19 @@ export const shiftTypeValidationWarningArgs = {
       code: "OUTSIDE_REQUESTED_TIME" as const,
       date: "2026-05-21",
       staffId: "staff1",
-      message: "希望時間の外に勤務があります（遅番）",
+      message: "希望時間外に勤務あり（遅番）",
     },
     {
       code: "OFF_REQUEST" as const,
       date: "2026-05-21",
       staffId: "staff2",
-      message: "休み希望の日に勤務が入っています",
+      message: "休み希望日に勤務あり",
     },
     {
       code: "NOT_SUBMITTED" as const,
       date: "2026-05-22",
       staffId: "staff6",
-      message: "未提出のまま勤務に入っています",
+      message: "未提出",
     },
   ],
   onDismissValidationIssues: () => {},
@@ -191,13 +191,13 @@ export const dateOnlyValidationWarningArgs = {
       code: "OFF_REQUEST" as const,
       date: "2026-06-02",
       staffId: "staff2",
-      message: "休み希望の日に勤務が入っています",
+      message: "休み希望日に勤務あり",
     },
     {
       code: "NOT_SUBMITTED" as const,
       date: "2026-06-03",
       staffId: "staff6",
-      message: "未提出のまま勤務に入っています",
+      message: "未提出",
     },
   ],
   onDismissValidationIssues: () => {},
@@ -242,6 +242,19 @@ export const dateOnlyDateNotesArgs = {
     { staffId: "staff4", date: "2026-06-02", note: "家の用事で18時まで入れません" },
     { staffId: "staff1", date: "2026-06-04", note: LONG_DATE_NOTE },
   ],
+} satisfies ShiftFormArgs;
+
+// 休み希望（提出済みで、その日の希望の時間がない）の人を下にたたむ表示。
+// 中村さんと高橋さんはたたまれ、連絡事項のある伊藤さんと、未提出のCさん・Eさんは、たたまれない。
+export const timeRestFoldArgs = {
+  ...allPatternsArgs,
+  staffs: [
+    ...allPatternsArgs.staffs,
+    { id: "rest1", name: "中村 さくら", isSubmitted: true },
+    { id: "rest2", name: "高橋 翔", isSubmitted: true },
+    { id: "rest3", name: "伊藤 大輔", isSubmitted: true },
+  ],
+  dateNotes: [{ staffId: "rest3", date: allPatternsArgs.dates[0], note: "この日は通院のため入れません" }],
 } satisfies ShiftFormArgs;
 
 /** 表示設定から連絡事項を非表示にする。 */

@@ -1,4 +1,4 @@
-import { Box, Flex, Heading, HStack, Icon, Skeleton, Stack } from "@chakra-ui/react";
+import { Box, Flex, Heading, Skeleton, Stack } from "@chakra-ui/react";
 import { useNavigate } from "@tanstack/react-router";
 import { usePaginatedQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
@@ -111,17 +111,22 @@ function ConnectedAppShifts({
   const filterOptions = shops.map((shop) => ({ value: shop.id, label: shop.name }));
   return (
     <Animation>
-      <AppShiftsOverviewView
-        filterValue={shopFilter === "all" ? null : shopFilter}
-        filterOptions={filterOptions}
-        onFilterChange={(nextFilter) =>
-          void navigate({
-            to: "/shifts",
-            search: { org: organizationId, ...(nextFilter ? { shopFilter: nextFilter } : {}) },
-          })
-        }
-      >
+      <AppShiftsOverviewView>
         <OrganizationRecruitmentManagement
+          // ページの見出しの右に「新しい募集をつくる」を置く。一覧の見出し（「シフト一覧」）は出さない。
+          renderHeader={(createAction) => (
+            <AppShiftsHeader
+              value={shopFilter === "all" ? null : shopFilter}
+              options={filterOptions}
+              onChange={(nextFilter) =>
+                void navigate({
+                  to: "/shifts",
+                  search: { org: organizationId, ...(nextFilter ? { shopFilter: nextFilter } : {}) },
+                })
+              }
+              action={createAction}
+            />
+          )}
           organizationId={organizationId}
           shopFilter={shopFilter}
           isSingleShop={shops.length === 1}
@@ -141,20 +146,10 @@ function ConnectedAppShifts({
   );
 }
 
-export function AppShiftsOverviewView({
-  filterValue,
-  filterOptions,
-  onFilterChange,
-  children,
-}: {
-  filterValue: string | null;
-  filterOptions: Array<{ value: string; label: string }>;
-  onFilterChange: (value: string | null) => void;
-  children: ReactNode;
-}) {
+/** 全店舗のシフトの本文。ページの見出しは、中身（一覧）が「新しい募集をつくる」と一緒に描く。 */
+export function AppShiftsOverviewView({ children }: { children: ReactNode }) {
   return (
-    <Stack as="main" gap={{ base: 6, lg: 8 }}>
-      <AppShiftsHeader value={filterValue} options={filterOptions} onChange={onFilterChange} />
+    <Stack as="main" gap={{ base: 3, lg: 4 }}>
       {children}
     </Stack>
   );
@@ -206,27 +201,35 @@ export function buildAppShiftsOverview(
   };
 }
 
+/**
+ * ページの見出し。見出しは「シフト」の1つだけにする。
+ * 店舗の絞り込みは見出しの上に置き、店舗が2つ以上あるときだけ出す。見出しの右には操作（「新しい募集をつくる」）を置く。
+ */
 export function AppShiftsHeader({
   value,
   options,
   onChange,
+  action,
 }: {
   value: string | null;
   options: Array<{ value: string; label: string }>;
   onChange: (value: string | null) => void;
+  action?: ReactNode;
 }) {
   return (
-    <Flex align="center" justify="space-between" gap={3} minH="44px">
-      <HStack gap={2.5} minW={0} flexShrink={0}>
-        <Icon as={LuCalendarDays} boxSize={{ base: 5, lg: 6 }} flexShrink={0} aria-hidden />
+    <Stack gap={2}>
+      {options.length >= 2 && (
+        <Box alignSelf="flex-start" minW={0} maxW={{ base: "full", sm: "240px" }}>
+          <ShopFilterMenu value={value} options={options} onChange={onChange} appearance="inline" />
+        </Box>
+      )}
+      <Flex align="center" justify="space-between" gap={3} minH="44px" wrap="wrap">
         <Heading as="h1" textStyle="sectionTitle" color="gray.900">
           シフト
         </Heading>
-      </HStack>
-      <Box minW={0} maxW={{ base: "190px", sm: "240px" }}>
-        <ShopFilterMenu value={value} options={options} onChange={onChange} />
-      </Box>
-    </Flex>
+        {action}
+      </Flex>
+    </Stack>
   );
 }
 
@@ -235,22 +238,23 @@ export type AppShiftsPageState = { kind: "loading" } | { kind: "empty" } | { kin
 export function AppShiftsPageStateView({ state, onRetry }: { state: AppShiftsPageState; onRetry?: () => void }) {
   if (state.kind === "loading") {
     return (
-      <Stack as="main" aria-label="シフト一覧を読み込み中" aria-busy="true" gap={{ base: 6, lg: 8 }}>
-        <Flex justify="space-between" align="center">
-          <HStack gap={2.5}>
-            <Skeleton boxSize="24px" borderRadius="full" />
+      <Stack as="main" aria-label="シフト一覧を読み込み中" aria-busy="true" gap={{ base: 3, lg: 4 }}>
+        {/* 読み込み後と同じく、上に店舗の絞り込み、その下に見出しと「新しい募集をつくる」を並べる。 */}
+        <Stack gap={2}>
+          <Skeleton h="20px" w="80px" />
+          <Flex justify="space-between" align="center" minH="44px">
             <Skeleton h="28px" w="88px" />
-          </HStack>
-          <Skeleton h="44px" w={{ base: "150px", sm: "180px" }} maxW="52vw" />
-        </Flex>
-        <RecruitmentBoardSkeleton />
+            <Skeleton h="40px" w={{ base: "120px", sm: "176px" }} borderRadius="md" />
+          </Flex>
+        </Stack>
+        <RecruitmentBoardSkeleton hidesHeader />
       </Stack>
     );
   }
 
   if (state.kind === "empty") {
     return (
-      <Stack as="main" gap={{ base: 6, lg: 8 }}>
+      <Stack as="main" gap={{ base: 3, lg: 4 }}>
         <AppShiftsHeader value={null} options={[]} onChange={() => undefined} />
         <Empty
           icon={LuCalendarDays}

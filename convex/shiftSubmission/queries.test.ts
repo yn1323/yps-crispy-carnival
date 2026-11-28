@@ -35,10 +35,10 @@ async function setupSubmissionPageData(
       subjectType: "staff",
       staffId,
       shopId,
-      termsConsentVersion: "staff-terms-consent-2026-05-09",
-      privacyConsentVersion: "staff-privacy-consent-2026-08-26",
-      termsDocumentVersion: "staff-terms-doc-2026-08-26",
-      privacyDocumentVersion: "staff-privacy-doc-2026-10-04",
+      termsConsentVersion: "staff-terms-consent-2026-11-25",
+      privacyConsentVersion: "staff-privacy-consent-2026-11-25",
+      termsDocumentVersion: "staff-terms-doc-2026-11-25",
+      privacyDocumentVersion: "staff-privacy-doc-2026-11-25",
       consentedAt: Date.now(),
       method: "staff_email_link",
     });
@@ -320,8 +320,8 @@ describe("shiftSubmission/queries", () => {
       if (result.status !== "ok") throw new Error("expected submission page data");
       expect(result.data.legalConsentRequired).toBe(true);
       expect(result.data.legalDocuments.privacy).toMatchObject({
-        documentVersion: "staff-privacy-doc-2026-10-04",
-        requiredConsentVersion: "staff-privacy-consent-2026-08-26",
+        documentVersion: "staff-privacy-doc-2026-11-25",
+        requiredConsentVersion: "staff-privacy-consent-2026-11-25",
       });
     });
 

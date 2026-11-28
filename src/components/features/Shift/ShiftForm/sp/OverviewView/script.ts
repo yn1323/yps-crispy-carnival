@@ -1,15 +1,27 @@
 import { buildWeeklyGrid, formatDateShort, getWeekdayLabel } from "@/src/domains/shift/date";
+import { isLegacyCompatibleWorkPosition } from "@/src/domains/shift/positions";
 import { sortDailyStaffsByDate } from "@/src/domains/shift/sortStaffs";
 import { formatShiftClockTime, timeToMinutes } from "@/src/domains/shift/time";
-import type { ShiftData, StaffType } from "@/src/domains/shift/types";
+import type { ShiftData, StaffSortMode, StaffType } from "@/src/domains/shift/types";
 import { getShiftWeekdayTone, type ShiftWeekdayTone } from "../../weekdayPresentation";
 
 export type OverviewWeekdayTone = ShiftWeekdayTone;
+
+export type OverviewPositionMarkViewModel = {
+  key: string;
+  positionId: string;
+  positionName: string;
+  color: string;
+};
 
 export type OverviewStaffRowViewModel = {
   key: string;
   name: string;
   assignedTimeLabel: string;
+  // 以下は、くわしく表示の印（熟練度、ポジション、休憩）に使う。
+  staff: StaffType;
+  shift: ShiftData;
+  positionMarks: OverviewPositionMarkViewModel[];
 };
 
 export type OverviewDayRowViewModel = {
@@ -45,10 +57,29 @@ const getAssignedRange = (shift: ShiftData): [string, string] | null => {
   return [sorted[0].start, sorted[sorted.length - 1].end];
 };
 
+// その日に入っているポジションを、勤務の早い順に重複なく並べる。
+const getPositionMarks = (shift: ShiftData): OverviewPositionMarkViewModel[] => {
+  const marks = new Map<string, OverviewPositionMarkViewModel>();
+  for (const position of shift.positions
+    .filter(isLegacyCompatibleWorkPosition)
+    .sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start))) {
+    if (!marks.has(position.positionId)) {
+      marks.set(position.positionId, {
+        key: position.positionId,
+        positionId: position.positionId,
+        positionName: position.positionName,
+        color: position.color,
+      });
+    }
+  }
+  return [...marks.values()];
+};
+
 export const buildOverviewViewModel = ({
   dates,
   holidays,
   staffs,
+  staffSortMode,
   shifts,
   warningCounts,
   isReadOnly,
@@ -56,17 +87,19 @@ export const buildOverviewViewModel = ({
   dates: string[];
   holidays: string[];
   staffs: StaffType[];
+  /** 店舗が選んだ並び替え。日別と同じ並びにするために受け取る。 */
+  staffSortMode?: StaffSortMode;
   shifts: ShiftData[];
   warningCounts: ReadonlyMap<string, number>;
   isReadOnly: boolean;
 }): OverviewViewModel => {
   const holidaySet = new Set(holidays);
-  const assignedRangeByStaffDate = new Map<string, [string, string]>();
+  const assignedByStaffDate = new Map<string, { range: [string, string]; shift: ShiftData }>();
   for (const shift of shifts) {
-    const assignedRange = getAssignedRange(shift);
-    if (assignedRange) assignedRangeByStaffDate.set(`${shift.staffId}-${shift.date}`, assignedRange);
+    const range = getAssignedRange(shift);
+    if (range) assignedByStaffDate.set(`${shift.staffId}-${shift.date}`, { range, shift });
   }
-  const sortedStaffsByDate = sortDailyStaffsByDate({ staffs, shifts, mode: "time" });
+  const sortedStaffsByDate = sortDailyStaffsByDate({ staffs, shifts, mode: "time", staffSortMode });
 
   return {
     weeks: buildWeeklyGrid(dates).map((week, weekIndex) => {
@@ -82,13 +115,16 @@ export const buildOverviewViewModel = ({
           const staffRows =
             date.inRange && !isClosed
               ? dailyStaffs.flatMap((staff): OverviewStaffRowViewModel[] => {
-                  const assignedRange = assignedRangeByStaffDate.get(`${staff.id}-${date.iso}`);
-                  return assignedRange
+                  const assigned = assignedByStaffDate.get(`${staff.id}-${date.iso}`);
+                  return assigned
                     ? [
                         {
                           key: staff.id,
                           name: staff.name,
-                          assignedTimeLabel: `${formatShiftClockTime(assignedRange[0])}\u2013${formatShiftClockTime(assignedRange[1])}`,
+                          assignedTimeLabel: `${formatShiftClockTime(assigned.range[0])}\u2013${formatShiftClockTime(assigned.range[1])}`,
+                          staff,
+                          shift: assigned.shift,
+                          positionMarks: getPositionMarks(assigned.shift),
                         },
                       ]
                     : [];

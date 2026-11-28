@@ -725,8 +725,8 @@ function PaymentInformation({
           <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
             <BillingInformationRow
               icon={LuCreditCard}
-              label="支払い方法・請求書・領収書"
-              actionLabel="支払い方法・請求書・領収書を見る"
+              label="支払い方法の変更、領収書・請求書を確認する"
+              actionLabel="支払い方法の変更、領収書・請求書を確認する"
               onAction={onUpdatePaymentMethod}
               disabled={!billing.canUpdatePaymentMethod}
               disabledReason={billing.paymentMethodDisabledReason}
@@ -735,9 +735,9 @@ function PaymentInformation({
             />
             <BillingInformationRow
               icon={LuMail}
-              label="請求先メールアドレス"
+              label="支払いのお知らせ先"
               value={billing.billingEmail}
-              actionLabel="請求先を変更"
+              actionLabel="お知らせ先を変更"
               onAction={onUpdateBillingEmail}
               disabled={!billing.canUpdateBillingEmail}
               disabledReason={billing.billingEmailDisabledReason}

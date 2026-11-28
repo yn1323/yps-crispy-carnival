@@ -1,0 +1,317 @@
+import { Box, useBreakpointValue } from "@chakra-ui/react";
+import { type Ref, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { ShiftForm, type ShiftFormDetailActions } from "@/src/components/features/Shift/ShiftForm";
+import { showSuccessToast } from "@/src/components/shared/feedback";
+import { Tour, type TourHandle } from "@/src/components/ui/Tour";
+import type { ShiftData } from "@/src/domains/shift/types";
+import { BOARD_NOTICE_LEAVE_MS, BOARD_NOTICE_MS, BoardNotice, type BoardNoticeKind } from "./BoardNotice";
+import { HandsOnTourNextContext, HandsOnTourTooltip } from "./HandsOnTourTooltip";
+import { getHandsOnStepIndex, HANDS_ON_WORK_SET_STEP, type HandsOnVariant } from "./progress";
+import {
+  HANDS_ON_POSITIONS,
+  HANDS_ON_SUBMISSION_PATTERN,
+  HANDS_ON_TIME_RANGE,
+  type HandsOnScenario,
+  runHandsOnAutoCreate,
+} from "./scenario";
+import { TodoCard } from "./TodoCard";
+import {
+  HANDS_ON_HALL_CHIP,
+  HANDS_ON_KITCHEN_MENU_ITEM,
+  HANDS_ON_TODO_INDEX,
+  HANDS_ON_TODO_LABELS,
+  HANDS_ON_TOUR_STEPS,
+  HANDS_ON_TOUR_Z_INDEX,
+} from "./tourSteps";
+
+const TODO_Z_INDEX = HANDS_ON_TOUR_Z_INDEX + 1;
+const NOTICE_Z_INDEX = HANDS_ON_TOUR_Z_INDEX + 2;
+
+/** 希望が届いた直後に、行ごとに順に並べる動き。1行ずつずらして、左から滑り込ませる。 */
+const ARRIVE_START_S = 0.4;
+const ARRIVE_STEP_S = 0.16;
+const ARRIVE_DURATION_S = 0.55;
+
+/**
+ * 届いた希望を並べる動き。並べ終えたら外し、そのあとドラッグで出す範囲の表示には動きを付けない。
+ * 外さないと、ドラッグ中の範囲の表示まで、行ごとにずらした時間だけ見えなくなる。
+ */
+const buildArriveCss = (staffIds: string[]) =>
+  staffIds
+    .map(
+      (staffId, index) =>
+        // 行の2つ目の子が時間の欄で、その中の2つ目以降が希望の枠と勤務のバーである。
+        `[data-tour="shift-row-${staffId}"] > :nth-child(2) > :nth-child(n+2) { animation: hodArrive ${ARRIVE_DURATION_S}s cubic-bezier(.2,.8,.2,1) ${(ARRIVE_START_S + index * ARRIVE_STEP_S).toFixed(2)}s both; }`,
+    )
+    .join("\n");
+
+const TOUR_DELAY_MS = 900;
+
+/** 上の段の手順から、シフト表を操作する。 */
+export type BoardStepHandle = {
+  /** 「確定」を押したときと同じく、吹き出しを片付けてから、その時の下書きで確定する。 */
+  confirm: () => void;
+  /** シフト表を閉じる前に、吹き出しを片付ける。閉じるだけでは、吹き出しの部品がbodyに残ることがある。 */
+  endTour: () => void;
+};
+
+type Props = {
+  variant: HandsOnVariant;
+  scenario: HandsOnScenario;
+  /**
+   * 手順を終えた下書き。シフト表を通らずに、上の段から「確定シフトを送る」へ移ったときに渡す。
+   * 渡すと、届いた希望を並べる動きを出さず、案内も終えた状態から始める。開いたときの値だけを使う。
+   */
+  completedShifts?: ShiftData[];
+  /** 確定したあとの場面の後ろに置いているか。吹き出しと「やること」を出さない。 */
+  isBackdrop: boolean;
+  onConfirm: (shifts: ShiftData[]) => void;
+  handleRef?: Ref<BoardStepHandle>;
+};
+
+/** シフト表で、案内に沿って勤務を入れ、確定する。案内は、そのときの下書きから進める。 */
+export const BoardStep = ({ variant, scenario, completedShifts, isBackdrop, onConfirm, handleRef }: Props) => {
+  // 開いたときの値だけを使う。確定したあとも後ろに残し、上の段から戻ったときにそのまま続けられるよう、
+  // あとで渡す値が変わっても下書きを作り直さない。
+  const [start] = useState(() => ({
+    shifts: completedShifts ?? (variant === "simple" ? scenario.simpleInitialShifts : scenario.requests),
+    isCompleted: completedShifts !== undefined,
+  }));
+  const initialShifts = start.shifts;
+  const arrives = !start.isCompleted;
+  const day1 = scenario.dates[0];
+  const [shifts, setShifts] = useState<ShiftData[]>(initialShifts);
+  // 確定したときの下書きを、描き直しを待たずに渡すため、最後に届いた下書きも持っておく。
+  const shiftsRef = useRef<ShiftData[]>(initialShifts);
+  const [acknowledged, setAcknowledged] = useState(start.isCompleted);
+  // くわしく表示の話に沿った手順。手順を終えた下書きから始めるときは、どれも済んだものとする。
+  const [hallStoryRead, setHallStoryRead] = useState(start.isCompleted);
+  const [hallPicked, setHallPicked] = useState(start.isCompleted);
+  const [kitchenStoryRead, setKitchenStoryRead] = useState(start.isCompleted);
+  const [rangeMenuOpen, setRangeMenuOpen] = useState(false);
+  const [autoCreated, setAutoCreated] = useState(start.isCompleted);
+  const applyShiftsRef = useRef<((update: (current: ShiftData[]) => ShiftData[]) => void) | null>(null);
+  const tourRef = useRef<TourHandle>(null);
+  // 吹き出しはPCだけに出す。スマートフォンでは右下の「やること」で進める。
+  const isPc = useBreakpointValue({ base: false, lg: true }) ?? false;
+
+  const arriveStaffIds = useMemo(
+    () =>
+      scenario.staffs
+        .filter((staff) => initialShifts.some((shift) => shift.staffId === staff.id && shift.date === day1))
+        .map((staff) => staff.id),
+    [scenario.staffs, initialShifts, day1],
+  );
+  const arriveDoneMs = Math.round((ARRIVE_START_S + arriveStaffIds.length * ARRIVE_STEP_S + ARRIVE_DURATION_S) * 1000);
+
+  const [isTourReady, setTourReady] = useState(false);
+  // 確定したあとの場面の後ろに置かれたら、案内は終えたものとする。そこからシフト表へ戻ったときは、
+  // 吹き出しと暗くした面を出さず、どこでも自由に操作できるようにする。
+  const [isFreePlay, setFreePlay] = useState(isBackdrop);
+  useEffect(() => {
+    if (isBackdrop) setFreePlay(true);
+  }, [isBackdrop]);
+  const [isArriving, setArriving] = useState(arrives);
+  useEffect(() => {
+    const tourTimer = window.setTimeout(() => setTourReady(true), arrives ? arriveDoneMs + 300 : TOUR_DELAY_MS);
+    const arriveTimer = arrives ? window.setTimeout(() => setArriving(false), arriveDoneMs) : undefined;
+    return () => {
+      window.clearTimeout(tourTimer);
+      if (arriveTimer !== undefined) window.clearTimeout(arriveTimer);
+    };
+  }, [arrives, arriveDoneMs]);
+
+  // スマートフォンには吹き出しがなく「次へ」を押せないため、読むだけの手順と右上のホールは済んだものとして進める。
+  const stepIndex = getHandsOnStepIndex({
+    variant,
+    shifts,
+    day1,
+    acknowledged: acknowledged || !isPc,
+    autoCreated,
+    hallStoryRead: hallStoryRead || !isPc,
+    hallPicked: hallPicked || !isPc,
+    kitchenStoryRead: kitchenStoryRead || !isPc,
+    rangeMenuOpen,
+  });
+
+  // くわしく表示で、右上のホールを押したことと、勤務の範囲のメニューが開いていることを見て、話の手順を進める。
+  useEffect(() => {
+    if (variant !== "detail" || isBackdrop) return;
+    const handleClick = (event: MouseEvent) => {
+      if (event.target instanceof Element && event.target.closest(HANDS_ON_HALL_CHIP)) setHallPicked(true);
+    };
+    const updateMenu = () =>
+      setRangeMenuOpen(
+        document.querySelector(
+          `[data-scope="menu"][data-part="content"][data-state="open"] ${HANDS_ON_KITCHEN_MENU_ITEM}`,
+        ) !== null,
+      );
+    const observer = new MutationObserver(updateMenu);
+    observer.observe(document.body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ["data-state"],
+    });
+    document.addEventListener("click", handleClick, true);
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("click", handleClick, true);
+    };
+  }, [variant, isBackdrop]);
+
+  // シフト表の上に数秒だけ出す知らせ。あとから出す知らせが、前の知らせに替わる。
+  const [notice, setNotice] = useState<{ kind: BoardNoticeKind; leaving: boolean } | null>(null);
+  const noticeTimersRef = useRef<number[]>([]);
+  const clearNoticeTimers = useCallback(() => {
+    for (const timer of noticeTimersRef.current) window.clearTimeout(timer);
+    noticeTimersRef.current = [];
+  }, []);
+  const showNotice = useCallback(
+    (kind: BoardNoticeKind) => {
+      clearNoticeTimers();
+      setNotice({ kind, leaving: false });
+      noticeTimersRef.current = [
+        window.setTimeout(() => setNotice({ kind, leaving: true }), BOARD_NOTICE_MS[kind]),
+        window.setTimeout(() => setNotice(null), BOARD_NOTICE_MS[kind] + BOARD_NOTICE_LEAVE_MS),
+      ];
+    },
+    [clearNoticeTimers],
+  );
+  useEffect(() => clearNoticeTimers, [clearNoticeTimers]);
+
+  // 届いた希望を並べ終えて操作できるようになったとき（確定のあとから戻ったときも）、操作できることを知らせる。
+  const isOperable = !isBackdrop && isTourReady;
+  useEffect(() => {
+    if (isOperable) {
+      showNotice("ready");
+      return;
+    }
+    clearNoticeTimers();
+    setNotice(null);
+  }, [isOperable, showNotice, clearNoticeTimers]);
+
+  // 案内どおりに佐藤さんの勤務を入れて、次の手順へ進んだときに1回だけ褒める。
+  const previousStepRef = useRef(stepIndex);
+  const isPraisedRef = useRef(false);
+  useEffect(() => {
+    const previous = previousStepRef.current;
+    previousStepRef.current = stepIndex;
+    if (isPraisedRef.current || isBackdrop) return;
+    const workSetStep = HANDS_ON_WORK_SET_STEP[variant];
+    if (previous <= workSetStep && stepIndex > workSetStep) {
+      isPraisedRef.current = true;
+      showNotice("praise");
+    }
+  }, [stepIndex, isBackdrop, showNotice, variant]);
+  const noticeNode = notice ? <BoardNotice key={notice.kind} kind={notice.kind} leaving={notice.leaving} /> : null;
+
+  const detailActions = useMemo<ShiftFormDetailActions>(
+    () => ({
+      // 体験デモはURLごとに表示を決めているため、表示設定で切り替えても変えない。
+      requestDetailModeChange: () => {},
+      ...(variant === "detail"
+        ? {
+            autoCreateAction: {
+              onCreate: async (_method: "rule" | "ai", options: { includesBreaks: boolean }) => {
+                applyShiftsRef.current?.((current) => runHandsOnAutoCreate(scenario, current, options.includesBreaks));
+                showSuccessToast({ title: "シフトを自動作成しました" });
+                setAutoCreated(true);
+                return true;
+              },
+              isLoading: false,
+              // 体験デモでは、AIの手直しは使えない状態で見せる。
+              aiUnavailableReason: "notConfigured" as const,
+            },
+          }
+        : {}),
+    }),
+    [variant, scenario],
+  );
+
+  const handleConfirm = useCallback(() => {
+    // 吹き出しの部品を片付けてから、送る場面へ進める。
+    tourRef.current?.skip();
+    onConfirm(shiftsRef.current);
+  }, [onConfirm]);
+
+  useImperativeHandle(handleRef, () => ({ confirm: handleConfirm, endTour: () => tourRef.current?.skip() }), [
+    handleConfirm,
+  ]);
+
+  const handleShiftsChange = useCallback((next: ShiftData[]) => {
+    shiftsRef.current = next;
+    setShifts(next);
+  }, []);
+
+  const handleSaveDraft = useCallback(() => {
+    showSuccessToast({ title: "保存しました" });
+  }, []);
+
+  // 吹き出しの「次へ」。いまの手順が読むだけの手順なら、それを終えたことにする。
+  const handleNext = useCallback(() => {
+    if (stepIndex === 0) setAcknowledged(true);
+    if (variant !== "detail") return;
+    if (stepIndex === 1) setHallStoryRead(true);
+    if (stepIndex === 4) setKitchenStoryRead(true);
+  }, [stepIndex, variant]);
+
+  return (
+    // 動きを終えたあとも残すと重なりの基準（stacking context）が残り、範囲を選んだときのメニューが吹き出しの暗い面の下に入る。
+    // そのため、終えたあとは動きを残さない（backwards）。
+    <Box h="full" style={{ animation: "hodSceneIn .4s ease-out backwards" }}>
+      {isArriving && <style>{buildArriveCss(arriveStaffIds)}</style>}
+      <ShiftForm
+        shopId="hands-on-demo-shop"
+        staffs={scenario.staffs}
+        positions={HANDS_ON_POSITIONS}
+        initialShifts={initialShifts}
+        dates={scenario.dates}
+        timeRange={HANDS_ON_TIME_RANGE}
+        submissionPattern={HANDS_ON_SUBMISSION_PATTERN}
+        staffing={variant === "detail" ? scenario.staffing : undefined}
+        initialDetailMode={variant === "detail"}
+        detailActions={detailActions}
+        applyShiftsRef={applyShiftsRef}
+        onShiftsChange={handleShiftsChange}
+        onSaveDraft={handleSaveDraft}
+        onConfirm={handleConfirm}
+      />
+      {noticeNode && (
+        <Box
+          position="absolute"
+          top={3}
+          left="50%"
+          transform="translateX(-50%)"
+          zIndex={NOTICE_Z_INDEX}
+          display={{ base: "none", lg: "block" }}
+        >
+          {noticeNode}
+        </Box>
+      )}
+      {!isBackdrop && (
+        <TodoCard
+          labels={HANDS_ON_TODO_LABELS[variant]}
+          current={HANDS_ON_TODO_INDEX[variant][stepIndex] ?? stepIndex}
+          raised={variant === "detail"}
+          zIndex={TODO_Z_INDEX}
+          notice={noticeNode}
+        />
+      )}
+      {!isBackdrop && isPc && isTourReady && !isFreePlay && (
+        <HandsOnTourNextContext.Provider value={handleNext}>
+          {/* 案内の間は、照らした場所だけを操作できるようにし、暗くした面を押しても反応させない。 */}
+          <Tour
+            ref={tourRef}
+            run
+            steps={HANDS_ON_TOUR_STEPS[variant]}
+            stepIndex={stepIndex}
+            tooltipComponent={HandsOnTourTooltip}
+            options={{ zIndex: HANDS_ON_TOUR_Z_INDEX }}
+            blocksOverlayClicks
+          />
+        </HandsOnTourNextContext.Provider>
+      )}
+    </Box>
+  );
+};

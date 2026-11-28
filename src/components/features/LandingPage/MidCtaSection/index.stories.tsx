@@ -18,6 +18,10 @@ export const Desktop: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.getByRole("heading", { level: 2 })).toHaveTextContent("スタッフへの連絡はシフトリに任せよう");
     await expect(canvas.getByRole("link", { name: "無料ではじめる" })).toHaveAttribute("href", "/signup");
+    // 体験デモは、TOPを残したまま別タブで開く。
+    const demoLink = canvas.getByRole("link", { name: "デモを試す（別タブで開きます）" });
+    await expect(demoLink).toHaveAttribute("href", "/demo/simple");
+    await expect(demoLink).toHaveAttribute("target", "_blank");
   },
 };
 

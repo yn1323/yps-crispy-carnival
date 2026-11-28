@@ -1,0 +1,372 @@
+import { Box, chakra, Flex, Icon, Text } from "@chakra-ui/react";
+import { useAtomValue, useSetAtom } from "jotai";
+import { createContext, type ReactNode, useContext, useMemo } from "react";
+import { LuCoffee } from "react-icons/lu";
+import { getEffectiveBreaks } from "@/src/domains/shift/breaks";
+import { isPositionsUnsplit } from "@/src/domains/shift/operations";
+import { formatShiftClockTimeRange } from "@/src/domains/shift/time";
+import type { ShiftData, StaffSortMode, StaffType } from "@/src/domains/shift/types";
+import { formatStaffWorkTotal } from "@/src/domains/shift/workTotals";
+import {
+  breakToolActiveAtom,
+  detailModeAtom,
+  isBreakToolActiveAtom,
+  isPositionSelectableAtom,
+  isToolPaletteActiveAtom,
+  nextWorkPositionAtom,
+  paintsPositionColorAtom,
+  rememberWorkPositionAtom,
+  shiftConfigAtom,
+  staffWorkTotalsAtom,
+  usesPositionColorsAtom,
+} from "./stores";
+
+// ==========================================
+// 画面の外へ出す操作（設定ページへの移動、その日の必要人数）
+// ==========================================
+/** その日の必要人数を変える操作。成功したらtrueを返す。失敗は呼び出し先が利用者へ伝える。 */
+export type ShiftFormDayStaffingActions = {
+  /**
+   * 選んだ日へテンプレートを当てる。nullは、その日だけの指定を消して曜日の設定へ戻す。
+   * NO_DAY_TEMPLATE（"none"）は、その日にテンプレートを当てない。
+   */
+  onApplyTemplate: (dates: string[], templateId: string | null) => Promise<boolean>;
+  /** 処理している間はtrue。 */
+  isPending: boolean;
+};
+
+export type ShiftFormDetailActions = {
+  /** 「必要人数設定」を開く。渡さない場合は導線を出さない。 */
+  onOpenSetup?: () => void;
+  /** その日の必要人数を変える操作。渡さない場合は、テンプレートの名前だけを出す。 */
+  dayStaffingActions?: ShiftFormDayStaffingActions;
+  /**
+   * 希望シフトから勤務を自動で作り、下書きを置き換える。作り終えるか、作れずに終わると解決する。
+   * 作れずに終わり、ダイアログを開いたままAIの手直しを外して作り直せるようにする場合は、falseで解決する。
+   * 渡さない場合、自動作成のダイアログの「作成する」は閉じるだけになる。
+   */
+  autoCreateAction?: {
+    onCreate: (method: "rule" | "ai", options: { includesBreaks: boolean }) => Promise<boolean>;
+    isLoading: boolean;
+    /** AIで作れない理由。AIで作れる場合は渡さない。 */
+    aiUnavailableReason?: "notConfigured" | "unsupported";
+    /** この募集で、AIでの作成をあと何回使えるか。0なら、AIの選択肢を選べなくする。 */
+    aiRemainingCount?: number;
+  };
+  /**
+   * 「シンプル / くわしく」の切り替えを、画面の外で受け付ける。渡した場合、表示設定で選んでも、その場では切り替えない。
+   * 切り替えで下書きを削除する画面が、確認してから開き直すために使う。
+   */
+  requestDetailModeChange?: (isDetailMode: boolean) => void;
+  /**
+   * 表示設定の「スタッフ並び替え」を受け付ける。渡した画面でだけ、項目を出す。
+   * 置く側が店舗へ保存し、`staffSortMode`を渡し直すと並びが変わる。
+   */
+  requestStaffSortModeChange?: (mode: StaffSortMode) => void;
+};
+
+const ShiftFormDetailActionsContext = createContext<ShiftFormDetailActions>({});
+
+export const ShiftFormDetailActionsProvider = ({
+  actions,
+  children,
+}: {
+  actions: ShiftFormDetailActions;
+  children: ReactNode;
+}) => <ShiftFormDetailActionsContext.Provider value={actions}>{children}</ShiftFormDetailActionsContext.Provider>;
+
+export const useShiftFormDetailActions = () => useContext(ShiftFormDetailActionsContext);
+
+// ==========================================
+// ポジションの凡例と、入れるものの選択
+// ==========================================
+const PositionLegendItem = ({ position }: { position: { name: string; color: string } }) => (
+  <Flex as="li" align="center" gap="6px" textStyle="xs" color="gray.700" fontWeight={600} whiteSpace="nowrap">
+    <Box boxSize="10px" borderRadius="full" flexShrink={0} style={{ background: position.color }} aria-hidden />
+    {position.name}
+  </Flex>
+);
+
+// 休憩の見本。勤務のバーの内側に出す休憩と同じ、灰色の斜線にする。
+const BREAK_SWATCH_STYLE = {
+  backgroundColor: "#f9fafb",
+  backgroundImage:
+    "repeating-linear-gradient(45deg, rgba(107,114,128,0.7), rgba(107,114,128,0.7) 2px, transparent 2px, transparent 5px)",
+};
+
+// 凡例に近い見た目の選択肢。選んでいるものは薄い塗りで示し、枠は付けない。
+const rangeChipStyle = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "6px",
+  h: "28px",
+  px: "10px",
+  borderRadius: "full",
+  textStyle: "xs",
+  fontWeight: 600,
+  color: "gray.700",
+  whiteSpace: "nowrap",
+  flexShrink: 0,
+  cursor: "pointer",
+  position: "relative",
+  transitionProperty: "colors",
+  transitionDuration: "faster",
+  // 見た目は小さく保ち、押せる範囲だけを高さ44pxまで広げる。
+  _after: { content: '""', position: "absolute", insetX: 0, insetY: "-8px" },
+  _focusVisible: { outline: "2px solid", outlineColor: "teal.600", outlineOffset: "2px" },
+} as const;
+const rangeChipIdleStyle = {
+  _hover: { bg: "gray.100" },
+  _active: { bg: "gray.200", transitionDuration: "0ms" },
+} as const;
+
+/**
+ * 時間指定のPCの日別表示で、日付の見出しに置く、次に入れるものの選択と案内。
+ * ポジションを押すと、次に新しく入れる勤務のポジションが変わる。勤務のバーのメニューでポジションを選んだときも、同じ選択が変わる。
+ * 「休憩」を押すと、勤務のバーの上をなぞった範囲が休憩になる。メニューで休憩を選んでも、この選択は変わらない。
+ * 選んだポジションは店舗ごとに端末へ覚える。休憩の選択は覚えず、開き直すとポジションの選択に戻る。
+ */
+export const RangeAssignPalette = () => {
+  const isActive = useAtomValue(isToolPaletteActiveAtom);
+  const isPositionSelectable = useAtomValue(isPositionSelectableAtom);
+  const isBreakTool = useAtomValue(isBreakToolActiveAtom);
+  const nextWorkPosition = useAtomValue(nextWorkPositionAtom);
+  const { positions } = useAtomValue(shiftConfigAtom);
+  const rememberWorkPosition = useSetAtom(rememberWorkPositionAtom);
+  const setBreakTool = useSetAtom(breakToolActiveAtom);
+  if (!isActive) return null;
+
+  // ポジションを分けていない店舗では、仮の名前「シフト」を出さず、休憩だけを出す。休憩は押すたびに入り切りする。
+  const isUnsplit = isPositionsUnsplit(positions);
+  // ポジションが1つだけの店舗では、勤務と休憩の2つだけを選ばせる。
+  const choices = isUnsplit ? [] : isPositionSelectable ? positions : [nextWorkPosition];
+  return (
+    // くわしく表示へ切り替えたときに、勤務のバーの色と合わせて、ふわっと出す。
+    <Flex align="center" gap={4} minW={0} animation="fade-in 320ms ease-out" _motionReduce={{ animation: "none" }}>
+      <Flex
+        role={isUnsplit ? "group" : "radiogroup"}
+        aria-label="ドラッグで設定する内容"
+        align="center"
+        gap={1}
+        minW={0}
+        overflowX="auto"
+        py="8px"
+        my="-8px"
+      >
+        {choices.map((position) => {
+          const checked = !isBreakTool && position.id === nextWorkPosition.id;
+          return (
+            <chakra.button
+              key={position.id}
+              type="button"
+              role="radio"
+              aria-checked={checked}
+              data-tour={`range-position-${position.id}`}
+              onClick={() => rememberWorkPosition(position.id)}
+              css={rangeChipStyle}
+              {...(checked ? {} : rangeChipIdleStyle)}
+              style={checked ? { background: `color-mix(in srgb, ${position.color} 22%, white)` } : undefined}
+            >
+              <Box
+                boxSize="10px"
+                borderRadius="full"
+                flexShrink={0}
+                style={{ background: position.color }}
+                aria-hidden
+              />
+              {position.name}
+            </chakra.button>
+          );
+        })}
+        <chakra.button
+          type="button"
+          role={isUnsplit ? undefined : "radio"}
+          aria-checked={isUnsplit ? undefined : isBreakTool}
+          aria-pressed={isUnsplit ? isBreakTool : undefined}
+          onClick={() => setBreakTool(isUnsplit ? !isBreakTool : true)}
+          css={rangeChipStyle}
+          {...(isBreakTool ? { bg: "gray.200" } : rangeChipIdleStyle)}
+        >
+          <Box w="14px" h="10px" borderRadius="2px" flexShrink={0} style={BREAK_SWATCH_STYLE} aria-hidden />
+          休憩
+        </chakra.button>
+      </Flex>
+    </Flex>
+  );
+};
+
+/**
+ * パターン選択の日別表示と日付選択の週の表（PC）で、見出しの右に置く、次に入れるポジションの選択。
+ * 凡例を兼ね、押したポジションを選んだ状態にする。空きのセル（希望の輪のセルを含む）を押すと、このポジションで入る。
+ * 割り当て済みのピルを押したときは、これまでどおりポジションのメニューを開き、選んだポジションは変えない。
+ * メニューでポジションを選んだときも、同じ選択が変わる。選んだポジションは店舗ごとに端末へ覚える。
+ */
+export const WorkPositionPicker = () => {
+  const nextWorkPosition = useAtomValue(nextWorkPositionAtom);
+  const { positions } = useAtomValue(shiftConfigAtom);
+  const rememberWorkPosition = useSetAtom(rememberWorkPositionAtom);
+  return (
+    <Flex
+      role="radiogroup"
+      aria-label="入れるポジション"
+      align="center"
+      gap={1}
+      minW={0}
+      overflowX="auto"
+      py="8px"
+      my="-8px"
+    >
+      {positions.map((position) => {
+        const checked = position.id === nextWorkPosition.id;
+        return (
+          <chakra.button
+            key={position.id}
+            type="button"
+            role="radio"
+            aria-checked={checked}
+            onClick={() => rememberWorkPosition(position.id)}
+            css={rangeChipStyle}
+            {...(checked ? {} : rangeChipIdleStyle)}
+            style={checked ? { background: `color-mix(in srgb, ${position.color} 22%, white)` } : undefined}
+          >
+            <Box boxSize="10px" borderRadius="full" flexShrink={0} style={{ background: position.color }} aria-hidden />
+            {position.name}
+          </chakra.button>
+        );
+      })}
+    </Flex>
+  );
+};
+
+/**
+ * ポジションの色の凡例。閲覧専用の表示で、色がどのポジションを表すかを示す。
+ * 編集できる表示では、日付や週の見出しに置く凡例か「ドラッグで設定する内容」が色を示すため出さない。
+ */
+export const PositionLegend = () => {
+  const usesPositionColors = useAtomValue(usesPositionColorsAtom);
+  const isToolPaletteActive = useAtomValue(isToolPaletteActiveAtom);
+  const { positions } = useAtomValue(shiftConfigAtom);
+  if (!usesPositionColors || isToolPaletteActive) return null;
+
+  return (
+    <Flex
+      as="ul"
+      aria-label="ポジション"
+      listStyleType="none"
+      align="center"
+      columnGap={4}
+      rowGap={1}
+      flexWrap="wrap"
+      px={{ base: 3, lg: 5 }}
+      py={2}
+      bg="white"
+      borderBottomWidth="1px"
+      borderColor="gray.200"
+      flexShrink={0}
+    >
+      {positions.map((position) => (
+        <PositionLegendItem key={position.id} position={position} />
+      ))}
+    </Flex>
+  );
+};
+
+// ==========================================
+// 勤務の色
+// ==========================================
+/** 勤務のバーを塗る色。くわしく表示で、名前を付けたポジションがある店舗では、ポジションが1つでもポジションの色を返す。 */
+export const useWorkColor = () => {
+  const paintsPositionColor = useAtomValue(paintsPositionColorAtom);
+  return useMemo(
+    () => (segment: { color: string } | undefined, fallback: string) =>
+      paintsPositionColor && segment ? segment.color : fallback,
+    [paintsPositionColor],
+  );
+};
+
+/**
+ * 勤務のポジションを、色の丸と名前で示す。
+ * ポジションを塗り分ける表示（くわしく表示で、ポジションが2つ以上）のときだけ出す。
+ */
+export const PositionMark = ({
+  segment,
+  onColor = false,
+}: {
+  segment: { positionId: string; positionName: string; color: string } | undefined;
+  /** 色の付いた面の上に置く場合はtrue。丸を白にして見分けられるようにする。 */
+  onColor?: boolean;
+}) => {
+  const usesPositionColors = useAtomValue(usesPositionColorsAtom);
+  // ポジションが1つの店舗では、色と名前を出さない。
+  if (!segment || !usesPositionColors) return null;
+  return (
+    <Flex as="span" align="center" gap="4px" minW={0} textStyle="2xs" fontWeight={600} lineHeight={1.2}>
+      <Box
+        as="span"
+        boxSize="8px"
+        borderRadius="full"
+        flexShrink={0}
+        style={{ background: onColor ? "#ffffff" : segment.color }}
+        aria-hidden
+      />
+      <Box as="span" truncate>
+        {segment.positionName}
+      </Box>
+    </Flex>
+  );
+};
+
+/** その日の休憩を、アイコンと時刻で示す。くわしく表示で、休憩がある日だけ出す。 */
+export const BreakMark = ({ shift, compact = false }: { shift: ShiftData | undefined; compact?: boolean }) => {
+  const detailMode = useAtomValue(detailModeAtom);
+  const isDateOnly = useAtomValue(shiftConfigAtom).submissionPattern.kind === "dateOnly";
+  if (!detailMode || !shift) return null;
+  const breaks = getEffectiveBreaks(shift, { clipToWork: !isDateOnly });
+  if (breaks.length === 0) return null;
+  const label = breaks.map((range) => formatShiftClockTimeRange(range.start, range.end)).join(" / ");
+  return (
+    <Flex
+      as="span"
+      align="center"
+      gap="4px"
+      minW={0}
+      textStyle="2xs"
+      color="gray.600"
+      title={`休憩 ${label}`}
+      aria-label={`休憩 ${label}`}
+    >
+      <Icon boxSize={3} flexShrink={0} aria-hidden>
+        <LuCoffee />
+      </Icon>
+      {!compact && (
+        <Box as="span" truncate fontVariantNumeric="tabular-nums">
+          {label}
+        </Box>
+      )}
+    </Flex>
+  );
+};
+
+// ==========================================
+// スタッフ名に添える合計
+// ==========================================
+/** くわしく表示のときだけ、スタッフ名に勤務時間の合計を添える。 */
+export const StaffMeta = ({ staff, showTotal = true }: { staff: StaffType; showTotal?: boolean }) => {
+  const detailMode = useAtomValue(detailModeAtom);
+  const totals = useAtomValue(staffWorkTotalsAtom);
+  const config = useAtomValue(shiftConfigAtom);
+  if (!detailMode) return null;
+
+  // 人ごとの合計は担当者が偏りを確かめるためのもので、スタッフ向けの確定シフト表示には出さない。
+  const total = config.displayMode === "confirmed" ? undefined : totals.get(staff.id);
+  // 担当外は名前の横に出さない。担当外のポジションへ入れたときだけ、確認事項で知らせる。
+  if (!showTotal || !total) return null;
+
+  return (
+    <Flex align="center" gap={1} minW={0} flexWrap="nowrap">
+      <Text textStyle="2xs" color="gray.600" fontVariantNumeric="tabular-nums" whiteSpace="nowrap">
+        計 {formatStaffWorkTotal(total)}
+      </Text>
+    </Flex>
+  );
+};

@@ -5,8 +5,9 @@
 組織の管理ユーザーが、スタッフページで一覧を見ながら人物を並べ替え、その順序を組織内の店舗で共有できるようにする。
 並び替えは店舗filterが「すべて」のときだけ提供し、専用画面と明示的な保存操作は設けない。
 
-この並び順はスタッフ管理画面、Dashboardのスタッフ一覧、店舗詳細の所属スタッフ一覧に適用する。
-シフト表と希望シフト入力は、勤務開始時刻を基準にする既存の表示順を維持し、任意順の影響を受けない。
+この並び順はスタッフ管理画面、Dashboardのスタッフ一覧、店舗詳細の所属スタッフ一覧、シフト表、スタッフ向けの確定シフト、PDF・Excel出力に適用する。
+シフト表での使い方は[シフト表](shift-board.md)の「スタッフの並び」の節に書く。
+希望シフト入力は、この並び順の影響を受けない。
 
 ## 画面と操作
 
@@ -60,7 +61,8 @@ Dashboardは店舗用のorder projectionをページングし、店舗filterと�
 - 保存は人物ID集合の完全一致とrevisionを再検証し、追加・削除と競合した古い画面からの上書きを拒否する。
 - 人物数、未削除店舗数、店舗スタッフ数の既存上限内だけで同期する。上限超過や不整合ではorder stateを無効化し、既存順へ戻す。
 - 氏名、メールアドレスなどの個人情報を並び順の監査値やログへ複製しない。
-- ShiftForm、ShiftBoard、シフト割当DTOへorder値を渡さず、勤務開始時刻順との境界を維持する。
+- シフト表とスタッフ向けの確定シフトへは、店舗のスタッフを並べたIDの列だけを渡し、組織の人物IDと順位の値は渡さない。
+- スタッフ向けの確定シフトは、並び順が有効な組織でだけ保存順に並べる。有効でない組織では登録順のままにし、管理者を先にしない。だれが管理者かをスタッフへ示さないためである。
 
 ## 関連ファイル
 
@@ -103,3 +105,6 @@ Dashboardは店舗用のorder projectionをページングし、店舗filterと�
 | 全人物IDの並び替え、optimistic update、保存成功、失敗時rollbackとタイトルだけのToastを検証する | Logic / Frontend Unit Test | `src/components/features/OrganizationSettings/staffOrder.test.ts`、`src/components/features/OrganizationSettings/useStaffOrderReorder.test.tsx` |
 | 「すべて」では行の左側にhandleを表示し、個別店舗ではhandleを表示しないことと、ドラッグ・キーボード操作を検証する | Frontend Unit / Storybook Behavior Test | `src/pages/app-staff/index.test.tsx`、`src/pages/app-staff/index.stories.tsx` |
 | PCとモバイルでhandleを含む行のレイアウトが崩れないことを検証する | Storybook VRT | `src/pages/app-staff/index.stories.tsx` |
+| シフト表の「固定」と「勤務時間順」の並び、日付選択の並びを検証する | Logic Test | `src/domains/shift/sortStaffs.test.ts` |
+| 並べ方の保存を管理者だけに許し、シフト表とスタッフ向けの確定シフトへ並び順と並べ方を返すことを検証する | Convex Function Test | `convex/shiftBoard/mutations.test.ts`、`convex/shiftBoard/queries.test.ts`、`convex/shiftBoard/exportOrder.test.ts`、`convex/shiftView/queries.test.ts` |
+| 表示設定の「スタッフ並び替え」で並びが変わること、日付選択と変更できない画面では項目を出さないことを検証する | Storybook Behavior Test | `src/components/features/Shift/ShiftForm/stories/staff-sort.stories.tsx` |

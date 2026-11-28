@@ -66,7 +66,7 @@ Use `doc/rules/security-strategy.md` as the canonical source for Shiftori's secu
 - [ ] Reissue/newest-only flows revoke older unused tokens.
 - [ ] Reusable public links have manager-controlled disable and rotation.
 - [ ] Anonymous registration has bot proof, layered rate limits, generic responses, and a bounded pending queue.
-- [ ] Manager invites require logged-in identity and server-side email or membership matching.
+- [ ] Manager invites require logged-in identity and a valid invitation token delivered only to the invited email. A person already linked to an account can be accepted only by that account, and an account already registered in the organization as another person is rejected. Acceptance starts from an explicit user action, never automatically.
 - [ ] Staff registration approval remains manager-controlled and store-scoped.
 
 ## Notification / LINE / Resend / Webhook

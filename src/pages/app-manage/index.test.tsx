@@ -151,7 +151,7 @@ describe("AppManage", () => {
     );
     expect(screen.getByRole("button", { name: "組織情報を開く" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "新しい組織を作る" })).not.toBeNull();
-    expect(screen.getByRole("button", { name: "管理者と権限を開く" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "管理者設定を開く" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "プランと支払いを開く" })).not.toBeNull();
     expect(screen.getByTestId("can-add-shop").textContent).toBe("true");
     expect(screen.getByText("creation dialog")).not.toBeNull();

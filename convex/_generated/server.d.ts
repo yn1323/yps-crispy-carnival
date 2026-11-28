@@ -30,6 +30,13 @@ import type { DataModel } from "./dataModel.js";
 type Env = {
   readonly CONVEX_CLOUD_URL: string;
   readonly CONVEX_SITE_URL: string;
+  readonly AI_SHIFT_DRAFT_DAYS_PER_REQUEST: string | undefined;
+  readonly AI_SHIFT_DRAFT_EFFORT: string | undefined;
+  readonly AI_SHIFT_DRAFT_MAX_TOKENS: string | undefined;
+  readonly AI_SHIFT_DRAFT_MODE: string | undefined;
+  readonly AI_SHIFT_DRAFT_MODEL: string | undefined;
+  readonly AI_SHIFT_DRAFT_RECRUITMENT_LIMIT: string | undefined;
+  readonly ANTHROPIC_API_KEY: string | undefined;
   readonly APP_URL: string | undefined;
   readonly CLERK_JWT_ISSUER_DOMAIN: string | undefined;
   readonly CLERK_SECRET_KEY: string | undefined;
@@ -38,6 +45,7 @@ type Env = {
   readonly DEBUG_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER: string | undefined;
   readonly DEBUG_TRIAL_DURATION_DAYS: string | undefined;
   readonly PROMOTION_COMPLIMENTARY_PRO_CODE: string | undefined;
+  readonly SHIFT_SETUP_ASSIST_MODE: string | undefined;
   readonly STRIPE_PORTAL_CONFIGURATION_ID: string | undefined;
   readonly STRIPE_PRO_PRICE_ID: string | undefined;
   readonly STRIPE_SECRET_KEY: string | undefined;

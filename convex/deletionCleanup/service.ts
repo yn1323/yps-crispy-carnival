@@ -1,6 +1,7 @@
 import { ConvexError } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
+import { expectedConvexError } from "../_lib/errorObservability";
 
 type DbCtx = Pick<QueryCtx | MutationCtx, "db">;
 const USER_ASSOCIATION_SCAN_LIMIT = 20;
@@ -78,7 +79,7 @@ export async function ensureDeletionCleanupJob(
     }
   }
   if (args.scope === "organization" && (await hasUnfinishedShopCleanupForOrganization(ctx, args.organizationId))) {
-    throw new ConvexError("店舗の削除処理が進行中です");
+    throw expectedConvexError("stale_state", "店舗の削除処理が進行中です");
   }
 
   const jobRequestId = deletionCleanupRequestId(args.requestId);

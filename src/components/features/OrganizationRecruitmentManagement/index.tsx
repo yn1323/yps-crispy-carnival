@@ -32,6 +32,7 @@ export function OrganizationRecruitmentManagement({
   shops,
   getRecruitmentShop,
   onOpenShiftBoard,
+  renderHeader,
 }: OrganizationRecruitmentManagementProps) {
   const createRecruitment = useMutation(api.recruitment.mutations.createRecruitment);
   const deleteRecruitment = useMutation(api.recruitment.mutations.deleteRecruitment);
@@ -186,6 +187,7 @@ export function OrganizationRecruitmentManagement({
   return (
     <>
       <OrganizationRecruitmentPastConnection
+        renderHeader={renderHeader}
         organizationId={organizationId}
         shopFilter={shopFilter}
         isSingleShop={isSingleShop}

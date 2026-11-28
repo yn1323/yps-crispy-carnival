@@ -1,5 +1,6 @@
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import type { Id } from "@/convex/_generated/dataModel";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import { ShopDetailView } from "./ShopDetailView";
 import { getShopStaffs } from "./script";
 import type { ShopDetailData, ShopDetailPerson } from "./types";
@@ -43,6 +44,14 @@ export function ShopDetail({ shop, people, organizationId }: Props) {
           search: { org: organizationId },
         })
       }
+      onOpenShiftSetup={() => {
+        trackProductEvent({ kind: "content_select", contentType: "shift_setup_link", contentId: "shop_detail" });
+        void navigate({
+          to: "/manage/shops/$shopId/shift-setup",
+          params: { shopId: shop.id },
+          search: { org: organizationId },
+        });
+      }}
       onUpdateSettings={settings.updateSettings}
       onDelete={deletion.deleteShop}
       expectedOrganizationId={organizationId}

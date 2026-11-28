@@ -8,7 +8,35 @@ export type NormalizableShiftAssignment = {
   endTime: string;
   positionId: string;
   optionId?: string;
+  breaks?: ReadonlyArray<{ startTime: string; endTime: string }>;
 };
+
+/** 休憩を開始順に並べる。保存、比較、表示で同じ順序を使う。 */
+export function sortShiftBreaks<T extends { startTime: string; endTime: string }>(breaks: readonly T[]): T[] {
+  return breaks
+    .slice()
+    .sort(
+      (left, right) =>
+        timeToMinutes(left.startTime) - timeToMinutes(right.startTime) ||
+        timeToMinutes(left.endTime) - timeToMinutes(right.endTime),
+    );
+}
+
+/** 重なる休憩と隣り合う休憩を1件にまとめる。勤務の境目をまたいで分かれていた休憩を、勤務の統合に合わせて戻す。 */
+function mergeTouchingShiftBreaks(
+  breaks: ReadonlyArray<{ startTime: string; endTime: string }>,
+): Array<{ startTime: string; endTime: string }> {
+  const merged: Array<{ startTime: string; endTime: string }> = [];
+  for (const current of sortShiftBreaks(breaks)) {
+    const previous = merged.at(-1);
+    if (previous && timeToMinutes(current.startTime) <= timeToMinutes(previous.endTime)) {
+      if (timeToMinutes(current.endTime) > timeToMinutes(previous.endTime)) previous.endTime = current.endTime;
+      continue;
+    }
+    merged.push({ startTime: current.startTime, endTime: current.endTime });
+  }
+  return merged;
+}
 
 type IndexedAssignment<T> = { assignment: T; index: number };
 
@@ -96,13 +124,17 @@ export function normalizeExactAdjacentTimeAssignments<T extends NormalizableShif
           output.push(cluster[0]);
           continue;
         }
+        // 統合しても休憩を落とさない。
+        const { breaks: _breaks, ...first } = cluster[0].assignment;
+        const breaks = mergeTouchingShiftBreaks(cluster.flatMap(({ assignment }) => assignment.breaks ?? []));
         output.push({
           index: Math.min(...cluster.map(({ index }) => index)),
           assignment: {
-            ...cluster[0].assignment,
+            ...first,
             startTime: cluster[0].assignment.startTime,
             endTime: cluster[cluster.length - 1].assignment.endTime,
-          },
+            ...(breaks.length > 0 ? { breaks } : {}),
+          } as T,
         });
       }
     }

@@ -5,6 +5,13 @@ import {
   persistedShiftAssignmentValidator,
   shiftConfirmationSnapshotAssignmentValidator,
 } from "./_lib/shiftAssignmentValidators";
+import {
+  dayRequirementsValidator,
+  shiftBreakRuleValidator,
+  shiftDayTemplateWeekdayValidator,
+  staffPositionSkillValidator,
+} from "./_lib/shiftSetupValidators";
+import { shiftStaffSortModeValidator } from "./_lib/shiftStaffSortMode";
 import { submissionPatternValidator } from "./_lib/submissionPattern";
 import {
   analyticsEngagementValidator,
@@ -71,6 +78,13 @@ const schema = defineSchema({
       ),
     ),
     submissionPattern: submissionPatternValidator,
+    // 休憩の決まり（何分以上の勤務に何分）。省略は「決まりなし」を表す業務上の任意項目で、backfillは不要。
+    breakRule: v.optional(shiftBreakRuleValidator),
+    // シフト表で最後に選んだ表示。trueは「くわしく」、falseは「シンプル」。次に開くシフト表は、この表示で開く。
+    // 省略は「まだ選んでいない」を表し、店舗の設定から表示を決める。業務上の任意項目で、backfillは不要。
+    shiftDetailMode: v.optional(v.boolean()),
+    // シフト表のスタッフの並び替え。省略は「まだ選んでいない」を表し、「固定」として扱う。業務上の任意項目で、backfillは不要。
+    shiftStaffSortMode: v.optional(shiftStaffSortModeValidator),
     isDeleted: v.boolean(),
   })
     .index("by_organizationId", ["organizationId"])
@@ -550,6 +564,10 @@ const schema = defineSchema({
     userId: v.optional(v.id("users")),
     // シフト対象外フラグ（店舗共通アドレス等、シフトを出さないスタッフ）。
     excludedFromShift: v.boolean(),
+    // ポジションごとの扱い（担当外、見習い、リーダー）。項目がないポジションは「担当できる・熟練度が一人前」を表す。
+    // 省略は「全ポジションが一人前」を表す業務上の任意項目で、backfillは不要。
+    // 1つのポジションに1項目で、件数は店舗の有効なポジション数（POSITION_ACTIVE_LIMIT）を超えない。
+    positionSkills: v.optional(v.array(staffPositionSkillValidator)),
     isDeleted: v.boolean(),
   })
     .index("by_shopId", ["shopId"])
@@ -758,6 +776,22 @@ const schema = defineSchema({
     // シフト表の下書き保存時刻。保存後の希望表示優先順位判定に使う。
     // assignmentがない募集では未設定が正しいためoptionalを維持する。
     draftSavedAt: v.optional(v.number()),
+    // 自動作成した勤務を含む下書きを保存した時刻。確定の計測で、自動作成を経た確定かを、端末や管理者が変わっても分けるために持つ。
+    // 表示を切り替えて下書きを消すと消す。この項目より前の募集では省略し、自動作成を経ていないものとして扱う。backfillは不要。
+    draftAutoCreatedAt: v.optional(v.number()),
+    // 未確定から確定へ変わった時点の、店舗のポジション（設定した並び順）。
+    // 確定済みのシフトは、あとで設定の名前を変えても削除しても、この一覧で表示する。再確定では書き直さない。
+    // 未確定の募集と、この項目より前に確定した募集では省略し、いまの設定を読む。backfillは不要。
+    confirmedPositions: v.optional(
+      v.array(
+        v.object({
+          positionId: v.id("positions"),
+          name: v.string(),
+          color: v.string(),
+          isDefault: v.boolean(),
+        }),
+      ),
+    ),
     // 確定・再送通知の最新semantic operation。optional wideningのため既存行のbackfillは不要。
     lastConfirmationNotificationOperationKey: v.optional(v.string()),
     // Date.nowに依存しない通知operation世代。semantic operationが変わった時だけ進める。
@@ -870,6 +904,93 @@ const schema = defineSchema({
   })
     .index("by_shopId", ["shopId"])
     .index("by_shopId_isDeleted", ["shopId", "isDeleted"]),
+
+  // ========================================
+  // 「必要人数設定」（必要人数のテンプレート）
+  // ========================================
+  // 名前を付けた1日分の必要人数。使う日は曜日と祝日で決める。
+  // 件数はSHIFT_DAY_TEMPLATE_LIMIT、バーはSHIFT_DAY_TEMPLATE_BAR_LIMIT、人数はPOSITION_ACTIVE_LIMITで上限を持つ。
+  shiftDayTemplates: defineTable({
+    shopId: v.id("shops"),
+    name: v.string(),
+    sortOrder: v.number(),
+    weekdays: v.array(shiftDayTemplateWeekdayValidator),
+    // 祝日（nationalHolidaysにある日）に使うテンプレート。複数のテンプレートで選べ、並びが先頭のテンプレートが当たる。
+    appliesToHolidays: v.boolean(),
+    requirements: dayRequirementsValidator,
+  }).index("by_shopId", ["shopId"]),
+
+  // その日だけの指定。別のテンプレートを当てるか、その日だけの必要人数を持つ。曜日と祝日のテンプレートより優先する。
+  shiftDayTemplateOverrides: defineTable(
+    v.union(
+      v.object({
+        shopId: v.id("shops"),
+        date: v.string(), // "2026-01-20"
+        kind: v.literal("template"),
+        templateId: v.id("shiftDayTemplates"),
+      }),
+      v.object({
+        shopId: v.id("shops"),
+        date: v.string(), // "2026-01-20"
+        kind: v.literal("custom"),
+        requirements: dayRequirementsValidator,
+      }),
+      // その日はテンプレートを当てない。曜日や祝日のテンプレートより優先し、必要人数を持たない日にする。
+      // unionへの種類の追加で、既存の指定はそのまま読めるため、backfillは不要。
+      v.object({
+        shopId: v.id("shops"),
+        date: v.string(), // "2026-01-20"
+        kind: v.literal("none"),
+      }),
+    ),
+  ).index("by_shopId_and_date", ["shopId", "date"]),
+
+  // 国民の祝日。店舗に属さない全体の表で、運営者がinternal mutationで年ごとに置き換える。
+  // 店舗の休業日（shopClosedDates、regularClosedDays）とは別のものである。
+  nationalHolidays: defineTable({
+    date: v.string(), // "2026-01-01"
+    name: v.string(),
+  }).index("by_date", ["date"]),
+
+  // シフトのAI作成で、外部のAIを呼んだ1回ごとの記録。利用料の把握と、組織・店舗ごとの利用量の確認に使う。
+  // AIがトークンを使った回だけを作る。AIを呼ばなかった回と、AIへ届かずに失敗した回は作らない。
+  // 個人情報、メモ、AIの応答の本文は持たない。運営者が読み、店舗の画面には出さない。
+  // 行は増えるだけで、変更も削除もしない。下書きを返せた行の数が、その募集で使った回数になる。
+  aiShiftDraftUsages: defineTable({
+    organizationId: v.id("organizations"),
+    shopId: v.id("shops"),
+    recruitmentId: v.id("recruitments"),
+    // "created"は下書きを返せた回。"declined"は、AIが応じなかったか、返答が途中で切れた回。どちらも利用料がかかる。
+    outcome: v.union(v.literal("created"), v.literal("declined")),
+    // 呼んだときの設定。環境変数を変えたあとも、その回に使った値が分かるように残す。
+    // 作り方は、この項目を足す前の記録では持たない。その記録は、下書きを見直す作り方（"revise"）で呼んだものである。
+    mode: v.optional(v.union(v.literal("scratch"), v.literal("revise"))),
+    model: v.string(),
+    effort: v.union(v.literal("low"), v.literal("medium"), v.literal("high")),
+    maxTokens: v.number(),
+    // 1回の作成で、AIを呼んだ回数。日ごとに分けて呼んだ場合に2以上になる。トークン数は、その合計である。
+    // この項目を足す前の記録では持たない。その記録は、1回だけ呼んだものである。
+    requestCount: v.optional(v.number()),
+    inputTokens: v.number(),
+    // 考えた分を含む、返答の全体。
+    outputTokens: v.number(),
+    // 返答のうち、考えた分。AIが内訳を返さなかった回は持たない。
+    thinkingTokens: v.optional(v.number()),
+  })
+    .index("by_organizationId", ["organizationId"])
+    .index("by_shopId", ["shopId"])
+    // 1つの募集で作成できた回数を数えるために使う。
+    .index("by_recruitmentId_and_outcome", ["recruitmentId", "outcome"]),
+
+  // 募集を確定した時点の、日ごとの必要人数。確定済みのシフト表は、テンプレートを直してもこの内容を表示する。
+  // テンプレートが当たらない日は行を作らない。
+  recruitmentStaffingSnapshots: defineTable({
+    recruitmentId: v.id("recruitments"),
+    shopId: v.id("shops"),
+    date: v.string(), // "2026-01-20"
+    templateName: v.union(v.string(), v.null()),
+    requirements: v.union(dayRequirementsValidator, v.null()),
+  }).index("by_recruitmentId_and_date", ["recruitmentId", "date"]),
 
   // ========================================
   // マジックリンク認証

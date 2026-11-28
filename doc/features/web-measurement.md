@@ -32,13 +32,13 @@ local build、GTM ID欠落、不正なreleaseでは第三者URLを組み立て�
 
 | 画面 | route family例 | route area |
 |---|---|---|
-| TOP、機能一覧、機能ページ、ヘルプ、問い合わせ、記事、デモ | `home`、`features`、`feature_detail`、`help_*`、`contact`、`article_*`、`demo_shiftboard` | `public` |
+| TOP、機能一覧、機能ページ、ヘルプ、問い合わせ、記事、デモ | `home`、`features`、`feature_detail`、`help_*`、`contact`、`article_*`、`demo_shiftboard`、`demo_simple`、`demo_detail` | `public` |
 | 登録、ログイン、パスワード再設定、管理者招待 | `auth_signup`、`auth_login`、`auth_password_reset`、`manager_invite` | `auth` |
 | Dashboard、アカウント、要対応一覧 | `dashboard`、`account`、`actions` | `manager` |
-| 組織、課金、管理者、店舗 | `organization_management`、`billing`、`manager_management`、`shop_detail` | `manager` |
+| 組織、課金、管理者、店舗、必要人数設定 | `organization_management`、`billing`、`manager_management`、`shop_detail`、`shift_setup` | `manager` |
 | シフト、ShiftBoard、シフト出力、スタッフ管理 | `shift_management`、`shiftboard`、`shift_export`、`staff_management`、`staff_detail`、`staff_shop` | `manager` |
 | スタッフの提出、提出完了、閲覧、再発行、登録、同意 | `staff_submit`、`staff_submit_completed`、`staff_view`、`staff_reissue`、`staff_register`、`staff_legal_consent` | `staff` |
-| 法務文書、utility、callback、未知URL | `legal`、`utility`、`callback`、`not_found` | `other` |
+| 法務文書、utility（体験デモの中に読み込むスタッフの提出画面を含む）、callback、未知URL | `legal`、`utility`、`callback`、`not_found` | `other` |
 
 ## Event contract
 
@@ -49,7 +49,7 @@ ApplicationがdataLayerへ追加するイベントは次に限定する。  `web
 | イベント | 発火条件 | 固有のパラメータ |
 |---|---|---|
 | `page_view` | 初回documentとpathnameが変わるSPA遷移 | `page_location`、`page_referrer` |
-| `select_content` | TOPのheader・hero・毎月の流れ・料金section・下部CTA、機能一覧と機能ページの上部・下部CTA、記事末尾CTAの選択 | `content_type`、`content_id` |
+| `select_content` | TOPのheader・hero・毎月の流れ・料金section・下部CTA、機能一覧と機能ページの上部・下部CTA、TOPの最初の画面・流れのあとの登録sectionと機能ページのデモのボタン、記事末尾CTAの選択 | `content_type`、`content_id` |
 | `section_view` | TOPの料金sectionの上端が画面の上60%へ入ったとき（TOPの表示ごとに1回） | `section`（`pricing`） |
 | `help_search` | ヘルプ検索の入力が1.5秒止まったとき | `has_results`（`true`、`false`）。検索語は氏名や連絡先を含み得るため送らない |
 | `generate_lead` | お問い合わせの送信に成功したとき | なし |
@@ -70,9 +70,14 @@ ApplicationがdataLayerへ追加するイベントは次に限定する。  `web
 | `staff_add` | スタッフの追加に成功したとき | `method`（`manual`、`existing_person`、`request_approve`）、`count` |
 | `share` | スタッフの参加用リンクをコピーしたとき | `method`（`copy`）、`content_type`（`staff_registration_link`） |
 | `recruitment_create` | シフト募集の作成に成功したとき | なし。`shop_id`は一覧の絞り込みではなく作成した店舗にする |
-| `shift_confirm` | シフトの確定、または変更の再通知に成功したとき（変更なしの再通知は除く） | `intent`（`confirm`、`resend`） |
+| `shift_confirm` | シフトの確定、または変更の再通知に成功したとき（変更なしの再通知は除く） | `intent`（`confirm`、`resend`）、`detail_mode`（「くわしく」の表示で確定したか）、`used_auto_create`（自動作成した下書きから確定したか。ほかの端末やほかの管理者が自動作成して保存した下書きも含む。表示を切り替えて下書きを消したあとは数えない。再通知では常に`false`） |
 | `shift_confirm_blocked` | 確定前の検証で確定を止めたとき | `reason`（最初の検証エラーのcode）、`count`（エラー件数） |
 | `shift_export` | シフト表のPDFまたはExcelを生成して保存を始めたとき | `format`（`pdf`、`xlsx`） |
+| `shift_auto_create_open` | シフト表で自動作成のダイアログを開いたとき | `reason`（募集期間に必要人数を決めた日が1日もなく、作れる勤務がないなら`requirement_missing`、それ以外は`none`）、`submission_pattern` |
+| `shift_auto_create` | 自動作成が終わったとき（成功、作れるシフトなし、失敗のどれでも1回） | `method`（`rule`、`ai`）、`result`（`created`、`empty`、`failed`）、`reason`（失敗の理由。成功と作れるシフトなしは`none`）、`includes_breaks`（`true`、`false`）、`submission_pattern`、`ai_called`（AIを呼んだか。希望シフトから作った場合と、メモのない募集などで決まった手順の下書きのままにした場合は`false`）、`changed_count`（AIが変えた勤務の件数。一から作る作り方では、AIが作った勤務の件数）、`count`（作った勤務の件数） |
+| `shift_setup_save` | 必要人数設定の保存に成功したとき | `sections`（保存した部分）、`position_count`（保存後の店舗のポジションの数） |
+| `shift_setup_assist` | 必要人数設定でAIの下書きを頼み、結果を受け取ったとき | `result`（`created`、`empty`、`failed`） |
+| `select_content` | アプリ内のヘルプへのリンク、必要人数設定への入口を押したとき、ヘルプのよくある質問を開いたとき、ヘルプの動画を再生したとき | `content_type`、`content_id` |
 | `trial_notice_view` | 無料トライアル終了の案内を表示したとき（段階ごと） | `stage`（`early`、`soon`、`last_day`） |
 | `plan_checkout_start` | 有料プランの申込みでStripeへ移動する直前 | `plan`（`standard`、`pro`） |
 | `plan_checkout_result` | Stripeから課金設定へ戻ったとき | `result`（`returned`、`cancelled`） |
@@ -85,13 +90,26 @@ ApplicationがdataLayerへ追加するイベントは次に限定する。  `web
 | `target` | `action` |
 |---|---|
 | `recruitment` | `update`、`delete` |
-| `shift` | `save`（下書き保存） |
+| `shift` | `save`（下書き保存）、`switch_detail`（「くわしく」へ切り替え）、`switch_simple`（「シンプル」へ切り替え） |
 | `staff` | `reject_request`、`exclude`、`include`、`remove`、`reorder`、`change_shops`、`update_profile`、`rotate_link`、`line_link_issue`、`line_invite`、`line_disconnect`、`notify_recruitment`、`notify_shift` |
 | `notification` | `resend`、`resend_all`、`resolve` |
 | `manager` | `invite`、`resend_invite`、`revoke_invite`、`remove_role`、`accept_invite` |
 | `organization` | `add_shop`、`delete_shop`、`delete_organization`、`rename`、`update_shop`、`update_billing_email` |
 | `billing` | `change_plan_now`、`schedule_plan_change`、`cancel_plan_change`、`schedule_stop`、`cancel_trial_continuation`、`open_portal`、`cancel_checkout` |
 | `account` | `legal_consent` |
+
+`shift_auto_create`の`reason`は、AIで作れなかった種類（`not_configured`、`unsupported`、`rate_limited`、`limit_reached`、`billing`、`busy`、`declined`、`unavailable`）と、それ以外の失敗（`error`）に分ける。  `shift_setup_save`の`sections`は保存した部分を`positions`、`templates`、`skills`の順に`+`でつなぐ。  何も保存していない場合は`none`にする。
+
+管理画面の`select_content`は公開画面のCTAと同じイベント名を使い、`content_type`で分ける。  `content_id`は次の値に限る。
+
+| `content_type` | `content_id` |
+|---|---|
+| `help_link` | ヘルプを開いた入口。`user_menu`、`action_inbox_notifications`、`shift_exclusion`、`staff_add_form`、`staff_registration_link`、`auto_create_ai_data` |
+| `shift_setup_link` | 必要人数設定を開いた入口。`shop_detail`、`shift_board_menu`、`auto_create_dialog` |
+| `help_faq` | 開いたよくある質問のID（MDXのファイル名）。英小文字、数字、`-`以外を含む値は`other`にする |
+| `help_video` | 再生したヘルプの動画のID。使い方のIDと動画のファイル名を`-`でつなぐ。英小文字、数字、`-`以外を含む値は`other`にする |
+
+ヘルプは別タブで参照元を渡さずに開くため、どの入口から開いたかは、リンクを押した画面で記録する。  ホーム画面への追加案内は`home_screen_guide`の`open`で数えるため、ヘルプの入口IDに含めない。  よくある質問は、新しく開いたときだけ数える。  閉じたときと、URLの指定で最初から開いている質問は数えない。  動画は、開いたページで最初に再生したときだけ数える。  一時停止のあとの再開は数えない。
 
 ### スタッフ画面
 

@@ -140,13 +140,8 @@ function ProTrialNotice() {
       >
         Proプランを無料でお試し
       </Text>
-      <Flex
-        align="center"
-        justify="center"
-        direction={{ base: "column", md: "row" }}
-        gap={{ base: 3, md: 5 }}
-        color="gray.800"
-      >
+      {/* PCでもスマートフォンと同じく2行に分け、チップと条件の文が1行に続いて見えないようにする。 */}
+      <Flex align="center" justify="center" direction="column" gap={3} color="gray.800">
         <Flex align="center" gap={2} bg="teal.50" borderRadius="full" px={4} py={2} fontSize="sm" fontWeight="bold">
           <Icon as={LuCheck} boxSize={4} color="teal.700" flexShrink={0} aria-hidden />
           <Text as="span">クレジットカード不要</Text>

@@ -1,11 +1,17 @@
 import { Box, Flex, Stack } from "@chakra-ui/react";
 import { useAtomValue, useSetAtom } from "jotai";
-import { type TouchEvent, useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useDialog } from "@/src/components/ui/Dialog";
-import type { ShiftData } from "@/src/domains/shift/types";
+import { isTimeStaffFolded } from "@/src/domains/shift/foldedStaff";
+import type { ShiftData, StaffType } from "@/src/domains/shift/types";
+import { FoldedStaffGroupToggle } from "../../assignmentCellParts";
 import { useAllShiftDateNotes } from "../../dateNotes";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
+import { useSwipeDateChange } from "../../hooks/useSwipeDateChange";
+import { SP_LIST_PADDING_X_PX } from "../../spTimelineScale";
+import { DayTemplateMenu, useDayStaffingView } from "../../staffingParts";
+import { buildStaffNamesLabel } from "../../staffNamesLabel";
 import {
   clearShiftDraftPositionsAtom,
   dailySortedStaffsAtom,
@@ -15,17 +21,16 @@ import {
   selectedDateAtom,
   shiftByStaffIdForSelectedDateAtom,
   shiftConfigAtom,
+  staffWarningCountByDateAtom,
   upsertShiftDraftAtom,
-  warningCountByDateAtom,
   warningMessagesByStaffIdForSelectedDateAtom,
 } from "../../stores";
 import { DateRail } from "./DateRail";
+import { DetailControls } from "./DetailControls";
 import { ShiftDetailSheet } from "./ShiftDetailSheet";
 import { ShiftEditSheet } from "./ShiftEditSheet";
 import { SectionHeader, SPDailyCard, SPOffCard } from "./StaffCards";
 import { buildSPDailyCardViewModel } from "./script";
-
-const SWIPE_THRESHOLD = 50;
 
 export const SPDailyView = () => {
   const config = useAtomValue(shiftConfigAtom);
@@ -37,8 +42,10 @@ export const SPDailyView = () => {
   const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const issueCounts = useAtomValue(issueCountByDateAtom);
   const issueStaffIds = useAtomValue(issueStaffIdSetForSelectedDateAtom);
-  const warningCounts = useAtomValue(warningCountByDateAtom);
+  const warningCounts = useAtomValue(staffWarningCountByDateAtom);
   const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
+  // その日のテンプレートを出す日（くわしく表示の営業日）だけ値が入る。
+  const staffingView = useDayStaffingView(selectedDate);
   // カード下段の本文と名前の右のアイコンは、表示設定に応じてどちらか一方だけが出る。
   const dateNotes = useAllShiftDateNotes();
 
@@ -49,7 +56,6 @@ export const SPDailyView = () => {
   const editDialog = useDialog();
   const detailDialog = useDialog();
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
-  const touchStartX = useRef(0);
   const dateStripRef = useRef<HTMLDivElement>(null);
   useScrollDateIntoView(dateStripRef, selectedDate, "horizontal");
 
@@ -73,7 +79,26 @@ export const SPDailyView = () => {
     () => (isReadOnly ? unassignedRows : unassignedRows.filter((row) => !row.viewModel.hasRequest)),
     [isReadOnly, unassignedRows],
   );
-  const restRows = useMemo(() => offRows.filter((row) => row.staff.isSubmitted), [offRows]);
+  const submittedOffRows = useMemo(() => offRows.filter((row) => row.staff.isSubmitted), [offRows]);
+  // 休み希望（提出済みで、その日の希望の時間がない）で、勤務も連絡事項もない人は、下にまとめてたたむ。
+  // 未提出の人はたたまない。スタッフ向けの確定シフトでは、全員をそのまま出す。
+  const isConfirmedDisplay = config.displayMode === "confirmed";
+  const foldedRows = useMemo(
+    () =>
+      isConfirmedDisplay
+        ? []
+        : submittedOffRows.filter(({ staff, shift }) =>
+            isTimeStaffFolded({ shift, staff, hasNote: dateNotes.getNote(staff.id, selectedDate) !== undefined }),
+          ),
+    [dateNotes, isConfirmedDisplay, selectedDate, submittedOffRows],
+  );
+  const restRows = useMemo(
+    () => submittedOffRows.filter((row) => !foldedRows.includes(row)),
+    [foldedRows, submittedOffRows],
+  );
+  // たたんだまとまりは、日付を変えるたびに閉じた状態へ戻す。
+  const [openFoldedDate, setOpenFoldedDate] = useState<string | null>(null);
+  const isFoldedOpen = openFoldedDate === selectedDate;
   const unsubmittedRows = useMemo(() => offRows.filter((row) => !row.staff.isSubmitted), [offRows]);
 
   const selectedStaff = useMemo(
@@ -124,23 +149,27 @@ export const SPDailyView = () => {
     />
   );
 
-  const handleTouchStart = useCallback((event: TouchEvent) => {
-    touchStartX.current = event.touches[0].clientX;
-  }, []);
-
-  const handleTouchEnd = useCallback(
-    (event: TouchEvent) => {
-      const deltaX = event.changedTouches[0].clientX - touchStartX.current;
-      if (Math.abs(deltaX) < SWIPE_THRESHOLD) return;
-      const currentIndex = dates.indexOf(selectedDate);
-      if (deltaX > 0 && currentIndex > 0) selectDate(dates[currentIndex - 1]);
-      else if (deltaX < 0 && currentIndex < dates.length - 1) selectDate(dates[currentIndex + 1]);
-    },
-    [dates, selectedDate, selectDate],
+  const renderRestCard = (staff: StaffType) => (
+    <SPOffCard
+      key={staff.id}
+      staffId={staff.id}
+      staffName={staff.name}
+      label={isReadOnly ? "休み" : "休み希望"}
+      labelTone="muted"
+      onTap={() => handleCardTap(staff.id)}
+      isReadOnly={isReadOnly}
+      hasError={issueStaffIds.has(staff.id)}
+      warningMessages={warningMessagesByStaffId.get(staff.id) ?? []}
+      note={dateNotes.getNote(staff.id, selectedDate)}
+      noteDate={selectedDate}
+    />
   );
 
+  // 左右フリックで前後の日へ移る。
+  const swipeHandlers = useSwipeDateChange({ dates, selectedDate, onSelect: selectDate });
+
   return (
-    <Flex direction="column" flex={1} minH={0} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+    <Flex direction="column" flex={1} minH={0} {...swipeHandlers}>
       <DateRail
         dates={dates}
         selectedDate={selectedDate}
@@ -149,8 +178,23 @@ export const SPDailyView = () => {
         warningCounts={warningCounts}
         dateStripRef={dateStripRef}
         onSelect={selectDate}
+        // テンプレートは、日付と表示設定の間に置く。
+        headingAction={staffingView && <DayTemplateMenu date={selectedDate} view={staffingView} shrinks />}
       />
-      <Box flex={1} minH={0} overflow="auto" bg="gray.50" px={3} py={3} data-tour="shift-grid">
+      {/* 充足。閉じている間は、日付の見出しの下に留める。 */}
+      <DetailControls />
+      <Box
+        flex={1}
+        minH={0}
+        overflow="auto"
+        bg="gray.50"
+        // カードのバーの両端を、充足の帯と時刻の軸にそろえるため、物差しと同じ余白を使う。
+        px={`${SP_LIST_PADDING_X_PX}px`}
+        py={3}
+        data-tour="shift-grid"
+        // 充足を開いて低くなっても、画面のスクロールとして扱う。
+        data-chrome-scroll-target
+      >
         {isShopClosedDate ? (
           <Flex minH="240px" align="center" justify="center" direction="column" gap={2} px={4}>
             <Box textStyle="md" fontWeight={700} color="gray.700">
@@ -177,23 +221,7 @@ export const SPDailyView = () => {
             {restRows.length > 0 && (
               <Box>
                 <SectionHeader label="休み" count={restRows.length} hint={isReadOnly ? undefined : "タップで追加"} />
-                <Stack gap="6px">
-                  {restRows.map(({ staff }) => (
-                    <SPOffCard
-                      key={staff.id}
-                      staffId={staff.id}
-                      staffName={staff.name}
-                      label={isReadOnly ? "休み" : "休み希望"}
-                      labelTone="muted"
-                      onTap={() => handleCardTap(staff.id)}
-                      isReadOnly={isReadOnly}
-                      hasError={issueStaffIds.has(staff.id)}
-                      warningMessages={warningMessagesByStaffId.get(staff.id) ?? []}
-                      note={dateNotes.getNote(staff.id, selectedDate)}
-                      noteDate={selectedDate}
-                    />
-                  ))}
-                </Stack>
+                <Stack gap="6px">{restRows.map(({ staff }) => renderRestCard(staff))}</Stack>
               </Box>
             )}
             {unsubmittedRows.length > 0 && (
@@ -222,6 +250,25 @@ export const SPDailyView = () => {
                 </Stack>
               </Box>
             )}
+            {foldedRows.length > 0 && (
+              <Box>
+                <Box bg="white" borderWidth="1px" borderColor="gray.200" borderRadius="md" overflow="hidden">
+                  <FoldedStaffGroupToggle
+                    group={{
+                      label: `休み希望 ${foldedRows.length}人`,
+                      namesLabel: buildStaffNamesLabel(foldedRows.map(({ staff }) => staff.name)),
+                    }}
+                    isOpen={isFoldedOpen}
+                    onToggle={() => setOpenFoldedDate(isFoldedOpen ? null : selectedDate)}
+                  />
+                </Box>
+                {isFoldedOpen && (
+                  <Stack gap="6px" mt={2}>
+                    {foldedRows.map(({ staff }) => renderRestCard(staff))}
+                  </Stack>
+                )}
+              </Box>
+            )}
           </Stack>
         )}
       </Box>
@@ -236,6 +283,7 @@ export const SPDailyView = () => {
       )}
       {!isReadOnly && selectedStaff && (
         <ShiftEditSheet
+          key={`${selectedStaff.id}-${selectedDate}`}
           staff={selectedStaff}
           shift={selectedShift}
           positions={positions}

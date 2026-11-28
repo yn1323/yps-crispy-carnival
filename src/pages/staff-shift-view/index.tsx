@@ -108,6 +108,7 @@ function ShiftViewContent({ session }: { session: { sessionToken: string; recrui
         positions={data.positions}
         assignments={data.assignments}
         timeRange={data.timeRange}
+        staffSortMode={data.shiftStaffSortMode}
       />
     </StaffLayout>
   );

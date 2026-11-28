@@ -23,7 +23,7 @@ export function BillingEmailDialog({ isOpen, billingEmail, isRunning, onClose, o
 
   return (
     <Dialog
-      title="請求先メールアドレスを変更"
+      title="支払いのお知らせ先を変更"
       isOpen
       onOpenChange={({ open }) => {
         if (!open) onClose();
@@ -44,14 +44,12 @@ export function BillingEmailDialog({ isOpen, billingEmail, isRunning, onClose, o
       >
         <Stack gap={4}>
           <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-            請求先は、通知の宛先です。
+            お知らせ通知の送付先です。
             <br />
-            契約操作の権限は付与されません。
-            <br />
-            変更すると、現在の管理者へメールで通知します。
+            支払い後の領収書等が届きます。
           </Text>
           <Field.Root required>
-            <Field.Label>新しい請求先メールアドレス</Field.Label>
+            <Field.Label>新しいお知らせ先メールアドレス</Field.Label>
             <Input
               type="email"
               value={email}

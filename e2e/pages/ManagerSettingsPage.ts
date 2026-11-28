@@ -19,7 +19,7 @@ export class ManagerSettingsPage {
       timeout: MANAGER_SETTINGS_TIMEOUT,
     });
 
-    await this.page.getByRole("button", { name: "管理者と権限を開く", exact: true }).click();
+    await this.page.getByRole("button", { name: "管理者設定を開く", exact: true }).click();
     await this.expectMainPage(seed.organizationId);
   }
 

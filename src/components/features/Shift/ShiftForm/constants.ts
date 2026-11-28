@@ -1,19 +1,13 @@
 // ==========================================
-// PC日別ビュー: 時間軸
+// PC日別ビュー: 時間軸、ドラッグ & スクロール
 // ==========================================
 
-// 時間軸の左右パディング（px）
-export const TIME_AXIS_PADDING_PX = 30;
-
-// 1時間あたりの幅（px）- 固定幅計算用
-export const HOUR_WIDTH_PX = 120;
-
-// ==========================================
-// PC日別ビュー: ドラッグ & スクロール
-// ==========================================
-
-// リサイズ端の判定閾値（px）
-export const RESIZE_EDGE_THRESHOLD = 10;
+// 時間軸の座標計算に使う定数は、必要人数のバーの編集と共有するためsharedに置く。
+export {
+  HOUR_WIDTH_PX,
+  RESIZE_EDGE_THRESHOLD,
+  TIME_AXIS_PADDING_PX,
+} from "@/src/components/shared/ShiftTimeline/constants";
 
 // 自動スクロール設定
 export const AUTO_SCROLL_EDGE_PX = 50; // 端からの距離（px）

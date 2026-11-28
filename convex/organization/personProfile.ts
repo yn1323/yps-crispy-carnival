@@ -2,6 +2,7 @@ import { ConvexError } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
+import { expectedConvexError } from "../_lib/errorObservability";
 import { resolveOrganizationPersonEmail } from "../_lib/personIdentity";
 import { normalizeEmail } from "../_lib/validation";
 import { revokeOrganizationPersonLineTokens } from "../line/service";
@@ -41,7 +42,7 @@ export async function updateOrganizationPersonProfile(
     personResolution.kind === "removed" ||
     (personResolution.kind === "active" && personResolution.person._id !== person._id)
   ) {
-    throw new ConvexError("このメールアドレスは、組織内の別のユーザーが使用しています。");
+    throw expectedConvexError("already_exists", "このメールアドレスは、組織内の別のユーザーが使用しています。");
   }
 
   const linkedStaffs = await ctx.db
@@ -97,7 +98,7 @@ export async function updateOrganizationPersonProfile(
           candidate.organizationPersonId !== person._id && normalizeEmail(candidate.email) === emailNormalized,
       );
     if (hasIndexedConflict || hasLegacyConflict) {
-      throw new ConvexError("このメールアドレスはすでに使用されています。");
+      throw expectedConvexError("already_exists", "このメールアドレスはすでに使用されています。");
     }
   }
 

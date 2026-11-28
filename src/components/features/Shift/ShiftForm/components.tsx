@@ -1,6 +1,6 @@
 import { Box, chakra, Flex, Icon, Popover, Portal, Stack, type SystemStyleObject, Text } from "@chakra-ui/react";
-import type { KeyboardEvent, ReactNode, SyntheticEvent } from "react";
-import { LuFileDown, LuSave, LuTriangleAlert } from "react-icons/lu";
+import { createContext, type KeyboardEvent, type ReactNode, type SyntheticEvent, useContext } from "react";
+import { LuCircleCheck, LuFileDown, LuSave, LuSend, LuTriangleAlert } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
 import { Tooltip } from "@/src/components/ui/tooltip";
 import type { StaffType, ViewMode } from "@/src/domains/shift/types";
@@ -286,6 +286,15 @@ export const ViewTabs = ({
   );
 };
 
+// スマートフォンで、表のスクロールするいちばん下に置くもの（未提出の帯）。
+// 表のスクロールする入れ物は表示ごとに違うため、置く側（Shell）が渡し、各表示が入れ物の末尾で受け取る。
+const ShiftFormScrollEndContext = createContext<ReactNode>(null);
+
+export const ShiftFormScrollEndProvider = ShiftFormScrollEndContext.Provider;
+
+/** 表のスクロールする入れ物の末尾に置く。スマートフォンでだけ中身を持ち、表の最後までスクロールすると見える。 */
+export const ShiftFormScrollEnd = () => useContext(ShiftFormScrollEndContext);
+
 type UnsubmittedStripProps = {
   names: string[];
   reminderStatus: ReminderStatus;
@@ -431,10 +440,11 @@ export const SaveButton = ({ compact = false, isSaving = false, onClick }: SaveB
       fontFamily: "inherit",
       display: "inline-flex",
       alignItems: "center",
-      gap: 4,
+      gap: compact ? 4 : 6,
     }}
   >
-    {compact ? <LuSave size={14} /> : isSaving ? "保存中" : "下書き保存"}
+    <LuSave size={compact ? 14 : 16} aria-hidden="true" focusable="false" />
+    {!compact && (isSaving ? "保存中" : "下書き保存")}
   </chakra.button>
 );
 
@@ -457,11 +467,13 @@ export const ConfirmButton = ({
       : "処理中"
     : compact
       ? isConfirmed
-        ? "再送"
+        ? "変更を通知"
         : "確定"
       : isConfirmed
-        ? "もう一度通知"
-        : "シフトを確定して通知";
+        ? "変更を通知"
+        : "確定";
+  // 確定済みの募集では、確定ではなく通知を送り直すため、送るアイコンにする。
+  const LabelIcon = isConfirmed ? LuSend : LuCircleCheck;
   return (
     <chakra.button
       type="button"
@@ -484,8 +496,12 @@ export const ConfirmButton = ({
         fontWeight: 600,
         fontFamily: "inherit",
         boxShadow: isConfirmed ? "none" : "0 1px 2px rgba(13,148,136,0.25)",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: compact ? 4 : 6,
       }}
     >
+      <LabelIcon size={compact ? 14 : 16} aria-hidden="true" focusable="false" />
       {label}
     </chakra.button>
   );

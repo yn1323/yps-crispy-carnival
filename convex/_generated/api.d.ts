@@ -9,7 +9,6 @@
  */
 
 import type * as _lib_auditCorrelation from "../_lib/auditCorrelation.js";
-import type * as _lib_clerkVerifiedEmailProvider from "../_lib/clerkVerifiedEmailProvider.js";
 import type * as _lib_config from "../_lib/config.js";
 import type * as _lib_dashboardUrl from "../_lib/dashboardUrl.js";
 import type * as _lib_dateFormat from "../_lib/dateFormat.js";
@@ -34,6 +33,8 @@ import type * as _lib_resendWebhookSignature from "../_lib/resendWebhookSignatur
 import type * as _lib_sha256 from "../_lib/sha256.js";
 import type * as _lib_shiftAssignmentNormalization from "../_lib/shiftAssignmentNormalization.js";
 import type * as _lib_shiftAssignmentValidators from "../_lib/shiftAssignmentValidators.js";
+import type * as _lib_shiftSetupValidators from "../_lib/shiftSetupValidators.js";
+import type * as _lib_shiftStaffSortMode from "../_lib/shiftStaffSortMode.js";
 import type * as _lib_shopAvailability from "../_lib/shopAvailability.js";
 import type * as _lib_shopManagerRecipients from "../_lib/shopManagerRecipients.js";
 import type * as _lib_staffAccess from "../_lib/staffAccess.js";
@@ -169,6 +170,8 @@ import type * as migrations_m049_notification_outbox_shop_deleted_reason from ".
 import type * as migrations_m050_staffs_canonical_links_backfill from "../migrations/m050_staffs_canonical_links_backfill.js";
 import type * as migrations_organizationMigrationHelpers from "../migrations/organizationMigrationHelpers.js";
 import type * as narrowReadiness_queries from "../narrowReadiness/queries.js";
+import type * as nationalHoliday_mutations from "../nationalHoliday/mutations.js";
+import type * as nationalHoliday_service from "../nationalHoliday/service.js";
 import type * as notification_actions from "../notification/actions.js";
 import type * as notification_confirmationDelivery from "../notification/confirmationDelivery.js";
 import type * as notification_confirmationSnapshots from "../notification/confirmationSnapshots.js";
@@ -255,11 +258,34 @@ import type * as setup_constants from "../setup/constants.js";
 import type * as setup_mutations from "../setup/mutations.js";
 import type * as setup_schemas from "../setup/schemas.js";
 import type * as setup_service from "../setup/service.js";
+import type * as shiftBoard_actions from "../shiftBoard/actions.js";
+import type * as shiftBoard_autoCreate_ai_aiDraftFailure from "../shiftBoard/autoCreate/ai/aiDraftFailure.js";
+import type * as shiftBoard_autoCreate_ai_aiDraftPrompt from "../shiftBoard/autoCreate/ai/aiDraftPrompt.js";
+import type * as shiftBoard_autoCreate_ai_aiDraftSchema from "../shiftBoard/autoCreate/ai/aiDraftSchema.js";
+import type * as shiftBoard_autoCreate_ai_applyAiDraft from "../shiftBoard/autoCreate/ai/applyAiDraft.js";
+import type * as shiftBoard_autoCreate_ai_draftMetrics from "../shiftBoard/autoCreate/ai/draftMetrics.js";
+import type * as shiftBoard_autoCreate_ai_timeGrid from "../shiftBoard/autoCreate/ai/timeGrid.js";
+import type * as shiftBoard_autoCreate_breakStandard from "../shiftBoard/autoCreate/breakStandard.js";
+import type * as shiftBoard_autoCreate_buildAutoAssignments from "../shiftBoard/autoCreate/buildAutoAssignments.js";
+import type * as shiftBoard_autoCreate_history from "../shiftBoard/autoCreate/history.js";
+import type * as shiftBoard_autoCreate_requirements from "../shiftBoard/autoCreate/requirements.js";
+import type * as shiftBoard_autoCreate_selection from "../shiftBoard/autoCreate/selection.js";
+import type * as shiftBoard_autoCreate_slotAssignments from "../shiftBoard/autoCreate/slotAssignments.js";
+import type * as shiftBoard_autoCreate_timeAssignments from "../shiftBoard/autoCreate/timeAssignments.js";
+import type * as shiftBoard_autoCreate_types from "../shiftBoard/autoCreate/types.js";
+import type * as shiftBoard_autoCreateSource from "../shiftBoard/autoCreateSource.js";
 import type * as shiftBoard_mutations from "../shiftBoard/mutations.js";
 import type * as shiftBoard_queries from "../shiftBoard/queries.js";
 import type * as shiftBoard_validation from "../shiftBoard/validation.js";
 import type * as shiftConfirmationReminder_actions from "../shiftConfirmationReminder/actions.js";
 import type * as shiftConfirmationReminder_queries from "../shiftConfirmationReminder/queries.js";
+import type * as shiftSetup_actions from "../shiftSetup/actions.js";
+import type * as shiftSetup_assistDraft from "../shiftSetup/assistDraft.js";
+import type * as shiftSetup_dayTemplates from "../shiftSetup/dayTemplates.js";
+import type * as shiftSetup_mutations from "../shiftSetup/mutations.js";
+import type * as shiftSetup_queries from "../shiftSetup/queries.js";
+import type * as shiftSetup_schemas from "../shiftSetup/schemas.js";
+import type * as shiftSetup_service from "../shiftSetup/service.js";
 import type * as shiftSubmission_mutations from "../shiftSubmission/mutations.js";
 import type * as shiftSubmission_queries from "../shiftSubmission/queries.js";
 import type * as shiftSubmission_schemas from "../shiftSubmission/schemas.js";
@@ -287,6 +313,14 @@ import type * as staffRegistration_schemas from "../staffRegistration/schemas.js
 import type * as staffRegistration_service from "../staffRegistration/service.js";
 import type * as staffRegistration_verificationCode from "../staffRegistration/verificationCode.js";
 import type * as testing from "../testing.js";
+import type * as userSeed_actions from "../userSeed/actions.js";
+import type * as userSeed_builders from "../userSeed/builders.js";
+import type * as userSeed_guard from "../userSeed/guard.js";
+import type * as userSeed_maxBuilders from "../userSeed/maxBuilders.js";
+import type * as userSeed_mutations from "../userSeed/mutations.js";
+import type * as userSeed_notificationRecords from "../userSeed/notificationRecords.js";
+import type * as userSeed_queries from "../userSeed/queries.js";
+import type * as userSeed_service from "../userSeed/service.js";
 
 import type {
   ApiFromModules,
@@ -296,7 +330,6 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   "_lib/auditCorrelation": typeof _lib_auditCorrelation;
-  "_lib/clerkVerifiedEmailProvider": typeof _lib_clerkVerifiedEmailProvider;
   "_lib/config": typeof _lib_config;
   "_lib/dashboardUrl": typeof _lib_dashboardUrl;
   "_lib/dateFormat": typeof _lib_dateFormat;
@@ -321,6 +354,8 @@ declare const fullApi: ApiFromModules<{
   "_lib/sha256": typeof _lib_sha256;
   "_lib/shiftAssignmentNormalization": typeof _lib_shiftAssignmentNormalization;
   "_lib/shiftAssignmentValidators": typeof _lib_shiftAssignmentValidators;
+  "_lib/shiftSetupValidators": typeof _lib_shiftSetupValidators;
+  "_lib/shiftStaffSortMode": typeof _lib_shiftStaffSortMode;
   "_lib/shopAvailability": typeof _lib_shopAvailability;
   "_lib/shopManagerRecipients": typeof _lib_shopManagerRecipients;
   "_lib/staffAccess": typeof _lib_staffAccess;
@@ -456,6 +491,8 @@ declare const fullApi: ApiFromModules<{
   "migrations/m050_staffs_canonical_links_backfill": typeof migrations_m050_staffs_canonical_links_backfill;
   "migrations/organizationMigrationHelpers": typeof migrations_organizationMigrationHelpers;
   "narrowReadiness/queries": typeof narrowReadiness_queries;
+  "nationalHoliday/mutations": typeof nationalHoliday_mutations;
+  "nationalHoliday/service": typeof nationalHoliday_service;
   "notification/actions": typeof notification_actions;
   "notification/confirmationDelivery": typeof notification_confirmationDelivery;
   "notification/confirmationSnapshots": typeof notification_confirmationSnapshots;
@@ -542,11 +579,34 @@ declare const fullApi: ApiFromModules<{
   "setup/mutations": typeof setup_mutations;
   "setup/schemas": typeof setup_schemas;
   "setup/service": typeof setup_service;
+  "shiftBoard/actions": typeof shiftBoard_actions;
+  "shiftBoard/autoCreate/ai/aiDraftFailure": typeof shiftBoard_autoCreate_ai_aiDraftFailure;
+  "shiftBoard/autoCreate/ai/aiDraftPrompt": typeof shiftBoard_autoCreate_ai_aiDraftPrompt;
+  "shiftBoard/autoCreate/ai/aiDraftSchema": typeof shiftBoard_autoCreate_ai_aiDraftSchema;
+  "shiftBoard/autoCreate/ai/applyAiDraft": typeof shiftBoard_autoCreate_ai_applyAiDraft;
+  "shiftBoard/autoCreate/ai/draftMetrics": typeof shiftBoard_autoCreate_ai_draftMetrics;
+  "shiftBoard/autoCreate/ai/timeGrid": typeof shiftBoard_autoCreate_ai_timeGrid;
+  "shiftBoard/autoCreate/breakStandard": typeof shiftBoard_autoCreate_breakStandard;
+  "shiftBoard/autoCreate/buildAutoAssignments": typeof shiftBoard_autoCreate_buildAutoAssignments;
+  "shiftBoard/autoCreate/history": typeof shiftBoard_autoCreate_history;
+  "shiftBoard/autoCreate/requirements": typeof shiftBoard_autoCreate_requirements;
+  "shiftBoard/autoCreate/selection": typeof shiftBoard_autoCreate_selection;
+  "shiftBoard/autoCreate/slotAssignments": typeof shiftBoard_autoCreate_slotAssignments;
+  "shiftBoard/autoCreate/timeAssignments": typeof shiftBoard_autoCreate_timeAssignments;
+  "shiftBoard/autoCreate/types": typeof shiftBoard_autoCreate_types;
+  "shiftBoard/autoCreateSource": typeof shiftBoard_autoCreateSource;
   "shiftBoard/mutations": typeof shiftBoard_mutations;
   "shiftBoard/queries": typeof shiftBoard_queries;
   "shiftBoard/validation": typeof shiftBoard_validation;
   "shiftConfirmationReminder/actions": typeof shiftConfirmationReminder_actions;
   "shiftConfirmationReminder/queries": typeof shiftConfirmationReminder_queries;
+  "shiftSetup/actions": typeof shiftSetup_actions;
+  "shiftSetup/assistDraft": typeof shiftSetup_assistDraft;
+  "shiftSetup/dayTemplates": typeof shiftSetup_dayTemplates;
+  "shiftSetup/mutations": typeof shiftSetup_mutations;
+  "shiftSetup/queries": typeof shiftSetup_queries;
+  "shiftSetup/schemas": typeof shiftSetup_schemas;
+  "shiftSetup/service": typeof shiftSetup_service;
   "shiftSubmission/mutations": typeof shiftSubmission_mutations;
   "shiftSubmission/queries": typeof shiftSubmission_queries;
   "shiftSubmission/schemas": typeof shiftSubmission_schemas;
@@ -574,6 +634,14 @@ declare const fullApi: ApiFromModules<{
   "staffRegistration/service": typeof staffRegistration_service;
   "staffRegistration/verificationCode": typeof staffRegistration_verificationCode;
   testing: typeof testing;
+  "userSeed/actions": typeof userSeed_actions;
+  "userSeed/builders": typeof userSeed_builders;
+  "userSeed/guard": typeof userSeed_guard;
+  "userSeed/maxBuilders": typeof userSeed_maxBuilders;
+  "userSeed/mutations": typeof userSeed_mutations;
+  "userSeed/notificationRecords": typeof userSeed_notificationRecords;
+  "userSeed/queries": typeof userSeed_queries;
+  "userSeed/service": typeof userSeed_service;
 }>;
 
 /**

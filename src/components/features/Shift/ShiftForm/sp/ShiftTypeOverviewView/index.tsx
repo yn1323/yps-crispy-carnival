@@ -3,11 +3,14 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useMemo, useState } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
 import { IssueCountBadge } from "../../components";
+import { BreakMark, PositionMark } from "../../detailParts";
 import { getShiftTypeOptionColor } from "../../shiftTypeOptionStyles";
 import {
+  detailModeAtom,
   selectDateWithDailyStaffOrderAtom,
   shiftConfigAtom,
   shiftsAtom,
+  staffSortModeAtom,
   viewModeAtom,
   warningCountByDateAtom,
 } from "../../stores";
@@ -15,12 +18,14 @@ import { SHIFT_WEEKDAY_TONE_COLORS } from "../../weekdayPresentation";
 import {
   buildShiftTypeOverviewViewModel,
   type ShiftTypeOverviewDayRowViewModel,
+  type ShiftTypeOverviewOptionChipViewModel,
   type ShiftTypeOverviewStaffRowViewModel,
 } from "./script";
 
 export const SPShiftTypeOverviewView = () => {
   const config = useAtomValue(shiftConfigAtom);
   const shifts = useAtomValue(shiftsAtom);
+  const staffSortMode = useAtomValue(staffSortModeAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
   const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const setViewMode = useSetAtom(viewModeAtom);
@@ -31,12 +36,13 @@ export const SPShiftTypeOverviewView = () => {
         dates,
         holidays,
         staffs,
+        staffSortMode,
         shifts,
         submissionPattern,
         warningCounts,
         isReadOnly,
       }),
-    [dates, holidays, staffs, shifts, submissionPattern, warningCounts, isReadOnly],
+    [dates, holidays, staffs, staffSortMode, shifts, submissionPattern, warningCounts, isReadOnly],
   );
   const initialOpen = useMemo(() => {
     const state: Record<number, boolean> = {};
@@ -171,33 +177,70 @@ const DayRow = ({ row, onDateTap }: { row: ShiftTypeOverviewDayRowViewModel; onD
   </Flex>
 );
 
-const DayShiftTypeStaffList = ({ rows }: { rows: ShiftTypeOverviewStaffRowViewModel[] }) => (
-  <Stack gap="6px">
-    {rows.map((staff) => (
-      <Flex key={staff.key} align="center" gap={2} textStyle="tableDense">
-        <Box color="gray.800" fontWeight={600} flex={1} minW={0}>
-          {staff.name}
-        </Box>
-        <Flex gap={1} justify="flex-end" wrap="wrap">
-          {staff.optionChips.map((option) => {
-            const color = getShiftTypeOptionColor(option.colorIndex);
-            return (
-              <Box
-                key={option.key}
-                px={2}
-                py="2px"
-                borderRadius="full"
-                bg={color.requestedBg}
-                color={color.accent}
-                textStyle="2xs"
-                fontWeight={700}
-              >
-                {option.label}
-              </Box>
-            );
-          })}
+const DayShiftTypeStaffList = ({ rows }: { rows: ShiftTypeOverviewStaffRowViewModel[] }) => {
+  const detailMode = useAtomValue(detailModeAtom);
+
+  return (
+    <Stack gap="6px">
+      {rows.map((staff) => (
+        <Flex key={staff.key} align={detailMode ? "flex-start" : "center"} gap={2} textStyle="tableDense">
+          {/* 名前の幅は行の半分までにし、長い名前は1行で省略する。残りの幅を勤務パターンに使い、名前と重ねない。 */}
+          <Flex flexShrink={0} maxW="50%" align="center" gap="6px" minH={detailMode ? "20px" : undefined}>
+            <Box color="gray.800" fontWeight={600} minW={0} truncate>
+              {staff.name}
+            </Box>
+            {/* くわしく表示: 名前の横に休憩の印を出す。 */}
+            {detailMode && <BreakMark shift={staff.shift} compact />}
+          </Flex>
+          <Flex flex={1} minW={0} gap={1} justify="flex-end" wrap="wrap">
+            {staff.optionChips.map((option) => {
+              const color = getShiftTypeOptionColor(option.colorIndex);
+              return (
+                <Flex
+                  key={option.key}
+                  align="center"
+                  minW={0}
+                  maxW="100%"
+                  px={2}
+                  py="2px"
+                  borderRadius="full"
+                  bg={color.requestedBg}
+                  color={color.accent}
+                  textStyle="2xs"
+                  fontWeight={700}
+                >
+                  {/* 長い勤務パターンの名前は、1行に収めて省略する。 */}
+                  <Box as="span" minW={0} truncate>
+                    {option.label}
+                  </Box>
+                  {/* くわしく表示: 勤務パターンの色は保ち、ポジションを名前と色の丸で添える。 */}
+                  {detailMode && <PositionChipMark segment={option.segment} />}
+                </Flex>
+              );
+            })}
+          </Flex>
         </Flex>
-      </Flex>
-    ))}
-  </Stack>
-);
+      ))}
+    </Stack>
+  );
+};
+
+// ポジションを塗り分ける表示のときだけ、勤務のポジションを添える。
+const PositionChipMark = ({ segment }: { segment: ShiftTypeOverviewOptionChipViewModel["segment"] }) => {
+  if (!segment) return null;
+  return (
+    // ポジションの名前が長くても、勤務パターンの名前の幅を半分は残す。
+    <Box
+      as="span"
+      display="inline-flex"
+      flexShrink={0}
+      minW={0}
+      maxW="50%"
+      ml="6px"
+      color="gray.700"
+      _empty={{ display: "none" }}
+    >
+      <PositionMark segment={segment} />
+    </Box>
+  );
+};

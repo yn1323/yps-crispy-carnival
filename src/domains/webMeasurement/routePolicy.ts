@@ -9,6 +9,8 @@ export const webMeasurementRouteFamilies = [
   "article_detail",
   "article_category",
   "demo_shiftboard",
+  "demo_simple",
+  "demo_detail",
   "legal",
   "utility",
   "auth_signup",
@@ -22,6 +24,7 @@ export const webMeasurementRouteFamilies = [
   "billing",
   "manager_management",
   "shop_detail",
+  "shift_setup",
   "shift_management",
   "shiftboard",
   "shift_export",
@@ -56,6 +59,8 @@ const routeAreaByFamily: Record<WebMeasurementRouteFamily, WebMeasurementRouteAr
   article_detail: "public",
   article_category: "public",
   demo_shiftboard: "public",
+  demo_simple: "public",
+  demo_detail: "public",
   legal: "other",
   utility: "other",
   auth_signup: "auth",
@@ -69,6 +74,7 @@ const routeAreaByFamily: Record<WebMeasurementRouteFamily, WebMeasurementRouteAr
   billing: "manager",
   manager_management: "manager",
   shop_detail: "manager",
+  shift_setup: "manager",
   shift_management: "manager",
   shiftboard: "manager",
   shift_export: "manager",
@@ -88,6 +94,7 @@ const routeAreaByFamily: Record<WebMeasurementRouteFamily, WebMeasurementRouteAr
 // IDを含むrouteは、ページ単位の集計でIDごとに行が分かれないよう固定のpathへ置き換える。
 const templatedPagePaths: Partial<Record<WebMeasurementRouteFamily, string>> = {
   shop_detail: "/manage/shops/:shopId",
+  shift_setup: "/manage/shops/:shopId/shift-setup",
   shiftboard: "/shifts/:recruitmentId/board",
   shift_export: "/shifts/:recruitmentId/export",
   staff_detail: "/staff/:personId",
@@ -107,7 +114,9 @@ const fixedRouteFamilies = new Map<string, WebMeasurementRouteFamily>([
   ["/cache-reset", "utility"],
   ["/commercial-transactions", "legal"],
   ["/contact", "contact"],
+  ["/demo/detail", "demo_detail"],
   ["/demo/shiftboard", "demo_shiftboard"],
+  ["/demo/simple", "demo_simple"],
   ["/features", "features"],
   ["/forgot-password", "auth_password_reset"],
   ["/help", "help_index"],
@@ -123,6 +132,8 @@ const fixedRouteFamilies = new Map<string, WebMeasurementRouteFamily>([
   ["/privacy/manager", "legal"],
   ["/privacy/staff", "legal"],
   ["/shifts/reissue", "staff_reissue"],
+  // 体験デモの中のスマートフォンの枠に読み込む画面。利用者が開く公開ページや、本物のスタッフの提出とは分ける。
+  ["/shifts/demo-submit", "utility"],
   ["/shifts/submit", "staff_submit"],
   ["/shifts/submit/completed", "staff_submit_completed"],
   ["/shifts/view", "staff_view"],
@@ -171,6 +182,8 @@ export function getWebMeasurementRouteFamily(value: string): WebMeasurementRoute
   if (appPathname === "/manage/billing") return "billing";
   if (/^\/manage\/managers(?:\/invite-(?:new|staff))?$/.test(appPathname)) return "manager_management";
   if (/^\/manage\/shops\/[^/]+$/.test(appPathname)) return "shop_detail";
+  // 「必要人数設定」は、ポジションと必要人数の利用を数えるため、店舗詳細と分ける。
+  if (/^\/manage\/shops\/[^/]+\/shift-setup$/.test(appPathname)) return "shift_setup";
   if (appPathname === "/shifts") return "shift_management";
   if (/^\/shifts\/[^/]+\/board$/.test(appPathname)) return "shiftboard";
   if (appPathname === "/staff" || appPathname === "/staff/order") return "staff_management";

@@ -1,9 +1,14 @@
 import { ConvexError } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
+import { expectedConvexError } from "../_lib/errorObservability";
 import { resolveOrganizationPersonEmail } from "../_lib/personIdentity";
 import { normalizeEmail } from "../_lib/validation";
-import { ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT, SHOP_MEMBERSHIP_STATS_ACTIVE_STAFF_LIMIT } from "../constants";
+import {
+  ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT,
+  SHIFT_BOARD_STAFF_LIMIT,
+  SHOP_MEMBERSHIP_STATS_ACTIVE_STAFF_LIMIT,
+} from "../constants";
 import {
   createOrganizationShopStaffMembershipFingerprint,
   ORGANIZATION_SHOP_STAFF_MEMBERSHIP_DESIRED_LIMIT,
@@ -249,6 +254,21 @@ export function isShiftTargetStaff(staff: { isDeleted: boolean; excludedFromShif
   return !staff.isDeleted && !staff.excludedFromShift;
 }
 
+/**
+ * 店舗のシフト対象のスタッフを、登録した順で返す。シフト表が扱う人数までを読む。
+ * 店舗と違う組織に属するスタッフは含めない。
+ */
+export async function listShiftTargetStaffsInShop(
+  ctx: DbCtx,
+  shop: Pick<Doc<"shops">, "_id" | "organizationId">,
+): Promise<Doc<"staffs">[]> {
+  const staffs = await ctx.db
+    .query("staffs")
+    .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
+    .take(SHIFT_BOARD_STAFF_LIMIT);
+  return staffs.filter((staff) => staff.organizationId === shop.organizationId && isShiftTargetStaff(staff));
+}
+
 export async function getActiveStaffInShop(ctx: DbCtx, shopId: Id<"shops">, staffId: Id<"staffs">) {
   const staff = await ctx.db.get(staffId);
   return staff && staff.shopId === shopId && !staff.isDeleted ? staff : null;
@@ -300,7 +320,10 @@ export async function releasePendingInvitationReservationsForStaffAddition(
     .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId).eq("status", "issued"))
     .take(options.scanLimit + 1);
   if (issuedInvitations.length > options.scanLimit) {
-    throw new ConvexError("管理者招待が多いため、スタッフを追加できません。\n組織設定で招待状況を確認してください。");
+    throw expectedConvexError(
+      "business_rule",
+      "管理者招待が多いため、スタッフを追加できません。\n組織設定で招待状況を確認してください。",
+    );
   }
   await releaseMatchingInvitationReservations(ctx, issuedInvitations, entries, now);
 }
@@ -346,7 +369,7 @@ export async function prepareOrganizationPeopleForStaffAddition(
   for (const entry of args.entries) {
     const email = normalizeEmail(entry.email);
     if (inputEmails.has(email)) {
-      throw new ConvexError("同じメールアドレスが複数入力されています。");
+      throw expectedConvexError("already_exists", "同じメールアドレスが複数入力されています。");
     }
     inputEmails.add(email);
 
@@ -408,7 +431,7 @@ export async function prepareOrganizationPeopleForStaffAddition(
       const activeStaffRows = staffRows.filter((staff) => !staff.isDeleted);
       const existingStaffInShop = activeStaffRows.find((staff) => staff.shopId === args.shopId);
       if (existingStaffInShop) {
-        throw new ConvexError("このユーザーはすでに店舗へ登録されています。");
+        throw expectedConvexError("already_exists", "このユーザーはすでに店舗へ登録されています。");
       }
       // removed人物をactiveへ戻した瞬間に、過去の別店舗staffが暗黙復元されないことを保証する。
       if (person.status === "removed" && activeStaffRows.length > 0) {
@@ -476,7 +499,10 @@ export async function materializeOrganizationPeopleForStaffAddition(
         person.status !== "removed" ||
         normalizeEmail(person.email) !== entry.email
       ) {
-        throw new ConvexError("追加対象のユーザー情報が変わりました。\n追加内容をもう一度確認してください。");
+        throw expectedConvexError(
+          "stale_state",
+          "追加対象のユーザー情報が変わりました。\n追加内容をもう一度確認してください。",
+        );
       }
       if (!(await hasValidOrganizationPersonUserLifecycle(ctx, person))) {
         throw new ConvexError("このユーザーを追加できません。\nアカウントの状態を確認してください。");

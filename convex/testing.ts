@@ -170,7 +170,7 @@ async function seedLegalConsentState(
 }
 
 async function deleteRecruitmentGraph(ctx: MutationCtx, recruitmentId: Id<"recruitments">) {
-  const [slots, dates, dateNotes, submissions, assignments, snapshots, stats] = await Promise.all([
+  const [slots, dates, dateNotes, submissions, assignments, snapshots, staffingSnapshots, stats] = await Promise.all([
     ctx.db
       .query("shiftSubmissionSlots")
       .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
@@ -196,12 +196,25 @@ async function deleteRecruitmentGraph(ctx: MutationCtx, recruitmentId: Id<"recru
       .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
       .collect(),
     ctx.db
+      .query("recruitmentStaffingSnapshots")
+      .withIndex("by_recruitmentId_and_date", (q) => q.eq("recruitmentId", recruitmentId))
+      .collect(),
+    ctx.db
       .query("recruitmentStats")
       .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
       .collect(),
   ]);
 
-  for (const doc of [...slots, ...dates, ...dateNotes, ...submissions, ...assignments, ...snapshots, ...stats]) {
+  for (const doc of [
+    ...slots,
+    ...dates,
+    ...dateNotes,
+    ...submissions,
+    ...assignments,
+    ...snapshots,
+    ...staffingSnapshots,
+    ...stats,
+  ]) {
     await ctx.db.delete(doc._id);
   }
 }
@@ -454,6 +467,21 @@ async function deleteShopGraph(
     .collect();
   for (const position of positions) {
     await ctx.db.delete(position._id);
+  }
+
+  const dayTemplates = await ctx.db
+    .query("shiftDayTemplates")
+    .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
+    .collect();
+  for (const template of dayTemplates) {
+    await ctx.db.delete(template._id);
+  }
+  const dayTemplateOverrides = await ctx.db
+    .query("shiftDayTemplateOverrides")
+    .withIndex("by_shopId_and_date", (q) => q.eq("shopId", shopId))
+    .collect();
+  for (const override of dayTemplateOverrides) {
+    await ctx.db.delete(override._id);
   }
 
   await ctx.db.delete(shopId);
@@ -1477,6 +1505,12 @@ export const seedOpenRecruitmentNotificationScenario = internalMutation({
     managerEmail: v.optional(v.string()),
     dates: scenarioDatesValidator,
     dateOnly: v.optional(v.boolean()),
+    // 店舗の集め方も日付選択にする。設定ページの必要人数は、店舗の集め方で入力する。
+    shopDateOnly: v.optional(v.boolean()),
+    // 店舗のシフト表を「くわしく」で開く。休憩など、くわしく表示でだけ入れられる内容の前提にする。
+    shopDetailMode: v.optional(v.boolean()),
+    // 管理者自身のスタッフが、募集の全日に日付選択の希望を提出済みの状態にする。希望から勤務を作る操作の前提にする。
+    managerStaffSubmittedDates: v.optional(v.boolean()),
     managerLineState: v.optional(lineDeliveryStateValidator),
     managerLegalConsentState: v.optional(legalConsentStateValidator),
     managerStaffLegalConsentState: v.optional(legalConsentStateValidator),
@@ -1489,6 +1523,12 @@ export const seedOpenRecruitmentNotificationScenario = internalMutation({
       managerLegalConsentState: args.managerLegalConsentState,
       managerStaffLegalConsentState: args.managerStaffLegalConsentState,
     });
+    if (args.shopDateOnly) {
+      await ctx.db.patch(shopId, { submissionPattern: { kind: "dateOnly" } });
+    }
+    if (args.shopDetailMode) {
+      await ctx.db.patch(shopId, { shiftDetailMode: true });
+    }
     const recruitmentId = await createRecruitment(ctx, {
       shopId,
       dates: args.dates,
@@ -1496,6 +1536,18 @@ export const seedOpenRecruitmentNotificationScenario = internalMutation({
       ...(args.dateOnly ? { submissionPattern: { kind: "dateOnly" as const } } : {}),
       reminderScheduledAt: getReminderScheduledAt(args.dates.deadline),
     });
+    if (args.managerStaffSubmittedDates) {
+      const submittedAt = Date.now();
+      const submissionId = await ctx.db.insert("shiftSubmissions", {
+        recruitmentId,
+        staffId: managerStaffId,
+        firstSubmittedAt: submittedAt,
+        submittedAt,
+      });
+      for (const date of args.dates.dates) {
+        await ctx.db.insert("shiftSubmissionDates", { submissionId, recruitmentId, staffId: managerStaffId, date });
+      }
+    }
     await setStaffLineDeliveryState(ctx, {
       staffId: managerStaffId,
       shopId,
@@ -1513,6 +1565,8 @@ export const seedRecruitmentManagementScenario = internalMutation({
     managerEmail: v.optional(v.string()),
     dates: scenarioDatesValidator,
     otherDates: scenarioDatesValidator,
+    // 2件とも日付選択の募集にする。
+    dateOnly: v.optional(v.boolean()),
   },
   returns: v.object({
     organizationId: v.id("organizations"),
@@ -1526,8 +1580,19 @@ export const seedRecruitmentManagementScenario = internalMutation({
       managerEmail: args.managerEmail,
       shopName: "募集管理テスト店舗",
     });
-    const recruitmentId = await createRecruitment(ctx, { shopId, dates: args.dates, status: "open" });
-    const otherRecruitmentId = await createRecruitment(ctx, { shopId, dates: args.otherDates, status: "open" });
+    const submissionPattern = args.dateOnly ? { submissionPattern: { kind: "dateOnly" as const } } : {};
+    const recruitmentId = await createRecruitment(ctx, {
+      shopId,
+      dates: args.dates,
+      status: "open",
+      ...submissionPattern,
+    });
+    const otherRecruitmentId = await createRecruitment(ctx, {
+      shopId,
+      dates: args.otherDates,
+      status: "open",
+      ...submissionPattern,
+    });
 
     // 編集・削除とその通知はブラウザ操作から通す。
     return { organizationId, shopId, recruitmentId, otherRecruitmentId };

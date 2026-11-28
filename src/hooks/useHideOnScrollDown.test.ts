@@ -2,7 +2,7 @@
 
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useHideOnScrollDown } from "./useHideOnScrollDown";
+import { createHideOnScrollDownTracker, useHideOnScrollDown } from "./useHideOnScrollDown";
 
 const VIEWPORT_HEIGHT = 800;
 const PAGE_HEIGHT = 4000;
@@ -162,5 +162,28 @@ describe("useHideOnScrollDown", () => {
     unmount();
 
     expect(removeEventListener).toHaveBeenCalledWith("scroll", expect.any(Function));
+  });
+});
+
+describe("createHideOnScrollDownTracker", () => {
+  const MAX_SCROLL_Y = 3000;
+
+  it("別の入れ物へ切り替えると表示した状態へ戻し、切り替えた位置から移動量を測り直す", () => {
+    const tracker = createHideOnScrollDownTracker();
+
+    expect(tracker.update(600, MAX_SCROLL_Y)).toBe(true);
+
+    // 切り替え先の入れ物は、すでに下までスクロールしてある。
+    expect(tracker.reset(900)).toBe(false);
+    // 切り替えた位置からの移動が小さいうちは隠さない。前の入れ物の位置（600）からは測らない。
+    expect(tracker.update(911, MAX_SCROLL_Y)).toBe(false);
+    expect(tracker.update(912, MAX_SCROLL_Y)).toBe(true);
+  });
+
+  it("途中までスクロールしてある位置から始めると、その位置からの移動量で隠す", () => {
+    const tracker = createHideOnScrollDownTracker(500);
+
+    expect(tracker.update(511, MAX_SCROLL_Y)).toBe(false);
+    expect(tracker.update(512, MAX_SCROLL_Y)).toBe(true);
   });
 });

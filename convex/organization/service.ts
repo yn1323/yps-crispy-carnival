@@ -1,6 +1,7 @@
 import type { GenericDatabaseReader } from "convex/server";
 import { ConvexError } from "convex/values";
 import type { DataModel, Doc, Id } from "../_generated/dataModel";
+import { expectedConvexError } from "../_lib/errorObservability";
 import type { CanonicalOrganizationBillingState } from "../organizationBilling/policy";
 import { collectIssuedInvitationsByOrganization } from "../organizationInvitation/lifecycle";
 import { MANAGER_PERSON_REMOVAL_DISABLED_REASON } from "./personCapabilities";
@@ -193,7 +194,7 @@ export async function requireOrganizationPersonWithoutManagerRole(
   }
   const member = members[0] ?? null;
   if (member?.status === "active") {
-    throw new ConvexError(MANAGER_PERSON_REMOVAL_DISABLED_REASON);
+    throw expectedConvexError("business_rule", MANAGER_PERSON_REMOVAL_DISABLED_REASON);
   }
   return member;
 }

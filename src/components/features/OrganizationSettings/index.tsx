@@ -1,6 +1,11 @@
 export { OrganizationDeletionSection } from "./OrganizationDeletion/OrganizationDeletionSection";
 export { OrganizationUsageSection } from "./OrganizationUsageSection";
-export { PeopleSection, PeopleSectionSkeleton } from "./PeopleSection";
+export {
+  PeopleSection,
+  PeopleSectionHeaderActions,
+  PeopleSectionSkeleton,
+  PeopleSectionSummary,
+} from "./PeopleSection";
 export { PlanAndPaymentSection } from "./PlanAndPaymentSection";
 export { ShopsSection } from "./ShopsSection";
 export type {

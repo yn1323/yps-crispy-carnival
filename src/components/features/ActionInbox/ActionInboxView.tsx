@@ -16,6 +16,7 @@ import {
 } from "react-icons/lu";
 import { Button, type ButtonProps, IconButton } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 import type {
   ActionInboxAction,
   ActionInboxActionContext,
@@ -436,6 +437,13 @@ function RetryGuidance() {
         href="/help/tasks/notifications"
         target="_blank"
         rel="noopener noreferrer"
+        onClick={() =>
+          trackProductEvent({
+            kind: "content_select",
+            contentType: "help_link",
+            contentId: "action_inbox_notifications",
+          })
+        }
         color="teal.700"
         textDecoration="underline"
       >

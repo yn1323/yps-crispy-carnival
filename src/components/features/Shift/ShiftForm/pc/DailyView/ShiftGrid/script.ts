@@ -1,12 +1,15 @@
+import { minutesToPixel } from "@/src/components/shared/ShiftTimeline/timelineGeometry";
+import { getEffectiveBreaks } from "@/src/domains/shift/breaks";
 import { computeVisualBreaks } from "@/src/domains/shift/operations";
 import { isLegacyCompatibleBreakPosition } from "@/src/domains/shift/positions";
-import { formatShiftClockTime, timeToMinutes } from "@/src/domains/shift/time";
+import { formatShiftClockTime, minutesToTime, timeToMinutes } from "@/src/domains/shift/time";
 import type { LinkedResizeTarget, ShiftData, TimeRange } from "@/src/domains/shift/types";
-import { minutesToPixel } from "../../../timelineGeometry";
 
 export type ShiftBarSegmentViewModel = {
   key: string;
   positionId: string;
+  // ポジションの色。くわしく表示でポジションを塗り分けるときに使う。
+  color: string;
   left: number;
   width: number;
   isResizing: boolean;
@@ -36,6 +39,8 @@ export type ShiftBarViewModel = {
   requestedBars: ShiftBarRequestViewModel[];
   workBars: ShiftBarSegmentViewModel[];
   breakBars: ShiftBarOverlayViewModel[];
+  // 時刻で入れた休憩。勤務のバーの内側に重ねる。
+  explicitBreakBars: ShiftBarOverlayViewModel[];
   workLabel: ShiftBarLabelViewModel | null;
 };
 
@@ -53,6 +58,7 @@ export const buildShiftBarViewModel = ({
   isReadOnly,
   currentMinutes,
   linkedTarget,
+  breakResize,
 }: {
   shift: ShiftData;
   timeRange: TimeRange;
@@ -60,6 +66,8 @@ export const buildShiftBarViewModel = ({
   isReadOnly: boolean;
   currentMinutes?: number;
   linkedTarget?: LinkedResizeTarget | null;
+  /** 休憩の端をつまんで動かしている間の、動かす前の休憩と、動かしている途中の休憩（分）。 */
+  breakResize?: { from: { start: number; end: number }; to: { start: number; end: number } } | null;
 }): ShiftBarViewModel | null => {
   const requestedTimes = shift.requestedTimes ?? (shift.requestedTime ? [shift.requestedTime] : []);
   const hasRequestedTime = requestedTimes.length > 0;
@@ -90,7 +98,8 @@ export const buildShiftBarViewModel = ({
         };
       });
 
-  const workBars = workPositions.flatMap((position, index): ShiftBarSegmentViewModel[] => {
+  // 勤務の長さを変えている間は、動かしている途中の時刻で描く。
+  const previewWork = workPositions.flatMap((position, index) => {
     const isResizingPrev = linkedTarget?.prevPosition?.positionId === position.id && currentMinutes !== undefined;
     const isResizingNext = linkedTarget?.nextPosition?.positionId === position.id && currentMinutes !== undefined;
     const isResizing = isResizingPrev || isResizingNext;
@@ -98,30 +107,54 @@ export const buildShiftBarViewModel = ({
       isResizingNext && currentMinutes !== undefined ? currentMinutes : timeToMinutes(position.start);
     const endMinutes = isResizingPrev && currentMinutes !== undefined ? currentMinutes : timeToMinutes(position.end);
     if (isResizing && endMinutes - startMinutes < timeRange.unit) return [];
+    return [{ position, index, isResizing, startMinutes, endMinutes }];
+  });
 
-    const segmentLeft = minutesToPixel(startMinutes, timeRange, hourWidth);
-    const segmentRight = minutesToPixel(endMinutes, timeRange, hourWidth);
-    const isAdjacentToPrev = index > 0 && workPositions[index - 1].end === position.start;
-    const isAdjacentToNext = index < workPositions.length - 1 && position.end === workPositions[index + 1].start;
-    return [
-      {
+  const workBars = previewWork.map(
+    ({ position, index, isResizing, startMinutes, endMinutes }): ShiftBarSegmentViewModel => {
+      const segmentLeft = minutesToPixel(startMinutes, timeRange, hourWidth);
+      const segmentRight = minutesToPixel(endMinutes, timeRange, hourWidth);
+      // 勤務の間の空きは休憩の斜線で埋めるため、空きをはさむ場合も、隣り合う場合と同じく角を丸めない。
+      // 休憩を勤務の内側へ入れた場合と、別の勤務を離して入れて休憩ができた場合で、形をそろえる。
+      const isAdjacentToPrev = index > 0;
+      const isAdjacentToNext = index < workPositions.length - 1;
+      return {
         key: position.id,
         positionId: position.id,
+        color: position.color,
         left: segmentLeft - left,
         width: segmentRight - segmentLeft,
         isResizing,
         edgeShape: getEdgeShape(isAdjacentToPrev, isAdjacentToNext),
-      },
-    ];
-  });
+      };
+    },
+  );
 
-  const breakBars = linkedTarget
-    ? []
-    : computeVisualBreaks(workPositions).map((gap): ShiftBarOverlayViewModel => {
-        const start = minutesToPixel(timeToMinutes(gap.start), timeRange, hourWidth);
-        const end = minutesToPixel(timeToMinutes(gap.end), timeRange, hourWidth);
-        return { key: `break-${gap.start}-${gap.end}`, left: start - left, width: end - start };
-      });
+  // 休憩は、勤務の長さを変えている間も出し続ける。動かしている途中の勤務に合わせ、勤務の外へ出た休憩は出さない。
+  const previewPositions = previewWork.map(({ position, startMinutes, endMinutes }) => ({
+    ...position,
+    start: minutesToTime(startMinutes),
+    end: minutesToTime(endMinutes),
+  }));
+  const breakBars = computeVisualBreaks(previewPositions).map((gap): ShiftBarOverlayViewModel => {
+    const start = minutesToPixel(timeToMinutes(gap.start), timeRange, hourWidth);
+    const end = minutesToPixel(timeToMinutes(gap.end), timeRange, hourWidth);
+    return { key: `break-${gap.start}-${gap.end}`, left: start - left, width: end - start };
+  });
+  const explicitBreakBars = getEffectiveBreaks(
+    { positions: previewPositions, breaks: shift.breaks },
+    { clipToWork: true },
+  ).map((range): ShiftBarOverlayViewModel => {
+    const minutes = { start: timeToMinutes(range.start), end: timeToMinutes(range.end) };
+    // 休憩の端をつまんで動かしている間は、その休憩だけを、動かしている途中の時刻で描く。
+    const shown =
+      breakResize && breakResize.from.start === minutes.start && breakResize.from.end === minutes.end
+        ? breakResize.to
+        : minutes;
+    const start = minutesToPixel(shown.start, timeRange, hourWidth);
+    const end = minutesToPixel(shown.end, timeRange, hourWidth);
+    return { key: `explicit-break-${range.start}-${range.end}`, left: start - left, width: end - start };
+  });
   const firstWork = workPositions[0];
   const lastWork = workPositions[workPositions.length - 1];
   const workLabel =
@@ -137,5 +170,5 @@ export const buildShiftBarViewModel = ({
           };
         })();
 
-  return { shiftId: shift.id, left, width, requestedBars, workBars, breakBars, workLabel };
+  return { shiftId: shift.id, left, width, requestedBars, workBars, breakBars, explicitBreakBars, workLabel };
 };

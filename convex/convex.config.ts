@@ -4,6 +4,13 @@ import { v } from "convex/values";
 
 const app = defineApp({
   env: {
+    AI_SHIFT_DRAFT_DAYS_PER_REQUEST: v.optional(v.string()),
+    AI_SHIFT_DRAFT_EFFORT: v.optional(v.string()),
+    AI_SHIFT_DRAFT_MAX_TOKENS: v.optional(v.string()),
+    AI_SHIFT_DRAFT_MODE: v.optional(v.string()),
+    AI_SHIFT_DRAFT_MODEL: v.optional(v.string()),
+    AI_SHIFT_DRAFT_RECRUITMENT_LIMIT: v.optional(v.string()),
+    ANTHROPIC_API_KEY: v.optional(v.string()),
     APP_URL: v.optional(v.string()),
     CLERK_JWT_ISSUER_DOMAIN: v.optional(v.string()),
     CLERK_SECRET_KEY: v.optional(v.string()),
@@ -13,6 +20,7 @@ const app = defineApp({
     DEBUG_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER: v.optional(v.string()),
     DEBUG_TRIAL_DURATION_DAYS: v.optional(v.string()),
     PROMOTION_COMPLIMENTARY_PRO_CODE: v.optional(v.string()),
+    SHIFT_SETUP_ASSIST_MODE: v.optional(v.string()),
     STRIPE_SECRET_KEY: v.optional(v.string()),
     STRIPE_WEBHOOK_SECRET: v.optional(v.string()),
     STRIPE_STANDARD_PRICE_ID: v.optional(v.string()),

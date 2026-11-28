@@ -4,7 +4,11 @@ import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { APP_URL, RESEND_FROM_EMAIL } from "../_lib/config";
 import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
-import { observedAction as action, observedInternalAction as internalAction } from "../_lib/errorObservability";
+import {
+  observedAction as action,
+  observedInternalAction as internalAction,
+  registerConvexFunctionErrorContext,
+} from "../_lib/errorObservability";
 import {
   buildLineAuthorizeUrl,
   exchangeAuthorizationCode,
@@ -66,6 +70,13 @@ export const redeemLineToken = action({
       state: args.state,
     });
     if (validation.status !== "ok") return { status: validation.status };
+    registerConvexFunctionErrorContext(ctx, {
+      actorKind: "staff",
+      staffId: validation.staffId,
+      shopId: validation.shopId,
+      organizationId: validation.organizationId,
+      actorPersonId: validation.organizationPersonId,
+    });
 
     const { accessToken } = await exchangeAuthorizationCode({
       code: args.code,

@@ -36,8 +36,8 @@ export const ActionBehavior: Story = {
 
     const actions = within(actionArea).getAllByRole("button");
     await expect(actions).toHaveLength(2);
-    await expect(actions[0]).toHaveTextContent("保存せず戻る");
-    await expect(actions[1]).toHaveTextContent("保存して戻る");
+    await expect(actions[0]).toHaveTextContent("保存せず移動");
+    await expect(actions[1]).toHaveTextContent("保存して移動");
 
     await userEvent.click(within(dialog).getByRole("button", { name: "閉じる" }));
     await expect(args.onStay).toHaveBeenCalledOnce();
@@ -67,8 +67,8 @@ export const SavingCloseLockBehavior: Story = {
     const dialog = await body.findByRole("alertdialog", { name: "保存していない変更があります" });
 
     await expect(within(dialog).queryByRole("button", { name: "閉じる" })).not.toBeInTheDocument();
-    await expect(within(dialog).getByRole("button", { name: "保存せず戻る" })).toBeDisabled();
-    await expect(within(dialog).getByRole("button", { name: "保存して戻る" })).toBeDisabled();
+    await expect(within(dialog).getByRole("button", { name: "保存せず移動" })).toBeDisabled();
+    await expect(within(dialog).getByRole("button", { name: "保存して移動" })).toBeDisabled();
     await userEvent.keyboard("{Escape}");
     await expect(args.onStay).not.toHaveBeenCalled();
     await expect(args.onLeaveWithoutSaving).not.toHaveBeenCalled();

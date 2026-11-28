@@ -3,7 +3,7 @@ import { internal } from "../_generated/api";
 import type { Doc } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
-import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
+import { expectedConvexError, observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { sha256Hex } from "../_lib/sha256";
 import {
   STRIPE_OPERATION_MAX_ATTEMPTS,
@@ -1906,7 +1906,7 @@ async function requireStripeEligibleOrganization(
   ]);
   if (!organization || organization.isDeleted || !billingState) throw new ConvexError("Not found");
   if (billingState.state.kind === "complimentary") {
-    throw new ConvexError("支払い不要プランではStripeを利用しません。");
+    throw expectedConvexError("plan_limit", "支払い不要プランではStripeを利用しません。");
   }
   return { organization, billingState };
 }

@@ -5,7 +5,7 @@ import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
 import { DEFAULT_POSITION } from "@/src/domains/shift/constants";
 import { getDateRange } from "@/src/domains/shift/date";
-import type { ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
+import type { ShiftData, StaffSortMode, StaffType, TimeRange } from "@/src/domains/shift/types";
 
 const POSITIONS = [DEFAULT_POSITION];
 
@@ -16,6 +16,7 @@ type Assignment = {
   endTime: string;
   positionId: Id<"positions">;
   optionId?: string | null;
+  breaks?: Array<{ startTime: string; endTime: string }>;
 };
 
 type Props = {
@@ -24,10 +25,13 @@ type Props = {
   periodEnd: string;
   shopClosedDates: string[];
   submissionPattern: ShiftSubmissionPattern;
+  /** スタッフのページで決めた並び順で受け取る。 */
   staffs: { _id: Id<"staffs">; name: string }[];
   positions: { _id: Id<"positions">; name: string; color: string; isDefault: boolean }[];
   assignments: Assignment[];
   timeRange: TimeRange;
+  /** 店舗が選んだスタッフの並び替え。管理者の画面と同じ並びで出す。スタッフは変えられない。 */
+  staffSortMode?: StaffSortMode;
 };
 
 function getShiftTypeOptionIdForAssignment(assignment: Assignment, pattern: ShiftSubmissionPattern) {
@@ -76,6 +80,9 @@ function buildShiftData(
         };
       });
       const requestedTimes = assignment.map((item) => ({ start: item.startTime, end: item.endTime }));
+      const breaks = assignment.flatMap((item) =>
+        (item.breaks ?? []).map((range) => ({ start: range.startTime, end: range.endTime })),
+      );
       const requestedShiftTypeOptionIds =
         submissionPattern.kind === "shiftType"
           ? positionSegments
@@ -93,6 +100,7 @@ function buildShiftData(
         requestedTimes: mirrorsAssignmentAsRequest ? requestedTimes : undefined,
         requestedShiftTypeOptionIds,
         positions: positionSegments,
+        ...(breaks.length > 0 ? { breaks } : {}),
       });
     }
   }
@@ -109,11 +117,13 @@ export function ShiftViewPage({
   positions,
   assignments,
   timeRange,
+  staffSortMode = "fixed",
 }: Props) {
   const dates = useMemo(() => getDateRange(periodStart, periodEnd), [periodStart, periodEnd]);
 
   const staffTypes: StaffType[] = useMemo(
-    () => staffs.map((s) => ({ id: s._id, name: s.name, isSubmitted: true })),
+    // 受け取った順を、並びの第2キー（スタッフのページで決めた並び順）にする。
+    () => staffs.map((s, index) => ({ id: s._id, name: s.name, isSubmitted: true, displayOrder: index })),
     [staffs],
   );
 
@@ -133,6 +143,13 @@ export function ShiftViewPage({
   const initialShifts = useMemo(
     () => buildShiftData(staffTypes, dates, assignments, positions, submissionPattern),
     [staffTypes, dates, assignments, positions, submissionPattern],
+  );
+
+  // ポジションが2つ以上ある店舗と、休憩を入れた店舗では、スタッフにもポジションと休憩を見せる。
+  // どちらもない店舗では、従来の表示のままにする。
+  const showsShiftDetails = useMemo(
+    () => positions.length >= 2 || assignments.some((assignment) => (assignment.breaks?.length ?? 0) > 0),
+    [positions, assignments],
   );
 
   return (
@@ -156,6 +173,8 @@ export function ShiftViewPage({
           displayMode="confirmed"
           defaultToToday
           isReadOnly
+          initialDetailMode={showsShiftDetails}
+          staffSortMode={staffSortMode}
         />
       </Box>
     </Flex>

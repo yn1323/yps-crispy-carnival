@@ -15,6 +15,10 @@ jobs:
     if: github.event_name == 'pull_request' && github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository && !startsWith(github.head_ref, 'renovate/')
     runs-on: ubuntu-latest
     environment: Preview
+    # 同じPRのdeployを並べて走らせない。確認用データの削除と投入が交互に動くと、組織が2つできるため。
+    concurrency:
+      group: deploy-preview-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
     permissions:
       contents: read
       issues: write
@@ -160,6 +164,36 @@ jobs:
           # Playwright webServerはこのCI専用phaseだけでproduction buildを起動する。
           E2E_MEASUREMENT_BASE_URL: http://127.0.0.1:4174
           E2E_MEASUREMENT_START_SERVER: "true"
+      # 確認用データ（/seed と同じ中身）を入れる。ほかの確認が失敗しても、Convex Previewができていれば入れる。
+      # 投入先のClerk利用者は、ConvexのPreview既定の環境変数 DEBUG_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER で決まり、このjobは値を扱わない。
+      - name: Seed Convex Preview
+        if: ${{ !cancelled() && steps.convex.outcome == 'success' }}
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+        run: |
+          target="preview/$CONVEX_PREVIEW_NAME"
+          npx convex env set DEBUG_MODE true --deployment "$target"
+          npx convex env set DEBUG_NOTIFICATION_DELIVERY_MODE dry-run --deployment "$target"
+
+          error_log="$(mktemp)"
+          trap 'rm -f "$error_log"' EXIT
+          if ! seed_user="$(npx convex run userSeed/mutations:ensureSeedUser '{}' --deployment "$target" 2>"$error_log")"; then
+            if grep -Fq "primary auth token identifier is not configured" "$error_log"; then
+              echo "::warning::DEBUG_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER is not configured for this preview; skipped seeding"
+              exit 0
+            fi
+            cat "$error_log" >&2
+            exit 1
+          fi
+
+          user_args="$(jq -ce '{userId: .userId}' <<<"$seed_user")"
+          npx convex run userSeed/mutations:resetUserOrganizations "$user_args" --deployment "$target"
+          seed_result="$(npx convex run userSeed/mutations:seedUserOrganization "$user_args" --deployment "$target")"
+          note_mismatch_count="$(jq -er '.noteMismatchCount' <<<"$seed_result")"
+          if [[ "$note_mismatch_count" != "0" ]]; then
+            echo "::warning::Seeded notes and requests disagree in $note_mismatch_count places"
+          fi
+          jq -c '{organizationName, randomSeed, managerCount, lineLinkedStaffCount, noteMismatchCount}' <<<"$seed_result"
 
   cleanup-preview:
     if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository

@@ -1,15 +1,19 @@
 import { Box, Checkbox, Flex, Text } from "@chakra-ui/react";
-import { LuDownload } from "react-icons/lu";
+import { LuCalendarX, LuDownload } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
-import { fitExportText, getExportNotePages, getExportPages } from "./layout";
+import { Empty } from "@/src/components/ui/Empty";
+import { ShiftExportDailyPages } from "./DailyPages";
+import { getExportDocumentPages } from "./dailyLayout";
+import { fitExportText } from "./layout";
 import { getExportNotesTitle, getExportTitle } from "./script";
-import type { ExportSchedule } from "./types";
+import type { ExportSchedule, ExportView } from "./types";
 import type { useExportDownload } from "./useExportDownload";
 import "./styles.css";
 
 type Props = {
   schedule: ExportSchedule;
   download: ReturnType<typeof useExportDownload>;
+  onViewChange: (view: ExportView) => void;
   onSplitPeriodChange: (checked: boolean) => void;
   includeNotes: boolean;
   onIncludeNotesChange: (checked: boolean) => void;
@@ -18,97 +22,118 @@ type Props = {
 export function ShiftExportView({
   schedule,
   download,
+  onViewChange,
   onSplitPeriodChange,
   includeNotes,
   onIncludeNotesChange,
 }: Props) {
-  const pages = getExportPages(schedule);
-  const notePages = getExportNotePages(schedule);
-  const totalPageCount = pages.length + notePages.length;
+  const { daily, pages, notePages, dailyPageCount, bodyPageCount, totalPageCount } = getExportDocumentPages(schedule);
+  const isDaily = daily !== null;
+  const isEmptyDaily = isDaily && dailyPageCount === 0;
+  // 選んだ形で使える項目だけを出す。日別は1日ずつ出すため、期間を分ける項目を出さない。
+  const options = [
+    {
+      label: "一覧を分割して表示する",
+      isShown: !isDaily && schedule.dates.length >= 15,
+      checked: schedule.splitPeriod,
+      onChange: onSplitPeriodChange,
+    },
+    {
+      label: "連絡事項も出力する",
+      isShown: schedule.hasDateNotes,
+      checked: includeNotes,
+      onChange: onIncludeNotesChange,
+    },
+  ].filter(({ isShown }) => isShown);
   return (
     <Box minH="100dvh" bg="gray.100">
-      <Box as="header" p={4} bg="white" borderBottomWidth="1px">
-        <Flex gap={3} flexWrap="wrap" align="center" justify="space-between">
-          {schedule.dates.length >= 15 && (
-            <Box>
-              <Checkbox.Root
-                checked={schedule.splitPeriod}
-                onCheckedChange={({ checked }) => onSplitPeriodChange(checked === true)}
-                disabled={download.isGenerating}
-                colorPalette="teal"
-                minH="44px"
-                cursor={download.isGenerating ? "not-allowed" : "pointer"}
-              >
-                <Checkbox.HiddenInput />
-                <Checkbox.Control>
-                  <Checkbox.Indicator />
-                </Checkbox.Control>
-                <Checkbox.Label>期間を前半・後半に分ける</Checkbox.Label>
-              </Checkbox.Root>
-            </Box>
+      <Box as="header" bg="white" borderBottomWidth="1px">
+        <Flex px={4} py={3} gap={3} flexWrap="wrap" align="center" justify="space-between">
+          {schedule.availableViews.length > 1 && (
+            <ViewToggle
+              options={VIEW_OPTIONS.filter((option) => schedule.availableViews.includes(option.value))}
+              value={schedule.view}
+              onChange={onViewChange}
+              disabled={download.isGenerating}
+            />
           )}
-          {schedule.hasDateNotes && (
-            <Box>
-              <Checkbox.Root
-                checked={includeNotes}
-                onCheckedChange={({ checked }) => onIncludeNotesChange(checked === true)}
-                disabled={download.isGenerating}
-                colorPalette="teal"
-                minH="44px"
-                cursor={download.isGenerating ? "not-allowed" : "pointer"}
-              >
-                <Checkbox.HiddenInput />
-                <Checkbox.Control>
-                  <Checkbox.Indicator />
-                </Checkbox.Control>
-                <Checkbox.Label>連絡事項も出力する</Checkbox.Label>
-              </Checkbox.Root>
-            </Box>
-          )}
-          <Flex gap={3} marginStart="auto" align="center" minW={0}>
-            {download.download && (
-              <Text role="status" fontSize="sm" minW={0}>
-                ダウンロードが始まらない場合、
-                <a
-                  className="shift-export-download-link"
-                  href={download.download.url}
-                  download={download.download.fileName}
-                >
-                  ここ
-                </a>
-                を押して保存してください。
-              </Text>
-            )}
+          <Flex gap={3} marginStart="auto" align="center">
             <Button
               flexShrink={0}
               colorPalette="teal"
               onClick={() => void download.generate("pdf")}
-              disabled={download.isGenerating}
+              disabled={download.isGenerating || isEmptyDaily}
               loading={download.isGenerating && download.generatingFormat === "pdf"}
             >
               <LuDownload />
               PDF
             </Button>
-            <Button
-              flexShrink={0}
-              variant="outline"
-              onClick={() => void download.generate("xlsx")}
-              disabled={download.isGenerating}
-              loading={download.isGenerating && download.generatingFormat === "xlsx"}
-            >
-              <LuDownload />
-              Excel
-            </Button>
+            {/* Excelは一覧とポジションだけを出すため、日別を選んでいる間は出さない。 */}
+            {!isDaily && (
+              <Button
+                flexShrink={0}
+                variant="outline"
+                onClick={() => void download.generate("xlsx")}
+                disabled={download.isGenerating}
+                loading={download.isGenerating && download.generatingFormat === "xlsx"}
+              >
+                <LuDownload />
+                Excel
+              </Button>
+            )}
           </Flex>
         </Flex>
+        {options.length > 0 && (
+          <Flex px={4} columnGap={6} flexWrap="wrap" borderTopWidth="1px">
+            {options.map((option) => (
+              <Checkbox.Root
+                key={option.label}
+                checked={option.checked}
+                onCheckedChange={({ checked }) => option.onChange(checked === true)}
+                disabled={download.isGenerating}
+                colorPalette="teal"
+                minH="44px"
+                cursor={download.isGenerating ? "not-allowed" : "pointer"}
+              >
+                <Checkbox.HiddenInput />
+                <Checkbox.Control>
+                  <Checkbox.Indicator />
+                </Checkbox.Control>
+                <Checkbox.Label>{option.label}</Checkbox.Label>
+              </Checkbox.Root>
+            ))}
+          </Flex>
+        )}
+        {download.download && (
+          <Text role="status" fontSize="sm" px={4} pb={3}>
+            ダウンロードが始まらない場合、
+            <a
+              className="shift-export-download-link"
+              href={download.download.url}
+              download={download.download.fileName}
+            >
+              ここ
+            </a>
+            を押して保存してください。
+          </Text>
+        )}
         {download.error && (
-          <Text role="alert" mt={3} color="fg.error">
+          <Text role="alert" px={4} pb={3} color="fg.error">
             {download.error}
           </Text>
         )}
       </Box>
       {/* biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard users need to scroll the fixed-width preview. */}
       <section className="shift-export-preview" aria-label="シフト表プレビュー" tabIndex={0}>
+        {isEmptyDaily && (
+          <Empty
+            icon={LuCalendarX}
+            title="勤務が入っている日がありません"
+            description="シフト表で勤務を入れてから、もう一度出力してください。"
+            minH="50dvh"
+          />
+        )}
+        {daily && <ShiftExportDailyPages daily={daily} totalPageCount={totalPageCount} />}
         {pages.map(({ period, layout, rows, isFirstPage }, pageIndex) => (
           <section
             className="shift-export-page"
@@ -198,7 +223,7 @@ export function ShiftExportView({
         {notePages.map(({ layout, rows, isFirstPage }, notePageIndex) => (
           <section
             className="shift-export-page"
-            aria-label={`${pages.length + notePageIndex + 1}ページ目`}
+            aria-label={`${bodyPageCount + notePageIndex + 1}ページ目`}
             key={`notes:${rows[0]?.key ?? "empty"}`}
             style={{
               width: `${layout.pageWidthPt}pt`,
@@ -246,11 +271,54 @@ export function ShiftExportView({
               </tbody>
             </table>
             <p className="shift-export-page-number">
-              {pages.length + notePageIndex + 1} / {totalPageCount}
+              {bodyPageCount + notePageIndex + 1} / {totalPageCount}
             </p>
           </section>
         ))}
       </section>
     </Box>
+  );
+}
+
+const VIEW_OPTIONS: { value: ExportView; label: string }[] = [
+  { value: "overview", label: "一覧" },
+  { value: "daily", label: "日別" },
+  { value: "positions", label: "ポジション" },
+];
+
+/** 出力する形の切り替え。シフト表の「日別」「一覧」と同じ言葉を使う。 */
+function ViewToggle({
+  options,
+  value,
+  onChange,
+  disabled,
+}: {
+  options: { value: ExportView; label: string }[];
+  value: ExportView;
+  onChange: (view: ExportView) => void;
+  disabled: boolean;
+}) {
+  return (
+    <Flex role="group" aria-label="出力する形">
+      {options.map((option, index) => {
+        const selected = option.value === value;
+        return (
+          <Button
+            key={option.value}
+            variant={selected ? "solid" : "outline"}
+            colorPalette={selected ? "teal" : "gray"}
+            aria-pressed={selected}
+            onClick={() => onChange(option.value)}
+            disabled={disabled}
+            minW="72px"
+            borderStartRadius={index === 0 ? undefined : 0}
+            borderEndRadius={index === options.length - 1 ? undefined : 0}
+            marginStart={index === 0 ? 0 : "-1px"}
+          >
+            {option.label}
+          </Button>
+        );
+      })}
+    </Flex>
   );
 }

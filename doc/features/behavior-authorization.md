@@ -162,7 +162,6 @@ Trial、`active`、`complimentary`、`scheduledChange`は、その時点の有�
 
 | 障害 | 挙動 |
 |---|---|
-| Clerkの設定不足・一時障害・照会失敗（招待承認） | 承認を完了せず**招待を未使用のまま**残し、再試行可能な結果を返す |
 | Stripe Webhookの遅延・重複・順不同 | Event IDで重複排除し、必要ならStripeの最新状態を再取得。古いイベントで支払い済み・解約取消済みを巻き戻さない |
 | Stripe支払い結果を確認できない | ローカル期限だけで状態を確定せず再照合する |
 | LINE 429／5xx | 再試行（fallbackしない） |
@@ -178,7 +177,9 @@ secret、token、magic link URL、メールアドレス、LINE user ID、通知�
 永続化するエラーは固定taxonomy（`line_rate_limited`等）だけとする。
 
 Convex functionのhandler失敗時は、標準の`function_execution`とは別に、固定markerと安全なcontextを持つconsole eventを
-出力する。  contextはserverで解決した内部IDと明示的な許可fieldに限定し、引数・戻り値・生error・stackは含めない。
+出力する。  contextはserverで解決した内部IDと明示的な許可fieldに限定する。  引数からは決めた名前の項目にある
+Convex IDだけを未検証の要求IDとして含め、それ以外の引数・戻り値・生error・stackは含めない。
+利用者の通常の操作で起きる想定内の失敗は、warnで出力する。
 両eventはLog Streamが付与する同じrequest IDで突き合わせる。運用手順は
 [`doc/manual/convex-error-observability.md`](../manual/convex-error-observability.md)を参照する。
 

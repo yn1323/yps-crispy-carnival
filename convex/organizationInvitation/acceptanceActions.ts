@@ -1,95 +1,27 @@
-"use node";
-
-import { v } from "convex/values";
+import { type Infer, v } from "convex/values";
 import { internal } from "../_generated/api";
-import type { Id } from "../_generated/dataModel";
-import type { ActionCtx } from "../_generated/server";
-import {
-  type ClerkVerifiedEmailProvider,
-  classifyClerkVerifiedEmailProviderError,
-  createClerkVerifiedEmailProvider,
-} from "../_lib/clerkVerifiedEmailProvider";
 import { observedAction as action } from "../_lib/errorObservability";
-import { getAccountDeletionConfiguration, normalizeIssuer } from "../accountDeletion/config";
 
 const acceptanceActionResultValidator = v.union(
   v.object({ status: v.literal("linked"), organizationId: v.id("organizations"), shopId: v.optional(v.id("shops")) }),
-  v.object({ status: v.literal("verificationRequired") }),
   v.object({ status: v.literal("invalid") }),
   v.object({ status: v.literal("expired") }),
   v.object({ status: v.literal("revoked") }),
   v.object({ status: v.literal("used") }),
-  v.object({ status: v.literal("conflict") }),
-  v.object({ status: v.literal("unavailable"), retryable: v.boolean() }),
+  v.object({ status: v.literal("unavailable") }),
+  v.object({ status: v.literal("conflict"), accountAlreadyRegistered: v.boolean() }),
 );
 
-type AcceptanceActionResult =
-  | { status: "linked"; organizationId: Id<"organizations">; shopId?: Id<"shops"> }
-  | { status: "verificationRequired" | "invalid" | "expired" | "revoked" | "used" | "conflict" }
-  | { status: "unavailable"; retryable: boolean };
+type AcceptanceActionResult = Infer<typeof acceptanceActionResultValidator>;
 
-type AcceptanceActionCtx = Pick<ActionCtx, "auth" | "runMutation">;
-type ClerkAcceptanceConfiguration = ReturnType<typeof getAccountDeletionConfiguration>;
-
+/**
+ * 管理者招待の受諾入口。
+ * 開いたままの古い画面からの呼び出しを失敗させないため、公開名と引数を変えずactionのまま残している。
+ * 判定と状態変更は一つのmutationで行う。
+ */
 export const accept = action({
   args: { token: v.string() },
   returns: acceptanceActionResultValidator,
-  handler: async (ctx, { token }) => {
-    const config = getAccountDeletionConfiguration();
-    return await runInvitationAcceptance(ctx, createClerkVerifiedEmailProvider(config), config, token);
-  },
+  handler: async (ctx, { token }): Promise<AcceptanceActionResult> =>
+    await ctx.runMutation(internal.organizationInvitation.mutations.acceptWithToken, { token }),
 });
-
-export async function runInvitationAcceptance(
-  ctx: AcceptanceActionCtx,
-  provider: ClerkVerifiedEmailProvider,
-  config: ClerkAcceptanceConfiguration,
-  token: string,
-): Promise<AcceptanceActionResult> {
-  const identity = await ctx.auth.getUserIdentity();
-  if (!identity) return { status: "unavailable", retryable: false };
-
-  const identityIssuer = normalizeIssuer(identity.issuer);
-  if (!identityIssuer || identityIssuer !== config.expectedIssuer) {
-    return { status: "unavailable", retryable: false };
-  }
-
-  const prepared = await ctx.runMutation(internal.organizationInvitation.mutations.prepareAcceptance, { token });
-  if (prepared.status === "unavailable") return { status: "unavailable", retryable: false };
-  if (prepared.status !== "ready") return prepared;
-
-  let verifiedEmailNormalized: string | undefined;
-  if (prepared.requiresVerifiedEmail) {
-    try {
-      await provider.assertReady(identityIssuer);
-      const verifiedEmails = await provider.getVerifiedEmails(identity.subject);
-      if (!verifiedEmails.has(prepared.emailNormalized)) return { status: "verificationRequired" };
-      verifiedEmailNormalized = prepared.emailNormalized;
-    } catch (error) {
-      const providerError = classifyClerkVerifiedEmailProviderError(error);
-      return { status: "unavailable", retryable: providerError.retryable };
-    }
-  }
-
-  const finalized = await ctx.runMutation(internal.organizationInvitation.mutations.finalizeAcceptance, {
-    token,
-    proof: {
-      actorTokenIdentifier: identity.tokenIdentifier,
-      actorSubject: identity.subject,
-      invitationId: prepared.invitationId,
-      expectedVersion: prepared.expectedVersion,
-      tokenDigest: prepared.tokenDigest,
-      ...(verifiedEmailNormalized ? { verifiedEmailNormalized } : {}),
-    },
-  });
-  if (finalized.status === "unavailable") return { status: "unavailable", retryable: false };
-  if (finalized.status === "conflict") return { status: "conflict" };
-  if (finalized.status === "linked") {
-    return {
-      status: "linked",
-      organizationId: finalized.organizationId,
-      ...(finalized.shopId ? { shopId: finalized.shopId } : {}),
-    };
-  }
-  return { status: finalized.status };
-}

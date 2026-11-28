@@ -19,11 +19,10 @@ Clerk UserのEmailAddress、パスワード、ExternalAccountは「シフトリ�
 - `src/pages/account-security/`：本人専用のアカウント設定ページ
 - `src/components/features/AuthPage/`：ログイン、新規登録、パスワード再設定、Google OAuth、Client Trust本人確認
 - `src/components/features/LoginMethods/`：Clerk resourceからの3状態導出、Googleとメール・パスワードの表示、安全な追加・変更・解除
-- `src/components/features/ManagerInvitationAcceptance/`：管理者招待の受諾と、必要な場合の招待先メール所有確認
+- `src/components/features/ManagerInvitationAcceptance/`：管理者招待の受諾、ログイン中のアカウントの表示、ログアウト
 - `src/components/features/AuthenticatedApp/AuthGuard.tsx`：認証、削除済みアカウント、店舗context要否の境界
 - `src/components/features/UserMenu/index.tsx`：全認証済み利用者が使える「アカウント設定」への導線
-- `convex/organizationInvitation/acceptanceActions.ts`：Clerk verified EmailAddressをserver-sideで確認する管理者招待受諾action
-- `convex/_lib/clerkVerifiedEmailProvider.ts`：Clerk instanceとverified EmailAddress一覧の検証境界
+- `convex/organizationInvitation/acceptanceActions.ts`：管理者招待の受諾入口
 - `convex/accountEmail/`：旧clientを安全側へ停止させるrolling release互換stub
 - `convex/_lib/lineUrl.ts`：LINE外部ブラウザ用の`openExternalBrowser=1`付与
 
@@ -147,18 +146,24 @@ EmailAddress IDやExternalAccount IDはcurrent Userへの所属を確認して�
 Google account linkingのOAuth帰還先は`/account`専用とし、サインイン・サインアップ完了用の`/sso-callback`と混同しない。
 操作完了はSnackbarで通知し、確認コード送信後の案内は通常の説明文で表示する。
 
-## 管理者招待のメール所有確認
+## 管理者招待の受諾とアカウントの確認
 
-管理者招待の受諾は、招待先をClerk primary emailとみなさない。
+管理者招待の受諾は、ログイン用メールアドレスと招待先メールアドレスの一致を求めない。
+招待URLは招待先メールアドレスへだけ送るため、招待URLを持ってログインしていることを受信者である根拠とする。
 この受諾フローは複数管理者の通常経路である。
-次の本人確認契約は、Function Test、Scenario Test、専用Preview deploymentのE2Eで維持する。
+次の決まりは、Function Test、Scenario Test、専用Preview deploymentのE2Eで維持する。
 
-- すでにpersonとClerk Userが接続済みの場合は、現在の内部`userId`との一致で本人を確認する。
-- 未接続personまたは外部招待の場合は、招待先が現在のClerk Userのverified EmailAddressに含まれることをConvex Node actionからClerk Backend APIで確認する。
+- すでにpersonとClerk Userが接続済みの場合は、現在の内部`userId`との一致で本人を確認し、別のアカウントでは受諾できない。
+- 未接続personまたは外部招待の場合は、招待URLを開いてログインしたアカウントが受諾できる。
+- ログイン中のアカウントが、その組織に別のpersonとして登録済みの場合は受諾できない。
 
-現在のClerk Userに招待先のverified EmailAddressがない場合だけ、利用者へ招待メールの宛先を明示入力してもらい、同じEmailAddress resourceを再利用または追加して`email_code`で所有確認する。  招待先メールが別のClerkアカウントへ登録済みで追加できない場合は、再入力を続けず、現在のアカウントからログアウトして同じ招待URLを開き直す導線を表示する。  確認後は招待tokenだけで受諾actionを再実行し、入力メールや確認コードをConvex、storage、log、auditへ渡さない。
+ログイン済みで招待URLを開いても、自動では受諾しない。  「参加する」を押したときだけ、招待tokenを受諾actionへ渡す。
 
-招待の所有確認でClerkへ追加したEmailAddressは、シフト連絡先の自動同期ではない。  personの既存連絡先、`users.email`、請求先を上書きせず、ログインに使えるかどうかもClerkの実際の設定に従う。
+ログイン中は、カードの下端にログイン中のメールアドレスと「ログアウト」を表示する。  受諾の完了後を除くすべての状態に表示し、読み込みが終わらない場合や想定していない失敗でもアカウントを切り替えられるようにする。  ログアウトは同じ招待URLを戻り先に指定し、戻った画面から登録またはログインをやり直せる。
+
+受諾できないアカウントには「このアカウントでは参加できません」を表示する。  ログイン中のアカウントがその組織に登録済みの場合だけ、その事実を本文に書く。  招待先のpersonが別のアカウントと接続済みかどうかは、画面に出さない。
+
+以前の所有確認でClerkへ追加されたEmailAddressは、そのまま残す。  personの連絡先、`users.email`、請求先とは同期しない。
 
 ## 既存のメール差異と旧同期機能
 
@@ -190,11 +195,11 @@ ClerkのEmailAddress: 1件または複数件
 - Clerk `useSignUp()`：メール・パスワード登録、Google登録、メール確認
 - Clerk `SignIn.sso()` / `SignUp.sso()`：Google認証の開始とCore 3 resourceによるcallback継続
 - Clerk `useUser()`：本人のログイン方法resource取得
-- Clerk `User.createEmailAddress()`、`EmailAddress.prepareVerification()`、`EmailAddress.attemptVerification()`：招待先などのメール所有確認
+- Clerk `User.createEmailAddress()`、`EmailAddress.prepareVerification()`、`EmailAddress.attemptVerification()`：アカウント設定でのメール所有確認
 - Clerk `User.update()`：確認済みEmailAddressへのPrimary切替
 - Clerk `User.updatePassword()`：Googleのみの利用者による初回パスワード設定と、既存パスワードの変更
 - Clerk `User.createExternalAccount()`：current UserへのGoogle認証追加
 - Clerk `ExternalAccount.destroy()`：メール・パスワードを退避方法として確認した後のGoogle認証解除と、相関済みの失敗後または明示的な再試行で安全性を再確認した未完了Google resourceの整理
 - Clerk `useReverification()`：sensitiveな本人操作の追加確認
-- `api.organizationInvitation.acceptanceActions.accept`：管理者招待の新しい受諾入口
+- `api.organizationInvitation.acceptanceActions.accept`：管理者招待の受諾入口
 - `api.accountEmail.actions.syncMyPrimaryEmail`：旧clientを変更なしで停止させる互換stub

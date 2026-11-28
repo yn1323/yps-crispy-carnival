@@ -6,9 +6,9 @@ import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import { observedInternalAction as internalAction } from "../_lib/errorObservability";
 import {
   buildOrganizationBillingEmailHtml,
+  buildOrganizationManagerInvitationAcceptedHeading,
+  buildOrganizationManagerInvitationAcceptedSubject,
   ORGANIZATION_MANAGER_INVITATION_ACCEPTED_CTA,
-  ORGANIZATION_MANAGER_INVITATION_ACCEPTED_HEADING,
-  ORGANIZATION_MANAGER_INVITATION_ACCEPTED_SUBJECT,
 } from "../notification/templates";
 import { emailPayload, enqueueEmail, organizationManagerInvitationEmailPayload } from "../notificationOutbox/enqueue";
 import { businessNotificationOriginArgs, businessNotificationOriginFrom } from "../notificationOutbox/origin";
@@ -83,11 +83,14 @@ export const enqueueAcceptanceNotifications = internalAction({
         payload: emailPayload({
           from: formatResendFrom(data.organizationName, RESEND_FROM_EMAIL),
           to: recipient.email,
-          subject: formatResendSubject(data.organizationName, ORGANIZATION_MANAGER_INVITATION_ACCEPTED_SUBJECT),
+          subject: formatResendSubject(
+            data.organizationName,
+            buildOrganizationManagerInvitationAcceptedSubject(data.joinedPersonName),
+          ),
           html: buildOrganizationBillingEmailHtml({
             recipientName: recipient.name,
             organizationName: data.organizationName,
-            heading: ORGANIZATION_MANAGER_INVITATION_ACCEPTED_HEADING,
+            heading: buildOrganizationManagerInvitationAcceptedHeading(data.joinedPersonName),
             headingSize: "normal",
             paragraphs: [],
             action: { label: ORGANIZATION_MANAGER_INVITATION_ACCEPTED_CTA, url: settingsUrl.toString() },

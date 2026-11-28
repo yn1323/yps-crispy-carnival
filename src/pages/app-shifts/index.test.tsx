@@ -29,6 +29,10 @@ vi.mock("@/src/components/features/OrganizationRecruitmentManagement", () => ({
     const firstRecruitment = groups.flatMap((group) => group.recruitments)[0];
     return (
       <section aria-label="統合シフト一覧">
+        {/* ページの見出しは、一覧が「新しい募集をつくる」と一緒に描く。 */}
+        {(props.renderHeader as ((createAction: ReactNode) => ReactNode) | undefined)?.(
+          <button type="button">新しい募集をつくる</button>,
+        )}
         <output data-testid="management-mount-id">{mountId}</output>
         <output>{groups.flatMap((group) => group.recruitments).length}件</output>
         {firstRecruitment && (
@@ -155,8 +159,11 @@ describe("AppShiftsRoutePage", () => {
 
     renderPage(<AppShiftsRoutePage organizationId={"organization-1" as never} shops={shops} />);
 
-    expect(screen.getByRole("heading", { level: 1, name: "シフト" })).toBeTruthy();
+    const heading = screen.getByRole("heading", { level: 1, name: "シフト" });
     expect(screen.getByRole("button", { name: "店舗で絞り込む（現在：すべて）" })).toBeTruthy();
+    // 「新しい募集をつくる」は、ページの見出しと同じ行に置く。
+    const createButton = screen.getByRole("button", { name: "新しい募集をつくる" });
+    expect(heading.closest("div")?.parentElement?.contains(createButton)).toBe(true);
     expect(screen.getByText("2件")).toBeTruthy();
     const props = mocks.managementProps[0];
     const groups = props.groups as Array<{ key: string; recruitments: Recruitment[] }>;

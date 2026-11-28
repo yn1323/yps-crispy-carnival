@@ -3,7 +3,7 @@ import { LuX } from "react-icons/lu";
 import { IconButton } from "@/src/components/ui/Button";
 import { Select, type SelectItemType } from "@/src/components/ui/Select";
 import { formatDateWithWeekday } from "@/src/domains/shift/date";
-import { formatShiftClockTime } from "@/src/domains/shift/time";
+import { formatShiftClockTime, timeToMinutes } from "@/src/domains/shift/time";
 import { DateNoteButton, DateNoteLine, DayToggleOverlay } from "../DateNote";
 import { getDateColor } from "../timeOptions";
 import type { DayEntry } from "../types";
@@ -22,6 +22,16 @@ type Props = {
 };
 
 export type { DayEntry } from "../types";
+
+/**
+ * 時刻の選択欄の幅。翌日の時刻（「翌 00:30」）が入る幅に、開始も終了もそろえる。
+ * スマートフォンでは選択欄の文字が16pxになるため、「翌 00:30」に98px、「09:00」に74pxが要る。
+ * 幅が足りないと「翌」のあとの空白で折り返され、「翌…」だけが残って時刻が読めなくなる。
+ */
+const TIME_SELECT_WIDTH = "100px";
+/** 「09:00」が切れずに入る幅。翌日の時刻と並ぶときは、ここまで先に縮めて翌日の時刻の欄に幅を譲る。 */
+const SAME_DAY_TIME_SELECT_MIN_WIDTH = "76px";
+const isNextDayTime = (time: string) => timeToMinutes(time) >= 24 * 60;
 
 /** 日付の幅を最も長い日付にそろえ、出勤・休みや日付の違いでメモボタンの縦位置をずらさない。 */
 const EditableDateLabel = ({ label, color }: { label: string; color: string }) => (
@@ -64,6 +74,11 @@ export const DayCard = ({
   const noteButton = canEditNote && (
     <DateNoteButton dateLabel={dateLabel} hasNote={Boolean(note)} onClick={onEditNote} />
   );
+  const hasNextDayTime = isNextDayTime(entry.startTime) || isNextDayTime(entry.endTime);
+  const timeSelectProps = (time: string) =>
+    hasNextDayTime && !isNextDayTime(time)
+      ? { w: TIME_SELECT_WIDTH, minW: SAME_DAY_TIME_SELECT_MIN_WIDTH, flexShrink: 1000 }
+      : { w: TIME_SELECT_WIDTH, flexShrink: 1 };
 
   if (isReadOnly) {
     return (
@@ -171,13 +186,13 @@ export const DayCard = ({
         <Flex w="full" h="48px" px={2} pl={3} align="center" gap={1}>
           <EditableDateLabel label={dateLabel} color={dateColor} />
           {noteButton}
-          <Box flex={1} />
           <Select
             items={timeOptions}
             value={entry.startTime}
             onChange={(v) => onTimeChange("startTime", v)}
             size="xs"
-            w="76px"
+            ml="auto"
+            {...timeSelectProps(entry.startTime)}
           />
           <Text fontSize="xs" color="fg.muted">
             〜
@@ -187,7 +202,7 @@ export const DayCard = ({
             value={entry.endTime}
             onChange={(v) => onTimeChange("endTime", v)}
             size="xs"
-            w="76px"
+            {...timeSelectProps(entry.endTime)}
           />
           <IconButton
             aria-label="休みに戻す"

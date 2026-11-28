@@ -627,8 +627,15 @@ type OrganizationBillingEmailParams = {
 };
 
 export const ORGANIZATION_MANAGER_INVITATION_SUBJECT = "管理者として招待されました";
-export const ORGANIZATION_MANAGER_INVITATION_ACCEPTED_SUBJECT = "管理者アカウント連携が完了しました";
-export const ORGANIZATION_MANAGER_INVITATION_ACCEPTED_HEADING = "管理者アカウント連携が完了しました。";
+/** 参加完了の通知は、参加した本人とほかの管理者へ同じ文面で送る。誰が参加したかを件名と見出しに書く。 */
+export function buildOrganizationManagerInvitationAcceptedSubject(joinedPersonName: string): string {
+  return `${joinedPersonName}さんが管理者として参加しました`;
+}
+
+export function buildOrganizationManagerInvitationAcceptedHeading(joinedPersonName: string): string {
+  return `${buildOrganizationManagerInvitationAcceptedSubject(joinedPersonName)}。`;
+}
+
 export const ORGANIZATION_MANAGER_INVITATION_ACCEPTED_CTA = "シフトリを確認する";
 
 type OrganizationManagerInvitationEmailParams = {

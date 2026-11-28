@@ -15,10 +15,10 @@
 
 | 変数 | 設定値 | 未設定時 | 用途 |
 |---|---|---|---|
-| `DEBUG_MODE` | `true`だけが有効。`false`は無効 | 無効 | すべてのデバッグ機能と、開発用seed・E2E helperの許可 |
+| `DEBUG_MODE` | `true`だけが有効。`false`は無効 | 無効 | すべてのデバッグ機能と、開発用seed・[ユーザー単位の確認用データ](user-seed.md)・E2E helperの許可 |
 | `DEBUG_NOTIFICATION_DELIVERY_MODE` | `dry-run`または`force-failure` | live配送 | メール、LINE、問い合わせSlackの配送を共通制御 |
 | `DEBUG_TRIAL_DURATION_DAYS` | `1`から`30`までの整数 | 通常の2か月 | 初回Setupで作るTrialのJST暦日期限を短縮 |
-| `DEBUG_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER` | 専用Clerk Development利用者の`identity.tokenIdentifier` | seedを拒否 | seedデータへ保存する主利用者の指定 |
+| `DEBUG_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER` | 専用Clerk Development利用者の`identity.tokenIdentifier` | seedを拒否 | seedデータへ保存する主利用者の指定。[ユーザー単位の確認用データ](user-seed.md)では、ユーザーがいない実行先で作るユーザーの指定 |
 
 `DEBUG_NOTIFICATION_DELIVERY_MODE`と`DEBUG_TRIAL_DURATION_DAYS`は`DEBUG_MODE=true`を必要とします。
 Debugが無効な状態でこれらを処理した場合や、許可されていない値を指定した場合は設定エラーになります。
@@ -163,5 +163,5 @@ pnpm exec convex env remove --deployment TARGET_DEPLOYMENT_NAME E2E_TESTING_DEPL
 
 ## Preview CI
 
-Pull RequestのPlaywright用Previewはworkflowが`DEBUG_MODE=true`と`DEBUG_NOTIFICATION_DELIVERY_MODE=dry-run`を設定します。
+Pull RequestのPlaywright用Previewと、確認用データを入れるプレビュー（`pr-<番号>-deploy`）は、workflowが`DEBUG_MODE=true`と`DEBUG_NOTIFICATION_DELIVERY_MODE=dry-run`を設定します。
 Preview専用の設定として扱い、同じ設定をDevelopmentやProductionへ引き継ぎません。

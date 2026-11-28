@@ -8,7 +8,7 @@ import { buildAppManagePageHead } from "@/src/pages/app-manage/meta";
 
 export const Route = createFileRoute("/_auth/manage_/managers")({
   validateSearch: validateAppOrganizationRouteSearch,
-  head: () => buildAppManagePageHead("管理者と権限"),
+  head: () => buildAppManagePageHead("管理者設定"),
   staticData: { appShell: { mode: "navigation", activeKey: "manage" } },
   component: AppManageManagersRoute,
 });

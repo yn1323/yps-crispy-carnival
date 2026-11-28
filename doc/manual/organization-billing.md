@@ -22,7 +22,7 @@ m042〜m047、`planIdVersion`、旧`pro | business`互換の運用手順は本�
 確認結果は[リリース状態](release-status.md)へ記録する。
 
 1. Webhook destinationに`invoice.payment_failed`と`invoice.payment_action_required`が登録され、署名検証からworkerの処理まで対象revisionで到達することを確認する。
-2. Stripe Dashboardのカード支払い失敗向け顧客メール設定を確認し、組織の請求通知先メールアドレスがStripe Customerの`email`へ同期されていることを確認する。
+2. Stripe Dashboardのカード支払い失敗向け顧客メール設定を確認し、組織の支払いのお知らせ先のメールアドレスがStripe Customerの`email`へ同期されていることを確認する。
 3. Stripe Sandboxで、検証済みの未払いから`paymentTerminationPending`へ移り、終了処理中からFree権限だけが適用されることを確認する。
 4. Subscription終了とInvoiceの`auto_advance: false`が冪等に収束し、確認後に`active.free`と支払い失敗理由が保存されることを確認する。
 5. 終了処理中を含め、ダッシュボードと「プランと支払い」にAlertが表示され、処理完了までは再契約できないことを確認する。

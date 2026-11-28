@@ -1,33 +1,45 @@
-import { Box, Flex, Stack, Text } from "@chakra-ui/react";
+import { Box, Flex, Icon, Text, VisuallyHidden } from "@chakra-ui/react";
 import dayjs from "dayjs";
 import { useAtomValue, useSetAtom } from "jotai";
-import type { ReactNode } from "react";
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { LuMessageSquare } from "react-icons/lu";
+import { formatDateWithWeekday, getWeekdayLabel, isSaturday, isSunday } from "@/src/domains/shift/date";
 import {
-  formatDateShort,
-  formatDateWithWeekday,
-  getWeekdayLabel,
-  isSaturday,
-  isSunday,
-} from "@/src/domains/shift/date";
-import type { StaffType } from "@/src/domains/shift/types";
-import { Avatar, DateIssueBadge, dateIssueBorderColor, StaffWarningIcon } from "../../components";
+  AssignmentPill,
+  FoldedStaffGroupToggle,
+  FulfillmentLabel,
+  PositionStaffingCount,
+} from "../../assignmentCellParts";
+import { ChromeCollapse } from "../../ChromeCollapse";
+import { DateIssueBadge, dateIssueBorderColor, ShiftFormScrollEnd, StaffWarningIcon } from "../../components";
 import { DisplaySettingsMenu } from "../../DisplaySettingsMenu";
-import { ShiftDateNoteBlock, ShiftStaffNoteIcon, useAllShiftDateNotes } from "../../dateNotes";
-import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
-import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
+import { useAllShiftDateNotes } from "../../dateNotes";
 import {
+  buildDateOnlyDayPresentation,
+  buildDateOnlyStaffingPresentation,
+  type DateOnlyDayRowPresentation,
+  type DateOnlyStaffingPresentation,
+} from "../../dateOnlyPresentation";
+import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
+import { useRestoreRememberedWorkPosition } from "../../hooks/useRestoreRememberedWorkPosition";
+import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
+import { useSwipeDateChange } from "../../hooks/useSwipeDateChange";
+import { DayTemplateMenu, useDayStaffingView } from "../../staffingParts";
+import {
+  assignDateOnlyAtom,
+  changeDateOnlyPositionAtom,
   dailySortedStaffsAtom,
+  isPositionSelectableAtom,
   issueCountByDateAtom,
+  removeDateOnlyAssignmentAtom,
   selectDateWithDailyStaffOrderAtom,
   selectedDateAtom,
   shiftConfigAtom,
   shiftsAtom,
-  toggleDateOnlyAssignmentAtom,
+  usesPositionColorsAtom,
   warningCountByDateAtom,
-  warningMessagesByStaffIdForSelectedDateAtom,
 } from "../../stores";
-import { buildSPDateOnlyDailyViewModel, type SPDateInfo, type SPDateOnlyStaffRowViewModel } from "./script";
+import { PositionDialog } from "../PositionDialog";
 
 const dayColor = (iso: string): string => {
   if (isSunday(iso)) return "red.500";
@@ -38,39 +50,68 @@ const dayColor = (iso: string): string => {
 export const SPDateOnlyDailyView = () => {
   const config = useAtomValue(shiftConfigAtom);
   const shifts = useAtomValue(shiftsAtom);
-  const toggleAssignment = useSetAtom(toggleDateOnlyAssignmentAtom);
+  const assign = useSetAtom(assignDateOnlyAtom);
+  const changePosition = useSetAtom(changeDateOnlyPositionAtom);
+  const removeAssignment = useSetAtom(removeDateOnlyAssignmentAtom);
   const sortedStaffs = useAtomValue(dailySortedStaffsAtom);
   const selectedDate = useAtomValue(selectedDateAtom);
   const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const issueCounts = useAtomValue(issueCountByDateAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
-  const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
-  // カード下段の本文と名前の右のアイコンは、表示設定に応じてどちらか一方だけが出る。
+  const usesPositionColors = useAtomValue(usesPositionColorsAtom);
+  const isPositionSelectable = useAtomValue(isPositionSelectableAtom);
+  // その日の連絡事項は、表示設定にかかわらず、名前の下に全文を出す。
   const dateNotes = useAllShiftDateNotes();
 
-  const { dates, holidays, isReadOnly } = config;
+  const { dates, holidays, isReadOnly, positions } = config;
   const isConfirmedDisplay = config.displayMode === "confirmed";
-  const viewModel = useMemo(
+  const activeDate = dates.includes(selectedDate) ? selectedDate : (dates[0] ?? "");
+  const isShopClosedDate = holidays.includes(activeDate);
+  // 人数と過不足を出す日（くわしく表示の営業日）だけ値が入る。
+  const staffingView = useDayStaffingView(activeDate);
+  useLockedDailyStaffOrder(activeDate);
+  useRestoreRememberedWorkPosition();
+
+  const presentation = useMemo(
     () =>
-      buildSPDateOnlyDailyViewModel({
-        dates,
-        selectedDate,
-        holidays,
+      buildDateOnlyDayPresentation({
         staffs: sortedStaffs,
         shifts,
+        date: activeDate,
+        isClosed: isShopClosedDate,
         isConfirmedDisplay,
+        usesPositionColors,
+        getNote: dateNotes.getNote,
       }),
-    [dates, holidays, isConfirmedDisplay, selectedDate, shifts, sortedStaffs],
+    [activeDate, dateNotes.getNote, isConfirmedDisplay, isShopClosedDate, shifts, sortedStaffs, usesPositionColors],
   );
-  const { activeDate, assignedCount, isInRange, isShopClosedDate, rows } = viewModel;
-  useLockedDailyStaffOrder(activeDate);
+  const staffing = useMemo(
+    () => (staffingView ? buildDateOnlyStaffingPresentation([staffingView]) : null),
+    [staffingView],
+  );
+  // 充足の行は、必要人数が1つでもある日にだけ出す。
+  const showsFulfillment = staffing !== null && staffing.percent !== null;
 
-  const handleToggle = useCallback(
-    (staff: StaffType) => {
-      toggleAssignment({ staff, date: activeDate });
-    },
-    [activeDate, toggleAssignment],
-  );
+  // たたんだまとまりは、日付を変えるたびに閉じた状態へ戻す。
+  const [openFoldedDate, setOpenFoldedDate] = useState<string | null>(null);
+  const isFoldedOpen = openFoldedDate === activeDate;
+  const [dialogStaffId, setDialogStaffId] = useState<string | null>(null);
+  // モーダルは、開いた時点の行ではなく、いまの表示内容から作る。ポジションを変えた直後の状態を出すためである。
+  const allRows = [...presentation.rows, ...(presentation.foldedGroup?.rows ?? [])];
+  const dialogRow = dialogStaffId ? allRows.find((row) => row.key === dialogStaffId) : undefined;
+
+  const handlePillClick = (row: DateOnlyDayRowPresentation) => {
+    if (!row.cell.assigned) {
+      assign({ staff: row.staff, date: activeDate });
+      return;
+    }
+    // ポジションを選び分けない表示（シンプル表示、ポジションが1つ以下の店舗）では、押すたびに付け外しする。
+    if (!isPositionSelectable) {
+      removeAssignment({ staffId: row.staff.id, date: activeDate });
+      return;
+    }
+    setDialogStaffId(row.staff.id);
+  };
 
   const handleDateSelect = useCallback(
     (iso: string) => {
@@ -78,6 +119,8 @@ export const SPDateOnlyDailyView = () => {
     },
     [selectDate],
   );
+  // 時間指定と同じく、左右フリックで前後の日へ移る。
+  const swipeHandlers = useSwipeDateChange({ dates, selectedDate: activeDate, onSelect: handleDateSelect });
 
   if (!activeDate) {
     return (
@@ -89,61 +132,120 @@ export const SPDateOnlyDailyView = () => {
     );
   }
 
+  const renderRow = (row: DateOnlyDayRowPresentation) => (
+    <StaffRow key={row.key} row={row} isReadOnly={isReadOnly} onPillClick={() => handlePillClick(row)} />
+  );
+
   return (
-    <Flex direction="column" flex={1} minH={0} bg="gray.50">
-      <DateRail
-        dates={viewModel.dates}
-        holidays={holidays}
-        selectedDate={activeDate}
-        issueCounts={issueCounts}
-        warningCounts={warningCounts}
-        onSelect={handleDateSelect}
-      />
+    <Flex direction="column" flex={1} minH={0} bg="gray.50" {...swipeHandlers}>
+      {/* 日付の一覧は、一覧を下へスクロールすると上の行と一緒に隠す。日付の見出しは残す。 */}
+      <ChromeCollapse>
+        <DateRail
+          dates={dates}
+          holidays={holidays}
+          selectedDate={activeDate}
+          issueCounts={issueCounts}
+          warningCounts={warningCounts}
+          onSelect={handleDateSelect}
+        />
+      </ChromeCollapse>
 
-      <Box px={4} py={3} bg="white" borderBottomWidth="1px" borderColor="gray.200" flexShrink={0}>
-        <Flex align="center" justify="space-between" gap={3}>
-          <Box minW={0}>
-            <Flex align="baseline" gap={2}>
-              <Text textStyle="xl" fontWeight={700} color="gray.800" fontVariantNumeric="tabular-nums">
-                {formatDateShort(activeDate)}
+      <Flex
+        px={4}
+        py={3}
+        bg="white"
+        borderBottomWidth="1px"
+        borderColor="gray.200"
+        flexShrink={0}
+        align="center"
+        justify="space-between"
+        gap={3}
+      >
+        {/* 日付は折り返さず、縮めない。幅が足りないときは、右のテンプレートの名前が先に縮む。 */}
+        <Flex align="baseline" gap={2} flexShrink={0} whiteSpace="nowrap">
+          <Text textStyle="xl" fontWeight={700} color="gray.800" fontVariantNumeric="tabular-nums">
+            {/* 時間指定とパターン選択の日付の見出しと同じく「1月1日」の形にする。 */}
+            {Number(activeDate.slice(5, 7))}月{Number(activeDate.slice(8, 10))}日
+          </Text>
+          <Text textStyle="sm" fontWeight={600} color={dayColor(activeDate)}>
+            ({getWeekdayLabel(activeDate)})
+          </Text>
+          {isShopClosedDate ? (
+            <Box px={2} py={0.5} borderRadius="full" bg="gray.100" color="gray.600" textStyle="2xs" fontWeight={700}>
+              定休日
+            </Box>
+          ) : (
+            // 充足の行を出す日は、ポジションごとの人数をそちらで示す。
+            !showsFulfillment && (
+              <Text textStyle="sm" fontWeight={600} color="gray.600" fontVariantNumeric="tabular-nums">
+                {presentation.countLabel}
               </Text>
-              <Text textStyle="sm" fontWeight={600} color={dayColor(activeDate)}>
-                {getWeekdayLabel(activeDate)}
-              </Text>
-              {!isInRange && <StatusBadge tone="muted">期間外</StatusBadge>}
-              {isShopClosedDate && <StatusBadge tone="muted">定休日</StatusBadge>}
-              <Box ml={2} alignSelf="center">
-                <SummaryPill label="合計" count={assignedCount} muted={!isInRange || isShopClosedDate} />
-              </Box>
-            </Flex>
-          </Box>
-          <Box flexShrink={0}>
-            <DisplaySettingsMenu />
-          </Box>
+            )
+          )}
         </Flex>
+        <Flex align="center" gap={1} minW={0} flexShrink={1}>
+          {staffingView && <DayTemplateMenu date={activeDate} view={staffingView} shrinks hidesIcon />}
+          <DisplaySettingsMenu showsDateNotesToggle={false} />
+        </Flex>
+      </Flex>
+
+      {!isShopClosedDate && showsFulfillment && staffing && staffing.percent !== null && (
+        <FulfillmentLine date={activeDate} staffing={staffing} percent={staffing.percent} />
+      )}
+
+      <Box flex={1} minH={0} overflow="auto" bg="gray.50" data-tour="shift-grid">
+        {isShopClosedDate ? (
+          <Flex minH="220px" align="center" justify="center" direction="column" gap={2} px={4}>
+            <Text textStyle="md" fontWeight={700} color="gray.700">
+              定休日
+            </Text>
+            <Text textStyle="sm" color="fg.muted" textAlign="center" lineHeight={1.7}>
+              この日は店舗の定休日のため、割当を編集できません。
+            </Text>
+          </Flex>
+        ) : (
+          <Box bg="white">
+            <Box as="ul" listStyleType="none">
+              {presentation.rows.map(renderRow)}
+            </Box>
+            {presentation.foldedGroup && (
+              <Box borderBottomWidth="1px" borderColor="gray.100">
+                <FoldedStaffGroupToggle
+                  group={presentation.foldedGroup}
+                  isOpen={isFoldedOpen}
+                  onToggle={() => setOpenFoldedDate(isFoldedOpen ? null : activeDate)}
+                />
+              </Box>
+            )}
+            {isFoldedOpen && presentation.foldedGroup && (
+              <Box as="ul" listStyleType="none">
+                {presentation.foldedGroup.rows.map(renderRow)}
+              </Box>
+            )}
+          </Box>
+        )}
+        {/* 未提出の帯は、リストのいちばん下に置く。 */}
+        <ShiftFormScrollEnd />
       </Box>
 
-      <Box flex={1} minH={0} overflow="auto" px={3} py={3} data-tour="shift-grid">
-        {!isInRange ? (
-          <UnavailableState title="期間外" body="この日は募集期間外のため、割当を編集できません。" />
-        ) : isShopClosedDate ? (
-          <UnavailableState title="定休日" body="この日は店舗の定休日のため、割当を編集できません。" />
-        ) : (
-          <Stack gap={2}>
-            {rows.map((row) => (
-              <StaffToggleRow
-                key={row.staff.id}
-                row={row}
-                activeDate={activeDate}
-                isReadOnly={isReadOnly}
-                warningMessages={warningMessagesByStaffId.get(row.staff.id) ?? []}
-                note={dateNotes.getNote(row.staff.id, activeDate)}
-                onToggle={() => handleToggle(row.staff)}
-              />
-            ))}
-          </Stack>
-        )}
-      </Box>
+      {dialogRow?.cell.assigned && (
+        <PositionDialog
+          title={dialogRow.staffName}
+          subtitle={formatDateWithWeekday(activeDate)}
+          noticeTexts={dialogRow.cell.noticeTexts}
+          positions={positions}
+          currentPositionId={dialogRow.cell.positionId}
+          onChangePosition={(positionId) => {
+            changePosition({ staff: dialogRow.staff, date: activeDate, positionId });
+            setDialogStaffId(null);
+          }}
+          onRemove={() => {
+            removeAssignment({ staffId: dialogRow.staff.id, date: activeDate });
+            setDialogStaffId(null);
+          }}
+          onClose={() => setDialogStaffId(null)}
+        />
+      )}
     </Flex>
   );
 };
@@ -156,7 +258,7 @@ const DateRail = ({
   warningCounts,
   onSelect,
 }: {
-  dates: SPDateInfo[];
+  dates: string[];
   holidays: string[];
   selectedDate: string;
   issueCounts: ReadonlyMap<string, number>;
@@ -178,11 +280,11 @@ const DateRail = ({
       data-tour="date-rail"
     >
       <Flex ref={stripRef} gap={2} overflow="auto" pt={2} pb={1}>
-        {dates.map((date) => {
-          const active = date.iso === selectedDate;
-          const isClosed = date.inRange && holidays.includes(date.iso);
-          const issueCount = issueCounts.get(date.iso) ?? 0;
-          const warningCount = warningCounts.get(date.iso) ?? 0;
+        {dates.map((iso) => {
+          const active = iso === selectedDate;
+          const isClosed = holidays.includes(iso);
+          const issueCount = issueCounts.get(iso) ?? 0;
+          const warningCount = warningCounts.get(iso) ?? 0;
           const chipBorderColor = dateIssueBorderColor({
             active,
             issueCount,
@@ -193,11 +295,11 @@ const DateRail = ({
           return (
             <Box
               as="button"
-              key={date.iso}
-              data-date-chip={date.iso}
-              aria-label={`${formatDateWithWeekday(date.iso)}を表示`}
+              key={iso}
+              data-date-chip={iso}
+              aria-label={`${formatDateWithWeekday(iso)}を表示`}
               aria-pressed={active}
-              onClick={() => onSelect(date.iso)}
+              onClick={() => onSelect(iso)}
               position="relative"
               flexShrink={0}
               w="52px"
@@ -206,8 +308,8 @@ const DateRail = ({
               borderRadius="md"
               borderWidth="1px"
               borderColor={chipBorderColor}
-              bg={active ? "teal.500" : isClosed || !date.inRange ? "gray.50" : "white"}
-              color={active ? "white" : !date.inRange || isClosed ? "gray.400" : "gray.800"}
+              bg={active ? "teal.500" : isClosed ? "gray.50" : "white"}
+              color={active ? "white" : isClosed ? "gray.400" : "gray.800"}
               cursor="pointer"
               transitionProperty="colors"
               transitionDuration="faster"
@@ -222,20 +324,20 @@ const DateRail = ({
                 color={active ? "white" : undefined}
                 fontVariantNumeric="tabular-nums"
               >
-                {dayjs(date.iso).date()}
+                {dayjs(iso).date()}
               </Text>
-              {/* 休みと期間外は曜日と同じ行に置き、日付の高さをそろえる。 */}
+              {/* 休みは曜日と同じ行に置き、日付の高さをそろえる。 */}
               <Text
                 textStyle="2xs"
                 mt="2px"
                 fontWeight={active ? 700 : 500}
                 whiteSpace="nowrap"
-                color={active ? "white" : !date.inRange || isClosed ? "gray.400" : dayColor(date.iso)}
+                color={active ? "white" : isClosed ? "gray.400" : dayColor(iso)}
               >
-                {getWeekdayLabel(date.iso)}
-                {(isClosed || !date.inRange) && (
+                {getWeekdayLabel(iso)}
+                {isClosed && (
                   <Text as="span" fontWeight={700}>
-                    {date.inRange ? "(休)" : "(外)"}
+                    (休)
                   </Text>
                 )}
               </Text>
@@ -247,114 +349,104 @@ const DateRail = ({
   );
 };
 
-const StaffToggleRow = ({
-  row,
-  activeDate,
-  isReadOnly,
-  warningMessages,
-  note,
-  onToggle,
+/**
+ * その日の充足を1行で示す。「充足 60%　● 販売 2/3　● 製造 1/2」。開閉はなく、入りきらない分は折り返す。
+ * スマートフォンには凡例がないため、ポジションの名前も文字で出す。
+ */
+const FulfillmentLine = ({
+  date,
+  staffing,
+  percent,
 }: {
-  row: SPDateOnlyStaffRowViewModel;
-  activeDate: string;
-  isReadOnly: boolean;
-  warningMessages: string[];
-  note?: string;
-  onToggle: () => void;
+  date: string;
+  staffing: DateOnlyStaffingPresentation;
+  percent: number;
 }) => {
+  const counts = (staffing.countsByDate.get(date) ?? []).filter((count) => count.label !== null);
+  // ポジションを分けていない店舗では、色と名前を出さず、分数だけにする。
+  const showsPosition = staffing.positions.length > 1;
   return (
-    <Box bg="white" borderWidth="1px" borderColor="gray.200" borderRadius="md" px={3} py={3}>
-      <Flex align="center" gap={3}>
-        <Avatar staff={row.staff} size={28} />
-        <Box flex={1} minW={0}>
-          <Text textStyle="sm" fontWeight={600} color={row.isNameMuted ? "gray.500" : "gray.800"} truncate>
-            {row.staff.name}
-          </Text>
-          <Flex mt={1} align="center" gap={2}>
-            <StatusBadge tone={row.statusTone}>{row.statusLabel}</StatusBadge>
-          </Flex>
-        </Box>
-        <StaffWarningIcon messages={warningMessages} openOn="tap" />
-        <ShiftStaffNoteIcon notes={note ? [{ date: activeDate, note }] : []} openOn="tap" />
-        <Box
-          as="button"
-          aria-label={`${row.staff.name} ${formatDateWithWeekday(activeDate)} ${row.assigned ? "勤務あり" : "勤務なし"}`}
-          aria-pressed={row.assigned}
-          aria-disabled={isReadOnly}
-          onClick={isReadOnly ? undefined : onToggle}
-          w="56px"
-          h="40px"
-          flexShrink={0}
-          borderRadius="md"
-          borderWidth="1px"
-          borderColor={row.assigned ? "teal.600" : "gray.200"}
-          bg={row.assigned ? "teal.500" : row.requested ? "white" : "gray.50"}
-          color={row.assigned ? "white" : "gray.400"}
-          fontSize="xl"
-          fontWeight={row.assigned ? 700 : 500}
-          cursor={isReadOnly ? "default" : "pointer"}
-          transitionProperty="colors"
-          transitionDuration="faster"
-          _hover={
-            isReadOnly
-              ? undefined
-              : {
-                  bg: row.assigned ? "teal.600" : "gray.100",
-                  borderColor: row.assigned ? "teal.700" : "gray.300",
-                  color: row.assigned ? "white" : "gray.500",
-                }
-          }
-          _active={isReadOnly ? undefined : { bg: row.assigned ? "teal.600" : "gray.100", transitionDuration: "0ms" }}
-          _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "1px" }}
-        >
-          {row.assigned ? "○" : "×"}
-        </Box>
-      </Flex>
-      {note && <ShiftDateNoteBlock note={note} />}
-    </Box>
+    <Flex
+      as="section"
+      aria-label="充足"
+      flexShrink={0}
+      align="center"
+      columnGap={3}
+      rowGap={1}
+      flexWrap="wrap"
+      px={4}
+      py={2}
+      bg="gray.50"
+      borderBottomWidth="1px"
+      borderColor="gray.200"
+    >
+      <FulfillmentLabel percent={percent} isFulfilled={staffing.isFulfilled} />
+      {counts.map((count) => (
+        <PositionStaffingCount
+          key={count.positionId}
+          count={count}
+          showsDot={showsPosition}
+          showsName={showsPosition}
+        />
+      ))}
+    </Flex>
   );
 };
 
-const SummaryPill = ({ label, count, muted = false }: { label: string; count: number; muted?: boolean }) => (
+/** リストの1行。左に名前とその日の連絡事項、右に希望の輪と割り当てのピルを置く。 */
+const StaffRow = ({
+  row,
+  isReadOnly,
+  onPillClick,
+}: {
+  row: DateOnlyDayRowPresentation;
+  isReadOnly: boolean;
+  onPillClick: () => void;
+}) => (
   <Flex
-    align="baseline"
-    gap="3px"
-    px={2}
-    py="4px"
-    borderRadius="full"
-    bg={muted ? "gray.100" : "teal.50"}
-    color={muted ? "gray.500" : "teal.700"}
-    fontWeight={700}
+    as="li"
+    align="center"
+    gap={3}
+    minH="56px"
+    px={4}
+    py={2}
+    borderBottomWidth="1px"
+    borderColor="gray.100"
+    data-tour={`shift-row-${row.staff.id}`}
   >
-    <Text textStyle="2xs">{label}</Text>
-    <Text textStyle="sm" fontVariantNumeric="tabular-nums">
-      {count}
-    </Text>
-    <Text textStyle="2xs">人</Text>
-  </Flex>
-);
-
-const StatusBadge = ({ tone, children }: { tone: "positive" | "warning" | "muted"; children: ReactNode }) => {
-  const styles = {
-    positive: { bg: "#ccfbf1", color: "#0f766e" },
-    warning: { bg: "#fef3c7", color: "#b45309" },
-    muted: { bg: "#f4f4f5", color: "#71717a" },
-  }[tone];
-
-  return (
-    <Box px={2} py="2px" borderRadius="full" textStyle="2xs" fontWeight={600} style={styles}>
-      {children}
+    <Box flex={1} minW={0}>
+      <Flex align="center" gap={2} minW={0}>
+        <Text textStyle="sm" fontWeight={600} color={row.isNameMuted ? "gray.500" : "gray.800"} truncate>
+          {row.staffName}
+        </Text>
+        {row.isUnsubmitted && (
+          <Text textStyle="2xs" fontWeight={600} flexShrink={0} style={{ color: "#b45309" }}>
+            未提出
+          </Text>
+        )}
+        <StaffWarningIcon messages={row.cell.dot === null ? [] : row.cell.noticeTexts} openOn="tap" />
+      </Flex>
+      {row.note !== null && (
+        <Flex mt={1} gap={1.5} align="flex-start">
+          <Icon boxSize={3.5} mt="3px" color="gray.500" flexShrink={0}>
+            <LuMessageSquare aria-hidden />
+          </Icon>
+          <Text textStyle="xs" lineHeight={1.6} color="gray.700" minW={0} overflowWrap="anywhere">
+            <VisuallyHidden>連絡事項：</VisuallyHidden>
+            <span data-clarity-mask="true">{row.note}</span>
+          </Text>
+        </Flex>
+      )}
     </Box>
-  );
-};
-
-const UnavailableState = ({ title, body }: { title: string; body: string }) => (
-  <Flex minH="220px" align="center" justify="center" direction="column" gap={2} px={4}>
-    <Text textStyle="md" fontWeight={700} color="gray.700">
-      {title}
-    </Text>
-    <Text textStyle="sm" color="fg.muted" textAlign="center" lineHeight={1.7}>
-      {body}
-    </Text>
+    <Box w="96px" flexShrink={0}>
+      <AssignmentPill
+        // スマートフォンでは、ピルの右上の点を出さない。押しても理由が出せず、分からないためである。
+        // 確かめたいことは、名前の右の確認事項のアイコンにまとめる。
+        cell={{ ...row.cell, dot: null }}
+        size="list"
+        isInteractive={!isReadOnly}
+        onClick={isReadOnly ? undefined : onPillClick}
+      />
+    </Box>
   </Flex>
 );

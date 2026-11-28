@@ -50,25 +50,54 @@ vi.mock("@/src/components/features/AuthenticatedApp/ShopFilterMenu", () => ({
 }));
 vi.mock("@/src/components/features/OrganizationSettings", () => ({
   PeopleSectionSkeleton: () => <section aria-hidden />,
-  PeopleSection: ({
-    people,
+  // 人数と操作は、ページの見出しの行に置く。
+  PeopleSectionSummary: ({
     peopleUsage,
     peopleUsageHasOverflow,
     filterResultCount,
     filterResultCountHasOverflow,
-    initialVisibleUserCount,
-    onLoadMorePeople,
-    staffOrder,
+  }: {
+    peopleUsage: { current: number; max: number };
+    peopleUsageHasOverflow?: boolean;
+    filterResultCount?: number;
+    filterResultCountHasOverflow?: boolean;
+  }) => (
+    <output data-testid="people-counts">
+      {peopleUsageHasOverflow
+        ? `${peopleUsage.current}+/${peopleUsage.max}`
+        : `${peopleUsage.current}/${peopleUsage.max}`}
+      {filterResultCount === undefined ? "" : `:${filterResultCount}${filterResultCountHasOverflow ? "+" : ""}`}
+    </output>
+  ),
+  PeopleSectionHeaderActions: ({
     onAddStaff,
     canAddStaff,
     addStaffDisabledReason,
     onManageManagers,
   }: {
+    onAddStaff: () => void;
+    canAddStaff: boolean;
+    addStaffDisabledReason?: string;
+    onManageManagers: () => void;
+  }) => (
+    <>
+      <button type="button" onClick={onAddStaff} disabled={!canAddStaff} title={addStaffDisabledReason}>
+        スタッフを追加
+      </button>
+      <button type="button" onClick={onManageManagers}>
+        管理者を設定
+      </button>
+    </>
+  ),
+  PeopleSection: ({
+    people,
+    hidesHeader,
+    initialVisibleUserCount,
+    onLoadMorePeople,
+    staffOrder,
+  }: {
     people: Array<{ id: string; name: string }>;
-    peopleUsage: { current: number; max: number };
-    peopleUsageHasOverflow?: boolean;
-    filterResultCount?: number;
-    filterResultCountHasOverflow?: boolean;
+    hidesHeader?: boolean;
     initialVisibleUserCount?: number;
     onLoadMorePeople: () => void;
     staffOrder?: {
@@ -77,18 +106,9 @@ vi.mock("@/src/components/features/OrganizationSettings", () => ({
       isSaving: boolean;
       onReorder: (activePersonId: string, overPersonId: string) => void;
     };
-    onAddStaff: () => void;
-    canAddStaff: boolean;
-    addStaffDisabledReason?: string;
-    onManageManagers: () => void;
   }) => (
     <section>
-      <output data-testid="people-counts">
-        {peopleUsageHasOverflow
-          ? `${peopleUsage.current}+/${peopleUsage.max}`
-          : `${peopleUsage.current}/${peopleUsage.max}`}
-        {filterResultCount === undefined ? "" : `:${filterResultCount}${filterResultCountHasOverflow ? "+" : ""}`}
-      </output>
+      <output data-testid="people-section-hides-header">{String(hidesHeader === true)}</output>
       <output data-testid="initial-visible-user-count">{initialVisibleUserCount}</output>
       {people.map((person) => (
         <output key={person.id}>{person.name}</output>
@@ -108,12 +128,6 @@ vi.mock("@/src/components/features/OrganizationSettings", () => ({
             {person.name}の並び替え
           </button>
         ))}
-      <button type="button" onClick={onAddStaff} disabled={!canAddStaff} title={addStaffDisabledReason}>
-        スタッフを追加
-      </button>
-      <button type="button" onClick={onManageManagers}>
-        管理者を設定
-      </button>
     </section>
   ),
   useStaffOrderReorder: mocks.useStaffOrderReorder,
@@ -306,6 +320,17 @@ describe("AppStaffRoutePage", () => {
     expect(screen.queryByText("全体の人物1")).toBeNull();
     expect(screen.getByText("店舗の人物")).not.toBeNull();
     expect(screen.queryByRole("button", { name: /の並び替え$/ })).toBeNull();
+  });
+
+  it("ページの見出しの横に人数、同じ行に操作を置き、一覧の見出しの行は出さない", () => {
+    renderPage(<AppStaffRoutePage organizationId={"organization-1" as never} shops={shops} />);
+
+    const heading = screen.getByRole("heading", { level: 1, name: "スタッフ" });
+    const headingRow = heading.closest("div")?.parentElement as HTMLElement;
+    expect(headingRow.contains(screen.getByTestId("people-counts"))).toBe(true);
+    expect(headingRow.contains(screen.getByRole("button", { name: "スタッフを追加" }))).toBe(true);
+    expect(headingRow.contains(screen.getByRole("button", { name: "管理者を設定" }))).toBe(true);
+    expect(screen.getByTestId("people-section-hides-header").textContent).toBe("true");
   });
 
   it("店舗が1つのとき店舗filterを表示しない", () => {

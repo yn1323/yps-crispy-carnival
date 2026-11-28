@@ -460,6 +460,42 @@ describe("shiftBoard/mutations", () => {
       ).rejects.toThrow(ConvexError);
     });
 
+    it("自動作成した勤務を含む下書きを保存すると記録を残し、そのあとで手で直して保存しても、自動作成を経た下書きとして返す", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
+      const asManager = t.withIdentity({ subject: "user_manager" });
+      const expectedOrganizationId = await getExpectedOrganizationId(t, shopId);
+      const save = (assignments: Array<{ startTime: string; endTime: string }>, includesAutoCreated?: boolean) =>
+        asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          shopId,
+          expectedOrganizationId,
+          recruitmentId,
+          assignments: assignments.map((time) => ({ staffId: staffId1, date: "2026-01-20", ...time })),
+          ...(includesAutoCreated === undefined ? {} : { includesAutoCreated }),
+        });
+      const readDraftAutoCreated = async () =>
+        (
+          await asManager.query(api.shiftBoard.queries.getShiftBoardData, {
+            shopId,
+            expectedOrganizationId,
+            recruitmentId,
+            refreshDayKey: "2026-01-20",
+          })
+        )?.recruitment.draftAutoCreated;
+
+      // 手で入れた下書きだけを保存した間は、自動作成を経ていない。
+      await save([{ startTime: "10:00", endTime: "18:00" }]);
+      expect(await readDraftAutoCreated()).toBe(false);
+
+      await save([{ startTime: "10:00", endTime: "17:00" }], true);
+      expect(await readDraftAutoCreated()).toBe(true);
+      expect((await t.run((ctx) => ctx.db.get(recruitmentId)))?.draftAutoCreatedAt).toBe(Date.now());
+
+      // 自動作成したあとで手で直して保存しても、記録は消さない。
+      await save([{ startTime: "11:00", endTime: "17:00" }], false);
+      expect(await readDraftAutoCreated()).toBe(true);
+    });
+
     it("正常にシフト割当を保存できる", async () => {
       const t = convexTest(schema, modules);
       const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
@@ -1314,6 +1350,696 @@ describe("shiftBoard/mutations", () => {
         }),
       ).rejects.toThrow(ConvexError);
     });
+
+    describe("休憩", () => {
+      /** 保存された割当を、systemのfieldを除いたdocumentのまま日付順に読む。 */
+      async function readStoredAssignments(t: TestConvex<typeof schema>, recruitmentId: Id<"recruitments">) {
+        const assignments = await t.run(async (ctx) =>
+          ctx.db
+            .query("shiftAssignments")
+            .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
+            .collect(),
+        );
+        return assignments
+          .map(({ _id, _creationTime, ...assignment }) => assignment)
+          .sort((a, b) => a.date.localeCompare(b.date) || a.staffId.localeCompare(b.staffId));
+      }
+
+      async function seedDefaultPosition(t: TestConvex<typeof schema>, shopId: Id<"shops">) {
+        return await t.run(async (ctx) =>
+          ctx.db.insert("positions", {
+            shopId,
+            name: "シフト",
+            color: "#3b82f6",
+            sortOrder: 0,
+            isDefault: true,
+            isDeleted: false,
+          }),
+        );
+      }
+
+      it("休憩を開始順に並べて保存し、空の休憩は保存しない", async () => {
+        const t = convexTest(schema, modules);
+        const { shopId, recruitmentId, staffId1, staffId2 } = await setupTestData(t);
+        const positionId = await seedDefaultPosition(t, shopId);
+
+        await t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
+          recruitmentId,
+          assignments: [
+            {
+              staffId: staffId1,
+              date: "2026-01-20",
+              startTime: "10:00",
+              endTime: "18:00",
+              breaks: [
+                { startTime: "15:00", endTime: "15:30" },
+                { startTime: "12:00", endTime: "13:00" },
+              ],
+            },
+            // 空の休憩は保存しない。
+            {
+              staffId: staffId2,
+              date: "2026-01-21",
+              startTime: "09:00",
+              endTime: "13:00",
+              breaks: [],
+            },
+          ],
+        });
+
+        expect(await readStoredAssignments(t, recruitmentId)).toStrictEqual([
+          {
+            recruitmentId,
+            staffId: staffId1,
+            date: "2026-01-20",
+            startTime: "10:00",
+            endTime: "18:00",
+            positionId,
+            breaks: [
+              { startTime: "12:00", endTime: "13:00" },
+              { startTime: "15:00", endTime: "15:30" },
+            ],
+          },
+          { recruitmentId, staffId: staffId2, date: "2026-01-21", startTime: "09:00", endTime: "13:00", positionId },
+        ]);
+      });
+
+      it("隣接する区間を1件にまとめて保存するときも、休憩を落とさない", async () => {
+        const t = convexTest(schema, modules);
+        const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
+        const positionId = await seedDefaultPosition(t, shopId);
+
+        await t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
+          recruitmentId,
+          assignments: [
+            {
+              staffId: staffId1,
+              date: "2026-01-20",
+              startTime: "14:00",
+              endTime: "18:00",
+              breaks: [{ startTime: "16:00", endTime: "16:15" }],
+            },
+            {
+              staffId: staffId1,
+              date: "2026-01-20",
+              startTime: "10:00",
+              endTime: "14:00",
+              breaks: [{ startTime: "12:00", endTime: "13:00" }],
+            },
+          ],
+        });
+
+        expect(await readStoredAssignments(t, recruitmentId)).toStrictEqual([
+          {
+            recruitmentId,
+            staffId: staffId1,
+            date: "2026-01-20",
+            startTime: "10:00",
+            endTime: "18:00",
+            positionId,
+            breaks: [
+              { startTime: "12:00", endTime: "13:00" },
+              { startTime: "16:00", endTime: "16:15" },
+            ],
+          },
+        ]);
+      });
+
+      it("削除済みのポジションを含む保存は拒否し、保存済みの割当を置き換えない", async () => {
+        const t = convexTest(schema, modules);
+        const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
+        const positionId = await seedDefaultPosition(t, shopId);
+        const deletedPositionId = await t.run(async (ctx) => {
+          await ctx.db.insert("shiftAssignments", {
+            recruitmentId,
+            staffId: staffId1,
+            date: "2026-01-21",
+            startTime: "09:00",
+            endTime: "12:00",
+            positionId,
+          });
+          return await ctx.db.insert("positions", {
+            shopId,
+            name: "削除済み",
+            color: "#c2410c",
+            sortOrder: 1,
+            isDefault: false,
+            isDeleted: true,
+          });
+        });
+        const before = await readStoredAssignments(t, recruitmentId);
+
+        await expect(
+          t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+            shopId,
+            expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
+            recruitmentId,
+            assignments: [
+              {
+                staffId: staffId1,
+                date: "2026-01-20",
+                startTime: "10:00",
+                endTime: "18:00",
+                positionId: deletedPositionId,
+              },
+            ],
+          }),
+        ).rejects.toThrowError("Not found");
+
+        expect(await readStoredAssignments(t, recruitmentId)).toEqual(before);
+      });
+
+      it("休憩が勤務の外に出る保存は構造化エラーで拒否し、保存済みの割当を置き換えない", async () => {
+        const t = convexTest(schema, modules);
+        const { shopId, recruitmentId, staffId1, staffId2 } = await setupTestData(t);
+        const positionId = await seedDefaultPosition(t, shopId);
+        await t.run(async (ctx) => {
+          await ctx.db.insert("shiftAssignments", {
+            recruitmentId,
+            staffId: staffId2,
+            date: "2026-01-22",
+            startTime: "09:00",
+            endTime: "13:00",
+            positionId,
+            breaks: [{ startTime: "11:00", endTime: "11:30" }],
+          });
+        });
+        const readState = () =>
+          t.run(async (ctx) => ({
+            assignments: await ctx.db.query("shiftAssignments").collect(),
+            recruitment: await ctx.db.get(recruitmentId),
+            positions: await ctx.db.query("positions").collect(),
+          }));
+        const before = await readState();
+
+        await expectValidationIssues(
+          t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+            shopId,
+            expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
+            recruitmentId,
+            assignments: [
+              {
+                staffId: staffId1,
+                date: "2026-01-20",
+                startTime: "10:00",
+                endTime: "18:00",
+                breaks: [{ startTime: "17:30", endTime: "18:30" }],
+              },
+              {
+                staffId: staffId2,
+                date: "2026-01-21",
+                startTime: "10:00",
+                endTime: "18:00",
+                breaks: [{ startTime: "12:00", endTime: "13:00" }],
+              },
+              {
+                staffId: staffId2,
+                date: "2026-01-22",
+                startTime: "10:00",
+                endTime: "18:00",
+                breaks: [
+                  { startTime: "12:00", endTime: "13:00" },
+                  { startTime: "12:30", endTime: "13:30" },
+                ],
+              },
+            ],
+          }),
+          [
+            { code: "BREAK_OUT_OF_SHIFT", date: "2026-01-20", staffId: staffId1 },
+            { code: "BREAK_OVERLAP", date: "2026-01-22", staffId: staffId2 },
+          ],
+        );
+
+        const after = await readState();
+        expect(after).toEqual(before);
+        expect(after.recruitment).not.toBeNull();
+        expect(after.recruitment?.draftSavedAt).toBeUndefined();
+      });
+
+      it("パターン選択でも、勤務パターンの時間の外に出る休憩の保存を拒否する", async () => {
+        const t = convexTest(schema, modules);
+        const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
+        await t.run(async (ctx) => {
+          await ctx.db.patch(recruitmentId, {
+            submissionPattern: {
+              kind: "shiftType",
+              options: [{ id: "early", name: "早番", startTime: "09:00", endTime: "15:00", sortOrder: 0 }],
+            },
+          });
+        });
+
+        await expectValidationIssues(
+          t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+            shopId,
+            expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
+            recruitmentId,
+            assignments: [
+              {
+                staffId: staffId1,
+                date: "2026-01-20",
+                startTime: "09:00",
+                endTime: "15:00",
+                optionId: "early",
+                breaks: [{ startTime: "14:30", endTime: "15:30" }],
+              },
+            ],
+          }),
+          [{ code: "BREAK_OUT_OF_SHIFT", date: "2026-01-20", staffId: staffId1 }],
+        );
+
+        expect(await readStoredAssignments(t, recruitmentId)).toEqual([]);
+      });
+
+      it("パターン選択では、受け取った休憩を保存しない", async () => {
+        const t = convexTest(schema, modules);
+        const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
+        const positionId = await seedDefaultPosition(t, shopId);
+        await t.run(async (ctx) => {
+          await ctx.db.patch(recruitmentId, {
+            submissionPattern: {
+              kind: "shiftType",
+              options: [{ id: "early", name: "早番", startTime: "09:00", endTime: "15:00", sortOrder: 0 }],
+            },
+          });
+        });
+
+        await t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
+          recruitmentId,
+          assignments: [
+            {
+              staffId: staffId1,
+              date: "2026-01-20",
+              startTime: "09:00",
+              endTime: "15:00",
+              optionId: "early",
+              breaks: [{ startTime: "12:00", endTime: "12:45" }],
+            },
+          ],
+        });
+
+        // 休憩の項目を持たない勤務として保存する。
+        expect(await readStoredAssignments(t, recruitmentId)).toEqual([
+          {
+            recruitmentId,
+            staffId: staffId1,
+            date: "2026-01-20",
+            startTime: "09:00",
+            endTime: "15:00",
+            positionId,
+            optionId: "early",
+          },
+        ]);
+      });
+
+      it("日付選択では、受け取った休憩を保存しない", async () => {
+        const t = convexTest(schema, modules);
+        const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
+        const positionId = await seedDefaultPosition(t, shopId);
+        await t.run(async (ctx) => await ctx.db.patch(recruitmentId, { submissionPattern: { kind: "dateOnly" } }));
+
+        await t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
+          recruitmentId,
+          assignments: [
+            {
+              staffId: staffId1,
+              date: "2026-01-20",
+              startTime: "09:00",
+              endTime: "22:00",
+              breaks: [{ startTime: "12:00", endTime: "12:45" }],
+            },
+          ],
+        });
+
+        // 休憩の項目を持たない勤務として保存する。
+        expect(await readStoredAssignments(t, recruitmentId)).toEqual([
+          { recruitmentId, staffId: staffId1, date: "2026-01-20", startTime: "09:00", endTime: "22:00", positionId },
+        ]);
+      });
+    });
+
+    it("確定済みの募集でポジションを省いた勤務は、確定のあとで既定のポジションを入れ替えていても、確定した時点の既定のポジションで保存する", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
+      const confirmedDefaultId = await t.run(async (ctx) => {
+        const insertPosition = (name: string, state: { isDefault: boolean; isDeleted: boolean }) =>
+          ctx.db.insert("positions", { shopId, name, color: "#3b82f6", sortOrder: 0, ...state });
+        // 確定した時点の既定（ホール）は、確定のあとで削除した。いまの既定は、確定のあとで足したレジである。
+        const confirmedDefaultId = await insertPosition("ホール", { isDefault: false, isDeleted: true });
+        await insertPosition("レジ", { isDefault: true, isDeleted: false });
+        await ctx.db.patch(recruitmentId, {
+          status: "confirmed",
+          confirmedAt: 1_000,
+          confirmedPositions: [{ positionId: confirmedDefaultId, name: "ホール", color: "#3b82f6", isDefault: true }],
+        });
+        return confirmedDefaultId;
+      });
+
+      await t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
+        recruitmentId,
+        assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "18:00" }],
+      });
+
+      const stored = await t.run(async (ctx) =>
+        ctx.db
+          .query("shiftAssignments")
+          .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
+          .collect(),
+      );
+      // いまの設定の既定（レジ）ではなく、確定した時点の既定（ホール）へ入れる。
+      expect(stored.map(({ staffId, date, positionId }) => ({ staffId, date, positionId }))).toEqual([
+        { staffId: staffId1, date: "2026-01-20", positionId: confirmedDefaultId },
+      ]);
+    });
+  });
+
+  describe("switchShiftDetailMode", () => {
+    beforeEach(() => {
+      vi.stubEnv("ANALYTICS_SOURCE_CAPTURE_START_AT", "");
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-01-20T00:00:00+09:00"));
+    });
+    afterEach(() => {
+      vi.unstubAllEnvs();
+      vi.useRealTimers();
+    });
+
+    /** 対象の募集と、同じ店舗の別の確定前の募集に、下書きの勤務を1件ずつ用意する。 */
+    async function seedDrafts(t: TestConvex<typeof schema>) {
+      const data = await setupTestData(t);
+      const otherRecruitmentId = await t.run(async (ctx) => {
+        const defaultPositionId = await ctx.db.insert("positions", {
+          shopId: data.shopId,
+          name: "シフト",
+          color: "#3b82f6",
+          sortOrder: 0,
+          isDefault: true,
+          isDeleted: false,
+        });
+        const otherRecruitmentId = await ctx.db.insert("recruitments", {
+          shopId: data.shopId,
+          periodStart: "2026-02-01",
+          periodEnd: "2026-02-07",
+          deadline: "2026-01-28",
+          shopClosedDates: [],
+          status: "open",
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+          draftSavedAt: 1,
+        });
+        await ctx.db.patch(data.recruitmentId, { draftSavedAt: 1, draftAutoCreatedAt: 1 });
+        for (const [recruitmentId, date] of [
+          [data.recruitmentId, "2026-01-20"],
+          [otherRecruitmentId, "2026-02-02"],
+        ] as const) {
+          await ctx.db.insert("shiftAssignments", {
+            recruitmentId,
+            staffId: data.staffId1,
+            date,
+            startTime: "10:00",
+            endTime: "18:00",
+            positionId: defaultPositionId,
+          });
+        }
+        return otherRecruitmentId;
+      });
+      return { ...data, otherRecruitmentId };
+    }
+    const readState = (t: TestConvex<typeof schema>, ids: Awaited<ReturnType<typeof seedDrafts>>) =>
+      t.run(async (ctx) => {
+        const assignments = await ctx.db.query("shiftAssignments").collect();
+        const recruitment = await ctx.db.get(ids.recruitmentId);
+        const shop = await ctx.db.get(ids.shopId);
+        return {
+          assignmentRecruitmentIds: assignments.map((assignment) => assignment.recruitmentId),
+          draftSavedAt: recruitment?.draftSavedAt ?? null,
+          draftAutoCreatedAt: recruitment?.draftAutoCreatedAt ?? null,
+          shiftDetailMode: shop?.shiftDetailMode ?? null,
+        };
+      });
+
+    it("未認証では拒否し、下書きと店舗の表示を変えない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedDrafts(t);
+      const before = await readState(t, ids);
+
+      await expect(
+        t.mutation(api.shiftBoard.mutations.switchShiftDetailMode, {
+          recruitmentId: ids.recruitmentId,
+          shopId: ids.shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, ids.shopId),
+          isDetailMode: true,
+        }),
+      ).rejects.toThrow();
+      expect(await readState(t, ids)).toEqual(before);
+    });
+
+    it("他店舗の管理者は、この店舗の募集を切り替えられない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedDrafts(t);
+      const before = await readState(t, ids);
+      const otherShopId = await t.run(async (ctx) => {
+        const { shopId } = await seedManagerShop(ctx, {
+          subject: "user_other",
+          email: "other@example.com",
+          shopName: "他店舗",
+        });
+        return shopId;
+      });
+
+      await expect(
+        t.withIdentity({ subject: "user_other" }).mutation(api.shiftBoard.mutations.switchShiftDetailMode, {
+          recruitmentId: ids.recruitmentId,
+          shopId: otherShopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, otherShopId),
+          isDetailMode: true,
+        }),
+      ).rejects.toThrow(ConvexError);
+      expect(await readState(t, ids)).toEqual(before);
+    });
+
+    it("切り替えると、この募集の下書きの勤務と、下書き保存の時刻、自動作成した下書きの記録を消し、選んだ表示を店舗に保存する。ほかの募集の下書きは残す", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedDrafts(t);
+
+      await t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.switchShiftDetailMode, {
+        recruitmentId: ids.recruitmentId,
+        shopId: ids.shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, ids.shopId),
+        isDetailMode: true,
+      });
+
+      expect(await readState(t, ids)).toEqual({
+        assignmentRecruitmentIds: [ids.otherRecruitmentId],
+        draftSavedAt: null,
+        draftAutoCreatedAt: null,
+        shiftDetailMode: true,
+      });
+
+      // シンプルへ戻す切り替えも、選んだ表示として保存する。
+      await t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.switchShiftDetailMode, {
+        recruitmentId: ids.recruitmentId,
+        shopId: ids.shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, ids.shopId),
+        isDetailMode: false,
+      });
+      expect((await readState(t, ids)).shiftDetailMode).toBe(false);
+    });
+
+    it("確定済みの募集では拒否し、勤務と店舗の表示を変えない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedDrafts(t);
+      await t.run(async (ctx) => ctx.db.patch(ids.recruitmentId, { status: "confirmed", confirmedAt: 2 }));
+      const before = await readState(t, ids);
+
+      await expect(
+        t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.switchShiftDetailMode, {
+          recruitmentId: ids.recruitmentId,
+          shopId: ids.shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, ids.shopId),
+          isDetailMode: true,
+        }),
+      ).rejects.toThrow("確定済みのシフトでは、表示を切り替えられません");
+      expect(await readState(t, ids)).toEqual(before);
+    });
+
+    it("募集条件が変わった旧画面からは切り替えず、下書きと店舗の表示を変えない。最新版だけ受け付ける", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedDrafts(t);
+      await t.run(async (ctx) => ctx.db.patch(ids.recruitmentId, { editVersion: 2 }));
+      const before = await readState(t, ids);
+      const expectedOrganizationId = await getExpectedOrganizationId(t, ids.shopId);
+      const switchWith = (expectedEditVersion?: number) =>
+        t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.switchShiftDetailMode, {
+          recruitmentId: ids.recruitmentId,
+          shopId: ids.shopId,
+          expectedOrganizationId,
+          expectedEditVersion,
+          isDetailMode: true,
+        });
+
+      for (const version of [undefined, 0, 1]) {
+        await expect(switchWith(version)).rejects.toThrow("RECRUITMENT_CHANGED");
+      }
+      expect(await readState(t, ids)).toEqual(before);
+
+      await switchWith(2);
+      expect(await readState(t, ids)).toEqual({
+        assignmentRecruitmentIds: [ids.otherRecruitmentId],
+        draftSavedAt: null,
+        draftAutoCreatedAt: null,
+        shiftDetailMode: true,
+      });
+    });
+
+    it("削除済みの募集では拒否し、残っている勤務と店舗の表示を変えない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedDrafts(t);
+      await t.run(async (ctx) => ctx.db.patch(ids.recruitmentId, { isDeleted: true }));
+      const before = await readState(t, ids);
+
+      await expect(
+        t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.switchShiftDetailMode, {
+          recruitmentId: ids.recruitmentId,
+          shopId: ids.shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, ids.shopId),
+          isDetailMode: true,
+        }),
+      ).rejects.toThrow("Not found");
+      expect(await readState(t, ids)).toEqual(before);
+    });
+
+    it("下書きの勤務が上限を超える募集では拒否し、勤務を1件も消さず、店舗の表示も変えない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedDrafts(t);
+      await t.run(async (ctx) => {
+        const [seeded] = await ctx.db
+          .query("shiftAssignments")
+          .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", ids.recruitmentId))
+          .take(1);
+        if (!seeded) throw new Error("draft assignment fixture was not found");
+        // seedDraftsが置いた1件と合わせて、上限を1件超える件数にする。
+        for (let index = 0; index < SHIFT_ASSIGNMENT_LIMIT; index += 1) {
+          await ctx.db.insert("shiftAssignments", {
+            recruitmentId: ids.recruitmentId,
+            staffId: ids.staffId1,
+            date: "2026-01-20",
+            startTime: "10:00",
+            endTime: "18:00",
+            positionId: seeded.positionId,
+          });
+        }
+      });
+      const before = await readState(t, ids);
+
+      await expect(
+        t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.switchShiftDetailMode, {
+          recruitmentId: ids.recruitmentId,
+          shopId: ids.shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, ids.shopId),
+          isDetailMode: true,
+        }),
+      ).rejects.toThrow("保存済みシフト割当が上限を超えています");
+      expect(before.assignmentRecruitmentIds).toHaveLength(SHIFT_ASSIGNMENT_LIMIT + 2);
+      expect(await readState(t, ids)).toEqual(before);
+    });
+  });
+
+  describe("setShiftStaffSortMode", () => {
+    /** 下書きの勤務を1件持つ募集を用意する。並び替えの保存が、勤務と下書きに触れないことを確かめるために使う。 */
+    async function seedDraft(t: TestConvex<typeof schema>) {
+      const data = await setupTestData(t);
+      await t.run(async (ctx) => {
+        const positionId = await ctx.db.insert("positions", {
+          shopId: data.shopId,
+          name: "シフト",
+          color: "#3b82f6",
+          sortOrder: 0,
+          isDefault: true,
+          isDeleted: false,
+        });
+        await ctx.db.patch(data.recruitmentId, { draftSavedAt: 1 });
+        await ctx.db.insert("shiftAssignments", {
+          recruitmentId: data.recruitmentId,
+          staffId: data.staffId1,
+          date: "2026-01-20",
+          startTime: "10:00",
+          endTime: "18:00",
+          positionId,
+        });
+      });
+      return data;
+    }
+    const readState = (t: TestConvex<typeof schema>, ids: Awaited<ReturnType<typeof seedDraft>>) =>
+      t.run(async (ctx) => {
+        const assignments = await ctx.db.query("shiftAssignments").collect();
+        const recruitment = await ctx.db.get(ids.recruitmentId);
+        const shop = await ctx.db.get(ids.shopId);
+        return {
+          assignmentCount: assignments.length,
+          draftSavedAt: recruitment?.draftSavedAt ?? null,
+          shiftStaffSortMode: shop?.shiftStaffSortMode ?? null,
+        };
+      });
+
+    it("未認証では拒否し、店舗の並び替えを変えない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedDraft(t);
+      const before = await readState(t, ids);
+
+      await expect(
+        t.mutation(api.shiftBoard.mutations.setShiftStaffSortMode, {
+          shopId: ids.shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, ids.shopId),
+          mode: "workTime",
+        }),
+      ).rejects.toThrow();
+      expect(await readState(t, ids)).toEqual(before);
+    });
+
+    it("他店舗の管理者は、この店舗の並び替えを変えられない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedDraft(t);
+      const before = await readState(t, ids);
+      await t.run(async (ctx) => {
+        await seedManagerShop(ctx, { subject: "user_other", email: "other@example.com", shopName: "他店舗" });
+      });
+
+      await expect(
+        t.withIdentity({ subject: "user_other" }).mutation(api.shiftBoard.mutations.setShiftStaffSortMode, {
+          shopId: ids.shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, ids.shopId),
+          mode: "workTime",
+        }),
+      ).rejects.toThrow(ConvexError);
+      expect(await readState(t, ids)).toEqual(before);
+    });
+
+    it("管理者が選んだ並び替えを店舗に保存し、勤務と下書きには触れない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await seedDraft(t);
+      const setMode = async (mode: "fixed" | "workTime") =>
+        t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.setShiftStaffSortMode, {
+          shopId: ids.shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, ids.shopId),
+          mode,
+        });
+
+      await setMode("workTime");
+      expect(await readState(t, ids)).toEqual({ assignmentCount: 1, draftSavedAt: 1, shiftStaffSortMode: "workTime" });
+
+      await setMode("fixed");
+      expect(await readState(t, ids)).toEqual({ assignmentCount: 1, draftSavedAt: 1, shiftStaffSortMode: "fixed" });
+    });
   });
 
   describe("confirmRecruitment", () => {
@@ -2167,6 +2893,226 @@ describe("shiftBoard/mutations", () => {
           expectedOrganizationId: await getExpectedOrganizationId(t, otherShopId),
         }),
       ).rejects.toThrow(ConvexError);
+    });
+
+    it("休憩だけを変えて再通知すると、休憩を変えたスタッフだけを対象にする", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId, recruitmentId, staffId1, staffId2 } = await setupTestData(t);
+      const asManager = t.withIdentity({ subject: "user_manager" });
+      const scope = { shopId, expectedOrganizationId: await getExpectedOrganizationId(t, shopId) };
+      const assignments = [
+        { staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "18:00" },
+        { staffId: staffId2, date: "2026-01-20", startTime: "12:00", endTime: "20:00" },
+      ];
+
+      await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, { ...scope, recruitmentId, assignments });
+      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { ...scope, recruitmentId });
+      // 休憩の導入前に通知した確定と同じく、休憩を持たないsnapshotを置く。
+      await seedCurrentConfirmationSnapshots(t, recruitmentId, [staffId1, staffId2]);
+      await seedConfirmationEmailOutboxes(t, recruitmentId, [staffId1, staffId2], "sent");
+
+      // 休憩のない勤務を保存し直しただけでは、再通知の対象にならない。
+      await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, { ...scope, recruitmentId, assignments });
+      await expect(
+        asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { ...scope, recruitmentId, intent: "resend" }),
+      ).resolves.toEqual({ status: "no_changes", notifiedStaffCount: 0 });
+
+      await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        ...scope,
+        recruitmentId,
+        assignments: [{ ...assignments[0], breaks: [{ startTime: "14:00", endTime: "15:00" }] }, assignments[1]],
+      });
+      const result = await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
+        ...scope,
+        recruitmentId,
+        intent: "resend",
+      });
+
+      expect(result).toEqual({ status: "scheduled", notifiedStaffCount: 1 });
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+      const resendJobs = scheduled.filter((job) => job.name === CONFIRMATION_EMAIL_JOB && job.args[0]?.isResend);
+      expect(resendJobs.map((job) => job.args[0]?.targetStaffIds)).toEqual([[staffId1]]);
+    });
+
+    describe("確定した時点の必要人数", () => {
+      const bar = (positionId: Id<"positions">, startTime: string, endTime: string) => ({
+        positionId,
+        startTime,
+        endTime,
+      });
+      const confirm = async (
+        t: TestConvex<typeof schema>,
+        ids: { shopId: Id<"shops">; recruitmentId: Id<"recruitments"> },
+        intent?: "confirm" | "resend",
+      ) =>
+        t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.confirmRecruitment, {
+          shopId: ids.shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, ids.shopId),
+          recruitmentId: ids.recruitmentId,
+          ...(intent ? { intent } : {}),
+        });
+      const readSnapshots = async (t: TestConvex<typeof schema>) =>
+        (await t.run(async (ctx) => ctx.db.query("recruitmentStaffingSnapshots").collect())).sort((a, b) =>
+          a.date.localeCompare(b.date),
+        );
+
+      /**
+       * 募集期間（2026-01-20 火 〜 01-26 月、受付時間 09:00-22:00）に、理由の違う必要人数が当たる設定を用意する。
+       * 01-21（水）は祝日、01-22（木）はその日だけの必要人数、01-23（金）は種類の違うテンプレートが当たる。
+       */
+      async function seedStaffingSettings(t: TestConvex<typeof schema>) {
+        const base = await setupTestData(t);
+        const ids = await t.run(async (ctx) => {
+          const insertPosition = (name: string, sortOrder: number, isDeleted = false) =>
+            ctx.db.insert("positions", {
+              shopId: base.shopId,
+              name,
+              color: "#3b82f6",
+              sortOrder,
+              isDefault: sortOrder === 0,
+              isDeleted,
+            });
+          const hallPositionId = await insertPosition("ホール", 0);
+          const kitchenPositionId = await insertPosition("キッチン", 1);
+          const deletedPositionId = await insertPosition("削除済みポジション", 2, true);
+          const weekdayTemplateId = await ctx.db.insert("shiftDayTemplates", {
+            shopId: base.shopId,
+            name: "平日",
+            weekdays: ["tue", "wed"],
+            sortOrder: 0,
+            appliesToHolidays: false,
+            requirements: {
+              kind: "time",
+              bars: [
+                bar(hallPositionId, "09:00", "15:00"),
+                bar(hallPositionId, "08:00", "10:00"),
+                bar(deletedPositionId, "09:00", "15:00"),
+              ],
+            },
+          });
+          await ctx.db.insert("shiftDayTemplates", {
+            shopId: base.shopId,
+            name: "祝日",
+            weekdays: [],
+            sortOrder: 1,
+            appliesToHolidays: true,
+            requirements: { kind: "time", bars: [bar(kitchenPositionId, "11:00", "14:00")] },
+          });
+          await ctx.db.insert("shiftDayTemplates", {
+            shopId: base.shopId,
+            name: "集め方を変える前のテンプレート",
+            weekdays: ["fri"],
+            sortOrder: 2,
+            appliesToHolidays: false,
+            requirements: { kind: "dateOnly", counts: [{ positionId: hallPositionId, count: 2 }] },
+          });
+          await ctx.db.insert("nationalHolidays", { date: "2026-01-21", name: "テストの祝日" });
+          await ctx.db.insert("shiftDayTemplateOverrides", {
+            shopId: base.shopId,
+            date: "2026-01-22",
+            kind: "custom",
+            requirements: { kind: "time", bars: [bar(kitchenPositionId, "17:00", "22:00")] },
+          });
+          return { hallPositionId, kitchenPositionId, weekdayTemplateId };
+        });
+        return { ...base, ...ids };
+      }
+
+      it("未確定から確定へ変わるとき、テンプレートが当たる日の必要人数とテンプレートの名前を保存し、当たらない日の行は作らない", async () => {
+        const t = convexTest(schema, modules);
+        const ids = await seedStaffingSettings(t);
+
+        await confirm(t, ids);
+
+        expect(
+          (await readSnapshots(t)).map(({ recruitmentId, shopId, date, templateName, requirements }) => ({
+            recruitmentId,
+            shopId,
+            date,
+            templateName,
+            requirements,
+          })),
+        ).toEqual(
+          [
+            // 火曜: 曜日のテンプレート。受付時間をまたぐバーは内側だけにし、削除済みのポジションのバーを除く。
+            {
+              date: "2026-01-20",
+              templateName: "平日",
+              requirements: {
+                kind: "time",
+                bars: [bar(ids.hallPositionId, "09:00", "10:00"), bar(ids.hallPositionId, "09:00", "15:00")],
+              },
+            },
+            // 祝日の水曜: 祝日に使うテンプレート。
+            {
+              date: "2026-01-21",
+              templateName: "祝日",
+              requirements: { kind: "time", bars: [bar(ids.kitchenPositionId, "11:00", "14:00")] },
+            },
+            // 木曜: その日だけの必要人数。テンプレートの名前を持たない。
+            {
+              date: "2026-01-22",
+              templateName: null,
+              requirements: { kind: "time", bars: [bar(ids.kitchenPositionId, "17:00", "22:00")] },
+            },
+            // 金曜: 当たったテンプレートの種類が募集の集め方と違うため、必要人数は未設定になる。
+            { date: "2026-01-23", templateName: "集め方を変える前のテンプレート", requirements: null },
+          ].map((snapshot) => ({ recruitmentId: ids.recruitmentId, shopId: ids.shopId, ...snapshot })),
+        );
+      });
+
+      it("確定済みの募集の再確定と再通知では、テンプレートを直していても、保存した必要人数を書き直さない", async () => {
+        const t = convexTest(schema, modules);
+        const ids = await seedStaffingSettings(t);
+        await confirm(t, ids);
+        const saved = await readSnapshots(t);
+        expect(saved).toHaveLength(4);
+        await t.run(async (ctx) => {
+          await ctx.db.patch(ids.weekdayTemplateId, {
+            name: "平日（改）",
+            weekdays: ["tue", "wed", "sat"],
+            requirements: { kind: "time", bars: [bar(ids.kitchenPositionId, "09:00", "22:00")] },
+          });
+        });
+
+        await confirm(t, ids, "confirm");
+        await confirm(t, ids, "resend");
+
+        expect(await readSnapshots(t)).toEqual(saved);
+      });
+
+      it("テンプレートを持たない店舗の確定では、必要人数を保存しない", async () => {
+        const t = convexTest(schema, modules);
+        const ids = await setupTestData(t);
+
+        await confirm(t, ids);
+
+        expect((await t.run(async (ctx) => ctx.db.get(ids.recruitmentId)))?.status).toBe("confirmed");
+        expect(await readSnapshots(t)).toEqual([]);
+      });
+
+      it("確定が拒否された場合は、必要人数を保存しない", async () => {
+        const t = convexTest(schema, modules);
+        const ids = await seedStaffingSettings(t);
+        await t.run(async (ctx) => {
+          await ctx.db.patch(ids.recruitmentId, { shopClosedDates: ["2026-01-21"] });
+          await ctx.db.insert("shiftAssignments", {
+            recruitmentId: ids.recruitmentId,
+            staffId: ids.staffId1,
+            date: "2026-01-21",
+            startTime: "10:00",
+            endTime: "18:00",
+            positionId: ids.hallPositionId,
+          });
+        });
+
+        await expectValidationIssues(confirm(t, ids), [
+          { code: "CLOSED_DAY", date: "2026-01-21", staffId: ids.staffId1 },
+        ]);
+
+        expect((await t.run(async (ctx) => ctx.db.get(ids.recruitmentId)))?.status).toBe("open");
+        expect(await readSnapshots(t)).toEqual([]);
+      });
     });
   });
 });

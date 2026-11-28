@@ -1,7 +1,7 @@
 import { Box, Flex, Icon, Link, Stack, Text } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 import type { IconType } from "react-icons/lib";
-import { LuCalendarX, LuClock, LuExternalLink, LuFileX, LuTriangleAlert, LuUserX } from "react-icons/lu";
+import { LuCalendarX, LuClock, LuExternalLink, LuFileX, LuTriangleAlert, LuUsers, LuUserX } from "react-icons/lu";
 import {
   ASSIGNMENT_WARNING_SUMMARY_TITLE,
   getAssignmentWarningSettingText,
@@ -11,11 +11,14 @@ import {
   summarizeAssignmentWarnings,
   type WarningSummaryCategoryCode,
 } from "@/src/domains/shift/assignmentWarningSummary";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
 
 type Props = {
   staffCount: number;
   periodLabel: string;
   warnings?: DisplayIssue[];
+  /** 見習いだけの時間帯。スタッフ1人に結び付かないため、スタッフ別の確認事項とは別の一覧で受け取る。 */
+  newcomerOnlyItems?: ReadonlyArray<{ key: string; label: string }>;
   /** 初回確定でだけ表示する。確定後は提出リンクが閉じているため、再通知では扱わない。 */
   unsubmittedNames?: string[];
   /** 未提出のスタッフに管理者が含まれる場合に、シフト対象から外す方法のヘルプを案内する。 */
@@ -28,6 +31,7 @@ export const ConfirmShiftContent = ({
   staffCount,
   periodLabel,
   warnings = [],
+  newcomerOnlyItems = [],
   unsubmittedNames = [],
   hasUnsubmittedManager = false,
   isResend = false,
@@ -35,6 +39,7 @@ export const ConfirmShiftContent = ({
 }: Props) => {
   const warningSummary = summarizeAssignmentWarnings(warnings);
   const shouldShowUnsubmitted = !isResend && unsubmittedNames.length > 0;
+  const hasWarnings = warningSummary.length > 0 || newcomerOnlyItems.length > 0;
 
   return (
     <>
@@ -60,7 +65,7 @@ export const ConfirmShiftContent = ({
           </SummaryRow>
         </SummarySection>
       )}
-      {warningSummary.length > 0 && (
+      {hasWarnings && (
         <SummarySection title={ASSIGNMENT_WARNING_SUMMARY_TITLE}>
           {warningSummary.map((item) => {
             const style = WARNING_SUMMARY_STYLES[item.code];
@@ -75,9 +80,36 @@ export const ConfirmShiftContent = ({
               />
             );
           })}
+          {newcomerOnlyItems.length > 0 && (
+            <SummaryRow
+              icon={LuUsers}
+              iconBg="orange.100"
+              iconColor="orange.600"
+              label={NEWCOMER_ONLY_LABEL}
+              countLabel={`${newcomerOnlyItems.length}件`}
+            >
+              {/* 件数が多い募集でも確定の操作が画面の外へ出ないよう、一覧の中でスクロールさせる。 */}
+              <Box
+                as="ul"
+                aria-label={NEWCOMER_ONLY_LABEL}
+                listStyleType="none"
+                mt={1}
+                maxH="132px"
+                overflowY="auto"
+                fontSize="xs"
+                lineHeight="tall"
+                color="gray.700"
+                fontVariantNumeric="tabular-nums"
+              >
+                {newcomerOnlyItems.map((item) => (
+                  <li key={item.key}>{item.label}</li>
+                ))}
+              </Box>
+            </SummaryRow>
+          )}
         </SummarySection>
       )}
-      {(warningSummary.length > 0 || shouldShowUnsubmitted) && (
+      {(hasWarnings || shouldShowUnsubmitted) && (
         <Text mt={4} textAlign="center" fontSize="sm" fontWeight={700} color="gray.700">
           この内容のまま{isResend ? "スタッフに通知しますか？" : "確定して、スタッフに通知しますか？"}
         </Text>
@@ -85,6 +117,8 @@ export const ConfirmShiftContent = ({
     </>
   );
 };
+
+const NEWCOMER_ONLY_LABEL = "見習いだけの時間帯";
 
 const UnsubmittedNameBadges = ({ names }: { names: string[] }) => (
   <Flex mt={2} gap={1.5} wrap="wrap" align="center">
@@ -117,6 +151,9 @@ const ShiftExclusionHelp = () => (
       href={SHIFT_EXCLUSION_HELP_HREF}
       target="_blank"
       rel="noopener noreferrer"
+      onClick={() =>
+        trackProductEvent({ kind: "content_select", contentType: "help_link", contentId: "shift_exclusion" })
+      }
       aria-label={`${SHIFT_EXCLUSION_HELP_TITLE}（別タブで開きます）`}
       display="inline-flex"
       alignItems="center"
@@ -151,6 +188,7 @@ const WARNING_SUMMARY_STYLES: Record<WarningSummaryCategoryCode, { icon: IconTyp
   OFF_REQUEST: { icon: LuCalendarX, color: { bg: "red.100", fg: "red.600" } },
   OUTSIDE_REQUESTED_TIME: { icon: LuClock, color: { bg: "orange.100", fg: "orange.600" } },
   NOT_SUBMITTED: { icon: LuUserX, color: { bg: "purple.100", fg: "purple.600" } },
+  POSITION_UNAVAILABLE: { icon: LuTriangleAlert, color: { bg: "orange.100", fg: "orange.600" } },
   OTHER: { icon: LuTriangleAlert, color: { bg: "orange.100", fg: "orange.600" } },
 };
 

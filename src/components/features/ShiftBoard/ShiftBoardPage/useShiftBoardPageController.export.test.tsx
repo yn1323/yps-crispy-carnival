@@ -11,23 +11,48 @@ import type { ShiftBoardData } from "../types";
 const mocks = vi.hoisted(() => ({
   saveReference: Symbol("save"),
   confirmReference: Symbol("confirm"),
+  applyTemplateReference: Symbol("applyDayTemplateToDates"),
+  switchDetailModeReference: Symbol("switchShiftDetailMode"),
+  setStaffSortModeReference: Symbol("setShiftStaffSortMode"),
   save: vi.fn(),
+  applyDayTemplateToDates: vi.fn(),
+  navigate: vi.fn(),
+  convexQuery: vi.fn(),
   export: vi.fn(),
   confirm: vi.fn(),
   toast: vi.fn(),
   blocker: { status: "idle", reset: vi.fn(), proceed: vi.fn() },
 }));
 
-vi.mock("@tanstack/react-router", () => ({ useBlocker: () => mocks.blocker }));
+vi.mock("@tanstack/react-router", () => ({ useBlocker: () => mocks.blocker, useNavigate: () => mocks.navigate }));
+vi.mock("convex/react", () => ({ useConvex: () => ({ query: mocks.convexQuery }) }));
 vi.mock("@/convex/_generated/api", () => ({
   api: {
     shiftBoard: {
-      mutations: { saveShiftAssignments: mocks.saveReference, confirmRecruitment: mocks.confirmReference },
+      mutations: {
+        saveShiftAssignments: mocks.saveReference,
+        confirmRecruitment: mocks.confirmReference,
+        switchShiftDetailMode: mocks.switchDetailModeReference,
+        setShiftStaffSortMode: mocks.setStaffSortModeReference,
+      },
+      queries: { getAutoCreateHistory: Symbol("getAutoCreateHistory") },
+    },
+    shiftSetup: {
+      mutations: {
+        applyDayTemplateToDates: mocks.applyTemplateReference,
+      },
     },
   },
 }));
 vi.mock("@/src/hooks/useShopMutation", () => ({
-  useShopMutation: (reference: unknown) => (reference === mocks.saveReference ? mocks.save : mocks.confirm),
+  useShopMutation: (reference: unknown) => {
+    if (reference === mocks.saveReference) return mocks.save;
+    if (reference === mocks.confirmReference) return mocks.confirm;
+    if (reference === mocks.applyTemplateReference) return mocks.applyDayTemplateToDates;
+    if (reference === mocks.switchDetailModeReference) return vi.fn();
+    if (reference === mocks.setStaffSortModeReference) return vi.fn();
+    throw new Error("unexpected mutation reference");
+  },
 }));
 vi.mock("@/src/components/shared/feedback", () => ({ showErrorToast: vi.fn(), showSuccessToast: vi.fn() }));
 vi.mock("@/src/components/ui/toaster", () => ({ toaster: { create: mocks.toast } }));
@@ -53,6 +78,7 @@ const data: ShiftBoardData = {
     reminderScheduledAt: null,
     lastReminderSentAt: null,
     draftSavedAt: 1,
+    draftAutoCreated: false,
   },
   submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
   staffs: [{ _id: staffId, name: "出力スタッフ", isSubmitted: true, wasSubmittedAtDraft: true }],
@@ -162,7 +188,7 @@ describe("シフトボードからの出力", () => {
     );
     expect(mocks.save).not.toHaveBeenCalled();
   });
-  it("画面の表示順を変えずにDashboard順で渡し、勤務を取り消したセルも反映する", () => {
+  it("スタッフのページで決めた並び順で、画面にも出力にも渡し、勤務を取り消したセルも反映する", () => {
     const secondId = "staff-b" as Id<"staffs">;
     const { result } = renderInitialized({
       ...data,
@@ -177,7 +203,13 @@ describe("シフトボードからの出力", () => {
     });
     expect(mocks.export.mock.calls[0][0].staffs.map((staff: { id: string }) => staff.id)).toEqual([secondId, staffId]);
     expect(mocks.export.mock.calls[0][0].assignments).toEqual([]);
-    expect(result.current.viewModel.shiftForm.staffs.map((staff) => staff.id)).toEqual([staffId, secondId]);
+    // 画面の並びの第2キーにも、同じ並び順を使う。
+    expect(
+      result.current.viewModel.shiftForm.staffs.map((staff) => ({ id: staff.id, displayOrder: staff.displayOrder })),
+    ).toEqual([
+      { id: secondId, displayOrder: 0 },
+      { id: staffId, displayOrder: 1 },
+    ]);
   });
   it("並び順が欠けた場合は部分的な帳票を渡さない", () => {
     const { result } = renderInitialized({ ...data, exportStaffOrder: [] });
@@ -303,5 +335,71 @@ describe("シフトボードからの出力", () => {
     expect(result.current.viewModel.shiftForm.dateNotes).toEqual([dateNote]);
     act(() => result.current.intents.onOpenExport());
     expect(mocks.export).toHaveBeenCalledWith(expect.objectContaining({ dateNotes: [dateNote] }));
+  });
+
+  it("勤務のポジションと休憩、店舗のポジションの一覧を出力へ渡す", () => {
+    const kitchenId = "position-b" as Id<"positions">;
+    const { result } = renderInitialized({
+      ...data,
+      positions: [...data.positions, { _id: kitchenId, name: "キッチン", color: "#f97316", isDefault: false }],
+      shiftAssignments: [
+        {
+          staffId,
+          date: "2099-01-20",
+          startTime: "09:00",
+          endTime: "13:00",
+          positionId,
+          breaks: [{ startTime: "11:00", endTime: "11:15" }],
+        },
+        { staffId, date: "2099-01-20", startTime: "13:00", endTime: "17:00", positionId: kitchenId },
+      ],
+    });
+
+    act(() => result.current.intents.onOpenExport());
+
+    expect(mocks.export).toHaveBeenCalledTimes(1);
+    expect(mocks.export.mock.calls[0][0].assignments).toEqual([
+      {
+        staffId,
+        date: "2099-01-20",
+        startTime: "09:00",
+        endTime: "13:00",
+        optionId: null,
+        positionId,
+        breaks: [{ startTime: "11:00", endTime: "11:15" }],
+      },
+      {
+        staffId,
+        date: "2099-01-20",
+        startTime: "13:00",
+        endTime: "17:00",
+        optionId: null,
+        positionId: kitchenId,
+        breaks: [],
+      },
+    ]);
+    expect(mocks.export.mock.calls[0][0].positions).toEqual([
+      { id: positionId, name: "シフト", color: "#3b82f6" },
+      { id: kitchenId, name: "キッチン", color: "#f97316" },
+    ]);
+  });
+
+  it("開いている表示が「くわしく」かどうかを出力へ渡す", () => {
+    const simple = renderInitialized({ ...data, shiftDetailMode: false });
+    act(() => simple.result.current.intents.onOpenExport());
+    const detail = renderInitialized({ ...data, shiftDetailMode: true });
+    act(() => detail.result.current.intents.onOpenExport());
+
+    expect(mocks.export.mock.calls.map(([exported]) => exported.isDetailMode)).toEqual([false, true]);
+  });
+
+  it("店舗が選んだスタッフの並び替えを出力へ渡し、まだ選んでいない店舗は「固定」で渡す", () => {
+    const unset = renderInitialized();
+    act(() => unset.result.current.intents.onOpenExport());
+    const workTime = renderInitialized({ ...data, shiftStaffSortMode: "workTime" });
+    act(() => workTime.result.current.intents.onOpenExport());
+
+    // 日別の出力は、この値で行の並びを決める。
+    expect(mocks.export.mock.calls.map(([exported]) => exported.staffSortMode)).toEqual(["fixed", "workTime"]);
   });
 });

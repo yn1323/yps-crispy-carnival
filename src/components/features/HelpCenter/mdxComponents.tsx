@@ -1,7 +1,9 @@
 import { Accordion, Box, chakra, Heading, Image, Link, List, Stack, Table, Text } from "@chakra-ui/react";
-import { Children, type ComponentProps, isValidElement, type ReactNode } from "react";
+import { Children, type ComponentProps, isValidElement, type ReactNode, useRef } from "react";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { type MdxComponents, toHeadingId } from "@/src/lib/mdx";
+import { trackProductEvent } from "@/src/lib/webMeasurement";
+import { toHelpVideoId } from "./helpVideoId";
 
 type ResolveImageSrc = (src: string) => string;
 type ResolveVideoSrc = (src: string) => string;
@@ -29,7 +31,13 @@ export function createHelpMdxComponents(
   }) => <HelpFigureView src={resolveImageSrc(src)} alt={alt} caption={caption} width={width} height={height} />;
 
   const HelpVideo = ({ src, title, width, height }: { src: string; title: string; width: number; height: number }) => (
-    <HelpVideoView src={resolveVideoSrc(src)} title={title} width={width} height={height} />
+    <HelpVideoView
+      src={resolveVideoSrc(src)}
+      videoId={toHelpVideoId(src)}
+      title={title}
+      width={width}
+      height={height}
+    />
   );
 
   return {
@@ -115,7 +123,21 @@ function HelpAccordion({ title, children }: { title: string; children: ReactNode
   );
 }
 
-function HelpVideoView({ src, title, width, height }: { src: string; title: string; width: number; height: number }) {
+function HelpVideoView({
+  src,
+  videoId,
+  title,
+  width,
+  height,
+}: {
+  src: string;
+  videoId: string;
+  title: string;
+  width: number;
+  height: number;
+}) {
+  // 動画がどれだけ見られているかを数える。一時停止のあとの再開は数えず、開いたページで最初に再生したときだけ送る。
+  const hasTrackedPlayRef = useRef(false);
   if (!src.trim()) throw new Error("ヘルプ動画にはsrcを指定してください");
   if (!title.trim()) throw new Error("ヘルプ動画には内容を説明するtitleを指定してください");
   if (width <= 0 || height <= 0) throw new Error("ヘルプ動画には正のwidthとheightを指定してください");
@@ -125,7 +147,8 @@ function HelpVideoView({ src, title, width, height }: { src: string; title: stri
       <Box
         overflow="hidden"
         w="full"
-        maxW={{ base: "360px", md: "380px" }}
+        // スマートフォンの縦長の動画は端末の幅に近い大きさにとどめ、PCの横長の動画は本文の幅いっぱいに出す。
+        maxW={width > height ? "full" : { base: "360px", md: "380px" }}
         mx="auto"
         borderWidth="1px"
         borderColor="gray.200"
@@ -142,6 +165,11 @@ function HelpVideoView({ src, title, width, height }: { src: string; title: stri
           playsInline
           preload="metadata"
           aria-label={`${title}の動画`}
+          onPlay={() => {
+            if (hasTrackedPlayRef.current) return;
+            hasTrackedPlayRef.current = true;
+            trackProductEvent({ kind: "content_select", contentType: "help_video", contentId: videoId });
+          }}
           w="full"
           h="full"
           objectFit="contain"

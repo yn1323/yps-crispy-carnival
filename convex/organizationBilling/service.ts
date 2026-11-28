@@ -1,6 +1,7 @@
 import type { GenericDatabaseReader } from "convex/server";
 import { ConvexError } from "convex/values";
 import type { DataModel, Id } from "../_generated/dataModel";
+import { expectedConvexError } from "../_lib/errorObservability";
 import {
   getOrganizationActualUsageProbe,
   getOrganizationBillingState,
@@ -120,9 +121,9 @@ function usageLimitExceededError(access: OrganizationAccessPolicy) {
     });
   }
   if (access.usageLimitStatus?.kind !== "overLimit") {
-    return new ConvexError("現在の利用状態では、通常の業務操作を行えません。");
+    return expectedConvexError("plan_limit", "現在の利用状態では、通常の業務操作を行えません。");
   }
-  return new ConvexError({
+  return expectedConvexError("plan_limit", {
     code: "USAGE_LIMIT_EXCEEDED" as const,
     message: "現在のプラン上限を超えているため、利用人数・店舗・管理者を整理するか、プランを変更してください。",
     plan: access.usageLimitStatus.evaluatedPlan,
@@ -186,7 +187,8 @@ export async function requireOrganizationBusinessWriteOrLimitRecoveryCapability(
 export async function requireOrganizationPaidFeature(ctx: DbCtx, organizationId: Id<"organizations">) {
   const policy = await getOrganizationBillingPolicy(ctx, organizationId);
   if (!policy?.canUsePaidFeatures) {
-    throw new ConvexError(
+    throw expectedConvexError(
+      "plan_limit",
       policy?.paidFeatureBlockReason === "paymentResultPending"
         ? "支払い結果が確定すると利用できます。"
         : `この機能はトライアルまたは${organizationPaidPlanLabel("standard")}で利用できます。`,
@@ -207,11 +209,11 @@ export async function requireOrganizationCapacity(
 ) {
   const billingState = await getOrganizationBillingState(ctx, args.organizationId);
   if (!billingState) {
-    throw new ConvexError("組織の契約情報を確認中のため、この追加操作はまだ利用できません。");
+    throw expectedConvexError("plan_limit", "組織の契約情報を確認中のため、この追加操作はまだ利用できません。");
   }
   const policy = deriveOrganizationBillingPolicy(billingState.state);
   if (!policy.canWriteBusinessData) {
-    throw new ConvexError("現在の契約状態では、この追加操作を行えません。");
+    throw expectedConvexError("plan_limit", "現在の契約状態では、この追加操作を行えません。");
   }
 
   const usage = await getOrganizationUsageSnapshot(ctx, args.organizationId, Date.now(), {
@@ -229,7 +231,7 @@ export async function requireOrganizationCapacity(
       : evaluation.violations.includes("shops")
         ? "店舗数が現在のプラン上限を超えます。"
         : "招待中を含めた管理者の合計が、現在のプラン上限を超えます。";
-    throw new ConvexError(message);
+    throw expectedConvexError("plan_limit", message);
   }
   return { billingState, policy, usage };
 }

@@ -1,9 +1,17 @@
+import type { MutableRefObject } from "react";
 import type { AssignmentIssue } from "@/convex/shiftBoard/validation";
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
-import type { ReminderStatus, ShiftDateNote, ShiftFormHeader } from "@/src/components/features/Shift/ShiftForm";
+import type {
+  ReminderStatus,
+  ShiftDateNote,
+  ShiftFormDetailActions,
+  ShiftFormHeader,
+  ShiftFormStaffing,
+} from "@/src/components/features/Shift/ShiftForm";
 import type { DisplayIssue } from "@/src/domains/shift/assignmentIssues";
 import type { AssignmentWarning } from "@/src/domains/shift/assignmentWarnings";
-import type { PositionType, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
+import type { NewcomerOnlyPeriod } from "@/src/domains/shift/staffing";
+import type { PositionType, ShiftData, StaffSortMode, StaffType, TimeRange } from "@/src/domains/shift/types";
 
 export type ShiftBoardPageViewModel = {
   isRecruitmentChanged?: boolean;
@@ -28,7 +36,16 @@ export type ShiftBoardPageViewModel = {
     reminderStatus: ReminderStatus;
     validationIssues: AssignmentIssue[];
     validationWarnings: AssignmentWarning[];
+    newcomerOnlyPeriods: NewcomerOnlyPeriod[];
     dateNotes: readonly ShiftDateNote[];
+    staffing?: ShiftFormStaffing;
+    initialDetailMode: boolean;
+    /** 店舗が選んだスタッフの並び替え。表示設定で変えると、保存を待たずに先に切り替える。 */
+    staffSortMode: StaffSortMode;
+    /** 「シンプル / くわしく」の切り替えを出すか。確定済みの募集と、変更できない画面では出さない。 */
+    canSwitchDetailMode: boolean;
+    detailActions: ShiftFormDetailActions;
+    applyShiftsRef: MutableRefObject<((update: (current: ShiftData[]) => ShiftData[]) => void) | null>;
   };
   confirmDialog: {
     isOpen: boolean;
@@ -36,6 +53,8 @@ export type ShiftBoardPageViewModel = {
     submitLabel: string;
     staffCount: number;
     warnings: DisplayIssue[];
+    /** 見習いだけの時間帯。日、ポジション、時間帯の単位で出す。 */
+    newcomerOnlyItems: Array<{ key: string; label: string }>;
     unsubmittedNames: string[];
     hasUnsubmittedManager: boolean;
   };
@@ -48,12 +67,20 @@ export type ShiftBoardPageViewModel = {
     isOpen: boolean;
     isSaving: boolean;
   };
+  /** 表示の切り替えで下書きを削除する前の確認。 */
+  detailModeSwitchDialog: {
+    isOpen: boolean;
+    isSwitching: boolean;
+  };
 };
 
 export type ShiftBoardPageIntents = {
   onReload?: () => void;
   onOpenExport: () => void;
   onShiftsChange: (shifts: ShiftData[]) => void;
+  onDetailModeChange: (isDetailMode: boolean) => void;
+  onConfirmDetailModeSwitch: () => void;
+  onCancelDetailModeSwitch: () => void;
   onSaveDraft: () => void;
   onConfirmRequest: () => void;
   onOpenUnsubmittedDetails: () => void;
@@ -73,4 +100,6 @@ export type ShiftBoardPageViewProps = {
   intents: ShiftBoardPageIntents;
   layout?: "legacy" | "app";
   header?: ShiftFormHeader;
+  /** シフト表の内側のスクロールで、上の行を隠した・表示したときに通知する。 */
+  onChromeHiddenChange?: (isHidden: boolean) => void;
 };
