@@ -175,6 +175,9 @@ const STAFF_MESSAGE_NOTES = [
   "リンクから提出画面へ進みます",
 ];
 
+/** 確定のお知らせの場面に、お知らせの中身を短く添える。 */
+const CONFIRM_MESSAGE_NOTES = ["スタッフごとにシフト表が届きます", "リンクから全員のシフトも確認できます"];
+
 /** スタッフが希望を出す場面に、提出画面の自動操作の手順に合わせて添える説明。 */
 const STAFF_ANSWER_NOTES: Record<HandsOnStaffSubmitStep, string> = {
   choose: "希望する日と時間を選びます",
@@ -248,6 +251,7 @@ const PHONE_RESERVED = {
 const NOTES_RESERVED_HEIGHT: Partial<Record<SendScene, number>> = {
   staffMessage: 3 * 18 + 2 * 2 + 12,
   staffAnswer: 24 + 12,
+  confirmMessage: 2 * 18 + 2 + 12,
 };
 const MIN_PHONE_SCALE = 0.6;
 
@@ -365,6 +369,7 @@ export const SendModal = ({
                 )}
               </PhoneFrame>
               {scene === "staffMessage" && <SceneNotes items={STAFF_MESSAGE_NOTES} />}
+              {scene === "confirmMessage" && <SceneNotes items={CONFIRM_MESSAGE_NOTES} />}
               {scene === "staffAnswer" && (
                 <SceneNotes
                   items={HANDS_ON_STAFF_SUBMIT_STEPS.map((step) => STAFF_ANSWER_NOTES[step])}

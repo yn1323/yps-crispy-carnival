@@ -60,7 +60,7 @@ export const ConfirmSent: Story = {
   args: { scene: "confirmSent" },
 };
 
-/** 確定のお知らせ。シフト表で入れた勤務を日ごとに並べ、勤務がない日は休みにする。 */
+/** 確定のお知らせ。シフト表で入れた勤務を日ごとに並べ、勤務がない日は休みにする。お知らせの中身を短い説明で添える。 */
 export const ConfirmMessage: Story = {
   args: {
     scene: "confirmMessage",
@@ -73,6 +73,11 @@ export const ConfirmMessage: Story = {
       { dateLabel: "12/6(日)", timeLabel: null },
       { dateLabel: "12/7(月)", timeLabel: null },
     ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("スタッフごとにシフト表が届きます")).toBeVisible();
+    await expect(canvas.getByText("リンクから全員のシフトも確認できます")).toBeVisible();
   },
 };
 
