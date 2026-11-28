@@ -19,7 +19,8 @@ export const MidCtaSection = () => (
             シフトリに任せよう
           </Box>
         </Heading>
-        <VStack align={{ base: "stretch", md: "flex-start" }} gap={3} w={{ base: "full", md: "auto" }}>
+        {/* PCでは、ボタンを下の2つの条件の幅の中央に置き、ボタンだけが左に寄って見えないようにする。 */}
+        <VStack align={{ base: "stretch", md: "center" }} gap={3} w={{ base: "full", md: "auto" }}>
           <SignupButton measurementCtaId="flow_signup" />
           <TrialReassurance />
         </VStack>
