@@ -8,7 +8,7 @@ const meta = {
   args: {
     variant: "simple",
     // 撮るたびに日付が変わらないよう、募集の初日を固定する。
-    periodStart: "2026-11-30",
+    periodStart: "2026-12-01",
   },
   parameters: { layout: "fullscreen" },
 } satisfies Meta<typeof HandsOnDemo>;
@@ -31,7 +31,7 @@ export const StartsRecruitment: Story = {
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByRole("button", { name: "11/30〜12/13の募集を開始" }));
+    await userEvent.click(await canvas.findByRole("button", { name: "12/1〜12/14の募集を開始" }));
 
     await expect(await canvas.findByRole("status")).toHaveTextContent("提出依頼を自動で送ります");
     await expect(canvas.getByRole("button", { current: "step" })).toHaveAccessibleName("希望シフトを集める");

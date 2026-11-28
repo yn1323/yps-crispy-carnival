@@ -88,7 +88,7 @@ const HandsOnScenes = ({ variant, periodStart, state, dispatch, boardRef }: Scen
 
 type Props = {
   variant: HandsOnVariant;
-  /** 募集の初日（YYYY-MM-DD）。省略すると、開いた日の次の月曜にする。Storyで日付を固定するときに渡す。 */
+  /** 募集の初日（YYYY-MM-DD）。省略すると、開いた日の翌月の1日にする。Storyで日付を固定するときに渡す。 */
   periodStart?: string;
 };
 

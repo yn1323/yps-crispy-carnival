@@ -1,5 +1,5 @@
 // 体験デモ「シフトを作ってみよう！」の架空の店舗、スタッフ、募集。
-// 募集の期間は開いた日の次の月曜から2週間にし、日付が過去にならないようにする。
+// 募集の期間は開いた日の翌月の1日から2週間にし、日付が過去にならないようにする。
 
 import { getLegalDocumentsForAudience } from "@/convex/legal/documents";
 import { buildAutoAssignments } from "@/convex/shiftBoard/autoCreate/buildAutoAssignments";
@@ -7,14 +7,7 @@ import type { AutoCreateInput } from "@/convex/shiftBoard/autoCreate/types";
 import type { ShiftFormStaffing } from "@/src/components/features/Shift/ShiftForm";
 import type { SubmissionData } from "@/src/components/features/StaffSubmit";
 import { applyAutoAssignments } from "@/src/domains/shift/autoAssignments";
-import {
-  addDays,
-  formatDateShort,
-  formatDateWithWeekday,
-  getDayOfWeek,
-  getWeekStartDate,
-  todayJST,
-} from "@/src/domains/shift/date";
+import { addDays, formatDateShort, formatDateWithWeekday, getDayOfWeek, todayJST } from "@/src/domains/shift/date";
 import type { PositionType, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
 
 export const HANDS_ON_SHOP_NAME = "居酒屋シフトリ";
@@ -39,8 +32,9 @@ export const SATO_STAFF_NAME = "佐藤 大輔";
 /** 佐藤さんが希望を出す日（募集の初日から数えた日）と時間。1章の提出画面で、この3日を同じ時間で出す。 */
 export const SATO_REQUEST_DAY_INDEXES = [0, 2, 4] as const;
 export const SATO_REQUEST_TIME = { start: "17:00", end: "22:00" } as const;
-/** 2章で休憩を入れる渡辺さんと、入れる休憩の時間。 */
+/** 2章で休憩を入れる渡辺さんと、入れる休憩の時間。渡辺さんは、初日には曜日によらず、この時間を含む希望を持つ。 */
 export const BREAK_STAFF_ID = "s1";
+const BREAK_STAFF_FIRST_DAY_REQUEST = ["10:00", "17:00"] as const;
 export const BREAK_TIME = { start: "12:00", end: "13:00" } as const;
 
 type Request = readonly [start: string, end: string] | null;
@@ -217,8 +211,11 @@ const WEEKEND_TEMPLATE = {
 /** 月曜を0、日曜を6にした曜日の番号。 */
 const mondayBasedWeekday = (date: string) => (getDayOfWeek(date) + 6) % 7;
 
-/** 開いた日の次の月曜を、募集の初日にする。 */
-export const getHandsOnPeriodStart = (today: string = todayJST()): string => addDays(getWeekStartDate(today, "mon"), 7);
+/** 開いた日の翌月の1日を、募集の初日にする。 */
+export const getHandsOnPeriodStart = (today: string = todayJST()): string => {
+  const [year, month] = today.split("-").map(Number);
+  return month === 12 ? `${year + 1}-01-01` : `${year}-${String(month + 1).padStart(2, "0")}-01`;
+};
 
 export type HandsOnScenario = {
   dates: string[];
@@ -237,6 +234,8 @@ export type HandsOnScenario = {
 };
 
 const requestOf = (seed: StaffSeed, date: string, dayIndex: number): Request => {
+  // 初日は月によって曜日が変わるため、休憩を入れる渡辺さんには、休みの曜日でも勤務できる希望を持たせる。
+  if (seed.id === BREAK_STAFF_ID && dayIndex === 0) return BREAK_STAFF_FIRST_DAY_REQUEST;
   if (seed.id === SATO_STAFF_ID) {
     return (SATO_REQUEST_DAY_INDEXES as readonly number[]).includes(dayIndex)
       ? [SATO_REQUEST_TIME.start, SATO_REQUEST_TIME.end]
