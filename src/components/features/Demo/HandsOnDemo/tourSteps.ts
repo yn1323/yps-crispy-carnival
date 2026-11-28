@@ -18,7 +18,7 @@ const REQUEST_STEP = {
 const SET_WORK_TIME_STEP = {
   target: rowOf(SATO_STAFF_ID),
   title: "勤務時間を設定しましょう",
-  content: "佐藤さんの行を17時から22時までドラッグしましょう。",
+  content: "点線にそって17時〜22時をドラッグしてみましょう。",
 } as const;
 
 const CONFIRM_STEP = {
@@ -41,9 +41,9 @@ export const HANDS_ON_TOUR_STEPS: Record<HandsOnVariant, TourStep[]> = {
     },
     CONFIRM_STEP,
   ],
-  // くわしく表示では、はじめは勤務がなく希望の点線の枠だけが並ぶため、色の付いたバーには触れない。
+  // くわしく表示もシンプル表示の最初の吹き出しにそろえる。勤務のバーはポジションの色で描くため、緑とは書かない。
   detail: [
-    { ...REQUEST_STEP, placement: "top", content: "スタッフが出した希望の時間です。" },
+    { ...REQUEST_STEP, content: "実際の勤務時間はポジションの色で表示します。" },
     { ...SET_WORK_TIME_STEP, placement: "top" },
     {
       target: rowOf(SATO_STAFF_ID),

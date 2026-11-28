@@ -4,9 +4,9 @@ import { ShiftForm, type ShiftFormDetailActions } from "@/src/components/feature
 import { showSuccessToast } from "@/src/components/shared/feedback";
 import { Tour, type TourHandle } from "@/src/components/ui/Tour";
 import type { ShiftData } from "@/src/domains/shift/types";
+import { BOARD_NOTICE_LEAVE_MS, BOARD_NOTICE_MS, BoardNotice, type BoardNoticeKind } from "./BoardNotice";
 import { HandsOnTourNextContext, HandsOnTourTooltip } from "./HandsOnTourTooltip";
 import { getHandsOnStepIndex, type HandsOnVariant } from "./progress";
-import { ReadyNotice } from "./ReadyNotice";
 import {
   HANDS_ON_POSITIONS,
   HANDS_ON_SUBMISSION_PATTERN,
@@ -25,10 +25,8 @@ const TOUR_Z_INDEX = 900;
 const TODO_Z_INDEX = TOUR_Z_INDEX + 1;
 const NOTICE_Z_INDEX = TOUR_Z_INDEX + 2;
 
-/** 「ここから操作できます」を出しておく時間と、消えていく時間。 */
-const READY_NOTICE_MS = 4000;
-const READY_NOTICE_LEAVE_MS = 400;
-type NoticePhase = "hidden" | "shown" | "leaving";
+/** 案内の「勤務時間を設定する」の手順の番号。シンプル表示とくわしく表示で同じ。 */
+const SET_WORK_STEP_INDEX = 1;
 
 /** 希望が届いた直後に、行ごとに順に並べる動き。1行ずつずらして、左から滑り込ませる。 */
 const ARRIVE_START_S = 0.4;
@@ -113,26 +111,53 @@ export const BoardStep = ({ variant, scenario, completedShifts, isBackdrop, onCo
     };
   }, [arrives, arriveDoneMs]);
 
-  // 届いた希望を並べ終えて操作できるようになったとき（確定のあとから戻ったときも）、数秒だけ知らせる。
-  const isOperable = !isBackdrop && isTourReady;
-  const [noticePhase, setNoticePhase] = useState<NoticePhase>("hidden");
-  useEffect(() => {
-    if (!isOperable) {
-      setNoticePhase("hidden");
-      return;
-    }
-    setNoticePhase("shown");
-    const leaveTimer = window.setTimeout(() => setNoticePhase("leaving"), READY_NOTICE_MS);
-    const hideTimer = window.setTimeout(() => setNoticePhase("hidden"), READY_NOTICE_MS + READY_NOTICE_LEAVE_MS);
-    return () => {
-      window.clearTimeout(leaveTimer);
-      window.clearTimeout(hideTimer);
-    };
-  }, [isOperable]);
-  const notice = noticePhase === "hidden" ? null : <ReadyNotice leaving={noticePhase === "leaving"} />;
-
   // スマートフォンには吹き出しがなく「次へ」を押せないため、希望を確かめる手順は済んだものとして進める。
   const stepIndex = getHandsOnStepIndex({ variant, shifts, day1, acknowledged: acknowledged || !isPc, autoCreated });
+
+  // シフト表の上に数秒だけ出す知らせ。あとから出す知らせが、前の知らせに替わる。
+  const [notice, setNotice] = useState<{ kind: BoardNoticeKind; leaving: boolean } | null>(null);
+  const noticeTimersRef = useRef<number[]>([]);
+  const clearNoticeTimers = useCallback(() => {
+    for (const timer of noticeTimersRef.current) window.clearTimeout(timer);
+    noticeTimersRef.current = [];
+  }, []);
+  const showNotice = useCallback(
+    (kind: BoardNoticeKind) => {
+      clearNoticeTimers();
+      setNotice({ kind, leaving: false });
+      noticeTimersRef.current = [
+        window.setTimeout(() => setNotice({ kind, leaving: true }), BOARD_NOTICE_MS[kind]),
+        window.setTimeout(() => setNotice(null), BOARD_NOTICE_MS[kind] + BOARD_NOTICE_LEAVE_MS),
+      ];
+    },
+    [clearNoticeTimers],
+  );
+  useEffect(() => clearNoticeTimers, [clearNoticeTimers]);
+
+  // 届いた希望を並べ終えて操作できるようになったとき（確定のあとから戻ったときも）、操作できることを知らせる。
+  const isOperable = !isBackdrop && isTourReady;
+  useEffect(() => {
+    if (isOperable) {
+      showNotice("ready");
+      return;
+    }
+    clearNoticeTimers();
+    setNotice(null);
+  }, [isOperable, showNotice, clearNoticeTimers]);
+
+  // 案内どおりに佐藤さんの勤務を入れて、次の手順へ進んだときに1回だけ褒める。
+  const previousStepRef = useRef(stepIndex);
+  const isPraisedRef = useRef(false);
+  useEffect(() => {
+    const previous = previousStepRef.current;
+    previousStepRef.current = stepIndex;
+    if (isPraisedRef.current || isBackdrop) return;
+    if (previous <= SET_WORK_STEP_INDEX && stepIndex > SET_WORK_STEP_INDEX) {
+      isPraisedRef.current = true;
+      showNotice("praise");
+    }
+  }, [stepIndex, isBackdrop, showNotice]);
+  const noticeNode = notice ? <BoardNotice key={notice.kind} kind={notice.kind} leaving={notice.leaving} /> : null;
 
   const detailActions = useMemo<ShiftFormDetailActions>(
     () => ({
@@ -199,7 +224,7 @@ export const BoardStep = ({ variant, scenario, completedShifts, isBackdrop, onCo
         onSaveDraft={handleSaveDraft}
         onConfirm={handleConfirm}
       />
-      {notice && (
+      {noticeNode && (
         <Box
           position="absolute"
           top={3}
@@ -208,7 +233,7 @@ export const BoardStep = ({ variant, scenario, completedShifts, isBackdrop, onCo
           zIndex={NOTICE_Z_INDEX}
           display={{ base: "none", lg: "block" }}
         >
-          {notice}
+          {noticeNode}
         </Box>
       )}
       {!isBackdrop && (
@@ -217,7 +242,7 @@ export const BoardStep = ({ variant, scenario, completedShifts, isBackdrop, onCo
           current={stepIndex}
           raised={variant === "detail"}
           zIndex={TODO_Z_INDEX}
-          notice={notice}
+          notice={noticeNode}
         />
       )}
       {!isBackdrop && isPc && isTourReady && (
