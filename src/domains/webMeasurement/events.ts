@@ -14,7 +14,7 @@ export const publicCtaIds = [
   "header_login",
   "header_signup",
   "hero_signup",
-  "hero_help",
+  "hero_demo",
   "flow_signup",
   "pricing_signup",
   "bottom_signup",

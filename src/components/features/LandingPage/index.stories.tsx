@@ -21,12 +21,14 @@ type Story = StoryObj<typeof meta>;
 export const Desktop: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const basicHelpLinks = canvas.getAllByRole("link", { name: "基本の使い方を見る" });
-
-    await expect(basicHelpLinks).toHaveLength(2);
-    for (const link of basicHelpLinks) {
-      await expect(link).toHaveAttribute("href", "/help/scenarios/shift-management");
-    }
+    // 最初の画面の2つ目のボタンは体験デモを別タブで開き、基本の使い方は下部の登録sectionから開く。
+    const demoLink = canvas.getByRole("link", { name: "デモを試す（別タブで開きます）" });
+    await expect(demoLink).toHaveAttribute("href", "/demo/simple");
+    await expect(demoLink).toHaveAttribute("target", "_blank");
+    await expect(canvas.getByRole("link", { name: "基本の使い方を見る" })).toHaveAttribute(
+      "href",
+      "/help/scenarios/shift-management",
+    );
   },
 };
 

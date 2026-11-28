@@ -1,6 +1,14 @@
 import { Box, Container, Flex, Grid, Heading, Icon, Image, SimpleGrid, Stack, Text, VStack } from "@chakra-ui/react";
 import type { IconType } from "react-icons";
-import { LuBellRing, LuChevronRight, LuMail, LuSendHorizontal, LuSmartphone, LuSparkles } from "react-icons/lu";
+import {
+  LuBellRing,
+  LuChevronRight,
+  LuExternalLink,
+  LuMail,
+  LuSendHorizontal,
+  LuSmartphone,
+  LuSparkles,
+} from "react-icons/lu";
 import heroPcImage from "@/src/assets/hero-pc.webp";
 import heroSpImage from "@/src/assets/hero-sp.webp";
 import { MeasurementLink } from "@/src/components/shared/MeasurementLink";
@@ -72,11 +80,13 @@ export const HeroSection = () => (
               w={{ base: "full", md: "auto" }}
             >
               <HeroButton href="/signup" label="無料ではじめる" tone="primary" measurementCtaId="hero_signup" />
+              {/* 使い方を確かめたい人には、読むより早く伝わる体験デモを出す。基本の使い方は下部の登録sectionから開ける。 */}
               <HeroButton
-                href="/help/scenarios/shift-management"
-                label="基本の使い方を見る"
+                href="/demo/simple"
+                label="デモを試す"
                 tone="secondary"
-                measurementCtaId="hero_help"
+                measurementCtaId="hero_demo"
+                opensNewTab
               />
             </Stack>
             <TrialReassurance />
@@ -107,11 +117,14 @@ const HeroButton = ({
   label,
   measurementCtaId,
   tone,
+  opensNewTab = false,
 }: {
   href: string;
   label: string;
-  measurementCtaId: "hero_signup" | "hero_help";
+  measurementCtaId: "hero_signup" | "hero_demo";
   tone: "primary" | "secondary";
+  /** 登録なしで操作できるデモのように、いまのページを残したまま別タブで開く。 */
+  opensNewTab?: boolean;
 }) => {
   const isPrimary = tone === "primary";
 
@@ -129,9 +142,15 @@ const HeroButton = ({
       fontWeight="bold"
       fontSize="md"
     >
-      <MeasurementLink href={href} measurementCtaId={measurementCtaId}>
+      <MeasurementLink
+        href={href}
+        measurementCtaId={measurementCtaId}
+        {...(opensNewTab
+          ? { target: "_blank", rel: "noopener noreferrer", "aria-label": `${label}（別タブで開きます）` }
+          : {})}
+      >
         {label}
-        <Icon as={LuChevronRight} boxSize={5} />
+        {opensNewTab ? <Icon as={LuExternalLink} boxSize={4} aria-hidden /> : <Icon as={LuChevronRight} boxSize={5} />}
       </MeasurementLink>
     </Button>
   );
