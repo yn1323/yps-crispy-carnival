@@ -34,7 +34,8 @@ export const HANDS_ON_TOUR_STEPS: Record<HandsOnVariant, TourStep[]> = {
     { ...SET_WORK_TIME_STEP, placement: "bottom" },
     {
       target: rowOf(BREAK_STAFF_ID),
-      placement: "bottom",
+      // 範囲を選ぶと、選んだ範囲の下にメニューが開く。メニューと重ならないよう、行の右端の下に出す。
+      placement: "bottom-end",
       title: "休憩を入れる",
       content: "渡辺さんの勤務の12時から13時をドラッグして、「休憩」を選びましょう。",
     },

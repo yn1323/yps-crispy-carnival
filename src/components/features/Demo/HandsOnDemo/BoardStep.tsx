@@ -17,10 +17,10 @@ import { TodoCard } from "./TodoCard";
 import { HANDS_ON_TODO_LABELS, HANDS_ON_TOUR_STEPS } from "./tourSteps";
 
 /**
- * 吹き出しの重なり順。シフト表のメニューと自動作成のダイアログ（Chakraのpopoverとmodal）を、
- * 暗くした面の上に出すため、それより下にする。
+ * 吹き出しの重なり順。範囲を選んだときのメニュー（Chakraのdropdown、1000）、自動作成と休憩のダイアログを、
+ * 暗くした面と吹き出しの上に出すため、それより下にする。
  */
-const TOUR_Z_INDEX = 1200;
+const TOUR_Z_INDEX = 900;
 const TODO_Z_INDEX = TOUR_Z_INDEX + 1;
 
 /** 希望が届いた直後に、行ごとに順に並べる動き。1行ずつずらして、左から滑り込ませる。 */
@@ -28,6 +28,10 @@ const ARRIVE_START_S = 0.4;
 const ARRIVE_STEP_S = 0.16;
 const ARRIVE_DURATION_S = 0.55;
 
+/**
+ * 届いた希望を並べる動き。並べ終えたら外し、そのあとドラッグで出す範囲の表示には動きを付けない。
+ * 外さないと、ドラッグ中の範囲の表示まで、行ごとにずらした時間だけ見えなくなる。
+ */
 const buildArriveCss = (staffIds: string[]) =>
   staffIds
     .map(
@@ -73,9 +77,14 @@ export const BoardStep = ({ variant, scenario, arrives, isBackdrop, onConfirm }:
   const arriveDoneMs = Math.round((ARRIVE_START_S + arriveStaffIds.length * ARRIVE_STEP_S + ARRIVE_DURATION_S) * 1000);
 
   const [isTourReady, setTourReady] = useState(false);
+  const [isArriving, setArriving] = useState(arrives);
   useEffect(() => {
-    const timer = window.setTimeout(() => setTourReady(true), arrives ? arriveDoneMs + 300 : TOUR_DELAY_MS);
-    return () => window.clearTimeout(timer);
+    const tourTimer = window.setTimeout(() => setTourReady(true), arrives ? arriveDoneMs + 300 : TOUR_DELAY_MS);
+    const arriveTimer = arrives ? window.setTimeout(() => setArriving(false), arriveDoneMs) : undefined;
+    return () => {
+      window.clearTimeout(tourTimer);
+      if (arriveTimer !== undefined) window.clearTimeout(arriveTimer);
+    };
   }, [arrives, arriveDoneMs]);
 
   // スマートフォンには吹き出しがなく「次へ」を押せないため、希望を確かめる手順は済んだものとして進める。
@@ -122,8 +131,10 @@ export const BoardStep = ({ variant, scenario, arrives, isBackdrop, onConfirm }:
   const acknowledge = useCallback(() => setAcknowledged(true), []);
 
   return (
-    <Box h="full" style={{ animation: "hodSceneIn .4s ease-out both" }}>
-      {arrives && <style>{buildArriveCss(arriveStaffIds)}</style>}
+    // 動きを終えたあとも残すと重なりの基準（stacking context）が残り、範囲を選んだときのメニューが吹き出しの暗い面の下に入る。
+    // そのため、終えたあとは動きを残さない（backwards）。
+    <Box h="full" style={{ animation: "hodSceneIn .4s ease-out backwards" }}>
+      {isArriving && <style>{buildArriveCss(arriveStaffIds)}</style>}
       <ShiftForm
         shopId="hands-on-demo-shop"
         staffs={scenario.staffs}
