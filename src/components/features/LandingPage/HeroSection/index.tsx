@@ -1,19 +1,11 @@
 import { Box, Container, Flex, Grid, Heading, Icon, Image, SimpleGrid, Stack, Text, VStack } from "@chakra-ui/react";
 import type { IconType } from "react-icons";
-import {
-  LuBellRing,
-  LuChevronRight,
-  LuExternalLink,
-  LuMail,
-  LuSendHorizontal,
-  LuSmartphone,
-  LuSparkles,
-} from "react-icons/lu";
+import { LuBellRing, LuMail, LuSendHorizontal, LuSmartphone, LuSparkles } from "react-icons/lu";
 import heroPcImage from "@/src/assets/hero-pc.webp";
 import heroSpImage from "@/src/assets/hero-sp.webp";
-import { MeasurementLink } from "@/src/components/shared/MeasurementLink";
 import { TrialReassurance } from "@/src/components/shared/TrialReassurance";
-import { Button } from "@/src/components/ui/Button";
+import { DemoButton } from "../DemoButton";
+import { SignupButton } from "../SignupButton";
 
 // 検索から来た人が最初に気にする「スタッフの負担」「自動になる連絡」「シフトを作る手間」を、毎月の流れの順に並べる。
 const heroBenefits: Array<{ icon: IconType; label: string }> = [
@@ -79,15 +71,9 @@ export const HeroSection = () => (
               gap={4}
               w={{ base: "full", md: "auto" }}
             >
-              <HeroButton href="/signup" label="無料ではじめる" tone="primary" measurementCtaId="hero_signup" />
+              <SignupButton measurementCtaId="hero_signup" />
               {/* 使い方を確かめたい人には、読むより早く伝わる体験デモを出す。基本の使い方は下部の登録sectionから開ける。 */}
-              <HeroButton
-                href="/demo/simple"
-                label="デモを試す"
-                tone="secondary"
-                measurementCtaId="hero_demo"
-                opensNewTab
-              />
+              <DemoButton measurementCtaId="hero_demo" />
             </Stack>
             <TrialReassurance />
           </VStack>
@@ -111,50 +97,6 @@ export const HeroSection = () => (
     </Container>
   </Box>
 );
-
-const HeroButton = ({
-  href,
-  label,
-  measurementCtaId,
-  tone,
-  opensNewTab = false,
-}: {
-  href: string;
-  label: string;
-  measurementCtaId: "hero_signup" | "hero_demo";
-  tone: "primary" | "secondary";
-  /** 登録なしで操作できるデモのように、いまのページを残したまま別タブで開く。 */
-  opensNewTab?: boolean;
-}) => {
-  const isPrimary = tone === "primary";
-
-  return (
-    <Button
-      asChild
-      colorPalette="teal"
-      variant={isPrimary ? "solid" : "outline"}
-      bg={isPrimary ? undefined : "white"}
-      h={{ base: "56px", md: "64px" }}
-      minW="220px"
-      w={{ base: "full", md: "auto" }}
-      px={8}
-      borderRadius="md"
-      fontWeight="bold"
-      fontSize="md"
-    >
-      <MeasurementLink
-        href={href}
-        measurementCtaId={measurementCtaId}
-        {...(opensNewTab
-          ? { target: "_blank", rel: "noopener noreferrer", "aria-label": `${label}（別タブで開きます）` }
-          : {})}
-      >
-        {label}
-        {opensNewTab ? <Icon as={LuExternalLink} boxSize={4} aria-hidden /> : <Icon as={LuChevronRight} boxSize={5} />}
-      </MeasurementLink>
-    </Button>
-  );
-};
 
 const HeroVisual = () => (
   <Box

@@ -1,5 +1,6 @@
 import { Box, Container, Heading, Stack, VStack } from "@chakra-ui/react";
 import { TrialReassurance } from "@/src/components/shared/TrialReassurance";
+import { DemoButton } from "../DemoButton";
 import { SignupButton } from "../SignupButton";
 
 /** 毎月の流れを読み終えたところに置く登録導線。末尾の登録sectionと同じ面にし、ボタンだけが浮かないようにする。 */
@@ -21,7 +22,11 @@ export const MidCtaSection = () => (
         </Heading>
         {/* PCでは、ボタンを下の2つの条件の幅の中央に置き、ボタンだけが左に寄って見えないようにする。 */}
         <VStack align={{ base: "stretch", md: "center" }} gap={3} w={{ base: "full", md: "auto" }}>
-          <SignupButton measurementCtaId="flow_signup" />
+          {/* 見出しと横に並べたとき、2つのボタンが1行に入る幅になってから横に並べる。 */}
+          <Stack direction={{ base: "column", lg: "row" }} gap={{ base: 3, lg: 4 }} w={{ base: "full", md: "auto" }}>
+            <SignupButton measurementCtaId="flow_signup" />
+            <DemoButton measurementCtaId="flow_demo" />
+          </Stack>
           <TrialReassurance />
         </VStack>
       </Stack>
