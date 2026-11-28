@@ -1,6 +1,7 @@
 // スタッフの提出画面を、カーソルで自動で操作する。本物の画面の部品へ、利用者の操作と同じイベントを送る。
 // 部品が見つからない手順は飛ばし、最後まで進める。
 import { useEffect, useState } from "react";
+import type { HandsOnStaffSubmitStep } from "./staffSubmitEmbed";
 
 export type PlayerCursor = {
   x: number;
@@ -24,8 +25,8 @@ type Plan = {
 
 type Options = {
   plan: Plan;
-  /** 手順を1つ終えるたびに、終えた割合（0から1）を知らせる。 */
-  onProgress: (progress: number) => void;
+  /** 手順を1つ終えるたびと、次の手順へ移ったときに、終えた割合（0から1）といまの手順を知らせる。 */
+  onProgress: (progress: number, step: HandsOnStaffSubmitStep) => void;
   /** 提出まで終えたあと、完了の画面を見せてから呼ぶ。 */
   onFinished: () => void;
 };
@@ -47,6 +48,10 @@ const findElement = async <T extends Element>(find: () => T | null | undefined):
 };
 
 const dayCard = (date: string) => `[data-day-card="${date}"]`;
+/** 休みに戻すボタンを示して止まる時間。押さずに、説明を読む間だけ止まる。 */
+const REMOVE_HINT_MS = 1800;
+/** 提出したあと、完了の画面を見せる時間。 */
+const FINISHED_VIEW_MS = 2400;
 const OPEN_SELECT_CONTENT = '[data-scope="select"][data-part="content"][data-state="open"]';
 
 const setInputValue = (input: HTMLInputElement, value: string) => {
@@ -111,16 +116,23 @@ export const useStaffSubmitPlayer = ({ plan, onProgress, onFinished }: Options) 
       await wait(450);
     };
 
-    // 進み具合は、出勤にする日ごと、最初の日の開始と終了、メモ、提出の手順を数えて決める。
-    const total = plan.dates.length + 4;
+    // 進み具合は、出勤にする日ごと、最初の日の開始と終了、メモ、休みに戻すボタン、提出の手順を数えて決める。
+    const total = plan.dates.length + 5;
     let done = 0;
+    let step: HandsOnStaffSubmitStep = "choose";
+    const report = () => onProgress(Math.min(1, done / total), step);
     const advance = () => {
       done += 1;
-      onProgress(Math.min(1, done / total));
+      report();
+    };
+    const moveOn = (next: HandsOnStaffSubmitStep) => {
+      step = next;
+      report();
     };
 
     const play = async () => {
       update({});
+      report();
       await wait(600);
       for (const [index, date] of plan.dates.entries()) {
         if (cancelled) return;
@@ -145,6 +157,7 @@ export const useStaffSubmitPlayer = ({ plan, onProgress, onFinished }: Options) 
       }
 
       if (cancelled) return;
+      moveOn("memo");
       const noteButton = document.querySelector<HTMLElement>(
         `${dayCard(plan.noteDate)} button[aria-label$="の連絡事項を書く"]`,
       );
@@ -174,6 +187,18 @@ export const useStaffSubmitPlayer = ({ plan, onProgress, onFinished }: Options) 
       }
       advance();
 
+      // 休みに戻すボタンを示す。押さずに止まり、説明を読む間を取る。
+      if (cancelled) return;
+      moveOn("remove");
+      const removeButton = document.querySelector<HTMLElement>(
+        `${dayCard(plan.dates[0])} button[aria-label="休みに戻す"]`,
+      );
+      if (removeButton) {
+        await moveTo(removeButton, 550);
+        await wait(REMOVE_HINT_MS);
+      }
+      advance();
+
       if (cancelled) return;
       const submit = Array.from(document.querySelectorAll<HTMLButtonElement>("button")).find((button) =>
         button.textContent?.includes("希望シフトを提出"),
@@ -185,10 +210,11 @@ export const useStaffSubmitPlayer = ({ plan, onProgress, onFinished }: Options) 
         await press(submit);
       }
       // 見つからずに飛ばした手順があっても、提出の手順で最後まで伸ばす。
-      onProgress(1);
+      done = total;
+      moveOn("update");
       await wait(300);
       setCursor(null);
-      await wait(1800);
+      await wait(FINISHED_VIEW_MS);
       if (!cancelled) onFinished();
     };
 

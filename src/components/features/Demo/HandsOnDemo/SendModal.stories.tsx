@@ -9,9 +9,9 @@ const meta = {
     scene: "sent",
     shopName: "居酒屋シフトリ",
     staffName: "佐藤 大輔",
-    periodLabel: "11/30(月)〜12/13(日)",
-    deadlineLabel: "11/29(日) 23:59",
-    periodStart: "2026-11-30",
+    periodLabel: "12/1(火)〜12/14(月)",
+    deadlineLabel: "11/30(月) 23:59",
+    periodStart: "2026-12-01",
     confirmRows: [],
     onStaffSubmitted: () => {},
   },
@@ -35,11 +35,18 @@ export const Sent: Story = {
   },
 };
 
-/** スタッフに届いたお知らせ。押す場所を、カーソルの動きで示す。スマートフォンの枠の上にも「自動で再生中」を出す。 */
+/**
+ * スタッフに届いたお知らせ。押す場所を、カーソルの動きで示す。スマートフォンの枠の上にも「自動で再生中」を出す。
+ * お知らせの中身を、短い説明で添える。
+ */
 export const StaffMessage: Story = {
   args: { scene: "staffMessage" },
   play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).getByText("自動で再生中")).toBeVisible();
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("自動で再生中")).toBeVisible();
+    await expect(canvas.getByText("スタッフごとに専用のお知らせが届きます")).toBeVisible();
+    await expect(canvas.getByText("お知らせには提出期限が入ります")).toBeVisible();
+    await expect(canvas.getByText("リンクから提出画面へ進みます")).toBeVisible();
   },
 };
 
@@ -58,13 +65,13 @@ export const ConfirmMessage: Story = {
   args: {
     scene: "confirmMessage",
     confirmRows: [
-      { dateLabel: "11/30(月)", timeLabel: "17:00-22:00" },
-      { dateLabel: "12/1(火)", timeLabel: null },
-      { dateLabel: "12/2(水)", timeLabel: "17:00-22:00" },
-      { dateLabel: "12/3(木)", timeLabel: null },
-      { dateLabel: "12/4(金)", timeLabel: "17:00-22:00" },
-      { dateLabel: "12/5(土)", timeLabel: null },
+      { dateLabel: "12/1(火)", timeLabel: "17:00-22:00" },
+      { dateLabel: "12/2(水)", timeLabel: null },
+      { dateLabel: "12/3(木)", timeLabel: "17:00-22:00" },
+      { dateLabel: "12/4(金)", timeLabel: null },
+      { dateLabel: "12/5(土)", timeLabel: "17:00-22:00" },
       { dateLabel: "12/6(日)", timeLabel: null },
+      { dateLabel: "12/7(月)", timeLabel: null },
     ],
   },
 };

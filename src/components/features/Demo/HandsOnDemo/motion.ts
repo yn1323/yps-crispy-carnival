@@ -15,7 +15,7 @@ export const HANDS_ON_KEYFRAMES = `
 @keyframes hodShine { 0% { transform: translateX(-180%) skewX(-20deg) } 55%, 100% { transform: translateX(320%) skewX(-20deg) } }
 @keyframes hodArcX { 0% { transform: translateX(0); opacity: 0 } 8% { opacity: 1 } 92% { opacity: 1 } 100% { transform: translateX(var(--travel)); opacity: 0 } }
 @keyframes hodArcXBack { 0% { transform: translateX(var(--travel)); opacity: 0 } 8% { opacity: 1 } 92% { opacity: 1 } 100% { transform: translateX(0); opacity: 0 } }
-@keyframes hodArcY { 0% { transform: translateY(0); animation-timing-function: cubic-bezier(.215,.61,.355,1) } 50% { transform: translateY(-64px); animation-timing-function: cubic-bezier(.55,.055,.675,.19) } 100% { transform: translateY(0) } }
+@keyframes hodArcY { 0% { transform: translateY(0); animation-timing-function: cubic-bezier(.215,.61,.355,1) } 50% { transform: translateY(calc(var(--rise, 64px) * -1)); animation-timing-function: cubic-bezier(.55,.055,.675,.19) } 100% { transform: translateY(0) } }
 @keyframes hodTapHand { 0%, 100% { transform: translate(14px, 12px) } 40% { transform: translate(0, 0) } 50% { transform: translate(0, 0) scale(.86) } 62% { transform: translate(0, 0) scale(1) } 80% { transform: translate(14px, 12px) } }
 @keyframes hodTapRipple { 0%, 44% { transform: scale(.3); opacity: 0 } 50% { opacity: .85 } 80%, 100% { transform: scale(2.6); opacity: 0 } }
 @keyframes hodRippleOnce { 0% { transform: scale(.3); opacity: .9 } 100% { transform: scale(2.6); opacity: 0 } }

@@ -4,14 +4,15 @@ import { PHONE_SCREEN_SIZE } from "./PhoneScreens";
 import {
   buildStaffSubmitSrc,
   HANDS_ON_STAFF_SUBMIT_VIEWPORT,
+  type HandsOnStaffSubmitProgress,
   isStaffSubmitDoneMessage,
   readStaffSubmitProgress,
 } from "./staffSubmitEmbed";
 
 type Props = {
   periodStart: string;
-  /** 枠の中の自動操作が進んだ。終えた割合（0から1）を受け取る。 */
-  onProgress: (progress: number) => void;
+  /** 枠の中の自動操作が進んだ。終えた割合（0から1）と、いまの手順を受け取る。 */
+  onProgress: (progress: HandsOnStaffSubmitProgress) => void;
   /** 枠の中で、スタッフが提出まで終えた。 */
   onDone: () => void;
 };
