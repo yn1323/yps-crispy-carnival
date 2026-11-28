@@ -1,7 +1,7 @@
 import { Box, Flex, Stack, Text } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { Button } from "@/src/components/ui/Button";
 import { Tour, type TourStep } from "./index";
 
@@ -142,5 +142,54 @@ export const Interactive: Story = {
     await userEvent.click(canvas.getByRole("button", { name: "ツアー開始" }));
 
     await expect(await screen.findByText("ツアーをはじめます")).toBeInTheDocument();
+  },
+};
+
+const BlockingLayout = () => (
+  <Flex minH="100vh" bg="gray.50" p={8} direction="column" justify="space-between" align="flex-start">
+    <Button data-tour-story="blocking-target" colorPalette="teal">
+      照らすボタン
+    </Button>
+    <Button alignSelf="flex-end" variant="outline">
+      暗くなるボタン
+    </Button>
+    <Tour
+      run
+      blocksOverlayClicks
+      steps={[
+        {
+          target: '[data-tour-story="blocking-target"]',
+          placement: "right",
+          title: "照らした場所だけを押せます",
+          content: "暗くした面の下は押せません",
+        },
+      ]}
+    />
+  </Flex>
+);
+
+/**
+ * `blocksOverlayClicks` を渡すと、暗くした面の下は押せず、照らした場所だけを押せる。
+ * 押した位置でいちばん上にある要素を確かめる。
+ */
+export const BlocksOverlayClicks: Story = {
+  render: () => <BlockingLayout />,
+  parameters: {
+    screenshot: { skip: true },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const screen = within(canvasElement.ownerDocument.body);
+    const topAt = (element: HTMLElement) => {
+      const rect = element.getBoundingClientRect();
+      return canvasElement.ownerDocument.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    };
+
+    await expect(await screen.findByText("照らした場所だけを押せます")).toBeInTheDocument();
+
+    const target = canvas.getByRole("button", { name: "照らすボタン" });
+    await waitFor(() => expect(target.contains(topAt(target))).toBe(true));
+    const outside = canvas.getByRole("button", { name: "暗くなるボタン" });
+    await expect(topAt(outside)?.closest(".react-joyride__overlay")).not.toBeNull();
   },
 };

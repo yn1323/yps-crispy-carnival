@@ -23,6 +23,11 @@ type Props = {
   options?: Partial<Options>;
   /** 画面ごとの終了ボタンやCTAが必要なときに、既定Tooltipだけ差し替える */
   tooltipComponent?: TourTooltipComponent;
+  /**
+   * 暗くした面を押しても、下の画面に届かないようにする。照らした場所だけを操作できる。
+   * 省略すると、spotlightの外から始めるドラッグ&ドロップのため、暗くした面の下も操作できる。
+   */
+  blocksOverlayClicks?: boolean;
 };
 
 const DEFAULT_OPTIONS: Partial<Options> = {
@@ -41,6 +46,7 @@ const DEFAULT_OPTIONS: Partial<Options> = {
  * overlay の視覚は保ったまま pointer-events だけ殺して、ツアー中も
  * 通常どおり触れる状態にする。Path1 の onClickOverlay は
  * `overlayClickAction: false` 前提で no-op のため無力化して問題なし。
+ * `blocksOverlayClicks` を渡したときは入れず、react-joyride の既定どおり spotlight の外を押せなくする。
  */
 const CLICK_THROUGH_CSS = `
 .react-joyride__spotlight path {
@@ -56,7 +62,7 @@ const CLICK_THROUGH_CSS = `
  * 宣言できるようにしている（公式推奨の `controls.skip()` を ref で露出）。
  */
 export const Tour = forwardRef<TourHandle, Props>(
-  ({ run, steps, stepIndex, onEvent, options, tooltipComponent }, ref) => {
+  ({ run, steps, stepIndex, onEvent, options, tooltipComponent, blocksOverlayClicks = false }, ref) => {
     const { controls, Tour: JoyrideTour } = useJoyride({
       steps,
       run,
@@ -71,7 +77,7 @@ export const Tour = forwardRef<TourHandle, Props>(
 
     return (
       <>
-        {run && <style>{CLICK_THROUGH_CSS}</style>}
+        {run && !blocksOverlayClicks && <style>{CLICK_THROUGH_CSS}</style>}
         {JoyrideTour}
       </>
     );
