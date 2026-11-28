@@ -161,6 +161,7 @@ export const RangeAssignPalette = () => {
               type="button"
               role="radio"
               aria-checked={checked}
+              data-tour={`range-position-${position.id}`}
               onClick={() => rememberWorkPosition(position.id)}
               css={rangeChipStyle}
               {...(checked ? {} : rangeChipIdleStyle)}

@@ -37,12 +37,31 @@ const shift = (
   breaks,
 });
 
-const step = (variant: "simple" | "detail", shifts: ShiftData[], acknowledged = true, autoCreated = false) =>
-  getHandsOnStepIndex({ variant, shifts, day1: DAY1, acknowledged, autoCreated });
+type StepFlags = {
+  acknowledged?: boolean;
+  autoCreated?: boolean;
+  hallStoryRead?: boolean;
+  hallPicked?: boolean;
+  kitchenStoryRead?: boolean;
+  rangeMenuOpen?: boolean;
+};
+
+const step = (variant: "simple" | "detail", shifts: ShiftData[], flags: StepFlags = {}) =>
+  getHandsOnStepIndex({
+    variant,
+    shifts,
+    day1: DAY1,
+    acknowledged: flags.acknowledged ?? true,
+    autoCreated: flags.autoCreated ?? false,
+    hallStoryRead: flags.hallStoryRead ?? false,
+    hallPicked: flags.hallPicked ?? false,
+    kitchenStoryRead: flags.kitchenStoryRead ?? false,
+    rangeMenuOpen: flags.rangeMenuOpen ?? false,
+  });
 
 describe("シンプル表示の案内の手順", () => {
   it("「次へ」を押すまでは、希望を確かめる手順にとどまる", () => {
-    expect(step("simple", [shift(SATO_STAFF_ID, DAY1, [segment("17:00", "22:00")])], false)).toBe(0);
+    expect(step("simple", [shift(SATO_STAFF_ID, DAY1, [segment("17:00", "22:00")])], { acknowledged: false })).toBe(0);
   });
 
   it("佐藤さんの初日に勤務がなければ、勤務時間を設定する手順にする", () => {
@@ -71,30 +90,48 @@ describe("シンプル表示の案内の手順", () => {
 });
 
 describe("くわしく表示の案内の手順", () => {
-  it("佐藤さんの初日に勤務がなければ、勤務時間を設定する手順にする", () => {
+  const hallWork = [shift(SATO_STAFF_ID, DAY1, [segment("17:00", "22:00")])];
+  const kitchenWork = [
+    shift(SATO_STAFF_ID, DAY1, [
+      segment("17:00", "18:00"),
+      segment("18:00", "20:00", HANDS_ON_KITCHEN_ID, "キッチン"),
+      segment("20:00", "22:00"),
+    ]),
+  ];
+
+  it("佐藤さんの初日に勤務がなければ、まずホールを任せる話を読む手順にする", () => {
     expect(step("detail", [])).toBe(1);
   });
 
-  it("佐藤さんの勤務がホールだけなら、ポジションを変える手順にする", () => {
-    expect(step("detail", [shift(SATO_STAFF_ID, DAY1, [segment("17:00", "22:00")])])).toBe(2);
+  it("話を読んだら、右上のホールを押す手順にする", () => {
+    expect(step("detail", [], { hallStoryRead: true })).toBe(2);
   });
 
-  it("佐藤さんの勤務にキッチンがあれば、自動で作る手順にする", () => {
-    const shifts = [
-      shift(SATO_STAFF_ID, DAY1, [
-        segment("17:00", "19:00"),
-        segment("19:00", "22:00", HANDS_ON_KITCHEN_ID, "キッチン"),
-      ]),
-    ];
-    expect(step("detail", shifts)).toBe(3);
+  it("ホールを押したら、17時〜22時をドラッグする手順にする", () => {
+    expect(step("detail", [], { hallStoryRead: true, hallPicked: true })).toBe(3);
+  });
+
+  it("佐藤さんの勤務がホールだけなら、キッチンに変える話を読む手順にする。ホールを押す前に勤務を入れても進める", () => {
+    expect(step("detail", hallWork)).toBe(4);
+    expect(step("detail", hallWork, { hallStoryRead: true, hallPicked: true })).toBe(4);
+  });
+
+  it("キッチンの話を読んだら、18時〜20時をドラッグする手順にし、範囲のメニューが開いたらキッチンを選ぶ手順にする", () => {
+    expect(step("detail", hallWork, { kitchenStoryRead: true })).toBe(5);
+    expect(step("detail", hallWork, { kitchenStoryRead: true, rangeMenuOpen: true })).toBe(6);
+  });
+
+  it("佐藤さんの勤務にキッチンがあれば、話を読む前でも自動で作る手順にする", () => {
+    expect(step("detail", kitchenWork)).toBe(7);
+    expect(step("detail", kitchenWork, { kitchenStoryRead: true, rangeMenuOpen: true })).toBe(7);
   });
 
   it("自動作成を終えたら、手で入れた勤務によらず確定する手順にする", () => {
-    expect(step("detail", [], true, true)).toBe(4);
+    expect(step("detail", [], { autoCreated: true })).toBe(8);
   });
 
   it("「次へ」を押すまでは、自動作成を終えていても希望を確かめる手順にとどまる", () => {
-    expect(step("detail", [], false, true)).toBe(0);
+    expect(step("detail", [], { acknowledged: false, autoCreated: true })).toBe(0);
   });
 });
 

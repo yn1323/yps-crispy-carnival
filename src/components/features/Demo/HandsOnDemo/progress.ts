@@ -25,6 +25,14 @@ type StepInput = {
   acknowledged: boolean;
   /** くわしく表示で、自動作成を終えた。 */
   autoCreated: boolean;
+  /** くわしく表示で、佐藤さんにホールを任せる話を読み、「次へ」を押した。 */
+  hallStoryRead: boolean;
+  /** くわしく表示で、右上の「ホール」を押した。 */
+  hallPicked: boolean;
+  /** くわしく表示で、18時〜20時をキッチンに変える話を読み、「次へ」を押した。 */
+  kitchenStoryRead: boolean;
+  /** くわしく表示で、勤務の範囲をドラッグして、ポジションを選ぶメニューが開いている。 */
+  rangeMenuOpen: boolean;
 };
 
 const findShift = (shifts: ShiftData[], staffId: string, date: string) =>
@@ -35,18 +43,34 @@ const workSegments = (shift: ShiftData | undefined) => shift?.positions.filter(i
 /**
  * いま案内する手順の番号を返す。
  * シンプル：0 希望を確かめる、1 勤務時間を設定する、2 休憩を入れる、3 確定する。
- * くわしく：0 希望を確かめる、1 勤務時間を設定する、2 ポジションを変える、3 自動で作る、4 確定する。
+ * くわしく：0 希望を確かめる、1 ホールを任せる話、2 右上のホールを押す、3 17時〜22時をドラッグする、
+ * 4 キッチンに変える話、5 18時〜20時をドラッグする、6 キッチンを選ぶ、7 自動で作る、8 確定する。
+ * くわしく表示は話の順に進めるが、先に勤務やキッチンを入れたときは、その先の手順へ進める。
  */
-export const getHandsOnStepIndex = ({ variant, shifts, day1, acknowledged, autoCreated }: StepInput): number => {
+export const getHandsOnStepIndex = ({
+  variant,
+  shifts,
+  day1,
+  acknowledged,
+  autoCreated,
+  hallStoryRead,
+  hallPicked,
+  kitchenStoryRead,
+  rangeMenuOpen,
+}: StepInput): number => {
   if (!acknowledged) return 0;
 
   if (variant === "detail") {
     // 自動作成は手で入れた勤務も作り直すため、作り終えたら確定へ進める。
-    if (autoCreated) return 4;
+    if (autoCreated) return 8;
     const satoWork = workSegments(findShift(shifts, SATO_STAFF_ID, day1));
-    if (satoWork.length === 0) return 1;
-    if (!satoWork.some((segment) => segment.positionId === HANDS_ON_KITCHEN_ID)) return 2;
-    return 3;
+    if (satoWork.length === 0) {
+      if (!hallStoryRead) return 1;
+      return hallPicked ? 3 : 2;
+    }
+    if (satoWork.some((segment) => segment.positionId === HANDS_ON_KITCHEN_ID)) return 7;
+    if (!kitchenStoryRead) return 4;
+    return rangeMenuOpen ? 6 : 5;
   }
 
   if (workSegments(findShift(shifts, SATO_STAFF_ID, day1)).length === 0) return 1;
@@ -86,6 +110,9 @@ export const buildHandsOnCompletedShifts = (variant: HandsOnVariant, scenario: H
     return shift;
   });
 };
+
+/** 佐藤さんの勤務を入れる手順の番号。この手順を終えたときに褒める。 */
+export const HANDS_ON_WORK_SET_STEP: Record<HandsOnVariant, number> = { simple: 1, detail: 3 };
 
 export type ConfirmRow = {
   /** 「11/30(月)」の形。 */

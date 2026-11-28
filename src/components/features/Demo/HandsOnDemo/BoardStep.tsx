@@ -6,7 +6,7 @@ import { Tour, type TourHandle } from "@/src/components/ui/Tour";
 import type { ShiftData } from "@/src/domains/shift/types";
 import { BOARD_NOTICE_LEAVE_MS, BOARD_NOTICE_MS, BoardNotice, type BoardNoticeKind } from "./BoardNotice";
 import { HandsOnTourNextContext, HandsOnTourTooltip } from "./HandsOnTourTooltip";
-import { getHandsOnStepIndex, type HandsOnVariant } from "./progress";
+import { getHandsOnStepIndex, HANDS_ON_WORK_SET_STEP, type HandsOnVariant } from "./progress";
 import {
   HANDS_ON_POSITIONS,
   HANDS_ON_SUBMISSION_PATTERN,
@@ -15,7 +15,13 @@ import {
   runHandsOnAutoCreate,
 } from "./scenario";
 import { TodoCard } from "./TodoCard";
-import { HANDS_ON_TODO_LABELS, HANDS_ON_TOUR_STEPS } from "./tourSteps";
+import {
+  HANDS_ON_HALL_CHIP,
+  HANDS_ON_KITCHEN_MENU_ITEM,
+  HANDS_ON_TODO_INDEX,
+  HANDS_ON_TODO_LABELS,
+  HANDS_ON_TOUR_STEPS,
+} from "./tourSteps";
 
 /**
  * 吹き出しの重なり順。範囲を選んだときのメニュー（Chakraのdropdown、1000）、自動作成と休憩のダイアログを、
@@ -24,9 +30,6 @@ import { HANDS_ON_TODO_LABELS, HANDS_ON_TOUR_STEPS } from "./tourSteps";
 const TOUR_Z_INDEX = 900;
 const TODO_Z_INDEX = TOUR_Z_INDEX + 1;
 const NOTICE_Z_INDEX = TOUR_Z_INDEX + 2;
-
-/** 案内の「勤務時間を設定する」の手順の番号。シンプル表示とくわしく表示で同じ。 */
-const SET_WORK_STEP_INDEX = 1;
 
 /** 希望が届いた直後に、行ごとに順に並べる動き。1行ずつずらして、左から滑り込ませる。 */
 const ARRIVE_START_S = 0.4;
@@ -85,6 +88,11 @@ export const BoardStep = ({ variant, scenario, completedShifts, isBackdrop, onCo
   // 確定したときの下書きを、描き直しを待たずに渡すため、最後に届いた下書きも持っておく。
   const shiftsRef = useRef<ShiftData[]>(initialShifts);
   const [acknowledged, setAcknowledged] = useState(start.isCompleted);
+  // くわしく表示の話に沿った手順。手順を終えた下書きから始めるときは、どれも済んだものとする。
+  const [hallStoryRead, setHallStoryRead] = useState(start.isCompleted);
+  const [hallPicked, setHallPicked] = useState(start.isCompleted);
+  const [kitchenStoryRead, setKitchenStoryRead] = useState(start.isCompleted);
+  const [rangeMenuOpen, setRangeMenuOpen] = useState(false);
   const [autoCreated, setAutoCreated] = useState(start.isCompleted);
   const applyShiftsRef = useRef<((update: (current: ShiftData[]) => ShiftData[]) => void) | null>(null);
   const tourRef = useRef<TourHandle>(null);
@@ -111,8 +119,44 @@ export const BoardStep = ({ variant, scenario, completedShifts, isBackdrop, onCo
     };
   }, [arrives, arriveDoneMs]);
 
-  // スマートフォンには吹き出しがなく「次へ」を押せないため、希望を確かめる手順は済んだものとして進める。
-  const stepIndex = getHandsOnStepIndex({ variant, shifts, day1, acknowledged: acknowledged || !isPc, autoCreated });
+  // スマートフォンには吹き出しがなく「次へ」を押せないため、読むだけの手順と右上のホールは済んだものとして進める。
+  const stepIndex = getHandsOnStepIndex({
+    variant,
+    shifts,
+    day1,
+    acknowledged: acknowledged || !isPc,
+    autoCreated,
+    hallStoryRead: hallStoryRead || !isPc,
+    hallPicked: hallPicked || !isPc,
+    kitchenStoryRead: kitchenStoryRead || !isPc,
+    rangeMenuOpen,
+  });
+
+  // くわしく表示で、右上のホールを押したことと、勤務の範囲のメニューが開いていることを見て、話の手順を進める。
+  useEffect(() => {
+    if (variant !== "detail" || isBackdrop) return;
+    const handleClick = (event: MouseEvent) => {
+      if (event.target instanceof Element && event.target.closest(HANDS_ON_HALL_CHIP)) setHallPicked(true);
+    };
+    const updateMenu = () =>
+      setRangeMenuOpen(
+        document.querySelector(
+          `[data-scope="menu"][data-part="content"][data-state="open"] ${HANDS_ON_KITCHEN_MENU_ITEM}`,
+        ) !== null,
+      );
+    const observer = new MutationObserver(updateMenu);
+    observer.observe(document.body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ["data-state"],
+    });
+    document.addEventListener("click", handleClick, true);
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("click", handleClick, true);
+    };
+  }, [variant, isBackdrop]);
 
   // シフト表の上に数秒だけ出す知らせ。あとから出す知らせが、前の知らせに替わる。
   const [notice, setNotice] = useState<{ kind: BoardNoticeKind; leaving: boolean } | null>(null);
@@ -152,11 +196,12 @@ export const BoardStep = ({ variant, scenario, completedShifts, isBackdrop, onCo
     const previous = previousStepRef.current;
     previousStepRef.current = stepIndex;
     if (isPraisedRef.current || isBackdrop) return;
-    if (previous <= SET_WORK_STEP_INDEX && stepIndex > SET_WORK_STEP_INDEX) {
+    const workSetStep = HANDS_ON_WORK_SET_STEP[variant];
+    if (previous <= workSetStep && stepIndex > workSetStep) {
       isPraisedRef.current = true;
       showNotice("praise");
     }
-  }, [stepIndex, isBackdrop, showNotice]);
+  }, [stepIndex, isBackdrop, showNotice, variant]);
   const noticeNode = notice ? <BoardNotice key={notice.kind} kind={notice.kind} leaving={notice.leaving} /> : null;
 
   const detailActions = useMemo<ShiftFormDetailActions>(
@@ -201,7 +246,13 @@ export const BoardStep = ({ variant, scenario, completedShifts, isBackdrop, onCo
     showSuccessToast({ title: "保存しました" });
   }, []);
 
-  const acknowledge = useCallback(() => setAcknowledged(true), []);
+  // 吹き出しの「次へ」。いまの手順が読むだけの手順なら、それを終えたことにする。
+  const handleNext = useCallback(() => {
+    if (stepIndex === 0) setAcknowledged(true);
+    if (variant !== "detail") return;
+    if (stepIndex === 1) setHallStoryRead(true);
+    if (stepIndex === 4) setKitchenStoryRead(true);
+  }, [stepIndex, variant]);
 
   return (
     // 動きを終えたあとも残すと重なりの基準（stacking context）が残り、範囲を選んだときのメニューが吹き出しの暗い面の下に入る。
@@ -239,14 +290,14 @@ export const BoardStep = ({ variant, scenario, completedShifts, isBackdrop, onCo
       {!isBackdrop && (
         <TodoCard
           labels={HANDS_ON_TODO_LABELS[variant]}
-          current={stepIndex}
+          current={HANDS_ON_TODO_INDEX[variant][stepIndex] ?? stepIndex}
           raised={variant === "detail"}
           zIndex={TODO_Z_INDEX}
           notice={noticeNode}
         />
       )}
       {!isBackdrop && isPc && isTourReady && (
-        <HandsOnTourNextContext.Provider value={acknowledge}>
+        <HandsOnTourNextContext.Provider value={handleNext}>
           <Tour
             ref={tourRef}
             run
