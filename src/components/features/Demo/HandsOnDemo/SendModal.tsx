@@ -178,8 +178,8 @@ const STAFF_MESSAGE_NOTES = [
 /** スタッフが希望を出す場面に、提出画面の自動操作の手順に合わせて添える説明。 */
 const STAFF_ANSWER_NOTES: Record<HandsOnStaffSubmitStep, string> = {
   choose: "希望する日と時間を選びます",
-  memo: "必要があれば、メモを書きます",
-  remove: "×を押すと、休みに戻せます",
+  memo: "管理者に伝えたいことはメモに書きます",
+  remove: "×で休みに戻します",
   update: "期限までは提出したあとも直せます",
 };
 
